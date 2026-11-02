@@ -700,12 +700,12 @@ describe("catchPlanDraftAction", () => {
 })
 
 describe("Partial MBA publish rail", () => {
-  it("both pages add Client MBA covers N of M lines when scope is partial", () => {
+  it("edit adds Client MBA covers N of M lines when scope is partial; create is full MBA only", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
-    for (const src of [createSrc, editSrc]) {
-      assert.match(src, /describePartialMbaPublishRail/)
-      assert.match(src, /saveScopeNote=\{describePartialMbaPublishRail/)
-    }
+    assert.match(editSrc, /describePartialMbaPublishRail/)
+    assert.match(editSrc, /saveScopeNote=\{describePartialMbaPublishRail/)
+    // B2a fix 3 (Luke, 2 Nov): partial MBAs are chosen on edit after the first save.
+    assert.match(createSrc, /saveScopeNote=\{null\}/)
   })
 })

@@ -4,7 +4,6 @@
   "app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.ts": 1,
   "app/api/mediaplans/mba/[mba_number]/route.ts": 1,
   "app/dashboard/[slug]/[mba_number]/components/MediaTable.tsx": 1,
-  "app/mediaplans/create/page.tsx": 1,
   "app/mediaplans/mba/[mba_number]/edit/page.tsx": 1,
   "app/publishers/[publisherId]/PublisherIngestSection.tsx": 1,
   "app/tools/behavioural-planner/components/ChannelMixTable.tsx": 1,

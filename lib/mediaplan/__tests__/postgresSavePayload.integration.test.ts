@@ -454,16 +454,16 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.match(editSrc, /SELECTABLE_CAMPAIGN_STATUSES/)
   })
 
-  it("both pages post the same mbaScope builder; edit no longer PATCHes mba_line_approvals", () => {
+  it("edit posts the mbaScope builder; create posts the full scope (partial MBAs are edit-only); edit no longer PATCHes mba_line_approvals", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
-    for (const src of [createSrc, editSrc]) {
-      assert.match(src, /buildMbaScopeForSaveBody/)
-      assert.match(
-        src,
-        /mbaScope:\s*buildMbaScopeForSaveBody\(\s*\{[\s\S]*?isPartialMBA,[\s\S]*?partialMBASelectedLineItemIds,[\s\S]*?partialMBAMonthYears/
-      )
-    }
+    assert.match(
+      editSrc,
+      /mbaScope:\s*buildMbaScopeForSaveBody\(\s*\{[\s\S]*?isPartialMBA,[\s\S]*?partialMBASelectedLineItemIds,[\s\S]*?partialMBAMonthYears/
+    )
+    // B2a fix 3 (Luke, 2 Nov): create offers a full MBA only.
+    assert.match(createSrc, /mbaScope: CREATE_PAGE_FULL_MBA_SCOPE/)
+    assert.doesNotMatch(createSrc, /buildMbaScopeForSaveBody/)
     assert.doesNotMatch(editSrc, /patchMbaLineApprovalsClient/)
     assert.doesNotMatch(editSrc, /forceIncrementForApprovals/)
     assert.doesNotMatch(editSrc, /approvalExclusionFingerprint/)
@@ -776,7 +776,9 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.match(panel, /saveSecondary=/)
       assert.match(panel, /saveTip=/)
       assert.match(panel, /saveScopeNote=/)
-      assert.match(panel, /describePartialMbaPublishRail/)
+      // B2a fix 3: create is full MBA only, so its scope note is null.
+      if (src === editSrc) assert.match(panel, /describePartialMbaPublishRail/)
+      else assert.match(panel, /saveScopeNote=\{null\}/)
       assert.match(panel, /isSaving=/)
       assert.doesNotMatch(panel, /compact/)
       assert.doesNotMatch(panel, /PlanDraftPill/)

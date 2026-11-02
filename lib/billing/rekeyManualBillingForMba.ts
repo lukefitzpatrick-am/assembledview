@@ -13,9 +13,8 @@
  *   id not in that shape makes the re-key refuse (null) so the caller clears
  *   and warns instead of guessing.
  *
- * The partial MBA line selection is keyed the same way: the save's `mbaScope`
- * rebuilds every line's approval from it by exact canonical id
- * (`applyMbaScopeLineApprovals`), so a stale selection would exclude every line.
+ * Partial MBAs are not offered on create (Luke, 2 Nov 2026), so only billing
+ * timing is re-keyed here.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"
@@ -198,55 +197,4 @@ export function rekeyCreateManualBillingStateForMba(
     applied = { months, meta: appliedMeta }
   }
   return { pendingRows, draftMonths, meta, applied, autoReferenceMonths }
-}
-
-/** Partial MBA line selection (`partialMBASelectedLineItemIds`). Copy, or null. */
-export function rekeyPartialMbaSelectionForMba(
-  byMedia: Readonly<Record<string, readonly string[] | undefined>>,
-  from: string,
-  to: string
-): Record<string, string[]> | null {
-  const out: Record<string, string[]> = {}
-  for (const [media, ids] of Object.entries(byMedia)) {
-    const next: string[] = []
-    for (const id of ids ?? []) {
-      const moved = rekeyLineIdForMba(id, from, to)
-      if (moved == null) return null
-      next.push(moved)
-    }
-    out[media] = next
-  }
-  return out
-}
-
-/** Rows keyed by `lineItemId` (MBA scope labels). Copy, or null. */
-export function rekeyLineIdRowsForMba<T extends { lineItemId: string }>(
-  rows: readonly T[],
-  from: string,
-  to: string
-): T[] | null {
-  const out: T[] = []
-  for (const row of rows) {
-    const moved = rekeyLineIdForMba(row.lineItemId, from, to)
-    if (moved == null) return null
-    out.push({ ...row, lineItemId: moved })
-  }
-  return out
-}
-
-/** Partial approval metadata: each channel's `selectedLineItemIds`. Copy, or null. */
-export function rekeyPartialApprovalChannelsForMba<
-  M extends { channels: Array<{ selectedLineItemIds: string[] }> },
->(metadata: M, from: string, to: string): M | null {
-  const channels: M["channels"] = []
-  for (const channel of metadata.channels) {
-    const ids: string[] = []
-    for (const id of channel.selectedLineItemIds) {
-      const moved = rekeyLineIdForMba(id, from, to)
-      if (moved == null) return null
-      ids.push(moved)
-    }
-    channels.push({ ...channel, selectedLineItemIds: ids })
-  }
-  return { ...metadata, channels }
 }

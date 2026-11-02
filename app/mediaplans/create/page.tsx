@@ -90,14 +90,7 @@ import { OutcomeModal } from "@/components/outcome-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
-import {
-  billingMonthsHaveDetailedLineItems,
-  computeLineItemTotalsFromDeliveryMonths,
-  recomputePartialMbaFromSelections,
-  type PartialApprovalLineItem,
-  type PartialApprovalMetadata,
-  type PartialMbaValues,
-} from "@/lib/mediaplan/partialMba"
+import { billingMonthsHaveDetailedLineItems } from "@/lib/mediaplan/partialMba"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import {
   emptyLinesRemovedNotice,
@@ -180,12 +173,8 @@ import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import {
   manualBillingLineIdBlockReason,
   rekeyCreateManualBillingStateForMba,
-  rekeyLineIdRowsForMba,
   rekeyLineInputsForMba,
-  rekeyPartialApprovalChannelsForMba,
-  rekeyPartialMbaSelectionForMba,
 } from "@/lib/billing/rekeyManualBillingForMba"
-import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   monthsForMbaBillingGates,
   resolveMbaBillingModalState,
@@ -311,15 +300,14 @@ import {
   downloadStoredPlanFile,
 } from "@/lib/docs/downloadStoredPlanFile"
 import {
-  flattenPartialMbaSelectedLineIds,
   kpiRowsForDraftDocuments,
   mergeDraftDocumentsBody,
 } from "@/lib/mediaplan/mergeDraftDocumentsBody"
-import { describePartialMbaPublishRail, formatDraftSavedTime } from "@/lib/mediaplan/drafts/pill"
+import { formatDraftSavedTime } from "@/lib/mediaplan/drafts/pill"
 import {
-  buildMbaScopeForSaveBody,
-  countablePartialMbaLineCount,
-} from "@/lib/mediaplan/mbaScopeClient"
+  CREATE_PAGE_FULL_MBA_SCOPE,
+  PARTIAL_MBA_AFTER_SAVE_NOTE,
+} from "@/lib/mediaplan/createPageFullMba"
 import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
@@ -1065,16 +1053,12 @@ function CreateMediaPlan() {
   const appliedUnderMbaNumberRef = useRef<string | null>(null)
   /** Set by the "MBA number taken" retry: the save moves billing lines from → to. */
   const mbaNumberRenameRef = useRef<{ from: string; to: string } | null>(null)
-  /** B2a fix 2: the MBA number the partial MBA line selection ids carry. */
-  const partialScopeMbaNumberRef = useRef<string | null>(null)
   /** Auto schedule (+ line items) the user edited against — snapshotted at open/apply. */
   const manualBillingAutoReferenceMonthsRef = useRef<BillingMonth[]>([])
   const [billingError, setBillingError] = useState<{ show: boolean; messages: string[] }>({
     show: false,
     messages: [],
   })
-  const [isPartialMBA, setIsPartialMBA] = useState(false);
-  const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
   const [isMbaBillingModalOpen, setIsMbaBillingModalOpen] = useState(false);
   const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
   const [dateWarning, setDateWarning] = useState<{
@@ -1887,11 +1871,9 @@ function CreateMediaPlan() {
           channel === "ooh" ? setOohMediaLineItems : setRadioMediaLineItems,
         markDirty: markUnsavedChanges,
         scrollToSection: queueScrollToMediaSection,
-        isPartialMBA,
-        setPartialMBASelectedLineItemIds,
       })
     },
-    [form, markUnsavedChanges, isPartialMBA],
+    [form, markUnsavedChanges],
   )
 
   const consumedParseReviewLoad = useRef(false)
@@ -2015,26 +1997,6 @@ function CreateMediaPlan() {
       }
     })
 
-  const [partialMBAValues, setPartialMBAValues] = useState({
-    mediaTotals: {} as Record<string, number>,
-    grossMedia: 0,
-    assembledFee: 0,
-    adServing: 0,
-    production: 0,
-  });
-
-  // This will store a snapshot of the original values for the reset button
-  const [originalPartialMBAValues, setOriginalPartialMBAValues] = useState({
-    mediaTotals: {} as Record<string, number>,
-    grossMedia: 0,
-    assembledFee: 0,
-    adServing: 0,
-    production: 0,
-  });
-
-  const [partialMBAMonthYears, setPartialMBAMonthYears] = useState<string[]>([])
-  const [partialMBAMediaEnabled, setPartialMBAMediaEnabled] = useState<Record<string, boolean>>({})
-  const [partialMBALineItemsByMedia, setPartialMBALineItemsByMedia] = useState<Record<string, PartialApprovalLineItem[]>>({})
 
   const billingFeeSeedEnabledConfigs = useMemo((): SeedLineFeesMediaConfig[] => {
     const formFlagByKey: Record<string, string> = {
@@ -2135,11 +2097,9 @@ function CreateMediaPlan() {
    * (MB-22); no post-save persistManualBillingOverrides.
    */
   const billingSaveInputs = useMemo(() => {
+    // Full MBA only on create (partial MBAs are chosen on edit after the first save).
     const lineItems = attachOverridesToLineInputs(
-      buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
-        isPartialMBA,
-        partialMBASelectedLineItemIds,
-      }),
+      buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, { isPartialMBA: false }),
       draftBillingOverrideRows
     )
     const feeLoading = buildFeeLoadingFromEditorFees({
@@ -2167,8 +2127,6 @@ function CreateMediaPlan() {
     return { lineItems, feeLoading }
   }, [
     billingFeeSeedEnabledConfigs,
-    isPartialMBA,
-    partialMBASelectedLineItemIds,
     feeTelevision,
     feeRadio,
     feeNewspapers,
@@ -2194,7 +2152,7 @@ function CreateMediaPlan() {
 
   /**
    * Single source of truth for MBA totals, panel indicators, PDF/xlsx exports —
-   * includes partial selection via billingSaveInputs.
+   * always the full MBA on create (partial MBAs are chosen on edit).
    */
   const campaignFinancials = useMemo(() => {
     const { lineItems, feeLoading } = billingSaveInputs
@@ -2209,8 +2167,6 @@ function CreateMediaPlan() {
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
-      selectedMonthYears:
-        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
       getRateForMediaType,
       adservaudio: adservaudio ?? 0,
     })
@@ -2218,7 +2174,6 @@ function CreateMediaPlan() {
     billingSaveInputs,
     campaignStart,
     campaignEnd,
-    partialMBAMonthYears,
     getRateForMediaType,
     adservaudio,
   ])
@@ -2238,28 +2193,20 @@ function CreateMediaPlan() {
         ? campaignEnd
         : undefined
     return resolveMbaBillingModalState({
-      lineItems: buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
-        isPartialMBA,
-        partialMBASelectedLineItemIds,
-      }),
+      lineItems: buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, { isPartialMBA: false }),
       feeLoading: billingSaveInputs.feeLoading,
       campaignStart: start,
       campaignEnd: end,
-      selectedMonthYears:
-        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
       getRateForMediaType,
       adservaudio: adservaudio ?? 0,
       overrideRows: draftBillingOverrideRows,
       draftReady: manualBillingDraftReady,
       draftMonths: manualBillingMonths,
       metaByLine: manualBillingOverrideMetaRef.current,
-      isPartialMBA,
+      isPartialMBA: false,
     })
   }, [
     billingFeeSeedEnabledConfigs,
-    isPartialMBA,
-    partialMBASelectedLineItemIds,
-    partialMBAMonthYears,
     draftBillingOverrideRows,
     billingSaveInputs.feeLoading,
     campaignStart,
@@ -2287,11 +2234,8 @@ function CreateMediaPlan() {
 
   const panelIndicators = useMemo(
     () =>
-      panelIndicatorsFromCampaignFinancials(campaignFinancials, {
-        isPartialMBA,
-        selectedMonthYears: partialMBAMonthYears,
-      }),
-    [campaignFinancials, isPartialMBA, partialMBAMonthYears]
+      panelIndicatorsFromCampaignFinancials(campaignFinancials, { isPartialMBA: false }),
+    [campaignFinancials]
   )
 
   const saveBlockedByClientsError = Boolean(clientsError)
@@ -2484,7 +2428,6 @@ function CreateMediaPlan() {
   ])
 
 
-  const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
 
 
 
@@ -3282,11 +3225,7 @@ function CreateMediaPlan() {
           production: shouldEnableProduction,
         },
         lineItems: lineItemsForSave,
-        mbaScope: buildMbaScopeForSaveBody({
-          isPartialMBA,
-          partialMBASelectedLineItemIds,
-          partialMBAMonthYears,
-        }),
+        mbaScope: CREATE_PAGE_FULL_MBA_SCOPE,
         ensureMaster: {
           mbaNumber: mbaNum,
           mpClientName: clientName,
@@ -3317,8 +3256,6 @@ function CreateMediaPlan() {
         state: clientState,
         postcode: clientPostcode,
       },
-      selectedMonthYears: partialMBAMonthYears,
-      approvedLineItemIds: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds),
       kpiRows: kpiRowsForDraftDocuments(kpiRows),
     })
   }
@@ -4002,138 +3939,17 @@ function CreateMediaPlan() {
     })
   }
 
-  // --- Partial MBA Handlers ---
-
-  function recomputePartialMBAFromLineItems(
-    nextMonthYears: string[],
-    nextSelectedIds: Record<string, string[]>,
-    nextEnabledMedia?: Record<string, boolean>
-  ): PartialMbaValues | null {
-    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-    if (!deliveryMonthsRaw.length) return null
-
-    const deliveryMonthsWithLineItems = attachLineItemsToMonthsForPartial(
-      deepCloneBillingMonths(deliveryMonthsRaw).map(synthesizeLineItemsFromTotals),
-      "delivery"
-    )
-
-    const mediaLabelByKey = Object.fromEntries(
-      mediaTypes
-        .filter((m) => m.name !== "mp_production")
-        .map((m) => [mediaKeyMap[m.name], m.label])
-    ) as Record<string, string>
-
-    const provisionalLineItems = attachOverridesToLineInputs(
-      buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
-        isPartialMBA: true,
-        partialMBASelectedLineItemIds: nextSelectedIds,
-      }),
-      []
-    )
-    const start =
-      campaignStart instanceof Date && !Number.isNaN(campaignStart.getTime())
-        ? campaignStart
-        : undefined
-    const end =
-      campaignEnd instanceof Date && !Number.isNaN(campaignEnd.getTime())
-        ? campaignEnd
-        : undefined
-    const provisionalFinancials = computeCampaignFinancials(
-      provisionalLineItems,
-      { feeLoading: billingSaveInputs.feeLoading },
-      {
-        campaignStart: start,
-        campaignEnd: end,
-        selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
-      }
-    )
-
-    void nextEnabledMedia
-
-    const { values, lineItemsByMedia, metadata } = recomputePartialMbaFromSelections({
-      financials: provisionalFinancials,
-      deliveryMonthsForLineItems: deliveryMonthsWithLineItems,
-      selectedMonthYears: nextMonthYears,
-      selectedLineItemIdsByMedia: nextSelectedIds,
-      mediaLabelByKey,
-      formatCurrency: (n) => mbaCurrencyFormatter.format(n),
-    })
-
-    setPartialMBAValues(values)
-    setPartialMBALineItemsByMedia(lineItemsByMedia)
-    setPartialApprovalMetadata(metadata)
-    return values
-  }
-
-  function handlePartialMBAOpen() {
-    if (isPartialMBA) {
-      recomputePartialMBAFromLineItems(partialMBAMonthYears, partialMBASelectedLineItemIds, partialMBAMediaEnabled)
-      setIsMbaBillingModalOpen(true)
-      return
-    }
-
-    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-
-    const enabledMediaRows = mediaTypes
-      .filter((m) => m.name !== "mp_production")
-      .filter((m) => watchedMediaTypesMap[m.name] && m.component)
-      .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
-      .filter((m) => Boolean((m as any).mediaKey))
-
-    const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
-    const enabledMap = Object.fromEntries(mediaKeys.map((k) => [k, true])) as Record<string, boolean>
-    const monthYears = deliveryMonthsRaw.map((m) => m.monthYear)
-
-    setPartialMBAMediaEnabled(enabledMap)
-    setPartialMBAMonthYears(monthYears)
-
-    if (!deliveryMonthsRaw.length) {
-      const currentMediaTotals: Record<string, number> = {}
-      enabledMediaRows.forEach((m) => {
-        const mediaKey = (m as any).mediaKey as string
-        currentMediaTotals[mediaKey] = campaignFinancialsMediaByKey[mediaKey] ?? 0
-      })
-      const t = campaignFinancials.mbaScopeTotals
-      const fallback = {
-        mediaTotals: currentMediaTotals,
-        grossMedia: t.grossMedia,
-        assembledFee: t.fee,
-        adServing: t.adServing,
-        production: t.production,
-      }
-      setPartialMBAValues(fallback)
-      setPartialMBALineItemsByMedia({})
-      setPartialMBASelectedLineItemIds({})
-      setPartialApprovalMetadata(null)
-      setOriginalPartialMBAValues(JSON.parse(JSON.stringify(fallback)))
-      setIsMbaBillingModalOpen(true)
-      return
-    }
-
-    const deliveryMonthsWithLineItems = attachLineItemsToMonthsForPartial(
-      deepCloneBillingMonths(deliveryMonthsRaw).map(synthesizeLineItemsFromTotals),
-      "delivery"
-    )
-    const lineItemsMap = computeLineItemTotalsFromDeliveryMonths({
-      deliveryMonths: deliveryMonthsWithLineItems as BillingMonth[],
-      selectedMonthYears: monthYears,
-    })
-    const selectedIds = canonicalisePartialMbaSelectedLineItemIds(
-      Object.fromEntries(
-        Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
-      ) as Record<string, string[]>
-    )
-    setPartialMBASelectedLineItemIds(selectedIds)
-    const initialValues = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
-    if (initialValues) {
-      setOriginalPartialMBAValues(JSON.parse(JSON.stringify(initialValues)))
-    }
-    setIsMbaBillingModalOpen(true)
-  }
-
+  /**
+   * Partial MBAs are edit-only (Luke, 2 Nov 2026): create offers a full MBA, so
+   * opening the window does no partial set-up and every save is full scope.
+   */
   function handleMbaBillingModalOpen() {
-    handlePartialMBAOpen()
     setIsMbaBillingModalOpen(true)
+  }
+
+  /** The line and channel switches in the MBA window cannot exclude lines on create. */
+  function explainPartialMbaAfterSave() {
+    toast({ title: "Full MBA on a new plan", description: PARTIAL_MBA_AFTER_SAVE_NOTE })
   }
 
   function buildCreateManualBillingMediaTypeMap(): Record<
@@ -4789,51 +4605,6 @@ function CreateMediaPlan() {
     handleResetBillingScheduleToAuto,
   ])
 
-  /**
-   * B2a fix 2: the partial MBA line selection is keyed to line ids that carry
-   * the MBA number, and the save rebuilds every line's approval from it by
-   * exact id. On the "MBA number taken" retry it is re-keyed (with the partial
-   * approval metadata); any other change, or an id that will not move, resets
-   * the scope to the full plan and says so. `partialScopeMbaNumberRef` is the
-   * last non-blank MBA number the selection was keyed to.
-   */
-  useEffect(() => {
-    const to = String(mbaNumber ?? "").trim()
-    if (!to) return
-    const from = partialScopeMbaNumberRef.current
-    if (from === to) return
-    partialScopeMbaNumberRef.current = to
-    // A selection can outlive partial mode (reset to all-in keeps every id), so
-    // it moves or clears either way; only an active partial scope warns.
-    const hasSelection = Object.values(partialMBASelectedLineItemIds).some(
-      (ids) => (ids?.length ?? 0) > 0
-    )
-    if (!hasSelection) return
-    const rename = mbaNumberRenameRef.current
-    if (from && rename && rename.from === from && rename.to === to) {
-      const selection = rekeyPartialMbaSelectionForMba(partialMBASelectedLineItemIds, from, to)
-      const metadata = partialApprovalMetadata
-        ? rekeyPartialApprovalChannelsForMba(partialApprovalMetadata, from, to)
-        : null
-      if (selection && (metadata || !partialApprovalMetadata)) {
-        setPartialMBASelectedLineItemIds(selection)
-        setPartialApprovalMetadata(metadata)
-        return
-      }
-    }
-    setPartialMBASelectedLineItemIds({})
-    setPartialApprovalMetadata(null)
-    if (!isPartialMBA) return
-    setIsPartialMBA(false)
-    toast({
-      variant: "destructive",
-      title: "Partial MBA scope reset",
-      description: from
-        ? `The MBA number changed from ${from} to ${to}, so the partial MBA line selection no longer matches the plan's lines. The MBA is back to the full plan (all lines and months); choose the partial scope again before saving.`
-        : `The plan now has MBA number ${to}, so the partial MBA line selection made before it no longer matches the plan's lines. The MBA is back to the full plan (all lines and months); choose the partial scope again before saving.`,
-    })
-  }, [mbaNumber, isPartialMBA, partialMBASelectedLineItemIds, partialApprovalMetadata])
-
   const runConfirmedFullBillingResetToAuto = useCallback(async () => {
     setFullBillingResetConfirmOpen(false)
     // C-157 twin of the edit page: a plan with an applied true-up on any
@@ -4974,300 +4745,6 @@ function CreateMediaPlan() {
             description: "No line has manual timing, so the schedule stays on auto.",
           }
     )
-  }
-
-  function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
-    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-    if (!nextMonthYears.length) return
-    setPartialMBAMonthYears(nextMonthYears)
-    const allMonths = deliveryMonthsRaw.map((m) => m.monthYear)
-    const monthPartial =
-      allMonths.length > 0 &&
-      (nextMonthYears.length < allMonths.length ||
-        !allMonths.every((m) => nextMonthYears.includes(m)))
-    if (monthPartial) setIsPartialMBA(true)
-    if (!deliveryMonthsRaw.length) return
-    recomputePartialMBAFromLineItems(nextMonthYears, partialMBASelectedLineItemIds)
-  }
-
-  function handleMbaBillingToggleLine(lineItemId: string, mediaType: string, approved: boolean) {
-
-    const existing = buildCanonicalBillingLineIdSet(
-      partialMBASelectedLineItemIds[mediaType] || []
-    )
-    const canonId = toBillingOverrideLineItemId(lineItemId)
-    if (approved) existing.add(canonId)
-    else existing.delete(canonId)
-    let nextSelected = { ...partialMBASelectedLineItemIds, [mediaType]: Array.from(existing) }
-    // If we had an empty map (all-in / not partial yet), seed all other media from current approved lines.
-    if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
-      for (const line of campaignFinancials.perLine) {
-        if (line.mediaType === mediaType) continue
-        if (!nextSelected[line.mediaType]) nextSelected[line.mediaType] = []
-        const canon = toBillingOverrideLineItemId(line.lineItemId)
-        if (!nextSelected[line.mediaType].includes(canon)) {
-          nextSelected[line.mediaType].push(canon)
-        }
-      }
-      if (!approved) {
-        nextSelected[mediaType] = Array.from(existing)
-      }
-    }
-    nextSelected = canonicalisePartialMbaSelectedLineItemIds(nextSelected)
-    setPartialMBASelectedLineItemIds(nextSelected)
-    const nextEnabled = { ...partialMBAMediaEnabled, [mediaType]: (nextSelected[mediaType]?.length ?? 0) > 0 }
-    setPartialMBAMediaEnabled(nextEnabled)
-    setIsPartialMBA(true)
-    const months =
-      partialMBAMonthYears.length > 0
-        ? partialMBAMonthYears
-        : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map((m) => m.monthYear)
-    if (months.length && partialMBAMonthYears.length === 0) setPartialMBAMonthYears(months)
-    recomputePartialMBAFromLineItems(months, nextSelected, nextEnabled)
-  }
-
-  function handleMbaBillingToggleContainer(mediaType: string, approved: boolean) {
-    const containerIds = campaignFinancials.perLine
-      .filter((line) => line.mediaType === mediaType)
-      .map((line) => line.lineItemId)
-    const nextSelected = { ...partialMBASelectedLineItemIds }
-    // Seed full approval map when first leaving all-in.
-    if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
-      for (const line of campaignFinancials.perLine) {
-        if (!nextSelected[line.mediaType]) nextSelected[line.mediaType] = []
-        const canon = toBillingOverrideLineItemId(line.lineItemId)
-        if (!nextSelected[line.mediaType].includes(canon)) {
-          nextSelected[line.mediaType].push(canon)
-        }
-      }
-    }
-    nextSelected[mediaType] = approved ? containerIds : []
-    const canonicalNext = canonicalisePartialMbaSelectedLineItemIds(nextSelected)
-    setPartialMBASelectedLineItemIds(canonicalNext)
-    const nextEnabled = {
-      ...partialMBAMediaEnabled,
-      [mediaType]: (canonicalNext[mediaType]?.length ?? 0) > 0,
-    }
-    setPartialMBAMediaEnabled(nextEnabled)
-    setIsPartialMBA(true)
-    const months =
-      partialMBAMonthYears.length > 0
-        ? partialMBAMonthYears
-        : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map((m) => m.monthYear)
-    if (months.length && partialMBAMonthYears.length === 0) setPartialMBAMonthYears(months)
-    recomputePartialMBAFromLineItems(months, canonicalNext, nextEnabled)
-  }
-
-  function handleMbaBillingResetApprovalsToAllIn() {
-    handlePartialMBAReset()
-    setIsPartialMBA(false)
-  }
-
-  function handlePartialMBASave() {
-    const campaignBudget = form.getValues("mp_campaignbudget") || 0;
-    const { grossMedia, assembledFee, adServing, production } = partialMBAValues;
-    const newTotalInvestment = grossMedia + assembledFee + adServing + production;
-
-    // Warn-only if outside $2.00 tolerance (still allow saving)
-    const diff = newTotalInvestment - campaignBudget
-    if (campaignBudget > 0 && Math.abs(diff) > 2) {
-      toast({
-        title: "Saved with budget mismatch",
-        description: `Total differs from Campaign Budget by ${mbaCurrencyFormatter.format(Math.abs(diff))} (${diff > 0 ? "over" : "under"}).`,
-      })
-    }
-
-    setIsPartialMBA(true);
-    if (partialApprovalMetadata) {
-      setPartialApprovalMetadata({
-        ...partialApprovalMetadata,
-        totals: {
-          grossMedia: mbaCurrencyFormatter.format(grossMedia),
-          assembledFee: mbaCurrencyFormatter.format(assembledFee),
-          adServing: mbaCurrencyFormatter.format(adServing),
-          production: mbaCurrencyFormatter.format(production),
-          totalInvestment: mbaCurrencyFormatter.format(newTotalInvestment),
-        },
-        updatedAt: new Date().toISOString(),
-      })
-    }
-    toast({
-      title: "Success",
-      description:
-        "Scope is saved with the version. Publish issues it to the client.",
-    })
-  }
-
-  function handlePartialMBAReset() {
-    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
-
-    const enabledMediaRows = mediaTypes
-      .filter((m) => m.name !== "mp_production")
-      .filter((m) => watchedMediaTypesMap[m.name] && m.component)
-      .map((m) => ({ ...m, mediaKey: mediaKeyMap[m.name] }))
-      .filter((m) => Boolean((m as any).mediaKey))
-
-    const mediaKeys = enabledMediaRows.map((m) => (m as any).mediaKey as string)
-    const enabledMap = Object.fromEntries(mediaKeys.map((k) => [k, true])) as Record<string, boolean>
-    const monthYears = deliveryMonthsRaw.map((m) => m.monthYear)
-
-    setPartialMBAMediaEnabled(enabledMap)
-    setPartialMBAMonthYears(monthYears)
-
-    if (!deliveryMonthsRaw.length) {
-      const computed = JSON.parse(JSON.stringify(originalPartialMBAValues))
-      setPartialMBAValues(computed)
-      setPartialMBALineItemsByMedia({})
-      setPartialMBASelectedLineItemIds({})
-      setPartialApprovalMetadata(null)
-      toast({ title: "Reset", description: "Values restored from snapshot." })
-      return
-    }
-
-    const deliveryMonthsWithLineItems = attachLineItemsToMonthsForPartial(
-      deepCloneBillingMonths(deliveryMonthsRaw).map(synthesizeLineItemsFromTotals),
-      "delivery"
-    )
-    const lineItemsMap = computeLineItemTotalsFromDeliveryMonths({
-      deliveryMonths: deliveryMonthsWithLineItems as BillingMonth[],
-      selectedMonthYears: monthYears,
-    })
-    const selectedIds = canonicalisePartialMbaSelectedLineItemIds(
-      Object.fromEntries(
-        Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
-      ) as Record<string, string[]>
-    )
-    setPartialMBASelectedLineItemIds(selectedIds)
-    const v = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
-    if (v) setOriginalPartialMBAValues(JSON.parse(JSON.stringify(v)))
-    toast({ title: "Reset", description: "Values have been recalculated from delivery months." })
-  }
-
-  // Build synthetic line items from month totals to capture auto allocation detail
-  function synthesizeLineItemsFromTotals(month: BillingMonth): BillingMonth {
-    const parseAmount = (value: string | number | undefined) =>
-      typeof value === 'number'
-        ? value
-        : parseFloat(String(value || '').replace(/[^0-9.-]/g, '')) || 0;
-
-    const mediaCosts = month.mediaCosts || {};
-    const entries = Object.entries(mediaCosts) as [string, string | number][];
-    const lineItems: Record<string, BillingLineItem[]> = {};
-
-    entries.forEach(([mediaKey, rawVal]) => {
-      const amount = parseAmount(rawVal);
-      if (amount > 0) {
-        lineItems[mediaKey] = [
-          {
-            id: `auto-${mediaKey}-${month.monthYear}`,
-            header1: 'Auto',
-            header2: 'Auto allocation',
-            monthlyAmounts: { [month.monthYear]: amount },
-            totalAmount: amount,
-          },
-        ];
-      }
-    });
-
-    // If no media-specific costs, but totals exist, create a generic line item
-    if (Object.keys(lineItems).length === 0) {
-      const total = parseAmount(month.totalAmount);
-      if (total > 0) {
-        lineItems['search'] = [
-          {
-            id: `auto-total-${month.monthYear}`,
-            header1: 'Auto',
-            header2: 'Total',
-            monthlyAmounts: { [month.monthYear]: total },
-            totalAmount: total,
-          },
-        ];
-      }
-    }
-
-    // Merge as a TRUE fallback: never overwrite existing non-empty line items.
-    const merged: Record<string, BillingLineItem[]> = { ...(month.lineItems || {}) };
-    Object.entries(lineItems).forEach(([key, items]) => {
-      const existing = (merged as any)[key] as BillingLineItem[] | undefined;
-      if (!existing || existing.length === 0) {
-        (merged as any)[key] = items;
-      }
-    });
-
-    return { ...month, lineItems: merged };
-  }
-  /** Same line-item attachment as save payload — used so Partial MBA modal has real line items, not empty months. */
-  function attachLineItemsToMonthsForPartial(
-    months: BillingMonth[],
-    mode: "billing" | "delivery"
-  ): BillingMonth[] {
-    const fv = form.getValues()
-    let monthsWithLineItems = (months || []).map((month) => ({
-      ...month,
-      lineItems: month.lineItems || {},
-    }))
-
-    if (monthsWithLineItems.length === 0) {
-      return []
-    }
-
-    const isAutoLineItems = (items: any): boolean => {
-      if (!Array.isArray(items) || items.length === 0) return false
-      return items.every((li) => String(li?.header1 || "").trim() === "Auto")
-    }
-
-    const shouldReplace = (existing: any): boolean => {
-      if (!existing) return true
-      if (Array.isArray(existing) && existing.length === 0) return true
-      if (isAutoLineItems(existing)) return true
-      return false
-    }
-
-    const mediaTypeMap: Record<string, { lineItems: any[]; key: string }> = {
-      mp_television: { lineItems: televisionMediaLineItems, key: "television" },
-      mp_radio: { lineItems: radioMediaLineItems, key: "radio" },
-      mp_newspaper: { lineItems: newspaperMediaLineItems, key: "newspaper" },
-      mp_magazines: { lineItems: magazineMediaLineItems, key: "magazines" },
-      mp_ooh: { lineItems: oohMediaLineItems, key: "ooh" },
-      mp_cinema: { lineItems: cinemaMediaLineItems, key: "cinema" },
-      mp_digidisplay: { lineItems: digiDisplayMediaLineItems, key: "digiDisplay" },
-      mp_digiaudio: { lineItems: digiAudioMediaLineItems, key: "digiAudio" },
-      mp_digivideo: { lineItems: digiVideoMediaLineItems, key: "digiVideo" },
-      mp_bvod: { lineItems: bvodMediaLineItems, key: "bvod" },
-      mp_integration: { lineItems: integrationMediaLineItems, key: "integration" },
-      mp_search: { lineItems: searchMediaLineItems, key: "search" },
-      mp_socialmedia: { lineItems: socialMediaMediaLineItems, key: "socialMedia" },
-      mp_progdisplay: { lineItems: progDisplayMediaLineItems, key: "progDisplay" },
-      mp_progvideo: { lineItems: progVideoMediaLineItems, key: "progVideo" },
-      mp_progbvod: { lineItems: progBvodMediaLineItems, key: "progBvod" },
-      mp_progaudio: { lineItems: progAudioMediaLineItems, key: "progAudio" },
-      mp_progooh: { lineItems: progOohMediaLineItems, key: "progOoh" },
-      mp_influencers: { lineItems: influencersMediaLineItems, key: "influencers" },
-      mp_production: { lineItems: productionMediaLineItems, key: "production" },
-    }
-
-    const allLineItems: Record<string, BillingLineItem[]> = {}
-    Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-      if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
-        const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems, mode)
-        if (billingLineItems.length > 0) {
-          allLineItems[key] = billingLineItems
-        }
-      }
-    })
-
-    monthsWithLineItems = monthsWithLineItems.map((month) => {
-      const monthCopy = { ...month, lineItems: month.lineItems || {} }
-      Object.entries(allLineItems).forEach(([key, lineItems]) => {
-        const existing = (monthCopy.lineItems as any)[key]
-        if (shouldReplace(existing)) {
-          ;(monthCopy.lineItems as any)[key] = lineItems
-        }
-      })
-      return monthCopy
-    })
-
-    return monthsWithLineItems.map(synthesizeLineItemsFromTotals)
   }
 
   async function handleDownloadBillingScheduleExcel() {
@@ -5863,44 +5340,9 @@ function CreateMediaPlan() {
     toast({
       variant: "destructive",
       title: "Billing timing not carried over",
-      description: `The plan saves as ${to}, but some billing lines could not be matched from ${rename.from}. Check billing timing and partial MBA selections after the save.`,
+      description: `The plan saves as ${to}, but some billing lines could not be matched from ${rename.from}. Check billing timing after the save.`,
     })
     return lines
-  }
-
-  /**
-   * B2a fix 2: partial MBA selection, scope labels and approval metadata keyed
-   * to `mbaNum` (see `mbaNumberRenameRef`). A partial selection that cannot be
-   * moved stops the version save rather than saving every line as excluded.
-   */
-  function partialMbaScopeForMbaNumber(mbaNum: string): {
-    selection: Record<string, string[]>
-    scopeLines: MbaBillingScopeLine[]
-    metadata: PartialApprovalMetadata | null
-  } {
-    const current = {
-      selection: partialMBASelectedLineItemIds,
-      scopeLines: mbaBillingScopeLines,
-      metadata: partialApprovalMetadata,
-    }
-    const rename = mbaNumberRenameRef.current
-    const to = String(mbaNum ?? "").trim()
-    if (!rename || rename.to !== to || rename.from === to) return current
-    const selection = rekeyPartialMbaSelectionForMba(current.selection, rename.from, to)
-    const metadata = current.metadata
-      ? rekeyPartialApprovalChannelsForMba(current.metadata, rename.from, to)
-      : null
-    if (isPartialMBA && (!selection || (current.metadata && !metadata))) {
-      throw new Error(
-        `This plan saves as ${to}, but the partial MBA line selection could not be matched from ${rename.from}. The version was not saved. Check the partial MBA scope and save again.`
-      )
-    }
-    return {
-      selection: selection ?? {},
-      // Labels are display copy: keep the current rows if any id will not move.
-      scopeLines: rekeyLineIdRowsForMba(current.scopeLines, rename.from, to) ?? current.scopeLines,
-      metadata,
-    }
   }
 
   const handleSaveMediaPlanVersion = async (
@@ -5941,9 +5383,6 @@ function CreateMediaPlan() {
         billingSaveInputs.lineItems,
         mbaNum
       )
-      // B2a fix 2: the same closure holds the partial MBA selection under the old
-      // number; the server rebuilds every approval from it by exact id.
-      const partialScopeForSave = partialMbaScopeForMbaNumber(mbaNum)
 
       // --- T4c: WRITE_BACKEND=postgres → one transactional save ---
       if (writeBackend === "postgres") {
@@ -6193,11 +5632,8 @@ function CreateMediaPlan() {
                 production: shouldEnableProduction,
               },
               lineItems: lineItemsForSave,
-              mbaScope: buildMbaScopeForSaveBody({
-                isPartialMBA,
-                partialMBASelectedLineItemIds: partialScopeForSave.selection,
-                partialMBAMonthYears,
-              }),
+              // Full MBA only on create: partial MBAs are chosen on edit after the first save.
+              mbaScope: CREATE_PAGE_FULL_MBA_SCOPE,
               ingestStageId: ingestStageIdRef.current || undefined,
               ensureMaster: {
                 mbaNumber: mbaNum,
@@ -6458,21 +5894,13 @@ function CreateMediaPlan() {
           ...values,
           mp_client_name: clientName,
           mp_production: shouldEnableProduction,
-          lineItems: withMbaScopeLineLabels(billingLinesForSave, partialScopeForSave.scopeLines),
+          lineItems: withMbaScopeLineLabels(billingLinesForSave, mbaBillingScopeLines),
           feeLoading: billingSaveInputs.feeLoading,
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
-          partialApproval:
-            isPartialMBA && partialScopeForSave.metadata
-              ? {
-                  ...partialScopeForSave.metadata,
-                  selectedMonthYears:
-                    partialMBAMonthYears.length > 0
-                      ? partialMBAMonthYears
-                      : partialScopeForSave.metadata.selectedMonthYears,
-                }
-              : null,
+          // Full MBA only on create: no partial approval metadata.
+          partialApproval: null,
           // Stage the version row without flipping media_plans.version yet.
           // Finalise via POST .../versions/{id}/publish after channel writes.
           deferMasterVersionPublish: true,
@@ -7976,12 +7404,7 @@ const handleSaveAll = async (opts?: {
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
       saveSecondary={CREATE_DRAFT_DOWNLOAD_RAIL}
       saveTip={null}
-      saveScopeNote={describePartialMbaPublishRail({
-        isPartial: isPartialMBA,
-        inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
-          .length,
-        totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
-      })}
+      saveScopeNote={null}
       isSaving={isWizardSaving}
     />
   )
@@ -8595,13 +8018,6 @@ const handleSaveAll = async (opts?: {
                                   const next = Boolean(checked)
                                   if (next === Boolean(field.value)) return
                                   field.onChange(next)
-                                  if (next && isPartialMBA) {
-                                    toast({
-                                      title: "New channel included in MBA",
-                                      description:
-                                        "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
-                                    })
-                                  }
                                 }}
                                 onBlur={field.onBlur}
                                 disabled={field.disabled}
@@ -8636,21 +8052,8 @@ const handleSaveAll = async (opts?: {
                     <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
                       Open MBA &amp; billing
                     </Button>
-                    {isPartialMBA ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsPartialMBA(false)
-                          handlePartialMBAReset()
-                        }}
-                      >
-                        Reset approvals to all-in
-                      </Button>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Approve lines and edit scope in the modal. Use Edit timing for manual billing before save.
+                    <p className="text-xs text-muted-foreground" data-testid="create-partial-mba-note">
+                      {PARTIAL_MBA_AFTER_SAVE_NOTE} Use Edit timing for manual billing before save.
                     </p>
                   </div>
                 </div>
@@ -8717,20 +8120,12 @@ const handleSaveAll = async (opts?: {
         panelIndicators={mbaBillingModalState.panelIndicators}
         reconciliationReady={mbaBillingModalState.viewReady}
         scopeLines={mbaBillingScopeLines}
-        onToggleLineApproved={handleMbaBillingToggleLine}
-        onToggleContainerApproved={handleMbaBillingToggleContainer}
-        onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
+        // Full MBA only on create: the switches explain, no All in, no month chips.
+        onToggleLineApproved={explainPartialMbaAfterSave}
+        onToggleContainerApproved={explainPartialMbaAfterSave}
         monthYears={(autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
           (m) => m.monthYear
         )}
-        selectedMonthYears={
-          partialMBAMonthYears.length > 0
-            ? partialMBAMonthYears
-            : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
-                (m) => m.monthYear
-              )
-        }
-        onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={
@@ -9205,11 +8600,9 @@ const handleSaveAll = async (opts?: {
               <Button type="button" variant="outline" onClick={cancelMbaBilling}>
                 Cancel
               </Button>
-              {isPartialMBA ? (
-                <Button type="button" variant="outline" size="sm" onClick={handlePartialMBASave}>
-                  Apply scope
-                </Button>
-              ) : null}
+              <p className="text-xs text-muted-foreground" data-testid="create-partial-mba-note-modal">
+                {PARTIAL_MBA_AFTER_SAVE_NOTE}
+              </p>
             </div>
             {manualBillingDraftReady && !billingTimingLocked ? (
               <Button type="button" variant="action" size="sm" onClick={handleManualBillingApply}>

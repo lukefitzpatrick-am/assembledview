@@ -103,7 +103,7 @@ test("MB-23: create Apply stays local (no override POST)", () => {
   const src = stripBlockComments(readSrc("app/mediaplans/create/page.tsx"))
   const start = src.indexOf("function handleManualBillingApply()")
   assert.ok(start >= 0)
-  const end = src.indexOf("function handlePartialMBAMonthsChange", start)
+  const end = src.indexOf("async function handleDownloadBillingScheduleExcel", start)
   assert.ok(end > start)
   const body = src.slice(start, end)
   assert.doesNotMatch(

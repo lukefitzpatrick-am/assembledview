@@ -17,12 +17,13 @@ import {
   manualBillingLineIdBlockReason,
   rekeyCreateManualBillingStateForMba,
   rekeyLineIdForMba,
-  rekeyLineIdRowsForMba,
   rekeyLineInputsForMba,
   rekeyOverrideRowsForMba,
-  rekeyPartialApprovalChannelsForMba,
-  rekeyPartialMbaSelectionForMba,
 } from "@/lib/billing/rekeyManualBillingForMba"
+import {
+  CREATE_PAGE_FULL_MBA_SCOPE,
+  PARTIAL_MBA_AFTER_SAVE_NOTE,
+} from "@/lib/mediaplan/createPageFullMba"
 import { buildMbaScopeForSaveBody } from "@/lib/mediaplan/mbaScopeClient"
 import { applyMbaScopeLineApprovals } from "@/lib/mediaplan/mbaScopeForSave"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -314,62 +315,44 @@ describe("B2a fix item 4: create-style Apply rows reach the matching save line",
   })
 })
 
-describe("B2a fix 2 item 1: partial MBA approvals survive the MBA number taken retry", () => {
-  // Server-side line shape: bare ids after the rename.
-  const serverLines = ["abc002SE1", "abc002SE2", "abc002SM1"].map((lineItemId) => ({
-    lineItemId,
-    approval: "approved" as const,
-  }))
-  const selected = {
-    search: ["abc001SE1"],
-    socialMedia: ["billing-socialMedia::abc001SM1"],
-  }
-  const approvals = (selection: Record<string, string[]>) =>
-    Object.fromEntries(
-      applyMbaScopeLineApprovals(
-        serverLines,
-        buildMbaScopeForSaveBody({
-          isPartialMBA: true,
-          partialMBASelectedLineItemIds: selection,
-          partialMBAMonthYears: ["October 2026"],
-        }).lineItemIds,
-      ).map((l) => [l.lineItemId, l.approval]),
-    )
-
-  it("without a re-key every scoped line saves as excluded (the bug)", () => {
-    assert.deepEqual(approvals(selected), {
-      abc002SE1: "excluded",
-      abc002SE2: "excluded",
-      abc002SM1: "excluded",
-    })
-  })
-
-  it("re-keyed selection keeps the chosen lines in and the rest out", () => {
-    const moved = rekeyPartialMbaSelectionForMba(selected, OLD, NEW)
-    assert.deepEqual(moved, { search: ["abc002SE1"], socialMedia: ["billing-socialMedia::abc002SM1"] })
-    assert.deepEqual(approvals(moved!), {
-      abc002SE1: "approved",
-      abc002SE2: "excluded",
-      abc002SM1: "approved",
-    })
-    assert.equal(rekeyPartialMbaSelectionForMba({ search: ["abc001SE1", "zzz9SE1"] }, OLD, NEW), null)
-  })
-
-  it("approval metadata channels and scope labels move too", () => {
-    const meta = {
-      isPartial: true,
-      channels: [{ mediaKey: "search", selectedLineItemIds: ["abc001SE1"], selectedCount: 1 }],
-      note: "",
-    }
-    assert.deepEqual(rekeyPartialApprovalChannelsForMba(meta, OLD, NEW), {
-      ...meta,
-      channels: [{ mediaKey: "search", selectedLineItemIds: ["abc002SE1"], selectedCount: 1 }],
-    })
-    assert.equal(rekeyPartialApprovalChannelsForMba({ channels: [{ selectedLineItemIds: ["x1"] }] }, OLD, NEW), null)
+describe("B2a fix 3: create offers a full MBA only (Luke, 2 Nov)", () => {
+  it("the scope create sends is the full scope and approves every line on the server", () => {
+    assert.deepEqual(CREATE_PAGE_FULL_MBA_SCOPE, { lineItemIds: null, monthYears: null })
     assert.deepEqual(
-      rekeyLineIdRowsForMba([{ lineItemId: "billing-search::abc001SE1", title: "Google" }], OLD, NEW),
-      [{ lineItemId: "billing-search::abc002SE1", title: "Google" }],
+      CREATE_PAGE_FULL_MBA_SCOPE,
+      buildMbaScopeForSaveBody({
+        isPartialMBA: false,
+        partialMBASelectedLineItemIds: { search: ["abc001SE1"] },
+        partialMBAMonthYears: ["October 2026"],
+      }),
     )
+    const lines = ["abc001SE1", "abc001SE2"].map((lineItemId) => ({ lineItemId, approval: "excluded" as const }))
+    assert.deepEqual(
+      applyMbaScopeLineApprovals(lines, CREATE_PAGE_FULL_MBA_SCOPE.lineItemIds).map((l) => l.approval),
+      ["approved", "approved"],
+    )
+  })
+
+  const create = readFileSync(join(ROOT, "app/mediaplans/create/page.tsx"), "utf8")
+
+  it("every create save body sends the full scope and no partial approval", () => {
+    assert.equal((create.match(/mbaScope: CREATE_PAGE_FULL_MBA_SCOPE,/g) ?? []).length, 2, "draft documents body and version save")
+    assert.doesNotMatch(create, /buildMbaScopeForSaveBody/)
+    assert.match(create, /partialApproval: null,/)
+    assert.doesNotMatch(create, /partialApprovalMetadata|partialMBASelectedLineItemIds|partialMBAMonthYears|isPartialMBA,/)
+    assert.equal((create.match(/buildEditorLineItemInputs\(billingFeeSeedEnabledConfigs, \{ isPartialMBA: false \}\)/g) ?? []).length, 2)
+    assert.match(create, /saveScopeNote=\{null\}/)
+  })
+
+  it("the partial controls are gone and the note shows where they were", () => {
+    assert.equal(PARTIAL_MBA_AFTER_SAVE_NOTE, "Save the plan, then choose a partial MBA.")
+    assert.match(create, /data-testid="create-partial-mba-note"[^>]*>\s*\{PARTIAL_MBA_AFTER_SAVE_NOTE\}/)
+    assert.match(create, /data-testid="create-partial-mba-note-modal"[^>]*>\s*\{PARTIAL_MBA_AFTER_SAVE_NOTE\}/)
+    assert.doesNotMatch(create, /Apply scope|Reset approvals to all-in|handlePartialMBA|handleMbaBillingToggle|onResetApprovalsToAllIn=|onSelectedMonthYearsChange=/)
+    assert.match(create, /onToggleLineApproved=\{explainPartialMbaAfterSave\}/)
+    assert.match(create, /onToggleContainerApproved=\{explainPartialMbaAfterSave\}/)
+    const open = create.slice(create.indexOf("function handleMbaBillingModalOpen()"), create.indexOf("function explainPartialMbaAfterSave()"))
+    assert.doesNotMatch(open, /Partial/)
   })
 })
 
@@ -429,19 +412,6 @@ describe("B2a fix wiring: create page", () => {
     const save = between("const handleSaveMediaPlanVersion = async (", "const omitModeBody = () =>")
     assert.match(save, /billingLineInputsForMbaNumber\(\s*billingSaveInputs\.lineItems,\s*mbaNum\s*\)/)
     assert.match(save, /buildSavePlanLineItemsFromSnapshots\(\s*snapshots,\s*billingLinesForSave,/)
-  })
-
-  it("fix 2: partial selection is re-keyed on the retry, reset with a warning otherwise, and the save maps it", () => {
-    const effect = between("const from = partialScopeMbaNumberRef.current", "}, [mbaNumber, isPartialMBA, partialMBASelectedLineItemIds, partialApprovalMetadata])")
-    assert.match(effect, /rekeyPartialMbaSelectionForMba\(/)
-    assert.match(effect, /rekeyPartialApprovalChannelsForMba\(/)
-    assert.match(effect, /setIsPartialMBA\(false\)/)
-    assert.match(effect, /title: "Partial MBA scope reset"/)
-    const save = between("const handleSaveMediaPlanVersion = async (", "const omitModeBody = () =>")
-    assert.match(save, /const partialScopeForSave = partialMbaScopeForMbaNumber\(mbaNum\)/)
-    assert.match(save, /partialMBASelectedLineItemIds: partialScopeForSave\.selection/)
-    assert.match(create, /withMbaScopeLineLabels\(billingLinesForSave, partialScopeForSave\.scopeLines\)/)
-    assert.match(create, /\.\.\.partialScopeForSave\.metadata,/)
   })
 
   it("fix 2 item 4: an MBA change only warns when manual rows were applied", () => {
