@@ -117,11 +117,11 @@ jobs:
         run: npm run build
 
   knip:
-    name: knip (report-only)
+    # B7 (G4): unused files, unused and unlisted dependencies are gated against
+    # scripts/knip-baseline.json. The full report (exports too) stays advisory.
+    name: knip (baseline gate)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Soft gate: surface unused-export noise without failing PRs yet.
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -135,24 +135,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Knip report
-        id: knip
+      - name: No new unused files or dependency problems
+        run: npm run check:knip
+
+      - name: knip baseline self-test
+        run: npm run test:knip
+
+      - name: Full knip report (advisory)
+        if: always()
+        continue-on-error: true
         run: |
           set +e
           npx knip --no-progress 2>&1 | tee knip-output.txt
           status=$?
-          echo "knip_exit=$status" >> "$GITHUB_OUTPUT"
-
-          unused_files=$(grep -cE '^\.' knip-output.txt 2>/dev/null || true)
-          echo "## Knip summary (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Knip full report (advisory)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Exit code: \`$status\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           grep -E '^(Unused|Unlisted|Unresolved|Duplicate|Configuration)' knip-output.txt | head -20 >> "$GITHUB_STEP_SUMMARY" || echo "(no category headers found)" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Full log attached as artifact \`knip-output.txt\`." >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
       - name: Upload knip log

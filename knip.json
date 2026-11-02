@@ -21,11 +21,6 @@
     "lib/specs/recordSpecPdfRun.ts"
   ],
   "ignoreDependencies": [
-    "autoprefixer",
-    "postcss-load-config",
-    "@babel/runtime",
-    "core-js",
-    "eslint-config-next",
-    "mammoth"
+    "eslint-config-next"
   ]
 }
