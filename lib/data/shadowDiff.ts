@@ -1,5 +1,9 @@
 /**
- * Field-level compare + in-memory ring buffer for DATA_BACKEND=shadow diffs.
+ * Field-level compare + in-memory ring buffer for shadow diffs. The only live
+ * caller is the finance schedule shadow (`DATA_BACKEND_FINANCE_SCHEDULE=shadow`,
+ * blob vs schedule_months rows); `DATA_BACKEND=shadow` is gone (B6). The
+ * `FieldDiff.xano` / `.postgres` names are legacy: for the schedule shadow
+ * `xano` holds the blob amount and `postgres` the rows amount.
  * Process-local only (survives within a warm lambda / Node process).
  */
 

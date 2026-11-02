@@ -5,6 +5,7 @@
  * the page must not mint a new MBA number while it holds a master (B6 notes,
  * F1). The held master is never cleared here: that would orphan it.
  */
+import { shouldApplyMbaNumberResponse } from "@/lib/mediaplan/mbaNumberRequestGate"
 
 export const MASTER_ID_MISMATCH = "MASTER_ID_MISMATCH"
 
@@ -39,4 +40,18 @@ export function heldMasterIdentityFixes(
   if (String(current.mp_client_name ?? "") !== held.clientName) fixes.mp_client_name = held.clientName
   if (String(current.mbaidentifier ?? "") !== held.mbaIdentifier) fixes.mbaidentifier = held.mbaIdentifier
   return Object.keys(fixes).length > 0 ? fixes : null
+}
+
+/**
+ * Whether an MBA number response (or failure) may touch the form. Only the
+ * latest request applies, and never once a master is held: a response still
+ * in flight when the first Save created the master must not mint a new
+ * number or blank the held one (B6 review, C-165 gap).
+ */
+export function mayApplyMbaNumberResponse(args: {
+  requestToken: number
+  currentToken: number
+  masterHeld: boolean
+}): boolean {
+  return !args.masterHeld && shouldApplyMbaNumberResponse(args.requestToken, args.currentToken)
 }

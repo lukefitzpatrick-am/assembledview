@@ -12,7 +12,7 @@ Status: B6 holds done (3 Nov 2026); B8 list open. Inputs for the B8 prompt pack.
 
 No code reads these after B6. Delete them from production and preview.
 
-- `DATA_BACKEND`, `DATA_BACKEND_APPROVALS`, `WRITE_BACKEND` (set to `postgres` today), plus `DATA_BACKEND_PLAN_DETAIL` or any other `DATA_BACKEND_<DOMAIN>` if present.
+- `DATA_BACKEND`, `DATA_BACKEND_APPROVALS`, `WRITE_BACKEND` (set to `postgres` today), plus `DATA_BACKEND_PLAN_DETAIL` or any other `DATA_BACKEND_<DOMAIN>` if present, **except `DATA_BACKEND_FINANCE_SCHEDULE`** (still read; keep it).
 - `LINE_ITEM_SNAPSHOT_SOURCE`.
 - `PLANC_C1_FULL_SCOPE` (unread since 31 Jul; its file goes in B8).
 - The `XANO_*` names listed in `docs/brain/XANO-SEVERANCE-REGISTER.md` (production env section): no app, lib or component code reads any `XANO_*` env var, and `check:egress-guards` now fails if one is added.
@@ -33,8 +33,15 @@ Keep: `DATA_BACKEND_FINANCE_SCHEDULE` (a separate live switch, `shadow` today), 
 | Unused `investmentPerMonth` / `mergeInvestmentMonths(...)` | `app/mediaplans/create/page.tsx` ~926 | Pre-existing unused memo; edit's copy went in B5 |
 | `readChannelLineItems` | `lib/data/readMediaPlans.ts` | No caller (only a query label string); its `_xanoFetcher` param went in B6 |
 | `lib/finance/c1FullScopeGate.ts` (DEAD-6) | `lib/finance/c1FullScopeGate.ts` | No importer since 31 Jul; the only reader of `PLANC_C1_FULL_SCOPE` (env already inert, delete in Vercel) |
+| `filterXanoItemsToPublishedTips` | `lib/snowflake/tipScopeLineItems.ts:48` | No app caller; only `scripts/_archive/xano/verify/line-item-snapshot-parity.ts` imports it. Keep `PublishedTipPointer` (used by `publishedVersionPointerAudit.ts`) and check `indexTipPointersByMba` / `TipScopeStats` for other users before deleting |
+| I-1: dead `XANO_API_KEY` branch | `app/api/planning/audiences/route.ts:17` | Nothing throws a `XanoPlanningAudienceError` naming `XANO_API_KEY`, and nothing throws status 401, so the 401 branch here and in `[id]/route.ts:17` is dead too. Today the 500 "DATABASE_URL is not set" error falls through to a 502 on this route; whether it should stay a 500 is a small behaviour change to confirm in B8 |
 
 Done in B5a (not for B8): the unused `opts` parameter on create's `handleSaveMediaPlanVersion`.
+
+## For G6 (tests in no script)
+
+- I-3: `lib/kpi/__tests__/syncCampaignKpis.test.ts` is in no npm script, and 8 of its 9 tests fail without a database (B6 run). G6 decides: give it a DB-backed script, split out the one pure test, or delete it.
+- B7 wired `test:line-item-snapshot` (`lib/snowflake/__tests__`: the two tests restored from the B6 parity file, plus `assumeSpendSnapshot`, `syncXanoLineItemsPrune` and `xanoLineItemPruneDryRun`, which were in no script) and `test:egress-guards`.
 
 ### Tests each B8 deletion touches
 

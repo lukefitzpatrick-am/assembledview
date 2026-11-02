@@ -1,0 +1,178 @@
+/**
+ * Self-test for scripts/check-egress-guards.mjs (B7, B6 review M-1/M-2/M-3).
+ * Each probe is one small source file. CAUGHT probes must give a rule 2 hit,
+ * ALLOWED probes none. KNOWN_GAPS pins what the header says is not caught;
+ * if the guard learns one, move it to CAUGHT and update the header.
+ */
+import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { test } from "node:test"
+import { fileURLToPath } from "node:url"
+
+import { maskNonCode, scanFile, xanoEgressHits } from "../check-egress-guards.mjs"
+
+const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../check-egress-guards.mjs")
+
+/** [relative path, source] */
+const CAUGHT = [
+  ["lib/host_string.ts", `export const u = "https://x8ki-letl-twmt.n7.xano.io/api:abc/clients"`],
+  ["lib/host_template_sub.ts", 'const sub = "x"; export const u = `https://${sub}.n7.xano.io/api`'],
+  // M-1: the interpolation's closing } is kept, so this is one host.
+  ["lib/host_template_interp.ts", 'const sub = "x"; export const u = `https://${sub}.xano.io/api`'],
+  ["lib/host_template_no_scheme.ts", 'const base = "x"; export const u = `${base}.xano.io`'],
+  ["lib/host_template_after.ts", 'const p = "/api"; export const u = `https://x8ki.xano.io${p}`'],
+  ["lib/host_concat_dot.ts", `const sub = "x"; export const u = "https://" + sub + ".xano.io/api"`],
+  ["lib/host_new_url.ts", `export const u = new URL("/api", "https://" + "x8ki" + ".xano.io")`],
+  // M-1: case-insensitive host.
+  ["lib/host_upper.ts", `export const u = "https://X8KI.XANO.IO/api"`],
+  ["lib/host_bare_root.ts", `export const u = "https://xano.io/api"`],
+  ["lib/host_vault_literal.ts", `export const legacy = "https://a2.xano.io/vault/mba.pdf"`],
+  ["lib/host_string_with_slashes.ts", `export const s = "see // https://a2.xano.io/vault/x.pdf"`],
+  // M-3: a quote or slash inside a regex literal no longer hides what follows.
+  ["lib/regex_with_quote.ts", `export const re = /["']/g; export const u = "https://x8ki.xano.io/api"`],
+  ["lib/regex_slash_quote.ts", `export const re = /a"b/; export const u = "https://x8ki.xano.io/api"`],
+  ["lib/regex_escaped_slash.ts", `export const r = /^\\//; export const u = "https://x8ki.xano.io/api"`],
+  ["lib/division_then_string.ts", `export const a = 4 / 2; export const u = "https://x8ki.xano.io/api"`],
+  ["lib/after_emoji.ts", "export const e = `🔴 ${1}`; export const u = \"https://x8ki.xano.io/api\""],
+  ["lib/env_dot.ts", `export const u = process.env.XANO_BASE_URL`],
+  ["lib/env_bracket.ts", `export const u = process.env["XANO_BASE_URL"]`],
+  ["lib/env_bracket_concat.ts", `const x = "BASE_URL"; export const u = process.env["XANO_" + x]`],
+  ["lib/env_bracket_template.ts", 'const x = "BASE_URL"; export const u = process.env[`XANO_${x}`]'],
+  // M-2
+  ["lib/env_destructure.ts", `const { XANO_BASE_URL } = process.env; export const u = XANO_BASE_URL`],
+  ["lib/env_destructure_rename.ts", `const { FOO, XANO_KEY: key } = process.env; export const u = key + FOO`],
+  ["lib/env_optional.ts", `export const u = process.env?.XANO_BASE_URL`],
+  ["lib/env_optional_bracket.ts", `export const u = process.env?.["XANO_BASE_URL"]`],
+  ["lib/env_next_public.ts", `export const u = process.env.NEXT_PUBLIC_XANO_BASE_URL`],
+  ["lib/env_next_public_bracket.ts", `export const u = process.env["NEXT_PUBLIC_XANO_BASE_URL"]`],
+  ["lib/env_process_bracket.ts", `export const u = process["env"].XANO_BASE_URL`],
+  ["lib/env_process_bracket_key.ts", `export const u = process['env']['XANO_BASE_URL']`],
+  ["lib/env_whitespace.ts", "export const u = process.env\n  .XANO_BASE_URL"],
+  ["lib/env_lowercase.ts", `export const u = process.env.xano_base_url`],
+  ["lib/env_global_this.ts", `export const u = globalThis.process.env.XANO_BASE_URL`],
+  // Widened scope.
+  ["components/env.tsx", `export const u = process.env.XANO_BASE_URL`],
+  ["components/host.tsx", `export const u = "https://x8ki.xano.io/api"`],
+  ["src/host.ts", `export const u = "https://x8ki.xano.io/api"`],
+  ["hooks/useX.ts", `export const u = process.env.NEXT_PUBLIC_XANO_URL`],
+  ["contexts/X.tsx", `export const u = process.env.XANO_URL`],
+  ["middleware.ts", `export const u = process.env.XANO_BASE_URL`],
+]
+
+const ALLOWED = [
+  ["lib/comment_line.ts", "// calls https://x8ki.n7.xano.io and process.env.XANO_BASE_URL\nexport const a = 1"],
+  ["lib/comment_block.ts", "/* https://x8ki.n7.xano.io process.env.XANO_BASE_URL */ export const a = 1"],
+  ["lib/jsdoc.ts", '/**\n * old: process.env["XANO_MEDIA_PLANS_BASE_URL"] at https://a2.xano.io/vault\n */\nexport const a = 1'],
+  ["lib/comment_after_regex.ts", 'export const p = (v: string) => v.replace(/^\\//, "")\n// https://a2.xano.io/vault\nexport const a = 1'],
+  ["lib/comment_after_emoji.ts", "export const e = `🔴 ${1}`\n// https://a2.xano.io/vault process.env.XANO_X\nexport const a = 1"],
+  ["lib/vault_bare.ts", `export const isVault = (u: string) => u.toLowerCase().includes("xano.io")`],
+  ["lib/vault_regex.ts", `export const isVault = (u: string) => /\\.xano\\.io\\//.test(u)`],
+  [
+    "lib/frozen_names.ts",
+    `export const T = "ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT"; export const P = "/api/cron/xano-line-item-sync"; export const X_ROW = "XANO_ROW_ID"`,
+  ],
+  ["lib/xano_word.ts", `export class XanoPlanningAudienceError extends Error {}; export const m = "XANO_API_KEY missing"`],
+  ["lib/xano_io_in_query.ts", `export const u = "https://example.com/redirect?to=xano.io"`],
+  ["lib/not_xano_host.ts", `export const u = "https://notxano.io/api"`],
+  ["lib/other_env.ts", `export const u = process.env.MY_XANO_THING ?? process.env.DATABASE_URL`],
+  ["lib/jsx_closing.tsx", `export const C = () => <div>a/b</div>`],
+  ["lib/__tests__/test_dir.ts", `export const u = process.env.XANO_BASE_URL + "https://a.xano.io"`],
+  ["lib/file.test.ts", `export const u = process.env.XANO_BASE_URL + "https://a.xano.io"`],
+  // Not scanned: outside the guard's dirs.
+  ["scripts/tool.mjs", `export const u = process.env.XANO_BASE_URL`],
+]
+
+const KNOWN_GAPS = [
+  ["lib/gap_host_split.ts", `export const u = "https://x8ki.xano" + ".io/api"`],
+  ["lib/gap_host_join.ts", `export const u = ["https://x8ki", "xano", "io"].join(".")`],
+  ["lib/gap_env_alias.ts", `const env = process.env; export const u = env.XANO_BASE_URL`],
+  ["lib/gap_env_key_var.ts", `const k = "XANO_BASE_URL"; export const u = process.env[k]`],
+  ["lib/gap_env_helper.ts", `function requireEnv(n: string) { return process.env[n] } export const u = requireEnv("XANO_BASE_URL")`],
+  ["lib/gap_import_meta.ts", `export const u = (import.meta as any).env.XANO_BASE_URL`],
+]
+
+function writeRoot(cases) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "egress-guard-"))
+  for (const [rel, src] of cases) {
+    const abs = path.join(root, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, src)
+  }
+  return root
+}
+
+function runGuard(root) {
+  return spawnSync(process.execPath, [script, "--root", root], { encoding: "utf8" })
+}
+
+test("maskNonCode keeps length and newlines, and lines up after an emoji", () => {
+  const src = "const e = `🔴 ${a}` // x.xano.io\nconst b = 1"
+  for (const keepStrings of [true, false]) {
+    const out = maskNonCode(src, { keepStrings })
+    assert.equal(out.length, src.length)
+    assert.equal(out.indexOf("\n"), src.indexOf("\n"))
+    assert.ok(!out.includes("xano"), "the trailing comment is blanked")
+    assert.ok(out.endsWith("const b = 1"))
+  }
+})
+
+test("maskNonCode keeps an interpolation's closing } only when strings are kept", () => {
+  const src = "const u = `https://${sub}.xano.io`"
+  assert.equal(maskNonCode(src, { keepStrings: true }), src)
+  assert.ok(!maskNonCode(src).includes("}"))
+})
+
+for (const [rel, src] of CAUGHT) {
+  test(`caught: ${rel}`, () => {
+    const hits = xanoEgressHits(rel, maskNonCode(src, { keepStrings: true }))
+    assert.ok(hits.length >= 1, `expected a hit for ${rel}: ${src}`)
+    assert.ok(scanFile(rel, src).length >= 1)
+  })
+}
+
+for (const [rel, src] of [...ALLOWED, ...KNOWN_GAPS]) {
+  if (rel.startsWith("scripts/")) continue
+  test(`not flagged: ${rel}`, () => {
+    assert.deepEqual(scanFile(rel, src), [])
+  })
+}
+
+test("the guard fails on a tree of caught probes and names every file", () => {
+  const root = writeRoot(CAUGHT)
+  try {
+    const r = runGuard(root)
+    assert.equal(r.status, 1, r.stdout + r.stderr)
+    for (const [rel] of CAUGHT) {
+      assert.ok(r.stderr.includes(`${rel}:`), `missing ${rel} in:\n${r.stderr}`)
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("the guard passes on a tree of allowed probes and known gaps", () => {
+  const root = writeRoot([...ALLOWED, ...KNOWN_GAPS])
+  try {
+    const r = runGuard(root)
+    assert.equal(r.status, 0, r.stdout + r.stderr)
+    assert.match(r.stdout, /check:egress-guards ok/)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("rule 1 still flags an unscoped mediaPlanVersions select, and a regex before it does not hide it", () => {
+  const src = [
+    'const re = /["\']/g',
+    "export async function f() {",
+    "  return db.select().from(schema.mediaPlanVersions)",
+    "}",
+  ].join("\n")
+  const hits = scanFile("lib/x.ts", src)
+  assert.equal(hits.length, 1)
+  assert.match(hits[0], /^lib\/x\.ts:3 unscoped select\(\)/)
+  assert.deepEqual(scanFile("lib/y.ts", src.replace(".from(schema.mediaPlanVersions)", ".from(schema.mediaPlanVersions).where(eq(a, b))")), [])
+})

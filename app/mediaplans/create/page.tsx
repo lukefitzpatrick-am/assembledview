@@ -351,7 +351,6 @@ import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   beginMbaNumberRequest,
-  shouldApplyMbaNumberResponse,
   shouldSkipClientChange,
 } from "@/lib/mediaplan/mbaNumberRequestGate"
 import {
@@ -359,6 +358,7 @@ import {
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
   masterIdMismatchMessage,
+  mayApplyMbaNumberResponse,
   type HeldMasterIdentity,
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
@@ -3317,6 +3317,8 @@ function CreateMediaPlan() {
   }
 
   const generateMBANumber = async (mbaidentifier: string) => {
+    // C-165: a held master keeps its MBA number; never fetch, apply or blank one.
+    if (mediaPlanIdRef.current != null) return
     // Validate mbaidentifier before making API call
     if (!mbaidentifier || mbaidentifier.trim() === "") {
       console.error("MBA Identifier is required to generate MBA number")
@@ -3330,7 +3332,13 @@ function CreateMediaPlan() {
     try {
       const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`)
 
-      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+      if (
+        !mayApplyMbaNumberResponse({
+          requestToken,
+          currentToken: mbaNumberRequestTokenRef.current,
+          masterHeld: mediaPlanIdRef.current != null,
+        })
+      ) {
         return
       }
       
@@ -3348,7 +3356,13 @@ function CreateMediaPlan() {
       }
       
       const data = await response.json()
-      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+      if (
+        !mayApplyMbaNumberResponse({
+          requestToken,
+          currentToken: mbaNumberRequestTokenRef.current,
+          masterHeld: mediaPlanIdRef.current != null,
+        })
+      ) {
         return
       }
       if (data.mba_number) {
@@ -3361,7 +3375,13 @@ function CreateMediaPlan() {
         throw new Error("MBA number not found in response")
       }
     } catch (error) {
-      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+      if (
+        !mayApplyMbaNumberResponse({
+          requestToken,
+          currentToken: mbaNumberRequestTokenRef.current,
+          masterHeld: mediaPlanIdRef.current != null,
+        })
+      ) {
         return
       }
       console.error("Error generating MBA number:", error)
@@ -5804,6 +5824,8 @@ const handleSaveAll = async (opts?: {
     if (!proceed) return
   }
   saveAllInFlightRef.current = true
+  // C-165: an MBA number request still in flight must not land once Save starts.
+  beginMbaNumberRequest(mbaNumberRequestTokenRef)
   mbaNumberTakenRetriedRef.current = false
   publishZipContextRef.current = { versionId: null, documentsStatus: null }
   try {
@@ -6777,6 +6799,11 @@ const handleSaveAll = async (opts?: {
                                           key={client.id}
                                           value={`${client.mp_client_name} ${client.mbaidentifier || ""}`.trim()}
                                           onSelect={() => {
+                                            // C-165: an already-open picker cannot change a held master's client.
+                                            if (mediaPlanIdRef.current != null) {
+                                              setIsClientPopoverOpen(false)
+                                              return
+                                            }
                                             field.onChange(client.mp_client_name)
                                             handleClientChange(client.id.toString())
                                             setIsClientPopoverOpen(false)

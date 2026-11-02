@@ -90,7 +90,7 @@ Every other public jsonb/json column, plus text/varchar columns whose names matc
 
 | Suspect | Proof | Verdict |
 |---|---|---|
-| **`XANO_DASHBOARDS_BASE_URL`** | Defined in `lib/api/xanoClients.ts`. Only runtime consumer: `lib/api/dashboard/global.ts` → `dashboard_monthly_{publisher,client}_spend` when `DATA_BACKEND_PLANS !== postgres`. Product routes `/api/dashboard/global-monthly-*-spend` call those helpers via cache. **Not dead.** Under local `DATA_BACKEND=postgres` the Xano branch is cold but code remains live for xano/shadow. | **PORT** (cold when plans=postgres) / product dual via `dashboardMonthlySpend.ts` |
+| **`XANO_DASHBOARDS_BASE_URL`** | Defined in `lib/api/xanoClients.ts`. Only runtime consumer: `lib/api/dashboard/global.ts` → `dashboard_monthly_{publisher,client}_spend` when `DATA_BACKEND_PLANS !== postgres`. Product routes `/api/dashboard/global-monthly-*-spend` call those helpers via cache. **Not dead.** Under local `DATA_BACKEND=postgres` the Xano branch is cold but code remains live for xano/shadow. | **PORT** (cold when plans=postgres) / product dual via `dashboardMonthlySpend.ts`. **Since closed:** `lib/api/xanoClients.ts` is deleted and `global.ts` reads `dashboardMonthlySpend.ts` (Postgres) only |
 | **`/api/finance/xero-queue`** | Callers: `components/finance/sections/xero/XeroExceptionsPanel.tsx` GET+POST. Exceptions, `assign_mba`, resolve, and dismiss are Postgres. | **DONE** (XS-2a) |
 | **`/api/dashboard/spend-parity`** | Zero `fetch('/api/dashboard/spend-parity')` outside its own file. `NODE_ENV===production` → 404. | **TOOLING** (dev harness; no product callers) |
 | **`XANO_CODEX_*` remnant** | `rg XANO_CODEX` over `*.ts/tsx/js/mjs` → **0 hits**. F-27 FIXED — Postgres Codex + `CODEX_V2`. | **Gone** |
@@ -199,7 +199,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/data/readClients.ts` | clients from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readFinance.ts` | finance reads are the Postgres functions (XS-2a) | — | no | same file | **DONE** |
 | `lib/data/readKpi.ts` | campaign_kpi, client_kpi, publisher_kpi from Postgres | — | no | same file | **DONE** (XS-2b) |
-| `lib/data/readMediaPlans.ts` | masters, versions, and channel lines from Postgres. probePlansShadowDiffs is a no-op | none | no | same file *FromPostgres | **DONE** |
+| `lib/data/readMediaPlans.ts` | masters, versions, and channel lines from Postgres. probePlansShadowDiffs is deleted | none | no | same file *FromPostgres | **DONE** |
 | `lib/data/readPacing.ts` | media_plan_versions, pacing_orphan_fixes from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readPublishers.ts` | publishers from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readReferenceMediaDetail.ts` | reference media-detail tables from Postgres | none | no | fetchReferenceTableFromPostgres | **DONE** |
@@ -234,7 +234,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | — | no | same file fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/lineItemSnapshotParity.ts` | deleted (B6): the Xano vs Postgres parity report nothing ran | — | no | none | **DONE** |
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
-| `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | ignored unless `postgres` | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
+| `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | none (`LINE_ITEM_SNAPSHOT_SOURCE` not read, B6) | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/syncXanoLineItems.ts` | MERGE into MART.XANO_LINE_ITEMS_SNAPSHOT; no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/tipScopeLineItems.ts` | filters snapshot rows; no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | deleted (B6) with the parity module | — | no | none | **DONE** |

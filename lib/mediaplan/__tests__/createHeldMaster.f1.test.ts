@@ -15,6 +15,7 @@ import {
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
   masterIdMismatchMessage,
+  mayApplyMbaNumberResponse,
 } from "../createHeldMaster"
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8")
@@ -87,4 +88,34 @@ test("F1: both pages map a 422 MASTER_ID_MISMATCH to the clear message, ahead of
     assert.ok(at >= 0, `${page}: mapping present`)
     assert.ok(at < src.indexOf('"Postgres save failed"', at), `${page}: before the generic fallback`)
   }
+})
+
+test("C-165 gap: an MBA number response applies only to the latest request and never once a master is held", () => {
+  assert.equal(mayApplyMbaNumberResponse({ requestToken: 2, currentToken: 2, masterHeld: false }), true)
+  assert.equal(mayApplyMbaNumberResponse({ requestToken: 1, currentToken: 2, masterHeld: false }), false, "stale request")
+  assert.equal(mayApplyMbaNumberResponse({ requestToken: 2, currentToken: 2, masterHeld: true }), false, "master held")
+})
+
+test("C-165 gap (create): generateMBANumber never fetches, applies or blanks once a master exists; Save start invalidates in-flight requests", () => {
+  const body = constFnText("generateMBANumber")
+  const early = body.indexOf("if (mediaPlanIdRef.current != null) return")
+  assert.ok(early >= 0 && early < body.indexOf("fetch("), "returns before any fetch or blanking")
+  assert.ok(early < body.indexOf('form.setValue("mba_number", "")'), "before the empty-identifier blanking")
+  // Every response / failure checkpoint (after the fetch, after the JSON, in the catch) asks the held-master gate.
+  assert.equal((body.match(/mayApplyMbaNumberResponse\(\{\s*requestToken,\s*currentToken: mbaNumberRequestTokenRef\.current,\s*masterHeld: mediaPlanIdRef\.current != null,\s*\}\)/g) ?? []).length, 3)
+  assert.doesNotMatch(body, /shouldApplyMbaNumberResponse/)
+  const catchAt = body.lastIndexOf("} catch (error) {")
+  const gateInCatch = body.indexOf("mayApplyMbaNumberResponse", catchAt)
+  const blankInCatch = body.indexOf('form.setValue("mba_number", "")', catchAt)
+  assert.ok(gateInCatch > catchAt && blankInCatch > gateInCatch, "a failed request blanks only when no master is held")
+  const saveAll = constFnText("handleSaveAll")
+  const flight = saveAll.indexOf("saveAllInFlightRef.current = true")
+  const bump = saveAll.indexOf("beginMbaNumberRequest(mbaNumberRequestTokenRef)", flight)
+  assert.ok(flight >= 0 && bump > flight && bump < saveAll.indexOf("await handleSaveMediaPlan()"), "token bumped at Save start, before the master save")
+})
+
+test("C-165 gap (create): an already-open client picker cannot change a held master's client name", () => {
+  const onSelect = create.slice(create.indexOf("onSelect={() => {", create.indexOf('key={client.id}')))
+  const guard = onSelect.indexOf("if (mediaPlanIdRef.current != null) {")
+  assert.ok(guard >= 0 && guard < onSelect.indexOf("field.onChange(client.mp_client_name)"), "guard before field.onChange")
 })

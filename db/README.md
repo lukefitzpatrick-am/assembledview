@@ -106,7 +106,7 @@ Exclusions on `db:drift` may only cover how an object is **written** (naming, un
 3. If kit emits a random `0000_*.sql` name, rename it to `0000_baseline.sql` and set `_journal.json` `tag` to `0000_baseline`.
 4. Confirm `npm run db:generate` twice is empty.
 
-**App usage:** reference + publishers + clients + kpi reads (`lib/data/read*.ts`) when `DATA_BACKEND` / `DATA_BACKEND_<DOMAIN>` is `shadow` or `postgres`. Expand per Phase 2 domain.
+**App usage:** every `lib/data/read*.ts` / `write*.ts` module reads and writes Postgres; there is no backend switch (B6).
 
 ## Backfilling migrations
 
@@ -119,9 +119,7 @@ A migration that backfills existing rows **must** be guarded by a `migration_mar
 | `DATABASE_URL` | Runtime pooler (port **6543**) — `db/index.ts` (app/owner path) |
 | `DIRECT_URL` | drizzle-kit migrations / introspect (port **5432**) |
 | `AVA_DATABASE_URL` | AVA-only pooler (port **6543**) as role `ava_readonly` — **never** postgres/owner |
-| `DATA_BACKEND` | `postgres` (default) \| `shadow` \| `xano` (explicit; warns) — unset/unrecognised → `postgres`. See `lib/data/backend.ts` |
-| `WRITE_BACKEND` | `postgres` (default) \| `xano` (explicit; warns) — independent of `DATA_BACKEND` |
-| `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING` / `DATA_BACKEND_PLANS` / `DATA_BACKEND_APPROVALS` | Optional per-domain override of `DATA_BACKEND`; empty falls through to global, then `postgres` |
+| `DATA_BACKEND_FINANCE_SCHEDULE` | `blob` (default) \| `shadow` \| `rows` — the only data-source switch left (`lib/finance/scheduleMonthsSource.ts`). `DATA_BACKEND`, `DATA_BACKEND_<DOMAIN>`, `DATA_BACKEND_PLAN_DETAIL` and `WRITE_BACKEND` are no longer read (B6, `lib/data/backend.ts` deleted); every other read and write is Postgres |
 | `NEXT_PUBLIC_PLAN_DRAFTS` | `on` \| `off` (default **off**). Autosave chrome (3s/15s + soft Save draft). **Off does not delete** `plan_working_drafts` — rows are retained; Stage 2b load offer stays reachable. **Interim `SAVE_PUBLISHES_IMMEDIATELY`:** Save publishes. Local only until Luke sets Vercel at merge. |
 
 ## `ava_readonly` role (0003)
