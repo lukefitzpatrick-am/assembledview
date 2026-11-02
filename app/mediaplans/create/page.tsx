@@ -354,6 +354,13 @@ import {
   shouldApplyMbaNumberResponse,
   shouldSkipClientChange,
 } from "@/lib/mediaplan/mbaNumberRequestGate"
+import {
+  CREATE_CLIENT_LOCKED_NOTE,
+  MASTER_ID_MISMATCH,
+  heldMasterIdentityFixes,
+  masterIdMismatchMessage,
+  type HeldMasterIdentity,
+} from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 
@@ -3370,6 +3377,12 @@ function CreateMediaPlan() {
     if (shouldSkipClientChange(selectedClientId, clientId)) {
       return
     }
+    // B6 notes F1: once the first Save created the master, the MBA number and
+    // client are fixed (the save refuses another MBA number). The picker is
+    // disabled too; this also covers prefill and URL client calls.
+    if (mediaPlanIdRef.current != null) {
+      return
+    }
     const selectedClient = clients.find((client) => client.id.toString() === clientId)
     if (selectedClient) {
       const nextClientName = selectedClient.mp_client_name
@@ -4762,6 +4775,8 @@ function CreateMediaPlan() {
   }
 
   const [mediaPlanId, setMediaPlanId] = useState<number | null>(null)
+  /** MBA identity the held master was created with (B6 notes F1). */
+  const heldMasterIdentityRef = useRef<HeldMasterIdentity | null>(null)
   /** Keeps latest master id for synchronous guards (double-submit) */
   const mediaPlanIdRef = useRef<number | null>(null)
   const saveAllInFlightRef = useRef(false)
@@ -4827,6 +4842,16 @@ function CreateMediaPlan() {
     }
   }, [createDraftId])
 
+  /** After a draft restore, a held master keeps its MBA number and client (B6 notes F1). */
+  const keepHeldMasterIdentity = () => {
+    const fixes = heldMasterIdentityFixes(heldMasterIdentityRef.current, form.getValues())
+    if (!fixes) return
+    for (const [key, value] of Object.entries(fixes)) {
+      form.setValue(key as "mba_number" | "mp_client_name" | "mbaidentifier", value as string)
+    }
+    if (fixes.mba_number != null) setMbaNumber(fixes.mba_number)
+  }
+
   const planDraft = usePlanDraftSession({
     masterId: mediaPlanId,
     mbaNumber: String(mbaNumber ?? ""),
@@ -4848,6 +4873,7 @@ function CreateMediaPlan() {
       }),
     onRestore: (state: PlanDraftStateV1) => {
       if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
+      keepHeldMasterIdentity()
       const { media } = buildDraftChannelApply(state.channels ?? {})
       const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionMediaLineItems,
@@ -4878,6 +4904,7 @@ function CreateMediaPlan() {
     },
     onRevertToBase: (state: PlanDraftStateV1) => {
       if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
+      keepHeldMasterIdentity()
       const { media } = buildDraftChannelApply(state.channels ?? {})
       const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionMediaLineItems,
@@ -5029,6 +5056,11 @@ function CreateMediaPlan() {
   
       setMediaPlanId(mediaPlan.id)
       mediaPlanIdRef.current = mediaPlan.id
+      heldMasterIdentityRef.current = {
+        mbaNumber: String(payload.mba_number ?? ""),
+        clientName: String(mp_client_name ?? ""),
+        mbaIdentifier: String(form.getValues("mbaidentifier") ?? ""),
+      }
       // Update status to success
       setSaveStatus(prev => prev.map(item => 
         item.name === 'Media Plan Master' 
@@ -5397,6 +5429,8 @@ function CreateMediaPlan() {
           title: "Publish rejected — no line items",
           description: "Enable channels need at least one line item before publish.",
         })
+        // B6 notes F4: the later modal steps did not run.
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
         return "failed"
       }
 
@@ -5549,7 +5583,9 @@ function CreateMediaPlan() {
           return "failed"
         }
         const human =
-          saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+          saveResult.data.code === MASTER_ID_MISMATCH
+            ? masterIdMismatchMessage("create")
+          : saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
             ? "Cannot publish version with 0 line items (BOSS006)"
             : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
               ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
@@ -6708,7 +6744,8 @@ const handleSaveAll = async (opts?: {
                               variant="outline"
                               role="combobox"
                               aria-expanded={isClientPopoverOpen}
-                              disabled={Boolean(clientsError)}
+                              disabled={Boolean(clientsError) || mediaPlanId != null}
+                              title={mediaPlanId != null ? CREATE_CLIENT_LOCKED_NOTE : undefined}
                               className="w-full justify-between"
                             >
                               <span className="truncate">
@@ -6761,6 +6798,11 @@ const handleSaveAll = async (opts?: {
                             </Command>
                           </PopoverContent>
                         </Popover>
+                        {mediaPlanId != null ? (
+                          <p className="mt-1 text-xs text-muted-foreground" data-testid="create-client-locked-note">
+                            {CREATE_CLIENT_LOCKED_NOTE}
+                          </p>
+                        ) : null}
                         </>
                       )}
                     </Field>

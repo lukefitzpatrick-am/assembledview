@@ -272,6 +272,7 @@ import {
 } from "@/lib/mediaplan/mbaScopeClient"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
+import { MASTER_ID_MISMATCH, masterIdMismatchMessage } from "@/lib/mediaplan/createHeldMaster"
 import { resolveDraftBaseVersionNumber } from "@/lib/mediaplan/drafts/resolveDraftBaseVersionNumber"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import {
@@ -7465,6 +7466,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           title: "Publish rejected — no line items",
           description: "Enable channels need at least one line item before publish.",
         })
+        // B6 notes F4: the later modal steps did not run.
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
         setIsSaving(false)
         return
       }
@@ -7625,7 +7628,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           return
         }
         const human =
-          saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+          saveResult.data.code === MASTER_ID_MISMATCH
+            ? masterIdMismatchMessage("edit")
+          : saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
             ? "Cannot publish version with 0 line items (BOSS006)"
             : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
               ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`

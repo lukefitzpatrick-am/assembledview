@@ -42,11 +42,14 @@ function ownReturns(fn: ts.FunctionLikeDeclaration): ts.ReturnStatement[] {
   return out
 }
 
-/** The innermost enclosing block (if/try body) text for a node. */
-function enclosingBlockText(n: ts.Node): string {
+/** The nearest enclosing `if` (inside `fn`) of a node, or null. */
+function nearestIf(n: ts.Node, fn: ts.Node): ts.IfStatement | null {
   let p: ts.Node | undefined = n.parent
-  while (p && !ts.isBlock(p)) p = p.parent
-  return p ? p.getText(sf) : ""
+  while (p && p !== fn) {
+    if (ts.isIfStatement(p)) return p
+    p = p.parent
+  }
+  return null
 }
 
 const versionSave = findConstFn("handleSaveMediaPlanVersion")
@@ -63,22 +66,28 @@ test("C-164: the version save is typed ok | failed and every own return says whi
 
 test("C-164: each refusal the version save handles returns failed (and never clears or navigates)", () => {
   const failed = ownReturns(versionSave).filter((r) => r.expression?.getText(sf) === '"failed"')
-  const kinds: Array<[string, RegExp]> = [
-    ["publish with 0 line items (BOSS006)", /Publish rejected — no line items/],
-    ["stale base (someone published)", /STALE_BASE_VERSION/],
-    ["missing buy type", /MISSING_BUY_TYPE/],
-    ["missing burst dates", /MISSING_BURST_DATES/],
-    ["any other save error", /title: "Save failed"/],
+  // Matched on the condition of the nearest enclosing `if` (B6 notes F2: a
+  // wider match let any "failed" satisfy every kind).
+  const kinds: Array<[string, (cond: string) => boolean]> = [
+    ["publish with 0 line items (BOSS006)", (c) => /lineItemsForSave\.length === 0/.test(c)],
+    ["stale base (someone published)", (c) => /saveResult\.data\.code === "STALE_BASE_VERSION"/.test(c)],
+    ["missing buy type", (c) => /saveResult\.data\.code === MISSING_BUY_TYPE\b/.test(c)],
+    ["missing burst dates", (c) => /saveResult\.data\.code === MISSING_BURST_DATES\b/.test(c)],
+    ["any other save error", (c) => c.replace(/\s+/g, "") === "!saveResult.ok"],
   ]
-  for (const [kind, marker] of kinds) {
-    const hit = failed.filter((r) => marker.test(enclosingBlockText(r.parent) + enclosingBlockText(r)))
-    assert.equal(hit.length >= 1, true, `${kind}: returns "failed"`)
-    for (const r of hit) {
-      const block = enclosingBlockText(r)
-      assert.doesNotMatch(block, /clearDirtyOnSaveSuccess\(\)|router\.push|form\.reset/, `${kind}: no success step`)
-    }
+  const seen = new Map<string, number>()
+  for (const r of failed) {
+    const cond = nearestIf(r, versionSave)?.expression.getText(sf) ?? ""
+    const matches = kinds.filter(([, test]) => test(cond)).map(([kind]) => kind)
+    assert.equal(matches.length, 1, `a "failed" return must sit in exactly one refusal branch (condition: ${cond || "none"})`)
+    seen.set(matches[0]!, (seen.get(matches[0]!) ?? 0) + 1)
+    const branch = nearestIf(r, versionSave)!.thenStatement.getText(sf)
+    assert.doesNotMatch(branch, /clearDirtyOnSaveSuccess\(\)|router\.push|form\.reset/, `${matches[0]}: no success step`)
   }
-  assert.equal(failed.length, kinds.length, "one failed return per refusal kind")
+  for (const [kind] of kinds) assert.equal(seen.get(kind), 1, `${kind}: exactly one "failed" return`)
+  // The "ok" return is the last statement of the try, not inside a branch.
+  const ok = ownReturns(versionSave).find((r) => r.expression?.getText(sf) === '"ok"')!
+  assert.equal(nearestIf(ok, versionSave), null, '"ok" is not inside a branch')
   // The missing buy type / burst date highlights are set on failure and only
   // cleared when the next save starts, so they stay visible on the page.
   const body = versionSave.getText(sf)

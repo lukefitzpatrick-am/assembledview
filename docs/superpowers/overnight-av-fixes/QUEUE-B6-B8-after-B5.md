@@ -13,7 +13,7 @@ Status: open (2 Nov 2026). Inputs for the B6 and B8 prompt packs. Delete or mark
 | Item | File | Notes |
 |---|---|---|
 | `humaniseBillingSaveError`, `isBillingSaveGateError`, `withMbaScopeLineLabels` | `lib/finance/humaniseBillingSaveError.ts` | All 3 exports; only the deleted Xano version bodies used them |
-| `diffBillingActivity`, `formatPreservePriorAlert`, `collectPersistedBillingLineIds` | `lib/finance/preservePriorBilling.ts` | Keep `findStaleDateBasisOverrides` (live on the edit page) |
+| `diffBillingActivity`, `formatPreservePriorAlert`, `collectPersistedBillingLineIds`, `describePreservePriorMerge` | `lib/finance/preservePriorBilling.ts` | Keep `findStaleDateBasisOverrides` (live on the edit page). `describePreservePriorMerge` (line ~175) had no caller before B5 either |
 | `applyDateBasisKeepOrReset` | `lib/finance/applyDateBasisKeepOrReset.ts` | Was the C3 save preflight |
 | `assertCoreScheduleParity` | `lib/finance/assertCoreScheduleParity.ts` | Was the create post-save parity check |
 | `SESSION_EXPIRED_PUBLISH_MESSAGE` | `lib/auth/writeSessionExpiry.ts` | Was the publish-retry copy |
@@ -22,3 +22,14 @@ Status: open (2 Nov 2026). Inputs for the B6 and B8 prompt packs. Delete or mark
 | Unused `investmentPerMonth` / `mergeInvestmentMonths(...)` | `app/mediaplans/create/page.tsx` ~926 | Pre-existing unused memo; edit's copy went in B5 |
 
 Done in B5a (not for B8): the unused `opts` parameter on create's `handleSaveMediaPlanVersion`.
+
+### Tests each B8 deletion touches
+
+| Deletion | Test files to update or delete |
+|---|---|
+| `humaniseBillingSaveError.ts` | `lib/finance/__tests__/humaniseBillingSaveError.test.ts` |
+| `preservePriorBilling.ts` exports | `lib/finance/__tests__/preservePriorBilling.test.ts` |
+| `applyDateBasisKeepOrReset.ts` | `lib/finance/__tests__/mbaBillingModalNoOverridePost.mb23.test.ts` names it in `doesNotMatch` pins only (still passes after the delete; tidy the regex) |
+| `assertCoreScheduleParity.ts` | `lib/finance/__tests__/assertCoreScheduleParity.test.ts`, `lib/mediaplan/__tests__/burstDateParity.test.ts` |
+| `createSemaphore.ts` | `lib/utils/__tests__/createSemaphore.test.ts` (the only file in `test:xano-mirror`) |
+| `shouldRunDeferredMasterPublish`, `shouldBlockEmptyPublish` | `lib/mediaplan/__tests__/deferredMasterPublishIntent.test.ts`, `lib/mediaplan/__tests__/publishVersionIntegrity.test.ts`, `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts` (B5 `doesNotMatch` pin names them; still passes) |
