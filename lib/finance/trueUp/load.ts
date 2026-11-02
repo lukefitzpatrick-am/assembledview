@@ -4,7 +4,8 @@
  * Plan of record: billing-basis schedule_months on the published version
  * (pointer AND stamp, PUBLISHED_VERSION_JOIN_SQL). Never max(version_number).
  * Invoiced: xero_ar_invoices lines. Matched records: finance_billing_records
- * media rows with a Xero match.
+ * media rows with a Xero match. Plans carry clients.is_test_client (0112) so
+ * the report can leave test and internal clients out.
  */
 
 import "server-only"
@@ -39,6 +40,7 @@ export function trueUpPlansSql(): SQL {
       m.id AS master_id,
       m.mba_number,
       m.client_id,
+      coalesce(c.is_test_client, false) AS is_test_client,
       m.mp_client_name,
       coalesce(nullif(v.campaign_name, ''), m.campaign_name) AS campaign_name,
       coalesce(v.campaign_status, m.campaign_status) AS campaign_status,
@@ -48,6 +50,8 @@ export function trueUpPlansSql(): SQL {
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v
       ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
+    LEFT JOIN clients c
+      ON c.id = m.client_id
   `
 }
 

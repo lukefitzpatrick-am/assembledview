@@ -84,6 +84,8 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$infer
   sharepoint_site_url: "sharepointSiteUrl",
   teams_group_id: "teamsGroupId",
   m365_is_anchor: "m365IsAnchor",
+  // 0112: "Test or internal client" (admin client form). The PUT/PATCH route is admin only.
+  is_test_client: "isTestClient",
 }
 
 /**

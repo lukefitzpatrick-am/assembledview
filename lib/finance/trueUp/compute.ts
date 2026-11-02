@@ -124,6 +124,8 @@ export type TrueUpPlanSqlRow = {
   master_id: number | string
   mba_number: string | null
   client_id: number | string | null
+  /** clients.is_test_client (0112). Test and internal clients are left out of the report. */
+  is_test_client?: boolean | string | null
   mp_client_name: string | null
   campaign_name: string | null
   campaign_status: string | null
@@ -576,6 +578,20 @@ export type TrueUpMbaRow = {
   actions: TrueUpActionRef[]
 }
 
+/** A plan the report left out, so it stays visible in the summary. */
+export type TrueUpSkippedMba = {
+  mbaNumber: string
+  clientName: string
+  campaignName: string
+}
+
+export type TrueUpSkipped = {
+  /** Plans of clients marked "Test or internal client" (clients.is_test_client). */
+  testClients: TrueUpSkippedMba[]
+  /** Plans with no client (media_plan_masters.client_id null): listed, never hidden. */
+  noClient: TrueUpSkippedMba[]
+}
+
 export type TrueUpReport = {
   asOfMonth: string
   fromMonth: string
@@ -590,6 +606,8 @@ export type TrueUpReport = {
     creditByComponent: ComponentCents
     mbasByStatus: Record<TrueUpStatus, number>
     mbasNeedingAction: number
+    /** Plans in the window left out of `rows`: test clients and plans with no client. */
+    skipped: TrueUpSkipped
   }
   rows: TrueUpMbaRow[]
   unattributed: UnattributedLine[]
@@ -612,6 +630,10 @@ const STATUS_RANK: Record<TrueUpStatus, number> = {
 
 export function needsAction(status: TrueUpStatus): boolean {
   return status === "gap" || status === "ended" || status === "no_invoice" || status === "schedule_incomplete"
+}
+
+function isTrueFlag(value: unknown): boolean {
+  return value === true || value === "true" || value === "t"
 }
 
 function idOrNull(value: unknown): number | null {
@@ -784,6 +806,7 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
   for (const key of linesByMba.keys()) keys.add(key)
 
   const rows: TrueUpMbaRow[] = []
+  const skipped: TrueUpSkipped = { testClients: [], noClient: [] }
   for (const key of keys) {
     const plan = plans.get(key)
     if (!plan) continue
@@ -889,6 +912,23 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
     )
     if (!anyMoney) continue
 
+    // Test and internal clients are left out (Luke, 2 Nov 2026). A plan with no
+    // client is left out too, but listed, so a real plan missing its client
+    // stays visible. Their invoice lines stay attributed (not "no MBA").
+    const skippedRef: TrueUpSkippedMba = {
+      mbaNumber: String(plan.mba_number ?? "").trim(),
+      clientName: String(plan.mp_client_name ?? "").trim(),
+      campaignName: String(plan.campaign_name ?? "").trim(),
+    }
+    if (idOrNull(plan.client_id) == null) {
+      skipped.noClient.push(skippedRef)
+      continue
+    }
+    if (isTrueFlag(plan.is_test_client)) {
+      skipped.testClients.push(skippedRef)
+      continue
+    }
+
     let worst: TrueUpStatus = "matches"
     for (const c of TRUE_UP_COMPONENTS) {
       if (STATUS_RANK[summaries[c].status] < STATUS_RANK[worst]) worst = summaries[c].status
@@ -960,7 +1000,17 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
     xeroSyncedAt: input.xeroSyncedAt ?? null,
     thresholdCents: TRUE_UP_THRESHOLD_CENTS,
     provisionalInvoices: provisionalIds.size,
-    totals: { gapByComponent, chargeByComponent, creditByComponent, mbasByStatus, mbasNeedingAction },
+    totals: {
+      gapByComponent,
+      chargeByComponent,
+      creditByComponent,
+      mbasByStatus,
+      mbasNeedingAction,
+      skipped: {
+        testClients: [...skipped.testClients].sort((a, b) => a.mbaNumber.localeCompare(b.mbaNumber)),
+        noClient: [...skipped.noClient].sort((a, b) => a.mbaNumber.localeCompare(b.mbaNumber)),
+      },
+    },
     rows,
     unattributed: unattributed.filter((u) => {
       const m = monthOf(u.issueDate)

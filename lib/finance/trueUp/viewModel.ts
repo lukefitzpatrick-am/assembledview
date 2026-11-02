@@ -10,6 +10,7 @@ import {
   defaultTrueUpAsOf,
   needsAction,
   type TrueUpMbaRow,
+  type TrueUpSkipped,
 } from "./compute"
 
 export type TrueUpView = "action" | "all"
@@ -56,5 +57,19 @@ export function trueUpRowSuggestions(row: TrueUpMbaRow): string[] {
     if (s.status === "matches" || !s.suggestion) continue
     out.push(`${TRUE_UP_COMPONENT_LABELS[c]}: ${s.suggestion}`)
   }
+  return out
+}
+
+/**
+ * The skipped lines for the page and the email. Test and internal clients are
+ * a count; plans with no client are a count and their MBA numbers, so a real
+ * plan missing its client stays visible. Tolerates a report saved before 0112.
+ */
+export function trueUpSkippedLines(skipped: TrueUpSkipped | null | undefined): string[] {
+  const test = skipped?.testClients ?? []
+  const none = skipped?.noClient ?? []
+  const out = [`Skipped: test or internal clients (${test.length})`]
+  const mbas = none.map((s) => s.mbaNumber).filter(Boolean)
+  out.push(mbas.length > 0 ? `Skipped: no client (${none.length}): ${mbas.join(", ")}` : `Skipped: no client (${none.length})`)
   return out
 }

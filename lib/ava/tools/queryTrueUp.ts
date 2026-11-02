@@ -6,6 +6,11 @@
  * Source: the newest saved run (cron or "Run now") for the month asked, and
  * the ledger of fixes and notes for the MBAs shown. It is as fresh as that
  * run; the true-up page computes live.
+ *
+ * Test and internal clients (clients.is_test_client, 0112) and plans with no
+ * client are left out, as on the page. Runs saved before 0112 still hold their
+ * rows (history is not rewritten), so the tool drops them by looking up each
+ * MBA's client; plans with no client are listed as skipped, never hidden.
  */
 import { desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
@@ -18,7 +23,7 @@ import { centsToDollars, parseZodOrError, requireAvaDbOrSoftFail } from "./postg
 import type AvaTool from "./types"
 import type { AvaToolContext, AvaToolResult } from "./types"
 
-const { trueUpRuns, trueUpActions } = schema
+const { trueUpRuns, trueUpActions, mediaPlanMasters, clients } = schema
 
 const ACTION_STATUSES = new Set(["gap", "ended", "no_invoice", "schedule_incomplete"])
 const MAX_ROWS = 60
@@ -49,7 +54,23 @@ export type TrueUpRunRecord = {
   xeroSyncedAt: string | null
   provisionalInvoices: number
   mbasNeedingAction: number
+  /** report.totals at save time; from 0112 it carries `skipped`. */
+  totals?: unknown
   rows: unknown
+}
+
+/** MBAs (lower case) whose client is a test client, or that have no client. */
+export type TrueUpRunExclusions = {
+  testMbas: ReadonlySet<string>
+  noClientMbas: ReadonlySet<string>
+}
+
+type SkippedRef = { mbaNumber?: string }
+
+function savedSkipped(totals: unknown): { testClients: SkippedRef[]; noClient: SkippedRef[] } {
+  const skipped = (asRecord(totals).skipped ?? {}) as Record<string, unknown>
+  const list = (v: unknown) => (Array.isArray(v) ? (v as SkippedRef[]) : [])
+  return { testClients: list(skipped.testClients), noClient: list(skipped.noClient) }
 }
 
 export type TrueUpActionRecord = {
@@ -85,8 +106,24 @@ export function shapeTrueUpForModel(
   run: TrueUpRunRecord,
   actions: readonly TrueUpActionRecord[],
   filter: { client?: string; mba?: string; openOnly?: boolean },
+  exclude: TrueUpRunExclusions = { testMbas: new Set(), noClientMbas: new Set() },
 ) {
-  const all = (Array.isArray(run.rows) ? run.rows : []) as TrueUpRunRowJson[]
+  const saved = (Array.isArray(run.rows) ? run.rows : []) as TrueUpRunRowJson[]
+  // Older runs still hold test-client and no-client rows: drop them here.
+  const skippedTest = new Set(savedSkipped(run.totals).testClients.map((s) => key(s.mbaNumber)).filter(Boolean))
+  const skippedNone = new Set(savedSkipped(run.totals).noClient.map((s) => key(s.mbaNumber)).filter(Boolean))
+  const all = saved.filter((r) => {
+    const k = key(r.mbaNumber)
+    if (exclude.noClientMbas.has(k)) {
+      skippedNone.add(k)
+      return false
+    }
+    if (exclude.testMbas.has(k)) {
+      skippedTest.add(k)
+      return false
+    }
+    return true
+  })
   const client = key(filter.client)
   const mba = key(filter.mba)
   const picked = all.filter((r) => {
@@ -147,7 +184,12 @@ export function shapeTrueUpForModel(
       source: run.source,
       xeroSyncedAt: run.xeroSyncedAt,
       provisionalInvoices: run.provisionalInvoices,
-      mbasNeedingAction: run.mbasNeedingAction,
+      // Counted again without the skipped plans (older runs counted them).
+      mbasNeedingAction: all.filter((r) => ACTION_STATUSES.has(String(r.status ?? ""))).length,
+    },
+    skipped: {
+      testOrInternalClients: skippedTest.size,
+      noClient: { count: skippedNone.size, mbas: [...skippedNone].sort() },
     },
     matched: picked.length,
     truncated: picked.length > MAX_ROWS,
@@ -155,6 +197,21 @@ export function shapeTrueUpForModel(
     signs: "Plus is a credit due to the client, minus is a charge. Ex GST. Gaps under $1 count as matching.",
     next: "Answer from these rows. For a fix, send the user to Finance > Reports > True-up; AVA does not change schedules here.",
   }
+}
+
+/** Which run MBAs to leave out. An MBA with no master row is kept (nothing to go on). Pure. */
+export function trueUpExclusionsFromOwners(
+  owners: ReadonlyArray<{ mbaNumber: string | null; clientId: number | null; isTestClient: boolean | null }>,
+): TrueUpRunExclusions {
+  const testMbas = new Set<string>()
+  const noClientMbas = new Set<string>()
+  for (const o of owners) {
+    const k = key(o.mbaNumber)
+    if (!k) continue
+    if (o.clientId == null) noClientMbas.add(k)
+    else if (o.isTestClient === true) testMbas.add(k)
+  }
+  return { testMbas, noClientMbas }
 }
 
 function isMissingGrant(err: unknown): boolean {
@@ -203,6 +260,7 @@ export const queryTrueUpTool: AvaTool = {
           xeroSyncedAt: trueUpRuns.xeroSyncedAt,
           provisionalInvoices: trueUpRuns.provisionalInvoices,
           mbasNeedingAction: trueUpRuns.mbasNeedingAction,
+          totals: trueUpRuns.totals,
           rows: trueUpRuns.rows,
         })
         .from(trueUpRuns)
@@ -221,7 +279,26 @@ export const queryTrueUpTool: AvaTool = {
           }),
         }
       }
-      const preview = shapeTrueUpForModel(run, [], { client, mba, openOnly: parsed.data.openOnly })
+      const runMbas = [
+        ...new Set(
+          ((Array.isArray(run.rows) ? run.rows : []) as TrueUpRunRowJson[])
+            .map((r) => key(r.mbaNumber))
+            .filter(Boolean),
+        ),
+      ]
+      const owners = runMbas.length
+        ? await db
+            .select({
+              mbaNumber: mediaPlanMasters.mbaNumber,
+              clientId: mediaPlanMasters.clientId,
+              isTestClient: clients.isTestClient,
+            })
+            .from(mediaPlanMasters)
+            .leftJoin(clients, eq(clients.id, mediaPlanMasters.clientId))
+            .where(inArray(sql`lower(${mediaPlanMasters.mbaNumber})`, runMbas))
+        : []
+      const exclude = trueUpExclusionsFromOwners(owners)
+      const preview = shapeTrueUpForModel(run, [], { client, mba, openOnly: parsed.data.openOnly }, exclude)
       const mbas = preview.rows.map((r) => r.mba).filter((m): m is string => Boolean(m))
       const actions = mbas.length
         ? ((await db
@@ -248,10 +325,14 @@ export const queryTrueUpTool: AvaTool = {
             .orderBy(desc(trueUpActions.createdAt))
             .limit(MAX_ACTIONS)) as TrueUpActionRecord[])
         : []
-      return { content: jsonContent(shapeTrueUpForModel(run, actions, { client, mba, openOnly: parsed.data.openOnly })) }
+      return {
+        content: jsonContent(
+          shapeTrueUpForModel(run, actions, { client, mba, openOnly: parsed.data.openOnly }, exclude),
+        ),
+      }
     } catch (err) {
       if (isMissingGrant(err)) {
-        return { content: "AVA cannot read the true-up yet: it needs migrations 0109 and 0110 (ava_readonly SELECT).", isError: true }
+        return { content: "AVA cannot read the true-up yet: it needs migrations 0109, 0110 (ava_readonly SELECT) and 0112 (clients.is_test_client).", isError: true }
       }
       console.error("[query_true_up]", err)
       return { content: "Could not read the true-up.", isError: true }

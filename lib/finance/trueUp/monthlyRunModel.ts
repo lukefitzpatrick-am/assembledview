@@ -16,6 +16,7 @@ import {
   needsAction,
   type TrueUpReport,
 } from "./compute"
+import { trueUpSkippedLines } from "./viewModel"
 
 /** As of the month just ended in Sydney, from the start of its financial year. A valid override wins. */
 export function trueUpRunMonths(now: Date, asOfOverride?: string): { asOfMonth: string; fromMonth: string } {
@@ -88,6 +89,7 @@ export function buildTrueUpRunEmail(
 <p><strong>${need.length}</strong> ${need.length === 1 ? "plan needs" : "plans need"} action. Xero last synced ${esc(synced)}.${report.provisionalInvoices > 0 ? ` ${report.provisionalInvoices} draft or unsent ${report.provisionalInvoices === 1 ? "invoice is" : "invoices are"} not counted.` : ""}</p>
 ${totals ? `<table cellpadding="4" style="border-collapse:collapse"><tr><th align="left">Component</th><th align="right">Credit due</th><th align="right">Charge due</th></tr>${totals}</table>` : ""}
 ${listed ? `<table cellpadding="4" style="border-collapse:collapse;margin-top:12px"><tr><th align="left">MBA</th><th align="left">Client</th><th align="left">Campaign</th><th align="left">Gap</th></tr>${listed}</table>${more}` : ""}
+<p style="color:#444">${trueUpSkippedLines(report.totals.skipped).map(esc).join("<br>")}</p>
 <p><a href="${esc(link)}">Open the true-up in AV</a></p>
 <p style="color:#666">Plus is a credit due to the client, minus is a charge. Gaps under $1 count as matching.</p>
 </div>`

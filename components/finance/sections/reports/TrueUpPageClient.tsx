@@ -29,6 +29,7 @@ import {
   trueUpMonthLabel,
   trueUpMonthOptions,
   trueUpRowSuggestions,
+  trueUpSkippedLines,
   type TrueUpView,
 } from "@/lib/finance/trueUp/viewModel"
 
@@ -425,6 +426,8 @@ export function TrueUpPageClient() {
           {report.provisionalInvoices > 0
             ? `${report.provisionalInvoices} draft or unsent invoice${report.provisionalInvoices === 1 ? " is" : "s are"} shown as provisional and not counted.`
             : "No draft invoices in this window."}
+          {" "}
+          <span data-testid="true-up-skipped">{trueUpSkippedLines(report.totals.skipped).join(". ")}.</span>
         </p>
       ) : null}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

@@ -26,6 +26,8 @@ import {
   buildEditClientPayload,
   clientEditSchema,
   describeInvalidFields,
+  TEST_CLIENT_HELP,
+  TEST_CLIENT_LABEL,
   type ClientEditFormValues,
 } from "@/lib/clients/editClientFormSchema"
 
@@ -651,6 +653,30 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
           <PlatformAccountsSection clientId={client.id} />
 
           <ConversionSettingsSection clientId={client.id} />
+
+          {isAdmin ? (
+            <div className="min-w-0 rounded-md border p-4">
+              <h3 className="mb-4 text-lg font-semibold">Finance checks</h3>
+              <FormField
+                control={form.control}
+                name="is_test_client"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value === true}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>{TEST_CLIENT_LABEL}</FormLabel>
+                      <p className="text-sm text-muted-foreground">{TEST_CLIENT_HELP}</p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+          ) : null}
 
           {isAdmin ? (
             <div className="min-w-0 rounded-md border p-4">

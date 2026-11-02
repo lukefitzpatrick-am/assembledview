@@ -197,6 +197,11 @@ export const clients = pgTable(
   m365IsAnchor: boolean('m365_is_anchor').notNull().default(false),
   /** Fireflies title-match aliases (Penfold's, BOSS, GA, …). */
   clientNameAliases: jsonb("client_name_aliases").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  /**
+   * Test or internal client (0112). Finance checks such as the true-up leave
+   * its plans out. Apply 0112 before deploying this mirror (C-76).
+   */
+  isTestClient: boolean("is_test_client").notNull().default(false),
   },
   (table) => [
     uniqueIndex("uq_clients_m365_anchor_mbaidentifier")

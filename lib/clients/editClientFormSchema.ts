@@ -44,6 +44,12 @@ export const BRAIN_LINK_FIELDS = [
 
 export const CLIENT_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT"] as const
 
+/** Admin-only fields: never in a non-admin payload. */
+export const ADMIN_ONLY_FIELDS = ["is_test_client"] as const
+
+export const TEST_CLIENT_LABEL = "Test or internal client"
+export const TEST_CLIENT_HELP = "Leaves this client out of finance checks like the true-up."
+
 /**
  * Runs `prep` before `inner`. The cast keeps the inner schema's types, so the
  * form's value types don't widen to `unknown`.
@@ -164,6 +170,8 @@ export const clientEditSchema = z.object({
   digitalaudio_checkbox: optionalBoolean,
   digitalvideo_checkbox: optionalBoolean,
   bvod_checkbox: optionalBoolean,
+  /** 0112. Admin only; off by default. */
+  is_test_client: optionalBoolean,
   feesocial: percentFee(),
   feesearch: percentFee(),
   feeprogdisplay: percentFee(),
@@ -243,6 +251,8 @@ export function buildEditClientDefaults(
     // Phone numbers as strings
     keyphone: client.keyphone ? String(client.keyphone) : "",
     billingphone: client.billingphone ? String(client.billingphone) : "",
+    // Off unless the row says true (rows read before 0112 have no column).
+    is_test_client: client.is_test_client === true,
   } as ClientEditFormValues
 }
 
@@ -259,9 +269,13 @@ export function buildEditClientPayload(
   for (const field of LEGACY_PLATFORM_ID_FIELDS) {
     delete payload[field]
   }
-  // UI-gate only: non-admins must never write brain/link fields (even if defaults rode along).
+  // UI-gate only: non-admins must never write brain/link or admin-only fields
+  // (even if defaults rode along). The PUT route is admin only as well.
   if (!options.isAdmin) {
     for (const field of BRAIN_LINK_FIELDS) {
+      delete payload[field]
+    }
+    for (const field of ADMIN_ONLY_FIELDS) {
       delete payload[field]
     }
   } else {
@@ -324,6 +338,7 @@ export const EDIT_CLIENT_FIELD_LABELS: Record<string, string> = {
   digitalaudio_checkbox: "Digital Audio",
   digitalvideo_checkbox: "Digital Video",
   bvod_checkbox: "BVOD",
+  is_test_client: "Test or internal client",
   brand_colour: "Brand Colour",
 }
 
