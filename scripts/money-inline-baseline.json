@@ -1,7 +1,5 @@
 {
-  "app/api/dashboard/spend-parity/route.ts": 3,
   "app/api/finance/forecast/targets/route.ts": 1,
-  "app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.ts": 1,
   "app/api/mediaplans/mba/[mba_number]/route.ts": 1,
   "app/dashboard/[slug]/[mba_number]/components/MediaTable.tsx": 2,
   "app/dashboard/[slug]/[mba_number]/page.tsx": 1,
@@ -55,7 +53,6 @@
   "components/pacing-ad-serving/AdServingLineItemTable.tsx": 1,
   "components/planning/ExportDeckButton.tsx": 2,
   "components/planning/taxonomyGrouping.ts": 1,
-  "lib/api/dashboard/finance.ts": 4,
   "lib/api/dashboard/shared.ts": 1,
   "lib/api/media-containers.ts": 1,
   "lib/ava/tools/queryFinanceSummary.ts": 4,
