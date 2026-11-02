@@ -21,6 +21,7 @@
     "test:knip": "node --test scripts/__tests__/check-knip.test.mjs",
     "test:any-ratchet": "node --test scripts/__tests__/check-any-ratchet.test.mjs",
     "test:egress-guards": "node --test scripts/__tests__/check-egress-guards.test.mjs",
+    "test:features": "node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/features/__tests__/features.test.ts app/api/admin/features/__tests__/route.test.ts app/api/admin/features/__tests__/saveCurrent.route.test.ts",
     "test:line-item-snapshot": "node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/snowflake/__tests__/pgLineItemSnapshot.test.ts lib/snowflake/__tests__/assumeSpendSnapshot.test.ts lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts lib/snowflake/__tests__/xanoLineItemPruneDryRun.test.ts",
     "gate:main": "npm run typecheck && npm run check:egress-guards && npm run lint && npm run check:client-server-only && npm run check:drizzle-snapshot && npm run check:hardcoded-urls && npm run check:money-inline && npm run check:any-ratchet && npm run check:billing-line-id-equality && npm run check:stacking-layers && npm run test:db-drift && npm run build:gate",
     "typecheck": "tsc --noEmit",

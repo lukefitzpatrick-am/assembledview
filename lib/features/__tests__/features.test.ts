@@ -18,6 +18,7 @@ import {
   featureEnvValue,
   parseFeatureEnv,
   resolveFeature,
+  unsavedFeatureSwitches,
   type FeatureRow,
 } from "@/lib/features/registry"
 import {
@@ -203,6 +204,41 @@ test("page model: groups, source labels, hints and toggle state", () => {
   assert.equal(viewAs.canToggle, false)
   const notReady = buildFeaturePageModel({ ready: false, states: [], roles: { admin: true, financeAdmin: true } })
   assert.ok(notReady.flatMap((g) => g.rows).every((r) => !r.canToggle))
+})
+
+test("G9: every page switch with no row is listed with the value it has now; Vercel ones never", () => {
+  const pageSwitches = FEATURE_DEFINITIONS.filter((d) => d.source === "switch").map((d) => d.key)
+  // 16 page switches today (the review report counted 18 on 31 Oct); view_as stays in Vercel.
+  assert.ok(pageSwitches.length >= 16)
+  const none = unsavedFeatureSwitches(null, {})
+  assert.deepEqual(none.map((u) => u.key), pageSwitches)
+  assert.ok(!none.some((u) => u.key === "view_as"))
+  assert.equal(none.find((u) => u.key === "unmapped_delivery")?.enabled, true, "default on")
+  assert.equal(none.find((u) => u.key === "web_search")?.source, "default")
+
+  const rows = new Map([
+    ["true_up", row("true_up", false)],
+    ["codex_v2", row("codex_v2", true)],
+  ])
+  const some = unsavedFeatureSwitches(rows, { TRUE_UP: "on", FEATURE_WEB_SEARCH: "on", CODEX_V2: "" })
+  assert.equal(some.length, pageSwitches.length - 2)
+  assert.ok(!some.some((u) => u.key === "true_up" || u.key === "codex_v2"), "a saved switch is not listed, whatever its env says")
+  assert.deepEqual(some.find((u) => u.key === "web_search"), { key: "web_search", enabled: true, source: "env" })
+
+  const all = new Map(pageSwitches.map((k) => [k, row(k, false)]))
+  assert.deepEqual(unsavedFeatureSwitches(all, { TRUE_UP: "on" }), [])
+})
+
+test("G9: saving current values inserts only missing rows, from = to, and invalidates the cache", () => {
+  const src = readFileSync(path.join(ROOT, "lib/features/server.ts"), "utf8")
+  const fn = src.slice(src.indexOf("export async function saveCurrentFeatureValues"))
+  assert.match(fn, /isFeatureSwitchesMigrationApplied\(\)/)
+  assert.match(fn, /unsavedFeatureSwitches\(rows, env\)/)
+  assert.match(fn, /ON CONFLICT \(key\) DO NOTHING\s+RETURNING key/)
+  assert.match(fn, /if \(inserted\.length === 0\) continue/)
+  assert.match(fn, /VALUES \(\$\{u\.key\}, \$\{u\.enabled\}, \$\{u\.enabled\}, /)
+  assert.doesNotMatch(fn, /DO UPDATE/)
+  assert.match(fn, /invalidateFeatureSwitches\(\)/)
 })
 
 test("featureEnvValue is the env-only read for pure helpers", () => {

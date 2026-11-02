@@ -18,11 +18,13 @@ import {
   FEATURE_DEFINITIONS,
   featureDefinition,
   resolveFeature,
+  unsavedFeatureSwitches,
   type ClientFeatureKey,
   type FeatureDefinition,
   type FeatureKey,
   type FeatureRow,
   type FeatureSource,
+  type UnsavedFeatureSwitch,
 } from "./registry"
 import { createFeatureRowStore, type FeatureRowReader, type FeatureRowStore } from "./store"
 
@@ -257,4 +259,61 @@ export async function setFeatureSwitch(args: {
   })
   invalidateFeatureSwitches()
   return { ok: true, key: def.key as FeatureKey, enabled: args.enabled, changed }
+}
+
+export type SaveCurrentFeatureValuesResult =
+  | { ok: true; saved: UnsavedFeatureSwitch[] }
+  | { ok: false; status: 409; code: "NOT_READY"; message: string }
+
+/**
+ * B7 (G9): writes a row for every page switch that has none, at the value it
+ * has now (env var or default), with one event each. A switch that already
+ * has a row is left alone, including one toggled while this runs (the insert
+ * is ON CONFLICT DO NOTHING). Nothing changes behaviour: each row holds the
+ * value the app was already using. After this, an env var no longer drives
+ * any page switch.
+ */
+export async function saveCurrentFeatureValues(args: {
+  actor: { id: number | null; name: string | null }
+  env?: Record<string, string | undefined>
+}): Promise<SaveCurrentFeatureValuesResult> {
+  if (!(await isFeatureSwitchesMigrationApplied())) {
+    return { ok: false, status: 409, code: "NOT_READY", message: FEATURE_SWITCHES_NOT_READY_MESSAGE }
+  }
+  const env = args.env ?? process.env
+  const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
+  const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null
+  const saved: UnsavedFeatureSwitch[] = []
+  await getDb().transaction(async (tx) => {
+    const existing = rowsOf<RawRow>(
+      await tx.execute(sql`
+        SELECT key, enabled, updated_at::text AS updated_at, updated_by, updated_by_name, note
+        FROM feature_switches
+      `),
+    )
+    const rows = new Map(existing.map((r) => [r.key, toFeatureRow(r)]))
+    for (const u of unsavedFeatureSwitches(rows, env)) {
+      const def = definitionOrThrow(u.key)
+      const note =
+        u.source === "env" && def.envName
+          ? `Saved the value it had from env var ${def.envName}`
+          : "Saved the value it had (default)"
+      const inserted = rowsOf<{ key: string }>(
+        await tx.execute(sql`
+          INSERT INTO feature_switches (key, enabled, updated_at, updated_by, updated_by_name, note)
+          VALUES (${u.key}, ${u.enabled}, now(), ${actorId}, ${actorName}, ${note})
+          ON CONFLICT (key) DO NOTHING
+          RETURNING key
+        `),
+      )
+      if (inserted.length === 0) continue
+      await tx.execute(sql`
+        INSERT INTO feature_switch_events (key, from_enabled, to_enabled, changed_by, changed_by_name, note)
+        VALUES (${u.key}, ${u.enabled}, ${u.enabled}, ${actorId}, ${actorName}, ${note})
+      `)
+      saved.push(u)
+    }
+  })
+  invalidateFeatureSwitches()
+  return { ok: true, saved }
 }

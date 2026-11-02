@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import { StatusPill } from "@/components/ui/status-pill"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -54,6 +55,7 @@ function FeaturesPageInner() {
   const [pending, setPending] = useState<{ row: FeaturePageRow; to: boolean } | null>(null)
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
+  const [confirmSaveAll, setConfirmSaveAll] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,6 +78,31 @@ function FeaturesPageInner() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // B7 (G9): page switches still running on their env var or default.
+  const unsaved = data?.ready
+    ? data.groups.flatMap((g) => g.rows).filter((r) => r.source === "env" || r.source === "default")
+    : []
+
+  async function saveCurrentValues() {
+    setSaving(true)
+    try {
+      const res = await fetch("/api/admin/features/save-current", { method: "POST" })
+      const body = (await res.json().catch(() => null)) as { saved?: unknown[]; message?: string; error?: string } | null
+      if (!res.ok) {
+        toast({ title: "Switches not saved", description: body?.message || body?.error || "Try again.", variant: "destructive" })
+        return
+      }
+      const n = Array.isArray(body?.saved) ? body.saved.length : 0
+      toast({ title: n === 1 ? "Saved 1 switch" : `Saved ${n} switches`, description: "Each keeps the value it had. Env vars no longer change them." })
+      setConfirmSaveAll(false)
+      await load()
+    } catch {
+      toast({ title: "Switches not saved", description: "Try again.", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const labelFor = useCallback(
     (key: string) => data?.groups.flatMap((g) => g.rows).find((r) => r.key === key)?.label ?? key,
@@ -123,6 +150,17 @@ function FeaturesPageInner() {
           Run SQL 0111 (sql/supabase/2026-10-30_0111_feature_switches_SUPABASE.sql) to switch features from this page.
           Until then every feature reads its env var, shown below.
         </p>
+      ) : null}
+      {unsaved.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-md border border-dashed p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-muted-foreground">
+            {unsaved.length === 1 ? "1 switch still reads" : `${unsaved.length} switches still read`} an env var or its default.
+            Save them so this page holds every value.
+          </p>
+          <Button size="sm" variant="outline" disabled={saving} onClick={() => setConfirmSaveAll(true)}>
+            Save current values
+          </Button>
+        </div>
       ) : null}
       {data?.groups.map((group) => (
         <section key={group.area} className="space-y-2">
@@ -193,6 +231,44 @@ function FeaturesPageInner() {
           </ul>
         </section>
       ) : null}
+      <AlertDialog
+        open={confirmSaveAll}
+        onOpenChange={(open) => {
+          if (!open && !saving) setConfirmSaveAll(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save the current value of {unsaved.length === 1 ? "1 switch" : `${unsaved.length} switches`}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nothing turns on or off. Each switch keeps the value below, and changing its env var will no longer
+              change it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-64 space-y-1 overflow-y-auto text-sm">
+            {unsaved.map((r) => (
+              <li key={r.key} className="flex items-center justify-between gap-2">
+                <span>{r.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {r.enabled ? "On" : "Off"} · {r.sourceLabel}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={(event) => {
+                event.preventDefault()
+                void saveCurrentValues()
+              }}
+            >
+              {saving ? "Saving" : "Save values"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={pending != null}
         onOpenChange={(open) => {

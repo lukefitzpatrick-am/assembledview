@@ -350,3 +350,24 @@ export function featureEnvValue(key: FeatureKey, env: Record<string, string | un
   if (!def) return false
   return resolveFeature(def, null, env).enabled
 }
+
+export type UnsavedFeatureSwitch = { key: FeatureKey; enabled: boolean; source: "env" | "default" }
+
+/**
+ * Page switches with no feature_switches row, so their live value still comes
+ * from the old env var or the default (B7, G9). `rows` null (0111 not run)
+ * means none is saved. "vercel" switches are never listed: they stay env only.
+ * Saving each one at the value shown freezes today's behaviour in a row.
+ */
+export function unsavedFeatureSwitches(
+  rows: ReadonlyMap<string, FeatureRow> | null,
+  env: Record<string, string | undefined>,
+): UnsavedFeatureSwitch[] {
+  const out: UnsavedFeatureSwitch[] = []
+  for (const def of FEATURE_DEFINITIONS as readonly FeatureDefinition[]) {
+    if (def.source !== "switch" || rows?.has(def.key)) continue
+    const r = resolveFeature(def, null, env)
+    out.push({ key: def.key as FeatureKey, enabled: r.enabled, source: r.source === "env" ? "env" : "default" })
+  }
+  return out
+}
