@@ -45,6 +45,20 @@ test("B7 review: type arguments, unions, type aliases and the other ts directive
   assert.equal(countAny("// @ts-ignore\n// @ts-expect-error\n// @ts-nocheck"), 3)
 })
 
+test("B8 review 6: in .tsx files the word any in JSX text is not counted; real anys around it are", () => {
+  const jsx = { jsx: true }
+  assert.equal(countAny("export const C = () => <p>Pick a client, any client</p>", jsx), 0)
+  assert.equal(countAny("export const C = () => <span>Fees & any extras</span>", jsx), 0)
+  assert.equal(countAny("export const C = () => <li>Search | any channel</li>", jsx), 0)
+  assert.equal(countAny("export const C = () => <p>Don't pick any</p>\nconst a: any = 1", jsx), 1, "an apostrophe in JSX text hides nothing")
+  assert.equal(countAny("export const C = (p: any) => <p title={p as any}>{(p as any).x}, any</p>", jsx), 3)
+  assert.equal(countAny("export const C = () => <Foo<any> />", jsx), 1, "a JSX type argument is code")
+  assert.equal(countAny("function f<T = any>() {}\nexport const C = () => <p>,any</p>", jsx), 0, "`<T = any>` was never counted")
+  // .ts files have no JSX: the text pass is off, so nothing changes there.
+  assert.equal(countAny("let u: string | any"), 1)
+  assert.equal(countAny("const x = a < any"), 1, "a .ts comparison-looking form still counts as before")
+})
+
 function makeRoot(files, baseline) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "any-ratchet-"))
   for (const [rel, src] of Object.entries(files)) {
@@ -114,6 +128,23 @@ test("a drop passes, and --update lowers the count and drops files at 0", () => 
     assert.match(r.stdout, /3 under baseline/)
     assert.equal(run(root, "--update").status, 0)
     assert.deepEqual(readBaseline(root), { "lib/x.ts": 1 })
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("B8 review 6: the scan treats .tsx files as JSX, so on-screen 'any' copy can't fail a PR", () => {
+  const root = makeRoot(
+    {
+      "components/Copy.tsx": "export const C = () => <p>Pick a client, any client. Fees & any extras.</p>",
+      "components/Real.tsx": "export const R = (p: any) => <p>{p}</p>",
+    },
+    { "components/Real.tsx": 1 },
+  )
+  try {
+    const r = run(root)
+    assert.equal(r.status, 0, r.stdout + r.stderr)
+    assert.match(r.stdout, /ok \(1 files, 1\)/)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

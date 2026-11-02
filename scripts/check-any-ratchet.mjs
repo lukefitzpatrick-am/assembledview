@@ -9,8 +9,9 @@
  *   `Promise<any>`, `string | any`), `type T = any`, and `@ts-ignore`,
  *   `@ts-expect-error` and `@ts-nocheck` comments (the last four forms and
  *   comments added in the B7 review).
- * Each `any` counts once. Comments and string contents are ignored (except for
- * `@ts-ignore`, which lives in a comment).
+ * Each `any` counts once. Comments, string contents and, in .tsx files, JSX
+ * text are ignored (except for `@ts-ignore`, which lives in a comment). JSX
+ * text is found with the TypeScript parser (B8 review 6).
  *
  * The baseline is scripts/any-ratchet-baseline.json. A file fails when its
  * count rises or a new file appears. A drop passes. The baseline only goes
@@ -25,6 +26,8 @@
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
+
+import ts from "typescript"
 
 import { maskNonCode } from "./check-egress-guards.mjs"
 
@@ -51,9 +54,36 @@ function walk(dir, out = []) {
   return out
 }
 
-/** Number of `any` uses and `@ts-ignore` comments in one source file. */
-export function countAny(raw) {
-  const code = maskNonCode(raw)
+/**
+ * JSX text blanked to spaces, length and newlines kept (B8 review 6). Words
+ * on screen ("Pick a client, any client", "Fees & any extras") are not
+ * types, and an apostrophe in JSX text would otherwise open a string for
+ * maskNonCode. Uses the TypeScript parser, so only real JsxText nodes go.
+ */
+export function blankJsxText(raw) {
+  const sf = ts.createSourceFile("x.tsx", raw, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX)
+  const spans = []
+  const visit = (node) => {
+    if (node.kind === ts.SyntaxKind.JsxText) spans.push([node.pos, node.end])
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  if (spans.length === 0) return raw
+  let out = ""
+  let at = 0
+  for (const [start, end] of spans) {
+    out += raw.slice(at, start) + raw.slice(start, end).replace(/[^\n]/g, " ")
+    at = end
+  }
+  return out + raw.slice(at)
+}
+
+/**
+ * Number of `any` uses and `@ts-ignore` comments in one source file. With
+ * `jsx: true` (a .tsx file) JSX text is skipped first.
+ */
+export function countAny(raw, { jsx = false } = {}) {
+  const code = maskNonCode(jsx ? blankJsxText(raw) : raw)
   const seen = new Set()
   const res = [
     /:\s*any\b/g,
@@ -91,7 +121,7 @@ export function scanRoot(rootDir) {
   for (const file of files) {
     const rel = posix(path.relative(rootDir, file))
     if (isTestPath(rel)) continue
-    const n = countAny(fs.readFileSync(file, "utf8"))
+    const n = countAny(fs.readFileSync(file, "utf8"), { jsx: rel.endsWith(".tsx") })
     if (n > 0) counts[rel] = n
   }
   return counts
