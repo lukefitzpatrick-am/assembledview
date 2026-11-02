@@ -52,7 +52,6 @@
   "files:lib/charts/stackedColumnExport.ts",
   "files:lib/finance/periods/index.ts",
   "files:lib/flags/index.ts",
-  "files:lib/m365/provisioningLog.server.ts",
   "files:lib/mediaplan/__tests__/_dumpExpertGoldens.ts",
   "files:lib/mediaplan/normalizeCampaignLineItems.ts",
   "files:lib/mediaplan/reapUnpublishedStagedVersions.ts",
