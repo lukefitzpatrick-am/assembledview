@@ -6,7 +6,7 @@
  * search/social fee estimate, minus signs kept. Do not import from app code.
  */
 // @ts-nocheck
-import { legacyMonthFeeFromNetMedia } from "@/lib/mediaplan/legacyMonthFeeEstimate"
+import { legacyMonthFeeFromNetMedia } from "./legacyMonthFeeEstimate"
 import { hydratePartialMbaFromSavedMetadata, type PartialApprovalMetadata } from "@/lib/mediaplan/partialMba"
 import type { BillingMonth, BillingLineItem as BillingLineItemType } from "@/lib/billing/types"
 

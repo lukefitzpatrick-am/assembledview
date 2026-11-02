@@ -254,14 +254,6 @@ async function findPublisherRowsByBusinessId(
   return rows.map((row) => mapPublisherRowFromPostgres(row as Record<string, unknown>))
 }
 
-/** Lowest-id row with this publisherid (case and spaces ignored), or null. */
-export async function findPublisherByBusinessId(
-  publisherid: string
-): Promise<Record<string, unknown> | null> {
-  const rows = await findPublisherRowsByBusinessId(publisherid)
-  return rows[0] ?? null
-}
-
 export async function createPublisherPostgresFirst(
   body: Record<string, unknown>
 ): Promise<PublisherWriteResult> {

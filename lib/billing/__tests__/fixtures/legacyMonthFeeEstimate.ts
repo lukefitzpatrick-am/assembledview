@@ -1,6 +1,10 @@
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 
 /**
+ * TEST FIXTURE ONLY (B5): the fee estimate the media plan editor used before
+ * B4, kept frozen for the B4 parity test (`legacyEditorBillingParse.ts`).
+ * Nothing in the app estimates a fee at read time (P5).
+ *
  * Fee for a saved billing month when the row has no feeTotal.
  * The line amounts are net media. Fee is a slice of gross, the same number
  * computeBurstAmounts returns for one net-in burst.
