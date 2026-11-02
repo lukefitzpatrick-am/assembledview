@@ -99,6 +99,11 @@ const nextConfig = {
     "/api/planning/insight": ["./lib/ava/skills/content/**"],
     "/api/chat-v2": ["./lib/ava/skills/content/**", "./lib/reports/assets/v5/**"],
     "/api/campaign-reads/generate": ["./lib/ava/skills/content/**"],
+    // B10 (B9 review 3): the on-demand deck routes build the v5 deck through
+    // runOnDemandDeck, which reads the template from disk (same files the
+    // deleted export-report entry listed).
+    "/api/reports/on-demand": ["./lib/reports/assets/v5/**", "./lib/ava/skills/content/**"],
+    "/api/cron/on-demand-decks": ["./lib/reports/assets/v5/**", "./lib/ava/skills/content/**"],
     "/api/cron/reports-worker": ["./lib/reports/assets/v5/**", "./lib/ava/skills/content/**"],
     "/api/admin/reports/runs/[id]/generate": ["./lib/reports/assets/v5/**", "./lib/ava/skills/content/**"],
     "/api/mba/generate": ["./public/brand/**"],
