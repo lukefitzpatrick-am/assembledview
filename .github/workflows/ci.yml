@@ -43,6 +43,46 @@ jobs:
       - name: Schema mirror-ahead fixtures (no database)
         run: npm run test:db-drift
 
+  guards:
+    # B7 (G2): the gate:main checks CI did not run. A separate job so the
+    # existing "npm ci + tsc" check keeps its name for branch protection.
+    name: lint + guard checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: No Xano egress, no unscoped version reads
+        run: npm run check:egress-guards
+
+      - name: Egress guard self-test
+        run: npm run test:egress-guards
+
+      - name: Inline money maths only goes down
+        run: npm run check:money-inline
+
+      - name: Money-inline guard self-test
+        run: npm run test:money-inline
+
+      - name: No hardcoded external URLs
+        run: npm run check:hardcoded-urls
+
+      - name: Stacking layers
+        run: npm run check:stacking-layers
+
+      - name: Lint
+        run: npm run lint
+
   production-build:
     name: npm run build
     runs-on: ubuntu-latest

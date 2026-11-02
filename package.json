@@ -18,7 +18,7 @@
     "check:egress-guards": "node scripts/check-egress-guards.mjs",
     "test:egress-guards": "node --test scripts/__tests__/check-egress-guards.test.mjs",
     "test:line-item-snapshot": "node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/snowflake/__tests__/pgLineItemSnapshot.test.ts lib/snowflake/__tests__/assumeSpendSnapshot.test.ts lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts lib/snowflake/__tests__/xanoLineItemPruneDryRun.test.ts",
-    "gate:main": "npm run typecheck && npm run check:egress-guards && npm run lint && npm run check:client-server-only && npm run check:drizzle-snapshot && npm run check:hardcoded-urls && npm run check:money-inline && npm run build:gate",
+    "gate:main": "npm run typecheck && npm run check:egress-guards && npm run lint && npm run check:client-server-only && npm run check:drizzle-snapshot && npm run check:hardcoded-urls && npm run check:money-inline && npm run check:billing-line-id-equality && npm run check:stacking-layers && npm run test:db-drift && npm run build:gate",
     "typecheck": "tsc --noEmit",
     "deck:once": "node --env-file=.env.local --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/reports/run-deck-skill-once.ts",
     "ingest-eval": "tsx scripts/ingest-eval.ts",
