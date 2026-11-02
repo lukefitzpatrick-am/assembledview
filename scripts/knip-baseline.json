@@ -1,8 +1,6 @@
 [
-  "dependencies:@babel/runtime",
   "dependencies:@radix-ui/react-switch",
   "dependencies:autoprefixer",
-  "dependencies:core-js",
   "dependencies:drizzle-zod",
   "dependencies:mammoth",
   "files:app/tools/behavioural-planner/components/AudienceCard.tsx",
