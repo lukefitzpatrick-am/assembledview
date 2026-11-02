@@ -1,6 +1,6 @@
 # Queue: B6 and B8 items left by B5 / B5a
 
-Status: B6 holds done (3 Nov 2026). B8 list done (3 Nov 2026) except the dependencies row: only `@babel/runtime` and `core-js` went; the rest of that row is still open. Kept for the record.
+Status: B6 holds done (3 Nov 2026). B8 list done (3 Nov 2026). The dependencies row and the two orphan tests were closed by the B8 review fixes (3 Nov 2026, container commits queued as patches 0016 on). Kept for the record.
 
 ## Held for B6 (backend switch and shadow leftovers): done
 
@@ -27,7 +27,7 @@ Done in B8 (container commits, queued as patches 0010 to 0014):
 - Data (0012): `readChannelLineItems`, `filterXanoItemsToPublishedTips` (and the helpers only it used).
 - Planning (0013): the dead 401 and `XANO_API_KEY` branches; a missing `DATABASE_URL` stays 502 (C-167, Luke's call).
 - Dependencies (0014): `@babel/runtime` and `core-js` removed from `package.json`; `npm ls` shows jspdf, canvg, json-schema-to-ts and react-transition-group still bring them in.
-- Still open from the table: `autoprefixer`, `mammoth`, `@radix-ui/react-switch`, `drizzle-zod`, the unlisted imports, and the two orphan tests the B7 review found (`socialAdSetBreakdown.test.tsx`, `adminNotices.render.test.tsx`).
+- Closed by the B8 review fixes: `autoprefixer`, `mammoth`, `@radix-ui/react-switch` and `drizzle-zod` removed; `sharp` listed directly at 0.35.5 (matching the override); `adminNotices.render.test.tsx` wired into `test:web-report-admin`; `socialAdSetBreakdown.test.tsx` was already in `test:social-delivery`. Still unlisted (script-only or a JSDoc type): `fast-xml-parser`, `postcss-load-config`.
 
 | Item | File | Notes |
 |---|---|---|
