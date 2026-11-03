@@ -6,6 +6,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { editorBillingStableLineItemId, resolveApproval } from "@/lib/finance/buildEditorLineItemInputs"
+import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
+import {
+  buildMbaScopeForSaveBody,
+  selectedLineItemIdsByMediaFromMbaScope,
+} from "@/lib/mediaplan/mbaScopeClient"
+import { applyMbaScopeLineApprovals, type MbaScopeApprovalLine } from "@/lib/mediaplan/mbaScopeForSave"
 import {
   describeLegacyPartialUnresolved,
   reconcileLegacyPartialSelection,
@@ -218,25 +224,86 @@ test("all-selected channel with unmatched ids and a different line count: warn, 
   assert.deepEqual(r.expandedMediaKeys, [])
 })
 
-test("a current channel the saved selection doesn't list stays unlisted (loads approved) and is reported", () => {
+test("B21fix R1: a current channel the saved selection doesn't list joins the selection with every current line", () => {
   const r = reconcileLegacyPartialSelection({
     mbaNumber: "PENFOLD020",
     channels: [{ mediaKey: "ooh", selectedLineItemIds: ["PENFOLD020OH7"], selectedCount: 1, totalCount: 11 }],
     editorIdsByMedia: {
       ooh: dec("ooh", ["PENFOLD020OH7", "PENFOLD020OH8"]),
-      newspaper: dec("newspaper", ["PENFOLD020NP1"]),
+      newspaper: dec("newspaper", ["PENFOLD020NP1", "PENFOLD020NP2"]),
       search: [],
     },
   })
-  assert.deepEqual(Object.keys(r.selected), ["ooh"])
+  assert.deepEqual(r.selected, {
+    ooh: ["PENFOLD020OH7"],
+    newspaper: ["PENFOLD020NP1", "PENFOLD020NP2"],
+  })
+  assert.equal(r.changed, true)
   assert.deepEqual(r.laterAddedMediaKeys, ["newspaper"])
+  // A channel with no lines is not later-added and is not listed.
+  assert.equal("search" in r.selected, false)
+  for (const id of ["PENFOLD020NP1", "PENFOLD020NP2"]) {
+    assert.equal(
+      resolveApproval("newspaper", `billing-newspaper::${id}`, {
+        isPartialMBA: true,
+        partialMBASelectedLineItemIds: r.selected,
+      }),
+      "approved"
+    )
+  }
   assert.equal(
-    resolveApproval("newspaper", "billing-newspaper::PENFOLD020NP1", {
+    resolveApproval("ooh", "billing-ooh::PENFOLD020OH8", {
       isPartialMBA: true,
       partialMBASelectedLineItemIds: r.selected,
     }),
-    "approved"
+    "excluded"
   )
+})
+
+test("B21fix R1: the save body keeps the later-added channel, and a reopen keeps it in (finding 1)", () => {
+  // PENFOLD020 v9 shape: ooh 4 of 11 saved; newspaper, prog display, prog video
+  // and social added since. Before the fix the save sent ooh only.
+  const editorIdsByMedia = {
+    ooh: dec("ooh", ["PENFOLD020OH1", "PENFOLD020OH2", "PENFOLD020OH7", "PENFOLD020OH9", "PENFOLD020OH13"]),
+    newspaper: dec("newspaper", ["PENFOLD020NP1", "PENFOLD020NP2"]),
+    progDisplay: dec("progDisplay", ["PENFOLD020PD1"]),
+    progVideo: dec("progVideo", ["PENFOLD020PV1", "PENFOLD020PV2"]),
+    socialMedia: dec("socialMedia", ["PENFOLD020SM1", "PENFOLD020SM2"]),
+  }
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "PENFOLD020",
+    channels: [
+      {
+        mediaKey: "ooh",
+        selectedLineItemIds: ["PENFOLD020OH1", "PENFOLD020OH2", "PENFOLD020OH7", "PENFOLD020OH9"],
+        selectedCount: 4,
+        totalCount: 11,
+      },
+    ],
+    editorIdsByMedia,
+  })
+  assert.deepEqual(r.laterAddedMediaKeys, ["newspaper", "progDisplay", "progVideo", "socialMedia"])
+  const selection = canonicalisePartialMbaSelectedLineItemIds(r.selected)
+  const body = buildMbaScopeForSaveBody({
+    isPartialMBA: true,
+    partialMBASelectedLineItemIds: selection,
+    partialMBAMonthYears: ["January 2026"],
+  })
+  const later = ["PENFOLD020NP1", "PENFOLD020NP2", "PENFOLD020PD1", "PENFOLD020PV1", "PENFOLD020PV2", "PENFOLD020SM1", "PENFOLD020SM2"]
+  for (const id of later) assert.ok(body.lineItemIds?.includes(id), `${id} in the save body`)
+  assert.equal(body.lineItemIds?.includes("PENFOLD020OH13"), false)
+  // Server: every later-added line approved, the unselected ooh line excluded.
+  const lines = Object.values(editorIdsByMedia).flat().map((lineItemId): MbaScopeApprovalLine => ({ lineItemId }))
+  const approvals = applyMbaScopeLineApprovals(lines, body.lineItemIds)
+  const approved = approvals.filter((l) => l.approval === "approved").map((l) => l.lineItemId.replace(/^billing-[^:]+::/, ""))
+  assert.deepEqual(approved.toSorted(), [...later, "PENFOLD020OH1", "PENFOLD020OH2", "PENFOLD020OH7", "PENFOLD020OH9"].toSorted())
+  // Reopen from the saved mba_scope: the same lines are in.
+  const reopened = selectedLineItemIdsByMediaFromMbaScope({
+    lineItemIds: body.lineItemIds,
+    allLineIdsByMedia: editorIdsByMedia,
+  })
+  assert.deepEqual(reopened.newspaper, ["PENFOLD020NP1", "PENFOLD020NP2"])
+  assert.deepEqual(reopened.ooh, ["PENFOLD020OH1", "PENFOLD020OH2", "PENFOLD020OH7", "PENFOLD020OH9"])
 })
 
 test("MBA prefix is case-insensitive for the alias; inputs are not mutated", () => {

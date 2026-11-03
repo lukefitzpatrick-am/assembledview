@@ -23,8 +23,10 @@
  * can warn (decision Q8).
  *
  * A listed channel with no current lines keeps its saved ids and is reported.
- * A current channel the saved selection doesn't list stays unlisted, so
- * `resolveApproval` loads it approved (decision Q10); it is reported too.
+ * A current channel the saved selection doesn't list was added after the
+ * partial MBA was set. It loads approved (decision Q10), so its current ids
+ * join the selection and a save keeps them (B21fix, decision B21 R1). It is
+ * reported too.
  *
  * Pure. Never writes.
  */
@@ -67,7 +69,7 @@ export type LegacyPartialUnresolved = {
 }
 
 export type ReconcileLegacyPartialResult = {
-  /** Bare ids by media key, for every listed channel. Feed to `partialMBASelectedLineItemIds`. */
+  /** Bare ids by media key, for every listed and every later-added channel. Feed to `partialMBASelectedLineItemIds`. */
   selected: Record<string, string[]>
   /** True when `selected` differs from the saved ids as stripped today. */
   changed: boolean
@@ -77,7 +79,7 @@ export type ReconcileLegacyPartialResult = {
   unresolved: LegacyPartialUnresolved[]
   /** Listed channels with no current lines. */
   missingMediaKeys: string[]
-  /** Current channels the saved selection doesn't list (load approved). */
+  /** Current channels the saved selection doesn't list. Every current id is in `selected`. */
   laterAddedMediaKeys: string[]
 }
 
@@ -199,6 +201,12 @@ export function reconcileLegacyPartialSelection(
   const laterAddedMediaKeys = Object.entries(input.editorIdsByMedia)
     .filter(([key, ids]) => !listed.has(key) && (ids?.length ?? 0) > 0)
     .map(([key]) => key)
+  // B21fix (R1): the screen shows these channels in the MBA, so the save must too.
+  // `buildMbaScopeForSaveBody` sends only the selection.
+  for (const key of laterAddedMediaKeys) {
+    selected[key] = bareUnique(input.editorIdsByMedia[key])
+    changed = true
+  }
 
   return {
     selected,

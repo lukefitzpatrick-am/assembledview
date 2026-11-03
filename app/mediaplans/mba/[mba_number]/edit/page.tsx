@@ -9106,7 +9106,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setLegacyPartialUnresolved(r.unresolved)
         setLegacyPartialLaterAddedKeys(r.laterAddedMediaKeys)
         if (r.changed) {
-          // Months stay as saved. Only the ids move to the current line ids.
+          // Months stay as saved. Only the ids move to the current line ids, and a
+          // channel added since joins with its lines, so a save keeps it (B21fix R1).
           setPartialMBASelectedLineItemIds(canonicalisePartialMbaSelectedLineItemIds(r.selected))
           setPartialMBAMediaEnabled(
             Object.fromEntries(Object.entries(r.selected).map(([k, ids]) => [k, ids.length > 0]))
