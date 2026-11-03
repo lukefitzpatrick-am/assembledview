@@ -72,7 +72,8 @@
 --     commission numbers.
 --
 -- Run order
---   0. Optional, recommended: backups (creates b19_backup_* tables).
+--   0. Required: backups (creates b19_backup_* tables). The step 5 undo needs
+--      them, and step 2 aborts without them. Run steps 0 to 4 in one sitting.
 --   1. Preview (read-only). Compare with the "Expect" lines.
 --   2. Merge (one transaction). Aborts and changes nothing unless the data
 --      still matches the preview.
@@ -88,7 +89,7 @@
 
 
 -- =============================================================================
--- STEP 0. Backups (optional, recommended). Run once, before step 2.
+-- STEP 0. Backups (required). Run once, before step 2. The step 5 undo needs them.
 -- RLS is turned on so the tables are not readable through the public API.
 -- Drop them once you're happy (statements at the end of step 5).
 -- =============================================================================
@@ -217,6 +218,14 @@ DECLARE
   n       int;
   v_fk    int;
 BEGIN
+  -- Guard 0: the step 0 backups exist (the step 5 undo needs them).
+  IF to_regclass('public.b19_backup_publishers_20261103') IS NULL
+     OR to_regclass('public.b19_backup_publisher_kpi_20261103') IS NULL
+     OR to_regclass('public.b19_backup_magazines_20261103') IS NULL
+     OR to_regclass('public.b19_backup_publisher_fk_rows_20261103') IS NULL THEN
+    RAISE EXCEPTION 'Aborted, nothing changed: run step 0 first';
+  END IF;
+
   IF EXISTS (SELECT 1 FROM public.migration_markers WHERE key = 'b19_publisher_merge') THEN
     RAISE EXCEPTION 'Aborted: marker b19_publisher_merge exists, the merge already ran.';
   END IF;
