@@ -13,6 +13,10 @@ import {
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
 import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import {
+  packageHasNoUnitTarget,
+  type PackageUnitTargetOptions,
+} from "@/lib/delivery/packageUnitTarget";
 
 export { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
 
@@ -22,6 +26,8 @@ export type GetLiveSocialLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
   mbaNumber?: string;
+  /** P14: package lines have no unit target (`expert_package_quantity`). Unset reads the switch. */
+  packageNoUnitTarget?: boolean;
 };
 
 export type LiveSocialLineItemInput = {
@@ -66,7 +72,8 @@ function mapSocialRowToCampaignRow(
   master: MediaPlanMaster,
   versionRow: VersionRow,
   sr: Record<string, unknown>,
-  asOfDate: string
+  asOfDate: string,
+  options?: PackageUnitTargetOptions
 ): SocialPacingCampaignRow | null {
   const socialPlatform = classifySocialPacingPlatform(sr);
   if (!socialPlatform) {
@@ -83,7 +90,8 @@ function mapSocialRowToCampaignRow(
   const lineItemStartDate = bursts.length > 0 ? bursts[0]!.startDate : null;
   const lineItemEndDate = bursts.length > 0 ? bursts[bursts.length - 1]!.endDate : null;
   const totalLineItemBudget = bursts.reduce((acc, b) => acc + b.budget, 0);
-  const deliverableTarget = bursts.reduce((acc, b) => acc + b.calculatedValue, 0);
+  const noUnitTarget = packageHasNoUnitTarget(sr.buy_type ?? sr.buyType, options);
+  const deliverableTarget = noUnitTarget ? 0 : bursts.reduce((acc, b) => acc + b.calculatedValue, 0);
   const currentBurstIndex = findCurrentBurstIndex(bursts, asOfDate);
   const currentBurst = currentBurstIndex !== null ? bursts[currentBurstIndex]! : null;
   const burstDays = currentBurst
@@ -164,7 +172,7 @@ function mapSocialRowToCampaignRow(
     vtr: null,
 
     kpiTargets: null,
-    kpiPlanLine: kpiPlanLineFromPlanItem(sr, totalLineItemBudget),
+    kpiPlanLine: kpiPlanLineFromPlanItem(sr, totalLineItemBudget, options),
 
     platformCampaigns: [],
   };
@@ -179,9 +187,14 @@ export async function resolveLiveSocialPacingCampaignRows(
 ): Promise<SocialPacingCampaignRow[]> {
   const inputs = await resolveLiveSocialLineItemInputs(args);
   const rows: SocialPacingCampaignRow[] = [];
+  const packageNoUnitTarget =
+    args.packageNoUnitTarget ??
+    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget;
 
   for (const { master, versionRow, socialRow } of inputs) {
-    const row = mapSocialRowToCampaignRow(master, versionRow, socialRow, args.asOfDate);
+    const row = mapSocialRowToCampaignRow(master, versionRow, socialRow, args.asOfDate, {
+      packageNoUnitTarget,
+    });
     if (row) rows.push(row);
   }
 

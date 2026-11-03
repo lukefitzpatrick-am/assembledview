@@ -81,4 +81,10 @@ export type AdServingPacingCampaignRow = {
 
   /** True when the plan budget is gross. Omitted on older fixtures. */
   budgetIncludesFees?: boolean;
+
+  /**
+   * P14: a package line with `expert_package_quantity` on. No unit target on
+   * the line or its bursts, and no CM360 estimate. Omitted otherwise.
+   */
+  noUnitTarget?: true;
 };

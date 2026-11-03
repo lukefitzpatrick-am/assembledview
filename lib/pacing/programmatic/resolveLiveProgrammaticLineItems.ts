@@ -17,11 +17,17 @@ import {
   type ProgrammaticSnowflakeChannel,
 } from "@/lib/pacing/programmatic/types";
 import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import {
+  packageHasNoUnitTarget,
+  type PackageUnitTargetOptions,
+} from "@/lib/delivery/packageUnitTarget";
 
 export type GetLiveProgrammaticLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
   mbaNumber?: string;
+  /** P14: package lines have no unit target (`expert_package_quantity`). Unset reads the switch. */
+  packageNoUnitTarget?: boolean;
 };
 
 export type LiveProgrammaticLineItemInput = {
@@ -144,13 +150,15 @@ function mapProgRowToCampaignRow(
   pr: Record<string, unknown>,
   asOfDate: string,
   channelFamily: ProgrammaticChannelFamily,
-  snowflakeChannel: ProgrammaticSnowflakeChannel
+  snowflakeChannel: ProgrammaticSnowflakeChannel,
+  options?: PackageUnitTargetOptions
 ): ProgrammaticPacingCampaignRow {
   const bursts = parseBurstsToNormalised(pr.bursts_json ?? pr.bursts);
   const lineItemStartDate = bursts.length > 0 ? bursts[0]!.startDate : null;
   const lineItemEndDate = bursts.length > 0 ? bursts[bursts.length - 1]!.endDate : null;
   const totalLineItemBudget = bursts.reduce((acc, b) => acc + b.budget, 0);
-  const deliverableTarget = bursts.reduce((acc, b) => acc + b.calculatedValue, 0);
+  const noUnitTarget = packageHasNoUnitTarget(pr.buy_type ?? pr.buyType, options);
+  const deliverableTarget = noUnitTarget ? 0 : bursts.reduce((acc, b) => acc + b.calculatedValue, 0);
   const currentBurstIndex = findCurrentBurstIndex(bursts, asOfDate);
   const currentBurst = currentBurstIndex !== null ? bursts[currentBurstIndex]! : null;
   const burstDays = currentBurst
@@ -247,7 +255,7 @@ function mapProgRowToCampaignRow(
     vtr: null,
 
     kpiTargets: null,
-    kpiPlanLine: kpiPlanLineFromPlanItem(pr, totalLineItemBudget),
+    kpiPlanLine: kpiPlanLineFromPlanItem(pr, totalLineItemBudget, options),
 
     spendPacingDeferredToDirect: false,
 
@@ -260,6 +268,9 @@ export async function resolveLiveProgrammaticPacingCampaignRows(
 ): Promise<ProgrammaticPacingCampaignRow[]> {
   const inputs = await resolveLiveProgrammaticLineItemInputs(args);
   const rows: ProgrammaticPacingCampaignRow[] = [];
+  const packageNoUnitTarget =
+    args.packageNoUnitTarget ??
+    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget;
 
   for (const { master, versionRow, progRow, channelFamily, snowflakeChannel } of inputs) {
     rows.push(
@@ -269,7 +280,8 @@ export async function resolveLiveProgrammaticPacingCampaignRows(
         progRow,
         args.asOfDate,
         channelFamily,
-        snowflakeChannel
+        snowflakeChannel,
+        { packageNoUnitTarget }
       )
     );
   }

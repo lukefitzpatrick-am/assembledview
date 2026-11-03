@@ -59,6 +59,8 @@ import {
   channelMetaForKey,
 } from "@/lib/spend/assumedExpectedLines"
 import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
+import type { DeliveryFlags } from "@/lib/delivery/deliveryFlags"
+import type { PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -95,6 +97,8 @@ export type LoadDeliverySnapshotInput = {
    * (Luke, 29 Oct 2026). Default off for any other caller.
    */
   modelProgrammaticSpend?: boolean
+  /** Delivery-reader switches (B23). Unset reads them on the server. */
+  deliveryFlags?: DeliveryFlags
 }
 
 export type LoadedDeliverySnapshot = {
@@ -202,13 +206,14 @@ function toPlanLineMeta(
   group: string,
   fallbackVersionId: number | null,
   origin?: { sourceTable: string; mediaTypeLabel: string },
+  packageOptions?: PackageUnitTargetOptions,
 ): PlanLineMeta | null {
   const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
   if (!id) return null
   const plannedBudget = plannedBudgetFromItem(item)
   if (plannedBudget === 0) return null
   const rec = item as Record<string, unknown>
-  const deliverables = planDeliverablesFromItem(rec)
+  const deliverables = planDeliverablesFromItem(rec, packageOptions)
   return {
     id,
     name: asString(item.name) || asString(item.placementName) || id,
@@ -308,6 +313,7 @@ function applyDirectDigitalEstimates(
   pacingRows: PacingRow[],
   fixedCostIds: ReadonlySet<string>,
   feePctsByVersionId: FeePctsByVersionId,
+  packageOptions?: PackageUnitTargetOptions,
 ): Set<string> {
   const estimatedIds = new Set<string>()
   const daysByLine = new Map<string, PacingRow[]>()
@@ -339,6 +345,7 @@ function applyDirectDigitalEstimates(
         versionId: plan.versionId,
         bursts: plan.bursts,
         days,
+        ...(packageOptions?.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
       })
       const cur = deliveredById.get(id) ?? emptyMetrics()
       if (estimate.amount == null) {
@@ -826,6 +833,7 @@ function assumedSnapshotLine(plan: PlanLineMeta, spend: number): DeliveryLineSna
 function collectChannelPlans(
   byChannel: Record<string, MediaContainerLineItem[]>,
   fallbackVersionId: number | null,
+  packageOptions?: PackageUnitTargetOptions,
 ): {
   groups: Map<string, Map<string, PlanLineMeta>>
   allMetas: PlanLineMeta[]
@@ -851,28 +859,28 @@ function collectChannelPlans(
           : platform === "reddit"
             ? "social_reddit"
             : "plan_only"
-    const meta = toPlanLineMeta(item, group, fallbackVersionId)
+    const meta = toPlanLineMeta(item, group, fallbackVersionId, undefined, packageOptions)
     if (!meta) continue
     allMetas.push(meta)
     ensure(group).set(meta.id, meta)
   }
 
   for (const item of byChannel.progDisplay ?? []) {
-    const meta = toPlanLineMeta(item, "programmatic_display", fallbackVersionId)
+    const meta = toPlanLineMeta(item, "programmatic_display", fallbackVersionId, undefined, packageOptions)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_display").set(meta.id, meta)
   }
 
   for (const item of byChannel.progVideo ?? []) {
-    const meta = toPlanLineMeta(item, "programmatic_video", fallbackVersionId)
+    const meta = toPlanLineMeta(item, "programmatic_video", fallbackVersionId, undefined, packageOptions)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_video").set(meta.id, meta)
   }
 
   for (const item of [...(byChannel.progOoh ?? []), ...(byChannel.progOOH ?? [])]) {
-    const meta = toPlanLineMeta(item, "programmatic_ooh", fallbackVersionId)
+    const meta = toPlanLineMeta(item, "programmatic_ooh", fallbackVersionId, undefined, packageOptions)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_ooh").set(meta.id, meta)
@@ -882,7 +890,7 @@ function collectChannelPlans(
     const origin = DIGITAL_PLAN_ORIGIN[group]
     for (const key of keys) {
       for (const item of byChannel[key] ?? []) {
-        const meta = toPlanLineMeta(item, group, fallbackVersionId, origin)
+        const meta = toPlanLineMeta(item, group, fallbackVersionId, origin, packageOptions)
         if (!meta) continue
         allMetas.push(meta)
         ensure(group).set(meta.id, meta)
@@ -897,10 +905,13 @@ function collectChannelPlans(
   const assumedOffline: PlanLineMeta[] = []
   for (const [key, sourceTable, mediaTypeLabel] of ATL_PLAN_KEYS) {
     for (const item of byChannel[key] ?? []) {
-      const meta = toPlanLineMeta(item, "assumed_spend", fallbackVersionId, {
-        sourceTable,
-        mediaTypeLabel,
-      })
+      const meta = toPlanLineMeta(
+        item,
+        "assumed_spend",
+        fallbackVersionId,
+        { sourceTable, mediaTypeLabel },
+        packageOptions,
+      )
       if (!meta) continue
       allMetas.push(meta)
       assumedOffline.push(meta)
@@ -908,7 +919,7 @@ function collectChannelPlans(
   }
 
   for (const item of byChannel.search ?? []) {
-    const meta = toPlanLineMeta(item, "search", fallbackVersionId)
+    const meta = toPlanLineMeta(item, "search", fallbackVersionId, undefined, packageOptions)
     if (!meta) continue
     allMetas.push(meta)
     ensure("search").set(meta.id, meta)
@@ -940,6 +951,12 @@ async function feePctsForDirectDigital(
   return loadDirectDigitalFeePcts({ versionIds })
 }
 
+async function deliveryFlagsFor(provided: DeliveryFlags | undefined): Promise<DeliveryFlags> {
+  if (provided) return provided
+  const { readDeliveryFlags } = await import("@/lib/delivery/deliveryFlags.server")
+  return readDeliveryFlags()
+}
+
 function hasProvidedLineItems(
   map: Record<string, unknown[]> | undefined,
 ): map is Record<string, unknown[]> {
@@ -964,9 +981,14 @@ export async function loadDeliverySnapshot(
     ? (input.lineItemsByChannel as Record<string, MediaContainerLineItem[]>)
     : await fetchAllPlanLineItemsForDelivery(mba, versionNumber, input.mediaTypeFilter)
   const fallbackVersionId = positiveVersionId(input.estimateVersionId)
+  const deliveryFlags = await deliveryFlagsFor(input.deliveryFlags)
+  const packageOptions: PackageUnitTargetOptions = {
+    packageNoUnitTarget: deliveryFlags.packageNoUnitTarget,
+  }
   const { groups, allMetas, assumedOffline, searchIds, nonSearchIds } = collectChannelPlans(
     byChannel,
     fallbackVersionId,
+    packageOptions,
   )
   const feeVersionIds: number[] = []
   for (const plan of allMetas) {
@@ -1082,6 +1104,7 @@ export async function loadDeliverySnapshot(
     pacingRows,
     new Set(fixedCostLineIds),
     feePctsByVersionId,
+    packageOptions,
   )
   for (const id of applyModelledProgrammaticSpend(
     modelled,

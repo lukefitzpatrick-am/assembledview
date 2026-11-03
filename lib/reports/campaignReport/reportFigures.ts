@@ -4,6 +4,7 @@
  */
 
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { cpc, cpm, cpv, ctr } from "@/lib/money/rates"
 import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
@@ -173,8 +174,15 @@ export function isBlankKpiTarget(value: unknown): boolean {
  * Planned impressions, clicks and views on one plan line.
  * An explicit field wins. Otherwise the burst deliverable is assigned by buy type.
  * CPM and anything unstated is impressions. CPC is clicks. CPV is views.
+ * P14: with `packageNoUnitTarget` on, a package line has none (no unit target).
  */
-export function planDeliverablesFromItem(item: Record<string, unknown>): PlanDeliverableCounts {
+export function planDeliverablesFromItem(
+  item: Record<string, unknown>,
+  options?: PackageUnitTargetOptions,
+): PlanDeliverableCounts {
+  if (packageHasNoUnitTarget(item.buyType ?? item.buy_type ?? item.buying_method, options)) {
+    return { impressions: null, clicks: null, views: null }
+  }
   const impressions = positive(
     asNumber(item.impressions) ?? asNumber(item.plannedImpressions) ?? asNumber(item.planned_impressions),
   )

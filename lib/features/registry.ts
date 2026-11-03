@@ -184,7 +184,7 @@ export const FEATURE_DEFINITIONS = [
     key: "expert_package_quantity",
     label: "Expert grid package quantity",
     description:
-      "Applying an expert grid saves a package line's deliverables as the quantity entered, on every channel (decision D1). Off: the Digital Video, Digital Display, Social, Search, Influencers, Integration and programmatic grids save 0 and the Newspaper and Magazines grids save 1, as before. Budgets and billing don't change either way.",
+      "Applying an expert grid saves a package line's deliverables as the quantity entered, on every channel (decision D1). Off: the Digital Video, Digital Display, Social, Search, Influencers, Integration and programmatic grids save 0 and the Newspaper and Magazines grids save 1, as before. Budgets and billing don't change either way. On also treats every package line as having no unit target, like fixed cost (P14): ad-serving pacing, client dashboard and deck planned deliverables, the CM360 spend estimate and KPI plan deliverables ignore a package quantity.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,

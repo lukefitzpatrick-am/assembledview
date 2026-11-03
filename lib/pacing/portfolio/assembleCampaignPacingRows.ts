@@ -848,6 +848,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             ),
             versionId: row.mediaPlanVersionId,
             bursts: row.bursts,
+            packageNoUnitTarget: row.noUnitTarget === true,
             days: [
               {
                 date: row.lineItemEndDate || row.campaignEndDate || countTo,

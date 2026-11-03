@@ -503,7 +503,8 @@ export function lineCardFromAdServing(
   const planned = row.deliverableTarget
   const linePct = spendVsExpectedPct(delivered, planned, timePct)
   const burst = row.currentBurst
-  const burstTarget = burst?.calculatedValue ?? null
+  // P14: a package line with no unit target has no burst target either.
+  const burstTarget = row.noUnitTarget ? null : (burst?.calculatedValue ?? null)
   const burstPct =
     burst && burstTarget != null && burstTarget > 0
       ? spendVsExpectedPct(delivered, burstTarget, lineTimePct(burst.startDate, burst.endDate, asOf))

@@ -1,4 +1,6 @@
 import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
@@ -215,10 +217,15 @@ function bookedSpend(item: AdServingLineItem): number {
 }
 
 /** Plan deliverable totals by buy type — impressions for CPM, clicks for CPC. */
-function bookedDeliverables(item: AdServingLineItem): { impressions: number; clicks: number } {
+function bookedDeliverables(
+  item: AdServingLineItem,
+  options?: PackageUnitTargetOptions,
+): { impressions: number; clicks: number } {
   const buy = String(item.buy_type ?? "")
     .trim()
     .toLowerCase()
+  // P14: a package line has no unit target when the switch is on.
+  if (packageHasNoUnitTarget(buy, options)) return { impressions: 0, clicks: 0 }
   const bursts = parseBursts(item.bursts_json ?? item.bursts)
   const total = bursts.reduce((sum, b) => sum + burstDeliverables(b), 0)
   if (buy === "cpc" || buy === "cpa" || buy === "cpl") {
@@ -415,6 +422,8 @@ export function buildDirectDigitalChannelSection(input: {
   estimateVersionId?: number | null
   /** Pacing "to date" override. Defaults to Melbourne yesterday, capped at campaign end. */
   pacingAsAtISO?: string
+  /** P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
+  packageNoUnitTarget?: boolean
 }): ChannelSectionData | null {
   const {
     key,
@@ -434,6 +443,9 @@ export function buildDirectDigitalChannelSection(input: {
     feePctsByVersionId,
     estimateVersionId,
   } = input
+  const packageOptions: PackageUnitTargetOptions = {
+    packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
   // Pacing compares delivered with what was expected for the selected window
   // (to date = Melbourne yesterday; a date filter narrows it). Charts keep running to today.
   const pacingAsAt = input.pacingAsAtISO ?? asOfDate ?? pacingAsAtISO(campaignEnd)
@@ -521,7 +533,7 @@ export function buildDirectDigitalChannelSection(input: {
       }),
       { impressions: 0, clicks: 0, results: 0, videoCompletes: 0 },
     )
-    const booked = bookedDeliverables(item)
+    const booked = bookedDeliverables(item, packageOptions)
     const spendPlanned = bookedSpend(item)
     const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
     const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
@@ -543,6 +555,7 @@ export function buildDirectDigitalChannelSection(input: {
           feePct: feePctFromVersionMap(feePctsByVersionId, versionId, feeChannel),
           versionId,
           bursts: item.bursts_json ?? item.bursts,
+          ...(packageOptions.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
           days: daily.map((d) => ({
             date: d.date,
             impressions: d.impressions,

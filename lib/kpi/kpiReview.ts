@@ -8,6 +8,7 @@
  */
 
 import { cpm, safeRatio } from "@/lib/money/rates"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
 import { deliverableLabelForBuyType } from "@/lib/delivery/deliverableLabel"
 import type { DeliverySource } from "@/lib/delivery/deliverySourceMap"
@@ -174,9 +175,18 @@ function isViewsDeliverable(buyType: string): boolean {
   return deliverableLabelForBuyType(buyType) === "Views"
 }
 
-export function extractKpiReviewPlanLine(item: unknown, plannedSpend: number): KpiReviewPlanLine {
+/**
+ * P14: with `packageNoUnitTarget` on, a package line plans no impressions,
+ * clicks or views (no unit target, like fixed cost). The buy rate is kept.
+ */
+export function extractKpiReviewPlanLine(
+  item: unknown,
+  plannedSpend: number,
+  options?: PackageUnitTargetOptions,
+): KpiReviewPlanLine {
   const rec = asRecord(item)
   const buyType = String(rec.buy_type ?? rec.buyType ?? "").trim()
+  const noUnitTarget = packageHasNoUnitTarget(buyType, options)
   const bursts = parseBurstsToNormalised(rec.bursts ?? rec.bursts_json)
   let buyWeight = 0
   let buySum = 0
@@ -213,9 +223,9 @@ export function extractKpiReviewPlanLine(item: unknown, plannedSpend: number): K
     buyType,
     plannedSpend,
     buyAmount: buyWeight > 0 ? buySum / buyWeight : null,
-    plannedViews,
-    plannedImpressions,
-    plannedClicks,
+    plannedViews: noUnitTarget ? null : plannedViews,
+    plannedImpressions: noUnitTarget ? null : plannedImpressions,
+    plannedClicks: noUnitTarget ? null : plannedClicks,
   }
 }
 

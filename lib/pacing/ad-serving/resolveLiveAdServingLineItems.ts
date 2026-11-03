@@ -13,11 +13,20 @@ import type {
   AdServingPacingCampaignRow,
 } from "@/lib/pacing/ad-serving/types";
 import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import {
+  packageHasNoUnitTarget,
+  type PackageUnitTargetOptions,
+} from "@/lib/delivery/packageUnitTarget";
 
 export type GetLiveAdServingLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
   mbaNumber?: string;
+  /**
+   * P14: package lines have no unit target (`expert_package_quantity`).
+   * Unset reads the switch.
+   */
+  packageNoUnitTarget?: boolean;
 };
 
 export type LiveAdServingLineItemInput = {
@@ -49,14 +58,21 @@ export async function fetchDigitalLineItemsForMba(args: {
   return fetchXanoLineItemsForMba(args);
 }
 
-/** Plan deliverable totals by buy type — mirrors directDigitalAdapterShared.bookedDeliverables. */
-export function bookedDeliverablesFromRow(row: Record<string, unknown>): {
+/**
+ * Plan deliverable totals by buy type — mirrors directDigitalAdapterShared.bookedDeliverables.
+ * P14: a package line has none when `packageNoUnitTarget` is on.
+ */
+export function bookedDeliverablesFromRow(
+  row: Record<string, unknown>,
+  options?: PackageUnitTargetOptions
+): {
   impressions: number;
   clicks: number;
 } {
   const buy = String(row.buy_type ?? row.buyType ?? "")
     .trim()
     .toLowerCase();
+  if (packageHasNoUnitTarget(buy, options)) return { impressions: 0, clicks: 0 };
   const bursts = parseBurstsToNormalised(row.bursts_json ?? row.bursts);
   const total = bursts.reduce((sum, b) => sum + (b.calculatedValue > 0 ? b.calculatedValue : 0), 0);
   if (buy === "cpc" || buy === "cpa" || buy === "cpl") {
@@ -96,14 +112,16 @@ function mapDigitalRowToCampaignRow(
   versionRow: VersionRow,
   dr: Record<string, unknown>,
   asOfDate: string,
-  channelFamily: AdServingChannelFamily
+  channelFamily: AdServingChannelFamily,
+  options?: PackageUnitTargetOptions
 ): AdServingPacingCampaignRow {
   const bursts = parseBurstsToNormalised(dr.bursts_json ?? dr.bursts);
   const lineItemStartDate = bursts.length > 0 ? bursts[0]!.startDate : null;
   const lineItemEndDate = bursts.length > 0 ? bursts[bursts.length - 1]!.endDate : null;
   const currentBurstIndex = findCurrentBurstIndex(bursts, asOfDate);
   const currentBurst = currentBurstIndex !== null ? bursts[currentBurstIndex]! : null;
-  const booked = bookedDeliverablesFromRow(dr);
+  const booked = bookedDeliverablesFromRow(dr, options);
+  const noUnitTarget = packageHasNoUnitTarget(dr.buy_type ?? dr.buyType, options);
 
   const deliverableKind: AdServingPacingCampaignRow["deliverableKind"] =
     booked.impressions > 0 ? "impressions" : booked.clicks > 0 ? "clicks" : null;
@@ -165,6 +183,7 @@ function mapDigitalRowToCampaignRow(
     deliverableTarget,
     deliverableKind,
     budgetIncludesFees: dr.budget_includes_fees === true,
+    ...(noUnitTarget ? { noUnitTarget: true } : {}),
   };
 }
 
@@ -172,7 +191,12 @@ export async function resolveLiveAdServingPacingCampaignRows(
   args: GetLiveAdServingLineItemsArgs
 ): Promise<AdServingPacingCampaignRow[]> {
   const inputs = await resolveLiveAdServingLineItemInputs(args);
+  const packageNoUnitTarget =
+    args.packageNoUnitTarget ??
+    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget;
   return inputs.map(({ master, versionRow, digitalRow, channelFamily }) =>
-    mapDigitalRowToCampaignRow(master, versionRow, digitalRow, args.asOfDate, channelFamily)
+    mapDigitalRowToCampaignRow(master, versionRow, digitalRow, args.asOfDate, channelFamily, {
+      packageNoUnitTarget,
+    })
   );
 }

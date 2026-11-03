@@ -9,6 +9,8 @@
  * CPV prices `video3sViews` (the column TL0 named), not platform `results`.
  * Programmatic callers of `deriveSpendFromPlanRate` are unchanged.
  * Fixed-cost lines are not estimated; reported spend replaces this figure.
+ * P14: with `packageNoUnitTarget` on, a package line is not estimated either
+ * (no unit target, like a fixed-cost buy).
  */
 
 import {
@@ -18,6 +20,7 @@ import {
 } from "@/lib/delivery/deriveSpendFromPlanRate"
 import { netFromGross } from "@/lib/mediaplan/deliverableBudget"
 import { roundMoney2 } from "@/lib/money"
+import { packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 
 export const ESTIMATED_SPEND_LABEL = "Estimated spend"
 export const NO_PLANNED_IMPRESSIONS = "No planned impressions"
@@ -43,6 +46,8 @@ export type EstimateDirectDigitalSpendInput = {
   versionId?: number | null
   bursts: unknown
   days: ReadonlyArray<EstimateDirectDigitalDay>
+  /** P14 (`expert_package_quantity`): a package line has no unit target, so no estimate. */
+  packageNoUnitTarget?: boolean
 }
 
 export type EstimateDirectDigitalSpendResult = {
@@ -128,6 +133,7 @@ export function estimateDirectDigitalSpend(
 ): EstimateDirectDigitalSpendResult {
   const buy = String(input.buyType ?? "").trim().toLowerCase()
   if (input.fixedCost === true || buy === "fixed_cost") return emptyEstimate()
+  if (packageHasNoUnitTarget(buy, input)) return emptyEstimate()
 
   const days = input.days.map((day) => ({
     date: day.date,

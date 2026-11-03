@@ -14,10 +14,15 @@ import {
   type KpiReviewPlanLine,
 } from "@/lib/kpi/kpiReview"
 import type { CampaignKPI } from "@/lib/kpi/types"
+import type { PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 
 /** Plan fields the CPV rate reads, from the raw media plan line. */
-export function kpiPlanLineFromPlanItem(item: unknown, plannedSpend: number): KpiReviewPlanLine {
-  return extractKpiReviewPlanLine(item, plannedSpend)
+export function kpiPlanLineFromPlanItem(
+  item: unknown,
+  plannedSpend: number,
+  options?: PackageUnitTargetOptions,
+): KpiReviewPlanLine {
+  return extractKpiReviewPlanLine(item, plannedSpend, options)
 }
 
 /** One line's plan CPV, as the KPI review computes it. */
