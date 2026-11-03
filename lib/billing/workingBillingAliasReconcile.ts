@@ -7,6 +7,9 @@
  * - `aliasAdoptions`: a working row took the current id of its line.
  * - `placeholderSkips`: a placeholder `new-N` row was not added to a bucket
  *   that already had rows (decision Q1).
+ * - `savedPairs` (source `saved`, switch `billing_ghost_row_guard`): the
+ *   loaded billing schedule holds an old id and its current id for the same
+ *   line with money in the same month (decision Q16).
  *
  * Best effort and never throws. Each distinct report is sent once per page
  * session, because the merge runs again on every billing change.
@@ -16,11 +19,20 @@ import type { BillingAliasReconcileEntry } from "@/lib/billing/appendAutoReferen
 
 export const WORKING_BILLING_ALIAS_RECONCILE_KIND = "working_billing_alias_reconcile"
 
-export type WorkingBillingAliasReconcileSource = "merge" | "attach" | "modal_open"
+export type WorkingBillingAliasReconcileSource = "merge" | "attach" | "modal_open" | "saved"
+
+export type WorkingBillingAliasSavedPair = {
+  mediaKey: string
+  oldId: string
+  currentId: string
+  months: Array<{ monthYear: string; oldAmount: number; currentAmount: number }>
+  oldTotal: number
+}
 
 export type WorkingBillingAliasReconcileSummary = {
   aliasAdoptions: Array<{ mediaKey: string; fromId: string; toId: string; months: string[] }>
   placeholderSkips: Array<{ mediaKey: string; id: string; months: string[] }>
+  savedPairs?: WorkingBillingAliasSavedPair[]
 }
 
 export type WorkingBillingAliasReconcilePayload = WorkingBillingAliasReconcileSummary & {
@@ -75,6 +87,9 @@ export function buildWorkingBillingAliasReconcilePayload(input: {
     source: input.source,
     aliasAdoptions: input.summary.aliasAdoptions,
     placeholderSkips: input.summary.placeholderSkips,
+    ...(input.summary.savedPairs && input.summary.savedPairs.length > 0
+      ? { savedPairs: input.summary.savedPairs }
+      : {}),
     timestamp: new Date().toISOString(),
   }
 }
@@ -95,10 +110,21 @@ export async function reportWorkingBillingAliasReconcile(input: {
   mba: string
   source: WorkingBillingAliasReconcileSource
   entries: readonly BillingAliasReconcileEntry[]
+  /** Ghost pairs found in the loaded schedule (source `saved`). */
+  savedPairs?: readonly WorkingBillingAliasSavedPair[]
   fetchImpl?: typeof fetch
 }): Promise<WorkingBillingAliasReconcilePayload | null> {
-  const summary = summariseAliasReconcileEntries(input.entries)
-  if (summary.aliasAdoptions.length === 0 && summary.placeholderSkips.length === 0) return null
+  const summary: WorkingBillingAliasReconcileSummary = {
+    ...summariseAliasReconcileEntries(input.entries),
+    ...(input.savedPairs && input.savedPairs.length > 0 ? { savedPairs: [...input.savedPairs] } : {}),
+  }
+  if (
+    summary.aliasAdoptions.length === 0 &&
+    summary.placeholderSkips.length === 0 &&
+    (summary.savedPairs?.length ?? 0) === 0
+  ) {
+    return null
+  }
   const onceKey = JSON.stringify([input.versionId, input.mba, input.source, summary])
   if (sentThisSession.has(onceKey)) return null
   sentThisSession.add(onceKey)

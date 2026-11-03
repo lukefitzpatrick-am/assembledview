@@ -28,7 +28,12 @@ export const dynamic = "force-dynamic"
  * and tenant check).
  */
 
-const ALIAS_SOURCES: readonly WorkingBillingAliasReconcileSource[] = ["merge", "attach", "modal_open"]
+const ALIAS_SOURCES: readonly WorkingBillingAliasReconcileSource[] = ["merge", "attach", "modal_open", "saved"]
+
+function finiteNumber(value: unknown): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.map((x) => String(x ?? "").trim()).filter(Boolean) : []
@@ -54,7 +59,24 @@ function parseAliasSummary(b: Record<string, unknown>): WorkingBillingAliasRecon
     if (!mediaKey || !id) continue
     placeholderSkips.push({ mediaKey, id, months: strings(r.months) })
   }
-  return { aliasAdoptions, placeholderSkips }
+  const savedPairs: NonNullable<WorkingBillingAliasReconcileSummary["savedPairs"]> = []
+  for (const row of Array.isArray(b.savedPairs) ? b.savedPairs : []) {
+    if (!row || typeof row !== "object") continue
+    const r = row as Record<string, unknown>
+    const mediaKey = String(r.mediaKey ?? "").trim()
+    const oldId = String(r.oldId ?? "").trim()
+    const currentId = String(r.currentId ?? "").trim()
+    if (!mediaKey || !oldId || !currentId) continue
+    const months = (Array.isArray(r.months) ? r.months : [])
+      .filter((m): m is Record<string, unknown> => Boolean(m) && typeof m === "object")
+      .map((m) => ({
+        monthYear: String(m.monthYear ?? "").trim(),
+        oldAmount: finiteNumber(m.oldAmount),
+        currentAmount: finiteNumber(m.currentAmount),
+      }))
+    savedPairs.push({ mediaKey, oldId, currentId, months, oldTotal: finiteNumber(r.oldTotal) })
+  }
+  return { aliasAdoptions, placeholderSkips, ...(savedPairs.length > 0 ? { savedPairs } : {}) }
 }
 export async function POST(request: NextRequest) {
   try {
@@ -84,8 +106,15 @@ export async function POST(request: NextRequest) {
     }
     if (isAliasReconcile) {
       const summary = parseAliasSummary(b)
-      if (summary.aliasAdoptions.length === 0 && summary.placeholderSkips.length === 0) {
-        return NextResponse.json({ error: "aliasAdoptions or placeholderSkips required" }, { status: 400 })
+      if (
+        summary.aliasAdoptions.length === 0 &&
+        summary.placeholderSkips.length === 0 &&
+        (summary.savedPairs?.length ?? 0) === 0
+      ) {
+        return NextResponse.json(
+          { error: "aliasAdoptions, placeholderSkips or savedPairs required" },
+          { status: 400 }
+        )
       }
       const sourceRaw = String(b.source ?? "").trim() as WorkingBillingAliasReconcileSource
       const source = ALIAS_SOURCES.includes(sourceRaw) ? sourceRaw : "merge"

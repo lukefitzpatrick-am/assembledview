@@ -449,6 +449,35 @@ test("POST working-dedupe-anomaly alias reconcile (B20): own MBA writes the new 
     assert.equal(empty.status, 400)
     assert.equal(dbExecuteMock.mock.calls.length, 1)
 
+    // B20 ghost-row guard: saved pairs alone are accepted under the same kind.
+    const saved = await POST(
+      new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...aliasReconcileBody,
+          mba: "BICAU002",
+          source: "saved",
+          aliasAdoptions: [],
+          savedPairs: [
+            {
+              mediaKey: "ooh",
+              oldId: "BICAU002ML1",
+              currentId: "BICAU002OH1",
+              months: [{ monthYear: "June 2026", oldAmount: 10, currentAmount: 10 }],
+              oldTotal: 10,
+            },
+          ],
+        }),
+      })
+    )
+    assert.equal(saved.status, 200)
+    assert.equal(dbExecuteMock.mock.calls.length, 2)
+    const savedFlat = JSON.stringify((dbExecuteMock.mock.calls[1] as unknown as { arguments: unknown[] }).arguments[0])
+    assert.match(savedFlat, /working_billing_alias_reconcile/)
+    assert.match(savedFlat, /BICAU002ML1/)
+    assert.match(savedFlat, /\\"source\\":\\"saved\\"/)
+
     // The dedupe body still writes its own kind.
     const dedupe = await POST(
       new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
@@ -459,7 +488,7 @@ test("POST working-dedupe-anomaly alias reconcile (B20): own MBA writes the new 
     )
     assert.equal(dedupe.status, 200)
     assert.match(
-      JSON.stringify((dbExecuteMock.mock.calls[1] as unknown as { arguments: unknown[] }).arguments[0]),
+      JSON.stringify((dbExecuteMock.mock.calls[2] as unknown as { arguments: unknown[] }).arguments[0]),
       /working_billing_canonical_dedupe/
     )
   } finally {

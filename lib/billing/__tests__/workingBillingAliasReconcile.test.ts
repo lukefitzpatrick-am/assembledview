@@ -82,3 +82,34 @@ test("report never throws when the POST fails", async () => {
     console.warn = quietWarn
   }
 })
+
+test("saved pairs (source saved) are sent on their own, once", async () => {
+  resetAliasReconcileSentForTests()
+  const calls: Array<Record<string, unknown>> = []
+  const fetchImpl = (async (_url: string, init?: { body?: string }) => {
+    calls.push(JSON.parse(String(init?.body)))
+    return { ok: true, status: 200 } as Response
+  }) as unknown as typeof fetch
+  const quiet = console.info
+  console.info = () => {}
+  try {
+    const savedPairs = [
+      {
+        mediaKey: "ooh",
+        oldId: "malay004ML1",
+        currentId: "malay004OH1",
+        months: [{ monthYear: "June 2026", oldAmount: 37000, currentAmount: 37000 }],
+        oldTotal: 37000,
+      },
+    ]
+    const input = { versionId: 9, mba: "malay004", source: "saved" as const, entries: [], savedPairs, fetchImpl }
+    assert.ok(await reportWorkingBillingAliasReconcile(input))
+    assert.equal(await reportWorkingBillingAliasReconcile(input), null)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0]!.source, "saved")
+    assert.deepEqual(calls[0]!.savedPairs, savedPairs)
+    assert.deepEqual(calls[0]!.aliasAdoptions, [])
+  } finally {
+    console.info = quiet
+  }
+})

@@ -204,6 +204,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "billing_ghost_row_guard",
+    label: "Duplicate old-id billing rows: warn and stop save",
+    description:
+      "The media plan editor checks the billing schedule it loads for an old line id (pre-May ML code, no code, or the old production id) and the current id of the same line, both with money in the same month, which counts that line twice (decision Q16; hema001 v6 and v7, malay003 v4, malay004 v3 and v4 and BOSS001 v14 on 3 Nov 2026). On: a notice names each line and both amounts, the MBA billing window lists each pair with a \"duplicate of\" chip, the editor logs it to app notifications, and Save is refused until the planner chooses \"Keep the current rows\", which removes the old-id rows from this edit only. Saved data is never changed or deleted; the next save writes a new schedule from the plan lines. Off: no check, as before.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:
