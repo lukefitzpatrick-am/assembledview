@@ -133,8 +133,26 @@ SELECT LOWER(LINE_ITEM_ID) lid, BURST_INDEX, BURST_START_DATE, BURST_END_DATE, B
 FROM ASSEMBLEDVIEW.MART.FIXED_COST_BURST_FACT
 WHERE LOWER(LINE_ITEM_ID) IN ('boss010pd1', 'boss010pd2', 'boss011pd1', 'boss011pd2', 'bicau006pv1')
 ORDER BY 1, 2;   -- expect BOSS bursts 1 Sep to 30 Sep etc. with BURST_BUDGET 1700.0000 (boss010pd1)
--- Undo C: turn the switch off. The next morning every line is backfilled once
--- back on the gross budget and UTC days.
+-- Undo C: turn the switch off at /admin/features. Nothing changes until the
+-- next morning: the 06:00 sync writes null into FIXED_COST_BURSTS_JSON, then
+-- the 06:30 task backfills every line whose line fact says net_melbourne once,
+-- back on the gross budget and UTC days. That backfill also deletes the line's
+-- rows outside the gross burst days (B23fix), so no Melbourne last-day row
+-- stays. Check the morning after:
+SELECT COUNT(*) lines_still_net                                      -- expect 0
+FROM ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT
+WHERE REPORT_BASIS_APPLIED = 'net_melbourne';
+-- Run the next query once before C1 too and note the count (36 on 3 Nov
+-- 2026: older rows outside their burst days, not from B23).
+SELECT COUNT(*) rows_outside_gross_bursts                 -- expect no more than the count before C1
+FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT d
+JOIN ASSEMBLEDVIEW.MART.FIXED_COST_BURST_FACT b
+  ON LOWER(b.LINE_ITEM_ID) = LOWER(d.LINE_ITEM_ID) AND b.BURST_INDEX = d.BURST_INDEX
+WHERE COALESCE(d.CAP_APPLIED, '') <> 'assumed_spend'
+  AND (d.DATE_DAY < b.BURST_START_DATE OR d.DATE_DAY > b.BURST_END_DATE);
+-- Partner-file and direct-digital lines are backfilled every night anyway.
+-- Part B must be the B23fix procedure for the clean-up; the B23 one leaves
+-- the Melbourne last-day rows.
 
 -- #############################################################################
 -- PART D: fixed cost from a date (turn on fixed_cost_from_date, after C)

@@ -14,6 +14,9 @@
 --   * the line fact records the basis and date it was last backfilled with
 --     (REPORT_BASIS_APPLIED, FIXED_COST_FROM_APPLIED) so the nightly wrapper
 --     backfills a line once when either changes.
+-- B23fix: a backfill of a line back on the gross basis (the switch turned off)
+-- whose line fact still says net_melbourne also deletes its non-assumed rows
+-- outside the gross UTC burst days, so no Melbourne last-day row stays.
 -- B23 also, for every line (not switch gated): a line whose latest snapshot is
 -- no longer fixed cost media (and not assumed spend) gets
 -- IS_CURRENTLY_FIXED_COST = FALSE on its line fact.
@@ -302,6 +305,22 @@ function deleteRowsOutsideReported(lineItemId, keptWindows) {
         for (const w of keptWindows) burstBinds.push(w.index);
     }
     snowflake.createStatement({ sqlText: burstSql, binds: burstBinds }).execute();
+}
+
+// B23fix: true when the line was last backfilled on the net basis. Backfill
+// only, so a gross line going back from net loses its Melbourne-only rows.
+function lastBackfillWasNet(lineItemId) {
+    const rs = snowflake.createStatement({
+        sqlText: `
+            SELECT 1
+            FROM ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+              AND REPORT_BASIS_APPLIED = ?
+            LIMIT 1
+        `,
+        binds: [lineItemId, NET_BASIS]
+    }).execute();
+    return rs.next();
 }
 
 // A line switched off fixed cost no longer lists as current (discovery 3.7).
@@ -1069,7 +1088,8 @@ for (const li of lineItems) {
             }
         }
 
-        if (netMode && backfillMode) {
+        // B23fix: also when the line goes back from net to gross (switch off).
+        if (backfillMode && (netMode || lastBackfillWasNet(li.lineItemId))) {
             deleteRowsOutsideReported(li.lineItemId, keptWindows);
         }
 

@@ -62,6 +62,8 @@ type Recorded = {
   deletes: Array<{ sql: string; binds: unknown[] }>
   updates: Array<{ sql: string; binds: unknown[] }>
   calls: Array<{ sql: string; binds: unknown[] }>
+  /** B23fix: last-basis checks (SELECT on the line fact). */
+  basisChecks: unknown[][]
   result: Record<string, unknown>
 }
 
@@ -89,9 +91,11 @@ function runProcedure(
     filter?: string | null
     backfill?: boolean
     staleCleared?: number
+    /** B23fix: lines whose line fact says they were last backfilled on the net basis. */
+    lastNet?: string[]
   },
 ): Recorded {
-  const rec: Recorded = { daily: [], bursts: [], lines: [], deletes: [], updates: [], calls: [], result: {} }
+  const rec: Recorded = { daily: [], bursts: [], lines: [], deletes: [], updates: [], calls: [], basisChecks: [], result: {} }
   const snowflake = {
     createStatement({ sqlText, binds = [] }: { sqlText: string; binds?: unknown[] }) {
       return {
@@ -140,6 +144,12 @@ function runProcedure(
                 l.fixedCostBursts == null ? null : l.fixedCostBursts,
               ])
             return rs(rows)
+          }
+          if (/^\s*SELECT 1\s+FROM ASSEMBLEDVIEW\.MART\.FIXED_COST_LINE_ITEM_FACT/.test(sql)) {
+            rec.basisChecks.push(binds)
+            const [lid, basis] = binds as [string, string]
+            const hit = basis === "net_melbourne" && (args.lastNet ?? []).some((id) => id.toLowerCase() === lid.toLowerCase())
+            return rs(hit ? [[1]] : [])
           }
           const units = /SUM\((\w+)\) AS UNITS/.exec(sql)
           if (units) {
@@ -532,5 +542,75 @@ describe("stale currently-fixed-cost flag (discovery 3.7)", () => {
     const out = runProcedure(NEW, { lines: [], facts: [], now: AFTER_FLIGHT, filter: "krusty001pd1" })
     const upd = out.updates.find((u) => u.sql.includes("IS_CURRENTLY_FIXED_COST = FALSE"))
     assert.deepEqual(upd!.binds, ["krusty001pd1"])
+  })
+})
+
+// ---------- B23fix: net basis switched off again (review finding 3) ----------
+
+describe("net basis switched off again (B23fix)", () => {
+  const ID = "krusty001pd1"
+  const gross: SnapshotLine = { id: ID, buyType: "cpm", bursts: [SEP, OCT], sourceTable: "media_plan_prog_display" }
+  const net: SnapshotLine = { ...gross, fixedCostBursts: NET }
+  const facts = dv360Facts(ID, 56.67, 5000, "2026-08-31", "2026-10-31")
+
+  type Row = { bi: number; day: string }
+  /** The daily fact for one line: deletes first, then the merge (the procedure's order for a line). */
+  function apply(table: Map<string, Row>, out: Recorded): Map<string, Row> {
+    const next = new Map(table)
+    for (const d of out.deletes) {
+      if (!/DELETE FROM ASSEMBLEDVIEW\.MART\.FIXED_COST_REPORTED_DAILY_FACT\s+WHERE LOWER\(LINE_ITEM_ID\)/.test(d.sql)) continue
+      if (String(d.binds[0]).toLowerCase() !== ID) continue
+      const windows: Array<[number, string, string]> = []
+      for (let i = 1; i < d.binds.length; i += 3) windows.push([Number(d.binds[i]), String(d.binds[i + 1]), String(d.binds[i + 2])])
+      for (const [k, r] of next) {
+        if (!windows.some(([bi, s, e]) => r.bi === bi && r.day >= s && r.day <= e)) next.delete(k)
+      }
+    }
+    for (const r of out.daily) next.set(`${r[1]}|${r[2]}`, { bi: Number(r[1]), day: String(r[2]) })
+    return next
+  }
+  const keys = (t: Map<string, Row>) => [...t.keys()].sort()
+
+  const never = apply(new Map(), runProcedure(NEW, { lines: [gross], facts, now: AFTER_FLIGHT, backfill: true }))
+  const onOut = runProcedure(NEW, { lines: [net], facts, now: AFTER_FLIGHT, backfill: true })
+  const on = apply(never, onOut)
+
+  it("on: the line fact says net_melbourne and the rows are Melbourne days", () => {
+    assert.deepEqual(onOut.lines[0]!.slice(11), [1, null, "net_melbourne"])
+    assert.ok(on.has("1|2026-10-31"))
+    assert.notDeepEqual(keys(on), keys(never))
+  })
+
+  it("off again: the backfill deletes rows outside the gross UTC days; the table is as if never on", () => {
+    const offOut = runProcedure(NEW, { lines: [gross], facts, now: AFTER_FLIGHT, backfill: true, lastNet: [ID] })
+    assert.deepEqual(offOut.basisChecks, [[ID, "net_melbourne"]])
+    const del = offOut.deletes.find((d) => /WHERE LOWER\(LINE_ITEM_ID\)/.test(d.sql) && d.sql.includes("FIXED_COST_REPORTED_DAILY_FACT"))
+    assert.ok(del, "rows outside the gross bursts are deleted")
+    const off = apply(on, offOut)
+    assert.equal(off.has("1|2026-10-31"), false, "no Melbourne last-day row")
+    assert.deepEqual(keys(off), keys(never))
+    // The line fact goes back to no basis, so the wrapper backfills it only once.
+    assert.deepEqual(offOut.lines[0]!.slice(11), [1, null, null])
+    assert.equal(offOut.result.net_basis_lines, 0)
+  })
+
+  it("without the B23fix clean-up the Melbourne rows would stay (the check matters)", () => {
+    const stale = apply(on, runProcedure(NEW, { lines: [gross], facts, now: AFTER_FLIGHT, backfill: true }))
+    assert.equal(stale.has("1|2026-10-31"), true)
+  })
+
+  it("window mode never checks or deletes", () => {
+    const out = runProcedure(NEW, { lines: [gross], facts, now: "2026-10-20T19:30:00.000Z", backfill: false, lastNet: [ID] })
+    assert.deepEqual(out.basisChecks, [])
+    assert.equal(out.deletes.filter((d) => d.binds[0] === ID).length, 0)
+  })
+
+  it("the nightly wrapper picks the line up: null snapshot basis is distinct from net_melbourne", () => {
+    const wrapper = readFileSync(join(repo, "sql/snowflake/mart/procedures/sp_refresh_fixed_cost_nightly.sql"), "utf8")
+    assert.match(
+      wrapper,
+      /iff\(s\.FIXED_COST_BURSTS_JSON is null, null, 'net_melbourne'\) is distinct from f\.REPORT_BASIS_APPLIED/,
+    )
+    assert.match(wrapper, /call ASSEMBLEDVIEW\.MART\.SP_REFRESH_FIXED_COST_REPORTED_DAILY\(:id2, true\)/)
   })
 })
