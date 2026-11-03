@@ -1,6 +1,11 @@
 /**
  * Collapse case-alias duplicate PKs in XANO_LINE_ITEMS_SNAPSHOT, then lower.
  * Requires DELETE+INSERT (AV_APP_WRITE_ROLE has both).
+ *
+ * B23fix: the reload carries every later column the snapshot has
+ * (NO_ADSERVING, ASSUME_SPEND, and the B23 FIXED_COST_FROM and
+ * FIXED_COST_BURSTS_JSON), so a rerun keeps their values. A column the
+ * snapshot doesn't have yet is left out.
  */
 import { readFileSync, existsSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
@@ -110,6 +115,23 @@ writeFileSync(
   )
 )
 
+// Later columns, carried when the snapshot has them (B23fix).
+const OPTIONAL_COLUMNS = ["NO_ADSERVING", "ASSUME_SPEND", "FIXED_COST_FROM", "FIXED_COST_BURSTS_JSON"]
+const presentRows = await exec(
+  `
+  SELECT COLUMN_NAME
+  FROM ASSEMBLEDVIEW.INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = 'MART'
+    AND TABLE_NAME = 'XANO_LINE_ITEMS_SNAPSHOT'
+    AND COLUMN_NAME IN (${OPTIONAL_COLUMNS.map((c) => `'${c}'`).join(", ")})
+`,
+  "optional-columns"
+)
+const present = new Set(presentRows.map((r) => String(r.COLUMN_NAME).toUpperCase()))
+const carried = OPTIONAL_COLUMNS.filter((c) => present.has(c))
+const carriedList = carried.map((c) => `,\n  ${c}`).join("")
+console.log(`[info] carried columns: ${carried.join(", ") || "(none)"}`)
+
 // Stage deduped lower rows in a table we can write (use session temp via CREATE TEMPORARY)
 await exec(
   `
@@ -125,7 +147,7 @@ SELECT
   SOURCE_TABLE,
   XANO_ROW_ID,
   XANO_CREATED_AT,
-  SYNCED_AT
+  SYNCED_AT${carriedList}
 FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
 QUALIFY ROW_NUMBER() OVER (
   PARTITION BY LOWER(TRIM(LINE_ITEM_ID))
@@ -150,11 +172,11 @@ await exec(
   `
 INSERT INTO ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT (
   LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
-  FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
+  FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT${carriedList}
 )
 SELECT
   LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
-  FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
+  FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT${carriedList}
 FROM TMP_SNAPSHOT_LOWER
 `,
   "reload"
