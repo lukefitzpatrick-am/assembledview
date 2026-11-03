@@ -43,6 +43,8 @@ const lineItemSchema = z.object({
   platform: z.string().nullable().optional(),
   bidStrategy: z.string().nullable().optional(),
   fixedCostMedia: z.boolean().nullable().optional(),
+  /** B23: fixed cost from this Melbourne date. The route normalises it. */
+  fixedCostFrom: z.string().nullable().optional(),
   clientPaysForMedia: z.boolean().nullable().optional(),
   budgetIncludesFees: z.boolean().nullable().optional(),
   noAdserving: z.boolean().nullable().optional(),

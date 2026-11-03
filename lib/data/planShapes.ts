@@ -136,6 +136,8 @@ export function mapLineItemFromPostgres(
     platform: api.platform ?? null,
     bid_strategy: api.bid_strategy ?? null,
     fixed_cost_media: api.fixed_cost_media ?? null,
+    // B23: present only when a date is saved, so other lines stay byte-identical.
+    ...(api.fixed_cost_from ? { fixed_cost_from: String(api.fixed_cost_from).slice(0, 10) } : {}),
     client_pays_for_media: api.client_pays_for_media ?? null,
     budget_includes_fees: api.budget_includes_fees ?? null,
     no_adserving: api.no_adserving ?? null,

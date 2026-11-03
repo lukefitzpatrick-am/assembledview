@@ -203,6 +203,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "fixed_cost_from_date",
+    label: "Fixed cost from a date",
+    description:
+      "A fixed cost media line can start fixed cost on a date inside its flight (decision FC2). Days before the date keep the line's actual delivery; from the date it reports fixed-cost spend. Shows the date field beside the Fixed Cost Media box, checks it on save, sends it to Snowflake, and splits client dashboards, decks, pacing and the fixed-cost margin report by day. Run SQL 0115 first. Off: the field is hidden and every reader treats the line as fixed cost for the whole flight, as before.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "web_search",
     label: "Web & search for clients",
     description: "Clients see their Web & search tab once their report is published. Admins see it either way.",

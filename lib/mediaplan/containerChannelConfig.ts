@@ -373,6 +373,16 @@ export const PROGDISPLAY_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -543,6 +553,16 @@ export const PROGVIDEO_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -695,6 +715,16 @@ export const PROGBVOD_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -825,6 +855,16 @@ export const PROGAUDIO_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -990,6 +1030,16 @@ export const PROGOOH_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -1107,6 +1157,16 @@ export const DIGITALDISPLAY_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -1277,6 +1337,16 @@ export const DIGITALVIDEO_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -1425,6 +1495,16 @@ export const DIGITALAUDIO_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -1560,6 +1640,16 @@ export const BVOD_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -1708,6 +1798,16 @@ export const TELEVISION_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -1874,6 +1974,16 @@ export const RADIO_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -2048,6 +2158,16 @@ export const SEARCH_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -2165,6 +2285,16 @@ export const SOCIALMEDIA_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -2295,6 +2425,16 @@ export const INFLUENCERS_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -2447,6 +2587,16 @@ export const INTEGRATION_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "market",
       snake: "market",
       excel: null,
@@ -2557,6 +2707,16 @@ export const OOH_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -2711,6 +2871,16 @@ export const CINEMA_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
+      inHydration: true,
+      inApi: true,
+    },
+    {
       camel: "format",
       snake: "format",
       excel: null,
@@ -2828,6 +2998,16 @@ export const NEWSPAPER_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },
@@ -2967,6 +3147,16 @@ export const MAGAZINES_CONTAINER_CONFIG: ContainerChannelConfig = {
       excel: null,
       default: false,
       inDefaults: true,
+      inHydration: true,
+      inApi: true,
+    },
+    {
+      // B23 FC2: hydrated and sent; no default, so new lines carry no key.
+      camel: "fixedCostFrom",
+      snake: "fixed_cost_from",
+      excel: null,
+      default: "",
+      inDefaults: false,
       inHydration: true,
       inApi: true,
     },

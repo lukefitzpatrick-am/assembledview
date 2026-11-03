@@ -370,11 +370,11 @@ export async function publishBillingRevision(
     await tx.execute(sql`
       INSERT INTO line_items (
         version_id, channel, line_item_id, position, market, buying_demo, buy_type,
-        publisher, platform, bid_strategy, fixed_cost_media, client_pays_for_media,
+        publisher, platform, bid_strategy, fixed_cost_media, fixed_cost_from, client_pays_for_media,
         budget_includes_fees, no_adserving, bursts, attrs
       )
       SELECT ${newVersionId}, channel, line_item_id, position, market, buying_demo, buy_type,
-        publisher, platform, bid_strategy, fixed_cost_media, client_pays_for_media,
+        publisher, platform, bid_strategy, fixed_cost_media, fixed_cost_from, client_pays_for_media,
         budget_includes_fees, no_adserving, bursts, attrs
       FROM line_items WHERE version_id = ${ctx.base.id}
     `)

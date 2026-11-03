@@ -49,6 +49,18 @@ import { preservePreviousBurstsIfApplyWouldZeroBudget } from "./cardExpertBudget
 export { preservePreviousBurstsIfApplyWouldZeroBudget }
 
 /** Keep prior card bursts when expert Apply would wipe a non-zero budget to empty/0. */
+/**
+ * B23 FC2: the expert grid has no date column, so Apply keeps the card's
+ * fixed cost from date while the line stays fixed cost, and clears it when the
+ * grid unticks Fixed Cost Media (FC8). No key is added when the card had none.
+ */
+function carriedFixedCostFrom(li: object, prev: object): { fixedCostFrom?: string } {
+  const prevDate = (prev as { fixedCostFrom?: unknown }).fixedCostFrom
+  if (prevDate === undefined) return {}
+  const stillFixed = (li as { fixedCostMedia?: unknown }).fixedCostMedia === true
+  return { fixedCostFrom: stillFixed && typeof prevDate === "string" ? prevDate : "" }
+}
+
 function attachBurstPreserve<T extends { bursts?: unknown; buyType?: string }>(
   li: T,
   prev: T | undefined
@@ -56,6 +68,7 @@ function attachBurstPreserve<T extends { bursts?: unknown; buyType?: string }>(
   if (!prev) return li
   return {
     ...li,
+    ...carriedFixedCostFrom(li, prev),
     bursts: preservePreviousBurstsIfApplyWouldZeroBudget(
       (li as { bursts?: Array<{ budget?: unknown }> }).bursts,
       (prev as { bursts?: Array<{ budget?: unknown }> }).bursts,

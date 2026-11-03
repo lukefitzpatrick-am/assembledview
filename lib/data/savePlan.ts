@@ -130,6 +130,8 @@ export type SavePlanLineItem = {
   platform?: string | null
   bidStrategy?: string | null
   fixedCostMedia?: boolean | null
+  /** B23: Melbourne date the line becomes fixed cost (`YYYY-MM-DD`). Null: the whole flight. */
+  fixedCostFrom?: string | null
   clientPaysForMedia?: boolean | null
   budgetIncludesFees?: boolean | null
   noAdserving?: boolean | null
@@ -949,6 +951,10 @@ export async function savePlanVersion(
             platform: l.platform ?? null,
             bidStrategy: l.bidStrategy ?? null,
             fixedCostMedia: l.fixedCostMedia ?? null,
+            // B23: only a fixed-cost line keeps a date; no key when none.
+            ...(l.fixedCostMedia === true && l.fixedCostFrom
+              ? { fixedCostFrom: l.fixedCostFrom }
+              : {}),
             clientPaysForMedia: l.clientPaysForMedia ?? null,
             budgetIncludesFees: l.budgetIncludesFees ?? null,
             noAdserving: l.noAdserving ?? null,

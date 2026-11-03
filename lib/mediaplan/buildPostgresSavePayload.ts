@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/writeSessionExpiry"
 import { DOC_STEP_POSTGRES_GENERATE } from "@/lib/docs/saveDocSteps"
 import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
+import { fixedCostFromForSave } from "@/lib/mediaplan/fixedCostFrom"
 import type { PublisherGuardFinding } from "@/lib/mediaplan/publisherGuard"
 import {
   noteSavedLineItemIds,
@@ -45,6 +46,8 @@ const ATTR_SKIP = new Set([
   "bidStrategy",
   "fixed_cost_media",
   "fixedCostMedia",
+  "fixed_cost_from",
+  "fixedCostFrom",
   "client_pays_for_media",
   "clientPaysForMedia",
   "budget_includes_fees",
@@ -182,6 +185,16 @@ export function buildSavePlanLineItemsFromSnapshots(
           ? raw.feePct
           : undefined
       const feePct = stampedFeePct ?? meta?.feePct
+      const fixedCostMedia =
+        (raw.fixed_cost_media as boolean | undefined) ??
+        (raw.fixedCostMedia as boolean | undefined) ??
+        null
+      // B23 FC2: only a fixed-cost line keeps a date (FC8). No key when none,
+      // so a plan without dates sends exactly what it sent before.
+      const fixedCostFrom = fixedCostFromForSave(
+        fixedCostMedia,
+        raw.fixed_cost_from ?? raw.fixedCostFrom
+      )
 
       out.push({
         lineItemId,
@@ -199,10 +212,8 @@ export function buildSavePlanLineItemsFromSnapshots(
           (raw.bid_strategy as string | undefined) ??
           (raw.bidStrategy as string | undefined) ??
           null,
-        fixedCostMedia:
-          (raw.fixed_cost_media as boolean | undefined) ??
-          (raw.fixedCostMedia as boolean | undefined) ??
-          null,
+        fixedCostMedia,
+        ...(fixedCostFrom ? { fixedCostFrom } : {}),
         clientPaysForMedia: Boolean(
           raw.client_pays_for_media ?? raw.clientPaysForMedia ?? false
         ),

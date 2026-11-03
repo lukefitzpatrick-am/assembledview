@@ -156,6 +156,7 @@ function asStandardDigiDisplayItems(
     buyingDemo?: string
     market?: string
     fixedCostMedia?: boolean
+    fixedCostFrom?: string
     clientPaysForMedia?: boolean
     budgetIncludesFees?: boolean
     noadserving?: boolean
@@ -178,6 +179,8 @@ function asStandardDigiDisplayItems(
     buyingDemo: li.buyingDemo ?? "",
     market: li.market ?? "",
     fixedCostMedia: li.fixedCostMedia ?? false,
+    // B23: carried only when the card has one, so Apply keeps the date.
+    ...(li.fixedCostFrom !== undefined ? { fixedCostFrom: li.fixedCostFrom } : {}),
     clientPaysForMedia: li.clientPaysForMedia ?? false,
     budgetIncludesFees: li.budgetIncludesFees ?? false,
     noadserving: li.noadserving ?? false,

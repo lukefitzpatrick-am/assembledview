@@ -53,6 +53,10 @@ export const ADJUST_BLOCKED_FIELDS = [
   "line_item",
   "line_item_id",
   "id",
+  // B23: the fixed cost from date is set on the card (checked against the
+  // flight on save), never by an adjust op.
+  "fixed_cost_from",
+  "fixedCostFrom",
 ] as const
 
 const DESCRIPTOR_SET = new Set<string>(ADJUST_DESCRIPTOR_FIELDS)

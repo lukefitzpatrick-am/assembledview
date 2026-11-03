@@ -21,6 +21,8 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
 import { CanonicalBurstMoney } from "@/components/media-containers/CanonicalBurstMoney"
 import { AaRoutingInfo } from "@/components/media-containers/AaRoutingInfo"
+import { FixedCostFromField } from "@/components/media-containers/FixedCostFromField"
+import { clientFeatureOn } from "@/lib/features/client"
 import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
 import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
 import { Badge } from "@/components/ui/badge"
@@ -1065,6 +1067,18 @@ export function ExpertCard<T extends FieldValues>({
                             checked={!!field.value}
                             onCheckedChange={(checked) => {
                               field.onChange(checked)
+                              // B23 FC8: unticking Fixed Cost Media clears the date.
+                              if (
+                                flag.key === "fixedCostMedia" &&
+                                !checked &&
+                                clientFeatureOn("fixed_cost_from_date")
+                              ) {
+                                form.setValue(
+                                  fieldName<T>(itemsKey, lineItemIndex, "fixedCostFrom"),
+                                  "" as never,
+                                  { shouldDirty: true }
+                                )
+                              }
                               if (
                                 flag.key === "budgetIncludesFees" &&
                                 onBudgetIncludesFeesChange
@@ -1084,6 +1098,15 @@ export function ExpertCard<T extends FieldValues>({
                     )}
                   />
                 ))}
+                {clientFeatureOn("fixed_cost_from_date") &&
+                optionFlags.some((flag) => flag.key === "fixedCostMedia") ? (
+                  <FixedCostFromField
+                    form={form}
+                    itemsKey={itemsKey}
+                    lineItemIndex={lineItemIndex}
+                    lineLabel={`${config.channelLabel.toLowerCase()} line item ${lineItemIndex + 1}`}
+                  />
+                ) : null}
               </div>
             ) : null}
             <div className="text-right">

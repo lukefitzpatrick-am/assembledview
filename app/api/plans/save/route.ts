@@ -12,6 +12,8 @@ import {
 } from "@/lib/mediaplan/deliverableBudget"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
 import { publisherGuardForSave } from "@/lib/mediaplan/publisherGuard.server"
+import { normaliseSaveLinesFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
+import { fixedCostFromGateForSave } from "@/lib/mediaplan/fixedCostFrom.server"
 import { stripEmptyLinesOnPublish } from "@/lib/mediaplan/stripEmptyLineItems"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
@@ -99,6 +101,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(publisherGate.body, { status: 422 })
   }
   const publisherWarnings = publisherGate.warnings
+
+  // B23 FC2 and FC7: with fixed_cost_from_date on, a fixed-cost line's date
+  // must be a real date inside its flight (publish and new_version). Every
+  // mode then keeps a date only on fixed-cost lines (FC8).
+  const fixedCostFromGate = await fixedCostFromGateForSave(body.mode, body.lineItems)
+  if (fixedCostFromGate.reject) {
+    return NextResponse.json(fixedCostFromGate.body, { status: 422 })
+  }
+  body.lineItems = normaliseSaveLinesFixedCostFrom(body.lineItems)
 
   // SV-1 stale-base: another editor published during this session.
   // Compares tip-at-load to the current published pointer — not baseVersionId
