@@ -134,6 +134,7 @@ import {
   summariseBillingAliasGhostPairs,
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
+import { PartialMbaUnmatchedNotice } from "@/components/billing/PartialMbaUnmatchedNotice"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   reportWorkingBillingAliasReconcile,
@@ -391,6 +392,12 @@ import {
   fetchMbaLineApprovalsClient,
   selectedLineItemIdsFromApprovalRows,
 } from "@/lib/finance/mbaLineApprovalsClient"
+import {
+  describeLegacyPartialUnresolved,
+  reconcileLegacyPartialSelection,
+  type LegacyPartialChannel,
+  type LegacyPartialUnresolved,
+} from "@/lib/mediaplan/reconcileLegacyPartialSelection"
 import {
   applyBillingLineMode,
   billingMonthsHaveExplicitLineModes,
@@ -1486,6 +1493,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
   const [isPartialMBA, setIsPartialMBA] = useState(false)
   const approvalsHydratedRef = useRef(false)
+  // MB-33 (B21): the channels of an old partial MBA (saved billing partialApproval),
+  // matched to the current line ids once the channels load. Null when none.
+  const legacyPartialChannelsRef = useRef<LegacyPartialChannel[] | null>(null)
+  const [legacyPartialUnresolved, setLegacyPartialUnresolved] = useState<LegacyPartialUnresolved[]>([])
+  const [legacyPartialLaterAddedKeys, setLegacyPartialLaterAddedKeys] = useState<string[]>([])
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null)
   const [partialMBAValues, setPartialMBAValues] = useState({
     mediaTotals: {} as Record<string, number>,
@@ -2794,6 +2806,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setPartialMBALineItemsByMedia({})
       setPartialMBASelectedLineItemIds({})
       setPartialMBAMediaEnabled({})
+      legacyPartialChannelsRef.current = null
+      setLegacyPartialUnresolved([])
+      setLegacyPartialLaterAddedKeys([])
 
       // KPI resets (Stage 2)
       setKpiRows([])
@@ -3022,6 +3037,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           // Divergence check runs in a follow-up effect once auto-reference is computed.
           // Default manual mode until then so behaviour does not regress while auto calculates.
           setIsManualBilling(true)
+          legacyPartialChannelsRef.current = billingHydrated.partial
+            ? [...(billingHydrated.partial.metadata.channels ?? [])]
+            : null
           if (billingHydrated.partial) {
             const h = billingHydrated.partial.hydrate
             setPartialApprovalMetadata(billingHydrated.partial.metadata)
@@ -3035,6 +3053,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             setOriginalPartialMBAValues(JSON.parse(JSON.stringify(h.partialMBAValues)))
           }
         } else {
+          legacyPartialChannelsRef.current = null
           hasPersistedBillingScheduleRef.current = false
           setSavedBillingMonths([])
           savedBillingMonthsRef.current = []
@@ -9031,14 +9050,42 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         return
       }
 
+      // MB-33 (B21): an old partial MBA is matched once every channel has its lines,
+      // so a channel that loads late isn't read as having none.
+      const legacyChannels = legacyPartialChannelsRef.current
+      if (legacyChannels && !allChannelsHydrated) return
+      const applyLegacyPartial = () => {
+        if (!legacyChannels) return
+        const r = reconcileLegacyPartialSelection({
+          channels: legacyChannels,
+          editorIdsByMedia: allByMedia,
+          mbaNumber: String(mbaNumber),
+        })
+        setLegacyPartialUnresolved(r.unresolved)
+        setLegacyPartialLaterAddedKeys(r.laterAddedMediaKeys)
+        if (r.changed) {
+          // Months stay as saved. Only the ids move to the current line ids.
+          setPartialMBASelectedLineItemIds(canonicalisePartialMbaSelectedLineItemIds(r.selected))
+          setPartialMBAMediaEnabled(
+            Object.fromEntries(Object.entries(r.selected).map(([k, ids]) => [k, ids.length > 0]))
+          )
+        }
+        const warning = describeLegacyPartialUnresolved(r.unresolved, mediaLabelByBillingKey)
+        if (warning) {
+          toast({ variant: "destructive", title: "Partial MBA lines not matched", description: warning })
+        }
+      }
+
       const result = await fetchMbaLineApprovalsClient({
         mbaNumber: String(mbaNumber),
         mediaPlanVersion: Number(selectedVersionNumber),
       })
       if (cancelled) return
       approvalsHydratedRef.current = true
-      if (!result.ok || !result.available) return
-      if (!result.rows.length) return
+      if (!result.ok || !result.available || !result.rows.length) {
+        applyLegacyPartial()
+        return
+      }
       const selected = selectedLineItemIdsFromApprovalRows({
         rows: result.rows,
         allLineIdsByMedia: allByMedia,
@@ -9053,7 +9100,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per MBA/version load
-  }, [mbaNumber, selectedVersionNumber, loadPhase, billingFeeSeedEnabledConfigs])
+  }, [mbaNumber, selectedVersionNumber, loadPhase, billingFeeSeedEnabledConfigs, allChannelsHydrated])
 
   function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
     const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
@@ -11849,6 +11896,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
         aliasDuplicateNotice={billingAliasDuplicateNotice("modal")}
+        scopeNotice={
+          isPartialMBA && legacyPartialUnresolved.length > 0 ? (
+            <PartialMbaUnmatchedNotice
+              message={describeLegacyPartialUnresolved(legacyPartialUnresolved, mediaLabelByBillingKey)}
+            />
+          ) : null
+        }
         pendingOverrideRows={pendingBillingOverrideRows}
         tableOverrideRows={savedBillingOverrideRows}
         draftOverrideRows={

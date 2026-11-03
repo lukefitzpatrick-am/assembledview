@@ -39,6 +39,7 @@ export default defineConfig({
       "lib/pacing/overview/__tests__/resolveOverviewClientScope.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "components/billing/__tests__/BillingAliasDuplicateNotice.test.tsx",
+      "components/billing/__tests__/PartialMbaUnmatchedNotice.test.tsx",
       "components/finance/billing-revisions/__tests__/BillingRevisionPanel.test.tsx",
       "components/finance/billing-revisions/__tests__/BillingRevisionLog.test.tsx",
       "components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx",

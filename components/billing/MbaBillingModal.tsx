@@ -188,6 +188,11 @@ export type MbaBillingModalProps = {
    */
   aliasDuplicateNotice?: ReactNode
   /**
+   * B21: partial MBA notices at the top of the MBA scope column (saved lines
+   * with no match, billing vs delivery guard). The parent renders it (or null).
+   */
+  scopeNotice?: ReactNode
+  /**
    * MB-15c — published (approved-or-beyond) versions are immutable to billing writers.
    * Hides Edit timing / Adjust timing / Prebill / Save / Reset; shows lock copy instead.
    */
@@ -823,6 +828,7 @@ export function MbaBillingModal({
   onAcknowledgeDivergence,
   overridesLoadNotice = null,
   aliasDuplicateNotice = null,
+  scopeNotice = null,
   billingTimingReadOnly = false,
   billingTimingReadOnlyMessage,
   pendingOverrideRows,
@@ -1054,6 +1060,7 @@ export function MbaBillingModal({
                 </div>
               </div>
               <div className="space-y-2 px-3 py-3">
+                {scopeNotice ? <div data-mba-scope-notice="1">{scopeNotice}</div> : null}
                 {containers.length === 0 ? (
                   <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                     No line items yet. Enable media and add flights first.
