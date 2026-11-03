@@ -59,3 +59,36 @@ describe("toasts", () => {
     assert.equal(publisherWarningsToast([...r.warnings, ...r.warnings])?.title, "2 lines have no publisher")
   })
 })
+
+describe("pre-flight and server agree on empty lines (B19 review finding 1)", () => {
+  const PROD_PUBLISHERS = [{ id: 1, publisher_name: "Nine", publisherid: "nine" }]
+  // PENFOLD018PROD1 shape: a $0 production line with no publisher, beside a real line.
+  const lines = [
+    { lineItemId: "KRUSTY001PROD1", channel: "production", publisher: "", bursts: [{ budget: "0", buyAmount: "", calculatedValue: 0 }] },
+    { lineItemId: "KRUSTY001DD1", channel: "digi_display", publisher: "Nine", buyType: "cpm", bursts: [{ budget: "1000", buyAmount: "10", calculatedValue: 100000 }] },
+  ]
+
+  it("a $0 production line with no publisher passes the pre-flight, as it passes the server", async () => {
+    const { publisherGuardGateResult } = await import("@/lib/mediaplan/publisherGuard")
+    const { stripEmptyLinesOnPublish } = await import("@/lib/mediaplan/stripEmptyLineItems")
+    const client = publisherGuardPreflight("publish", lines, PROD_PUBLISHERS, true)
+    // What the save route does: strip on publish, then the guard.
+    const server = publisherGuardGateResult({
+      mode: "publish",
+      enabled: true,
+      lineItems: stripEmptyLinesOnPublish("publish", [...lines]).lineItems,
+      publishers: PROD_PUBLISHERS,
+    })
+    assert.equal(client.reject, false)
+    assert.deepEqual(client, server)
+  })
+
+  it("the same production line with money is still blocked by both", async () => {
+    const { publisherGuardGateResult } = await import("@/lib/mediaplan/publisherGuard")
+    const funded = [{ ...lines[0]!, bursts: [{ budget: "500", buyAmount: "500", calculatedValue: 1 }] }, lines[1]!]
+    const client = publisherGuardPreflight("publish", funded, PROD_PUBLISHERS, true)
+    const server = publisherGuardGateResult({ mode: "publish", enabled: true, lineItems: funded, publishers: PROD_PUBLISHERS })
+    assert.equal(client.reject, true)
+    assert.deepEqual(client, server)
+  })
+})

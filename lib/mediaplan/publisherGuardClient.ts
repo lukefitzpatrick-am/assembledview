@@ -11,16 +11,24 @@ import {
   type PublisherGuardLine,
 } from "@/lib/mediaplan/publisherGuard"
 import type { PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
+import { stripEmptyLinesOnPublish, type EmptyLineFields } from "@/lib/mediaplan/stripEmptyLineItems"
 
-/** The server's gate, run in the browser with the editor's publisher list and the switch. */
+/**
+ * The server's gate, run in the browser with the editor's publisher list and
+ * the switch. The save route strips empty lines on publish before its guard
+ * (`stripEmptyLinesOnPublish`), so this does too: an empty line the server
+ * drops (a $0 production line with no publisher) never blocks here either
+ * (B19 review finding 1).
+ */
 export function publisherGuardPreflight(
   mode: "draft" | "new_version" | "publish" | null | undefined,
-  lineItems: readonly PublisherGuardLine[],
+  lineItems: readonly (PublisherGuardLine & EmptyLineFields)[],
   publishers: readonly PublisherIdentityRow[],
   enabled: boolean = clientFeatureOn("publisher_guard"),
 ): ReturnType<typeof publisherGuardGateResult> {
   if (mode == null) return { reject: false, warnings: [] }
-  return publisherGuardGateResult({ mode, enabled, lineItems, publishers })
+  const checked = stripEmptyLinesOnPublish(mode, [...lineItems]).lineItems
+  return publisherGuardGateResult({ mode, enabled, lineItems: checked, publishers })
 }
 
 export function publisherGuardBlockedToast(blocked: readonly PublisherGuardFinding[]): {
