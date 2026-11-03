@@ -10,14 +10,14 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 /**
- * Every XanoPlanningAudienceError is a 502 here, including the 500 "DATABASE_URL
- * is not set" one (today's status; 500 vs 502 is Luke's call, so unchanged).
- * B8 removed the 401 and XANO_API_KEY branches: nothing throws either since
- * the reads moved to Postgres.
+ * A status-500 XanoPlanningAudienceError ("DATABASE_URL is not set") is a
+ * server misconfiguration, so it answers 500 (C-167, decision P16). Every
+ * other XanoPlanningAudienceError is a 502. B8 removed the 401 and
+ * XANO_API_KEY branches: nothing throws either since the reads moved to Postgres.
  */
 function xanoErrorResponse(error: unknown): NextResponse {
   if (error instanceof XanoPlanningAudienceError) {
-    return NextResponse.json({ error: error.message }, { status: 502 })
+    return NextResponse.json({ error: error.message }, { status: error.status === 500 ? 500 : 502 })
   }
   console.error("[api/planning/audiences]", error)
   return NextResponse.json({ error: "Internal server error" }, { status: 500 })

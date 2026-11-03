@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ audiences: payload })
   } catch (error) {
     if (error instanceof XanoPlanningAudienceError) {
-      return NextResponse.json({ error: error.message }, { status: 502 })
+      // Status 500 ("DATABASE_URL is not set") is a server misconfiguration (C-167).
+      return NextResponse.json({ error: error.message }, { status: error.status === 500 ? 500 : 502 })
     }
     console.error("[api/planning/audiences/by-mba]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

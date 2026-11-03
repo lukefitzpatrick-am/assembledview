@@ -12,13 +12,16 @@ export const runtime = "nodejs"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-/** 404 for a missing audience, else 502 (B8 removed the dead 401 branch: nothing throws it). */
+/**
+ * 404 for a missing audience, 500 for a status-500 error ("DATABASE_URL is not
+ * set", C-167), else 502 (B8 removed the dead 401 branch: nothing throws it).
+ */
 function xanoErrorResponse(error: unknown): NextResponse {
   if (error instanceof XanoPlanningAudienceError) {
     if (error.status === 404) {
       return NextResponse.json({ error: "Audience not found" }, { status: 404 })
     }
-    return NextResponse.json({ error: error.message }, { status: 502 })
+    return NextResponse.json({ error: error.message }, { status: error.status === 500 ? 500 : 502 })
   }
   console.error("[api/planning/audiences/[id]]", error)
   return NextResponse.json({ error: "Internal server error" }, { status: 500 })
