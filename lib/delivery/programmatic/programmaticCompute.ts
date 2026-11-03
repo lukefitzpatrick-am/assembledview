@@ -35,6 +35,7 @@ import {
 } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
+import { burstsWithoutUnitTarget, packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 import {
   lookupActiveDeliverySource,
   deliverySourceLookupKey,
@@ -505,7 +506,10 @@ export function buildProgrammaticTargetCurveLineItem(
   item: ProgrammaticLineItem,
   bursts: any[],
   mediaType: "progdisplay" | "progvideo" | "progooh",
+  /** B23fix P14: a package line with `expert_package_quantity` on has no target curve. */
+  noUnitTarget = false,
 ): TargetCurveLineItem | null {
+  if (noUnitTarget) return null
   const publisher = String(
     (item as any)?.platform ??
       (item as any)?.site ??
@@ -571,10 +575,14 @@ export function buildProgrammaticLineItemMetrics(
   fallbackEnd?: string,
   urlFilter?: DateRange,
   reportedSpendByLineDate?: Map<string, Map<string, number>>,
-  options?: { fixedCostFromDate?: boolean },
+  options?: { fixedCostFromDate?: boolean; packageNoUnitTarget?: boolean },
 ): ProgrammaticLineItemMetrics[] {
   // B23 FC2: unset reads the browser switch snapshot (off on the server).
   const fixedCostFromOn = options?.fixedCostFromDate ?? deliveryFlagsFromClient().fixedCostFromDate
+  // B23fix P14: a package line has no deliverable goal (switch off: unchanged).
+  const packageOptions = {
+    packageNoUnitTarget: options?.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
   return items.map((item) => {
     const bursts = item.bursts ?? parseBursts(item.bursts_json)
     const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
@@ -728,7 +736,7 @@ export function buildProgrammaticLineItemMetrics(
             },
           ]
         : []
-    const burstsToUse = hasSchedule ? bursts : fallbackBurst
+    const burstsToUse = burstsWithoutUnitTarget(hasSchedule ? bursts : fallbackBurst, item.buy_type, packageOptions)
 
     const booked = sumBookedFromBursts(burstsToUse ?? [])
     const shouldSpend =
@@ -781,7 +789,12 @@ export function buildProgrammaticLineItemMetrics(
       campaignWindow.startISO &&
       campaignWindow.endISO
     ) {
-      const tcli = buildProgrammaticTargetCurveLineItem(item, burstsToUse ?? [], mediaType)
+      const tcli = buildProgrammaticTargetCurveLineItem(
+        item,
+        burstsToUse ?? [],
+        mediaType,
+        packageHasNoUnitTarget(item.buy_type, packageOptions),
+      )
       if (tcli) {
         targetCurve = buildCumulativeTargetCurve({
           campaignStartISO: campaignWindow.startISO,

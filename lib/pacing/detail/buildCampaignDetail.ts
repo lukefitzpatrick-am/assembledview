@@ -49,6 +49,8 @@ export type BuildCampaignDetailArgs = {
   asOfDate?: string
   allowedClientSlugs: Set<string> | null
   window?: CampaignDetailDailyWindow
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the switch. */
+  packageNoUnitTarget?: boolean
 }
 
 export class CampaignDetailError extends Error {
@@ -335,6 +337,10 @@ export async function buildCampaignDetail(
     planPerDayByChannel[line.channel] = (planPerDayByChannel[line.channel] ?? 0) + line.perDayPlan
   }
 
+  const packageNoUnitTarget =
+    args.packageNoUnitTarget ??
+    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget
+
   const [read, notes, dailyFacts, clients] = await Promise.all([
     getLatestPublishedCampaignRead(mba).catch(() => null),
     listCampaignDetailNotes(mba),
@@ -360,5 +366,6 @@ export async function buildCampaignDetail(
     planPerDayByChannel,
     clientId,
     window: args.window,
+    ...(packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
   })
 }

@@ -24,6 +24,8 @@ export type ChannelPacingInputs = {
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   /** B23 (`fixed_cost_from_date` with `fixed_cost_report_net`). Unset reads the browser switch snapshot. */
   fixedCostFromDate?: boolean
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
+  packageNoUnitTarget?: boolean
 }
 
 export type PaceFigures = {
@@ -75,8 +77,14 @@ export function computeLinePace(input: {
   deliverableIsImpressions: boolean
   /** Impressions and clicks across the line's whole delivery (REP-5). */
   wholeDelivery?: { impressions: number; clicks: number } | null
+  /**
+   * B23fix P14: a package line with `expert_package_quantity` on has no unit
+   * target, so no expected or planned deliverables. Unset: as before.
+   */
+  noUnitTarget?: boolean
 }): LinePace {
   const { rawBursts, daily, window, toDate, basis, deliverableIsImpressions, wholeDelivery } = input
+  const noUnitTarget = input.noUnitTarget === true
   const deliveredSpend = sumInWindow(daily, window, (d) => d.spend)
   const deliveredDeliverables = sumInWindow(daily, window, (d) => d.deliverable)
   const tracked = deliverableIsImpressions
@@ -96,9 +104,9 @@ export function computeLinePace(input: {
     },
     deliverables: {
       delivered: deliveredDeliverables,
-      expected: tracked ? expectedForWindow(rawBursts, "deliverables", window) : 0,
-      expectedToDate: tracked ? expectedForWindow(rawBursts, "deliverables", toDate) : 0,
-      planned: plannedTotal(rawBursts, "deliverables"),
+      expected: tracked && !noUnitTarget ? expectedForWindow(rawBursts, "deliverables", window) : 0,
+      expectedToDate: tracked && !noUnitTarget ? expectedForWindow(rawBursts, "deliverables", toDate) : 0,
+      planned: noUnitTarget ? 0 : plannedTotal(rawBursts, "deliverables"),
       tracked,
     },
   }

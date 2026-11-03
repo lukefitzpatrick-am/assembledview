@@ -9,6 +9,7 @@ import { toKpiSheetRows } from "@/lib/kpi/kpiWorkbook"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import type { ClientKPI, PublisherKPI } from "@/lib/kpi/types"
 import type { Publisher } from "@/lib/types/publisher"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 
 export async function publishedKpiSheetRows(args: {
   mediaItems: MediaItems
@@ -17,11 +18,14 @@ export async function publishedKpiSheetRows(args: {
   mbaNumber: string
   versionNumber: number
   campaignName: string
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the switch. */
+  packageNoUnitTarget?: boolean
 }): Promise<KPISheetRow[]> {
-  const [savedCampaignKPIs, clientKPIs, publisherKPIs] = await Promise.all([
+  const [savedCampaignKPIs, clientKPIs, publisherKPIs, packageNoUnitTarget] = await Promise.all([
     readCampaignKpis(args.mbaNumber, args.versionNumber),
     readClientKpis(args.clientName),
     readAllPublisherKpis(),
+    args.packageNoUnitTarget ?? readDeliveryFlags().then((f) => f.packageNoUnitTarget),
   ])
   const resolved = resolveAllKPIs({
     mediaItemsByType: args.mediaItems as unknown as Record<string, any[]>,
@@ -33,6 +37,7 @@ export async function publishedKpiSheetRows(args: {
     clientKPIs: clientKPIs as unknown as ClientKPI[],
     savedCampaignKPIs,
     publishers: args.publishers,
+    packageNoUnitTarget,
   })
   return toKpiSheetRows(resolved)
 }

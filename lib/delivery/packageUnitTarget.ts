@@ -23,3 +23,34 @@ export function isPackageBuyType(buyType: unknown): boolean {
 export function packageHasNoUnitTarget(buyType: unknown, options?: PackageUnitTargetOptions): boolean {
   return options?.packageNoUnitTarget === true && isPackageBuyType(buyType)
 }
+
+/** Burst fields the delivery readers take a planned deliverable from. */
+const BURST_DELIVERABLE_KEYS = [
+  "calculatedValue",
+  "calculated_value_number",
+  "deliverables",
+  "deliverable",
+  "deliverablesAmount",
+  "conversions",
+] as const
+
+/**
+ * B23fix: copies of the bursts with every deliverable field they carry set
+ * to 0 when the rule applies (no keys added). Otherwise the same array,
+ * untouched, so with the switch off every output is identical.
+ */
+export function burstsWithoutUnitTarget<T>(
+  bursts: T[],
+  buyType: unknown,
+  options?: PackageUnitTargetOptions,
+): T[] {
+  if (!packageHasNoUnitTarget(buyType, options)) return bursts
+  return bursts.map((b) => {
+    if (!b || typeof b !== "object") return b
+    const copy = { ...(b as Record<string, unknown>) }
+    for (const key of BURST_DELIVERABLE_KEYS) {
+      if (key in copy) copy[key] = 0
+    }
+    return copy as T
+  })
+}

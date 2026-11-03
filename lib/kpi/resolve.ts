@@ -18,6 +18,8 @@ export interface ResolveKPIOptions {
   savedCampaignKPIs: CampaignKPI[]
   /** Used to match `publisher_kpi.publisher` (often id) to line-item platform (display name). */
   publishers?: Publisher[]
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
+  packageNoUnitTarget?: boolean
 }
 
 const METRIC_KEYS = ["ctr", "conversion_rate", "vtr", "frequency"] as const
@@ -88,6 +90,7 @@ export function resolveKPIsForMediaType(opts: ResolveKPIOptions): ResolvedKPIRow
   const grouped = groupLineItemsForKPI(opts.lineItems, {
     mbaNumber,
     mediaType,
+    ...(opts.packageNoUnitTarget !== undefined ? { packageNoUnitTarget: opts.packageNoUnitTarget } : {}),
   })
 
   return grouped.map((item) => {
@@ -193,6 +196,8 @@ export function resolveAllKPIs(opts: {
   clientKPIs: ClientKPI[]
   savedCampaignKPIs: CampaignKPI[]
   publishers?: Publisher[]
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
+  packageNoUnitTarget?: boolean
 }): ResolvedKPIRow[] {
   const out: ResolvedKPIRow[] = []
   for (const [mediaType, items] of Object.entries(opts.mediaItemsByType)) {
@@ -209,6 +214,7 @@ export function resolveAllKPIs(opts: {
         clientKPIs: opts.clientKPIs,
         savedCampaignKPIs: opts.savedCampaignKPIs,
         publishers: opts.publishers,
+        ...(opts.packageNoUnitTarget !== undefined ? { packageNoUnitTarget: opts.packageNoUnitTarget } : {}),
       }),
     )
   }

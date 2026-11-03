@@ -1,5 +1,7 @@
 import type { ResolvedKPIRow } from "@/lib/kpi/types"
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 
 /**
  * Build a ResolvedKPIRow for the pacing modal directly from pacing row state.
@@ -10,11 +12,16 @@ import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
  *
  * When kpiTargets is null (empty-state "Create targets" flow), metrics default
  * to null so the modal renders blank inputs and the user explicitly types values.
+ *
+ * B23fix P14: a package line with `expert_package_quantity` on plans no
+ * deliverables (no unit target). Unset options read the browser switch snapshot.
  */
 export function buildResolvedKpiRowFromPacing(
   row: SearchPacingCampaignRow,
+  options: PackageUnitTargetOptions = { packageNoUnitTarget: deliveryFlagsFromClient().packageNoUnitTarget },
 ): ResolvedKPIRow {
   const targets = row.kpiTargets
+  const noUnitTarget = packageHasNoUnitTarget(row.buyType, options)
   return {
     mp_client_name: row.clientName,
     mba_number: row.mbaNumber,
@@ -26,10 +33,12 @@ export function buildResolvedKpiRowFromPacing(
     lineItemId: row.lineItemId,
     lineItemLabel: row.creativeTargeting || row.creative || row.lineItemId,
     spend: row.totalLineItemBudget,
-    deliverables: row.bursts.reduce(
-      (sum, b) => sum + (b.calculatedValue ?? 0),
-      0,
-    ),
+    deliverables: noUnitTarget
+      ? 0
+      : row.bursts.reduce(
+          (sum, b) => sum + (b.calculatedValue ?? 0),
+          0,
+        ),
     buyType: row.buyType,
     source: targets ? "saved" : "default",
     isManuallyEdited: false,

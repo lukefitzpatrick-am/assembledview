@@ -30,6 +30,8 @@ export function assembleCampaignDetailPayload(input: {
   planPerDayByChannel?: Record<string, number>
   clientId?: number | null
   window?: CampaignDetailDailyWindow
+  /** B23fix P14 (`expert_package_quantity`): package bursts plan no deliverables. Unset: off. */
+  packageNoUnitTarget?: boolean
 }): CampaignDetailPayload {
   const facts = input.dailyFacts ?? []
   const countTo = input.countTo ?? input.asOf
@@ -51,7 +53,12 @@ export function assembleCampaignDetailPayload(input: {
     row: input.row,
     lines: input.lines,
     kpis: kpisFromLines(input.lines),
-    bursts: burstsFromLines(input.lines, countTo, countedFacts),
+    bursts: burstsFromLines(
+      input.lines,
+      countTo,
+      countedFacts,
+      input.packageNoUnitTarget ? { packageNoUnitTarget: true } : undefined,
+    ),
     daily: {
       series: spend?.series ?? [],
       metric: "spend",

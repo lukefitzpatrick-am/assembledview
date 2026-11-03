@@ -8,6 +8,7 @@ import {
   spendVsExpectedPct,
 } from "@/lib/pacing/channel/lineCardPace"
 import { computeExpectedSpend } from "@/lib/pacing/maths"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import type { DailyFactPoint } from "./dailyFromFacts"
 import type { CampaignDetailBurst } from "./types"
@@ -118,6 +119,7 @@ function segmentFromPlan(
   plan: LineCardPlanBurst,
   asOf: string,
   facts: readonly DailyFactPoint[],
+  options?: PackageUnitTargetOptions,
 ): CampaignDetailBurst {
   const windowed = windowedFacts(facts, line.lineItemId, plan.start, plan.end)
   const reported = line.fixedCost || line.spendMode === "reported"
@@ -148,7 +150,8 @@ function segmentFromPlan(
     impressions: windowed.impressions,
     clicks: windowed.clicks,
     views: windowed.views,
-    plannedDeliverable: plan.calculatedValue,
+    // B23fix P14: a package line with `expert_package_quantity` on plans no deliverables.
+    plannedDeliverable: packageHasNoUnitTarget(line.buyType, options) ? 0 : plan.calculatedValue,
     deliveredDeliverable: deliveredForBuyType(line.buyType, windowed),
     perDayLeft: perDayLeftForWindow(remaining, plan.start, plan.end, asOf),
   }
@@ -159,6 +162,8 @@ export function burstsFromLines(
   lines: readonly LineCardModel[],
   asOf: string,
   facts: readonly DailyFactPoint[] = [],
+  /** B23fix P14. Unset: off (server callers pass the switch). */
+  options?: PackageUnitTargetOptions,
 ): CampaignDetailBurst[] {
   const rows: CampaignDetailBurst[] = []
   for (const line of lines) {
@@ -168,7 +173,7 @@ export function burstsFromLines(
       continue
     }
     for (const plan of plans) {
-      rows.push(segmentFromPlan(line, plan, asOf, facts))
+      rows.push(segmentFromPlan(line, plan, asOf, facts, options))
     }
   }
   return rows

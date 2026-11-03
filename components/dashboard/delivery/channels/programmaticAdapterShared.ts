@@ -45,6 +45,8 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 import {
   computeLinePace,
   countsTowardsCpm,
@@ -409,6 +411,10 @@ export function buildProgrammaticChannelSection(input: {
 
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
   if (!normalized.length) return null
+  // B23fix P14: a package line has no unit target (switch off: unchanged).
+  const packageOptions = {
+    packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
 
   const dvRows = mapCombinedRowsForNormalizedLines(
     combinedRows,
@@ -434,6 +440,7 @@ export function buildProgrammaticChannelSection(input: {
     campaignEnd,
     filterRange,
     reportedSpendByLineDate,
+    { packageNoUnitTarget: packageOptions.packageNoUnitTarget },
   )
 
   const knownPlanLineIds = normalized
@@ -478,6 +485,7 @@ export function buildProgrammaticChannelSection(input: {
       }),
       deliverableIsImpressions: m.deliverableKey === "impressions",
       wholeDelivery: m.wholeDelivery,
+      ...(packageHasNoUnitTarget(m.lineItem.buy_type, packageOptions) ? { noUnitTarget: true } : {}),
     })
   })
   const channelPace = sumLinePaces(linePaces)

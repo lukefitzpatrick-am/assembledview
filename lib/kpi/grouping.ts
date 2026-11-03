@@ -1,6 +1,8 @@
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { buildLineItemIdentity } from "@/lib/mediaplan/lineItemIds"
 import { idCodeForKpiMediaType } from "./fanOut"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 
 export interface GroupedLineItemForKPI {
   lineItemId: string
@@ -26,6 +28,11 @@ export interface GroupedLineItemForKPI {
 export type GroupLineItemsForKPIOptions = {
   mbaNumber?: string
   mediaType?: string
+  /**
+   * B23fix P14 (`expert_package_quantity`): a package line plans no
+   * deliverables. Unset reads the browser switch snapshot (off on the server).
+   */
+  packageNoUnitTarget?: boolean
 }
 
 function syntheticGroupId(item: LineItem): string {
@@ -63,6 +70,9 @@ export function groupLineItemsForKPI(
   const mediaType = opts?.mediaType ?? ""
   const code = mediaType ? idCodeForKpiMediaType(mediaType) : null
   const isProduction = mediaType.toLowerCase().trim() === "production"
+  const packageOptions = {
+    packageNoUnitTarget: opts?.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
 
   items.forEach((item, index) => {
     let id = String((item as any).line_item_id ?? (item as any).lineItemId ?? "").trim()
@@ -82,7 +92,10 @@ export function groupLineItemsForKPI(
           "",
         ),
       ) || 0
-    const deliverables = deliverablesFromLineItem(item)
+    const fields = item as unknown as Record<string, unknown>
+    const deliverables = packageHasNoUnitTarget(fields.buyType ?? fields.buy_type, packageOptions)
+      ? 0
+      : deliverablesFromLineItem(item)
 
     if (map.has(id)) {
       const existing = map.get(id)!

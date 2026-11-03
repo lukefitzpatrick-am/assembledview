@@ -45,6 +45,8 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 import {
   computeLinePace,
   countsTowardsCpm,
@@ -333,6 +335,10 @@ export function buildSocialChannelSectionForPlatform(input: {
 
   const wantChannel = platform
   const pacingWindow = getPacingWindow(campaignStart, campaignEnd)
+  // B23fix P14: a package line has no unit target (switch off: unchanged).
+  const packageOptions = {
+    packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
   const normalized = normalizeLineItems(lineItems ?? [])
   const activeItems = normalized.filter(
     (item) => classifyPlatform(item.platform, getLineItemNameCandidate(item)) === platform,
@@ -354,6 +360,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     pacingWindow,
     reportedSpendByLineDate,
     fixedCostFromDate: input.fixedCostFromDate,
+    packageNoUnitTarget: packageOptions.packageNoUnitTarget,
   })
 
   const aggregatePacing = buildSocialAggregatePacing(
@@ -394,6 +401,7 @@ export function buildSocialChannelSectionForPlatform(input: {
       }),
       deliverableIsImpressions: m.deliverableKey === "impressions",
       wholeDelivery: m.wholeDelivery,
+      ...(packageHasNoUnitTarget(m.lineItem.buy_type, packageOptions) ? { noUnitTarget: true } : {}),
     })
   })
   const channelPace = sumLinePaces(linePaces)

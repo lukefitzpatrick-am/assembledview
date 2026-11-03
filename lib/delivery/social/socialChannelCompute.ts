@@ -2,6 +2,11 @@ import { roundMoney2 } from "@/lib/money/cents"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import { mergeReportedSpendFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
+import {
+  burstsWithoutUnitTarget,
+  packageHasNoUnitTarget,
+  type PackageUnitTargetOptions,
+} from "@/lib/delivery/packageUnitTarget"
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
@@ -407,7 +412,13 @@ function targetMetricForDeliverableKey(
  * Build a TargetCurveLineItem for a social line item. Returns null when the
  * deliverable key doesn't map to a KPI metric or when deliverables = 0.
  */
-function buildSocialTargetCurveLineItem(item: SocialLineItem, bursts: Burst[]): TargetCurveLineItem | null {
+function buildSocialTargetCurveLineItem(
+  item: SocialLineItem,
+  bursts: Burst[],
+  /** B23fix P14: a package line with `expert_package_quantity` on has no target curve. */
+  noUnitTarget = false,
+): TargetCurveLineItem | null {
+  if (noUnitTarget) return null
   const publisher = String(
     item?.platform ?? (item as any)?.site ?? (item as any)?.publisher ?? "",
   )
@@ -788,12 +799,17 @@ export function computeSocialLineMetricsForPlatform(input: {
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   /** B23. Unset reads the browser switch snapshot (off on the server). */
   fixedCostFromDate?: boolean
+  /** B23fix P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
+  packageNoUnitTarget?: boolean
 }): SocialLineMetrics[] {
   const { activeItems, socialRows, campaignStart, campaignEnd, mbaNumber, kpiTargets, filterRange, pacingWindow } =
     input
   const resolvedCampaignStart = campaignStart
   const resolvedCampaignEnd = campaignEnd
   const fixedCostFromOn = input.fixedCostFromDate ?? deliveryFlagsFromClient().fixedCostFromDate
+  const packageOptions = {
+    packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
+  }
     if (!activeItems.length) return []
     const today = startOfDay(new Date())
     const asAtForSummary = parseDateNativeSafe(pacingWindow.asAtISO) ?? today
@@ -843,7 +859,8 @@ export function computeSocialLineMetricsForPlatform(input: {
               },
             ]
           : []
-      const burstsToUse = hasSchedule ? bursts : fallbackBurst
+      // B23fix P14: a package line has no deliverable goal (switch off: unchanged).
+      const burstsToUse = burstsWithoutUnitTarget(hasSchedule ? bursts : fallbackBurst, item.buy_type, packageOptions)
       const deliverableKey = resolveDeliverableKey(item.buy_type, item.platform)
 
       const dailyLookup = new Map<string, (typeof deliverySummary.daily)[number]>()
@@ -958,7 +975,11 @@ export function computeSocialLineMetricsForPlatform(input: {
         pacingWindow.campaignStartISO &&
         pacingWindow.campaignEndISO
       ) {
-        const tcli = buildSocialTargetCurveLineItem(item, burstsToUse ?? [])
+        const tcli = buildSocialTargetCurveLineItem(
+          item,
+          burstsToUse ?? [],
+          packageHasNoUnitTarget(item.buy_type, packageOptions),
+        )
         if (tcli) {
           targetCurve = buildCumulativeTargetCurve({
             campaignStartISO: pacingWindow.campaignStartISO,
@@ -1049,6 +1070,8 @@ export function buildSocialAggregateTargetCurve(
   filterRange: DateRange,
   campaignStart: string,
   campaignEnd: string,
+  /** B23fix P14. Unset reads the browser switch snapshot. */
+  packageOptions: PackageUnitTargetOptions = { packageNoUnitTarget: deliveryFlagsFromClient().packageNoUnitTarget },
 ): TargetCurvePoint[] {
   if (!kpiTargets || kpiTargets.size === 0) return []
   if (!lineItemMetrics.length) return []
@@ -1057,7 +1080,11 @@ export function buildSocialAggregateTargetCurve(
   const tclis: TargetCurveLineItem[] = []
   for (const metric of lineItemMetrics) {
     if (!metric.targetMetric) continue
-    const tcli = buildSocialTargetCurveLineItem(metric.lineItem, metric.bursts)
+    const tcli = buildSocialTargetCurveLineItem(
+      metric.lineItem,
+      metric.bursts,
+      packageHasNoUnitTarget(metric.lineItem.buy_type, packageOptions),
+    )
     if (tcli) tclis.push(tcli)
   }
   if (!tclis.length) return []
