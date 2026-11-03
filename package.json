@@ -62,6 +62,7 @@
     "test:deliverable-budget": "tsx --test lib/mediaplan/__tests__/deliverableBudget.test.ts lib/mediaplan/__tests__/solveMediaMath.test.ts",
     "test:buy-amount-label": "tsx --test components/media-containers/__tests__/buyAmountFieldLabel.test.ts tests/media-containers/bonus.test.ts",
     "test:editor-line-inputs": "tsx --test lib/finance/__tests__/buildEditorLineItemInputs.test.ts lib/finance/__tests__/resolveApproval.test.ts lib/mediaplan/__tests__/excludedMbaScopeNote.test.ts",
+    "test:partial-mba": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/mediaplan/__tests__/reconcileLegacyPartialSelection.test.ts",
     "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "test:finance-derive": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/finance/__tests__/deriveReceivableRecords.sf8.test.ts lib/finance/__tests__/deriveReceivableRecords.sf11.test.ts lib/finance/__tests__/deriveFromVersionCore.test.ts lib/finance/__tests__/extractReportLines.test.ts lib/finance/__tests__/versionPathClientPays.test.ts lib/finance/__tests__/glenda008ClientPaysFee.derive.c95.test.ts",
     "test:billing-divergence": "tsx --test lib/billing/__tests__/compareBillingDivergence.test.ts",

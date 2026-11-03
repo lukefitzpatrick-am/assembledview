@@ -84,3 +84,15 @@ test("unknown media key: ML and no-code still alias; any code with a number is n
   assert.equal(key("PGAAUS010ML3", "mystery"), "mystery|3")
   assert.equal(key("PGAAUS010DD3", "mystery"), null)
 })
+
+test("B21: form says whether the editor keeps the line number", () => {
+  const form = (id: string, mediaKey: string, mbaNumber = "PGAAUS010") =>
+    billingLineIdAlias({ id, mediaKey, mbaNumber })?.form ?? null
+  assert.equal(form("PGAAUS010DD1", "digiDisplay"), "current")
+  assert.equal(form("PGAAUS010ML1", "digiDisplay"), "ml")
+  assert.equal(form("PGAAUS0051", "socialMedia", "PGAAUS005"), "noCode")
+  assert.equal(form("PGAAUS010-production-v510-p1", "production"), "productionOld")
+  assert.equal(form("PGAAUS010PROD1", "production"), "current")
+  assert.equal(billingLineIdAlias({ id: "PGAAUS010ML1", mediaKey: "digiDisplay", mbaNumber: "PGAAUS010" })?.scheme, "old")
+  assert.equal(billingLineIdAlias({ id: "PGAAUS0051", mediaKey: "socialMedia", mbaNumber: "PGAAUS005" })?.scheme, "old")
+})

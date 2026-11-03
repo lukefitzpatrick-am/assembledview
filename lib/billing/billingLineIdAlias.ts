@@ -55,6 +55,15 @@ export function currentLineIdCodeForBillingKey(mediaKey: string): string | null 
 
 export type BillingLineIdScheme = "current" | "old"
 
+/**
+ * Which id shape matched (B21). The editor keeps the line number of a
+ * `current` or `ml` id when it loads a plan (`restoreMintedSuffix`). It takes
+ * the number of a `noCode` or `productionOld` line from the line's saved
+ * position instead, so the number in that old id is only a guess at the
+ * current line (B20 review finding 3).
+ */
+export type BillingLineIdForm = "current" | "ml" | "noCode" | "productionOld"
+
 export type BillingLineIdAliasInput = {
   id: unknown
   mediaKey: string
@@ -65,6 +74,7 @@ export type BillingLineIdAlias = {
   /** `<mediaKey>|<n>`: the same for an old id and its current alias. */
   key: string
   scheme: BillingLineIdScheme
+  form: BillingLineIdForm
   lineNumber: number
 }
 
@@ -83,12 +93,14 @@ export function billingLineIdAlias(input: BillingLineIdAliasInput): BillingLineI
   const currentCode = currentLineIdCodeForBillingKey(mediaKey)
   const isProduction = mediaKey === "production"
 
-  const make = (scheme: BillingLineIdScheme, n: number): BillingLineIdAlias | null =>
-    Number.isInteger(n) && n > 0 ? { key: `${mediaKey}|${n}`, scheme, lineNumber: n } : null
+  const make = (form: BillingLineIdForm, n: number): BillingLineIdAlias | null =>
+    Number.isInteger(n) && n > 0
+      ? { key: `${mediaKey}|${n}`, scheme: form === "current" ? "current" : "old", form, lineNumber: n }
+      : null
 
   if (isProduction) {
     const old = PRODUCTION_OLD.exec(rest)
-    if (old) return make("old", Number(old[1]))
+    if (old) return make("productionOld", Number(old[1]))
   }
   const m = CODE_AND_NUMBER.exec(rest)
   if (!m) return null
@@ -96,7 +108,8 @@ export function billingLineIdAlias(input: BillingLineIdAliasInput): BillingLineI
   const n = Number(m[2])
   if (currentCode && code === currentCode) return make("current", n)
   if (isProduction) return null
-  if (code === "ML" || code === "") return make("old", n)
+  if (code === "ML") return make("ml", n)
+  if (code === "") return make("noCode", n)
   return null
 }
 
