@@ -8,10 +8,13 @@
  * progOOH, ooh). This caused ID collisions when plans had multiple ML
  * containers. They now have distinct codes (DD, IT, PV, PB, PA, PO, OH).
  *
- * Historic line item IDs in Xano with ML codes remain valid — this change
- * affects new line items only. Pacing pipelines that match on extracted
- * suffixes will need to handle both ML (legacy) and the new specific codes
- * for any line items created before this change.
+ * Historic ML (and older no-code `<MBA><n>`) ids are not kept by the editor:
+ * `assignStableLineItemNumbers` rebuilds every id from the current code when
+ * a plan loads, so the next save writes the new id (MB-34, kept by decision
+ * Q3). Saved billing rows and partial MBA selections can still carry the old
+ * id; `lib/billing/billingLineIdAlias.ts` matches an old id to its current
+ * one. Pacing pipelines that match on extracted suffixes still see both ML
+ * (legacy) and the new specific codes in the warehouse.
  */
 export const MEDIA_TYPE_ID_CODES = {
   television: "TV",
