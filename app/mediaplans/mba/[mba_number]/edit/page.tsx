@@ -5855,6 +5855,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // warn; Save is refused until the planner keeps the current rows. Saved data is never
   // changed here. Off: no check.
   const billingGhostGuardOn = clientFeatureOn("billing_ghost_row_guard")
+  // B21 (M8, Q11): partial MBA fee and fallback months on the billing basis, and
+  // the billing vs delivery guard. Off: as before.
+  const partialMbaBillingGuardOn = clientFeatureOn("partial_mba_billing_guard")
   const billingAliasGhostPairs = useMemo(
     () => (billingGhostGuardOn ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber) : []),
     [billingGhostGuardOn, workingBillingMonths, mbaNumber]
@@ -8761,9 +8764,21 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     return workingBillingMonths
   }
 
+  // M8 (B21, switch partial_mba_billing_guard, Q14): with no line rows in working
+  // billing, the partial MBA starts from the auto billing months (with lines), not
+  // the delivery months. Off: delivery months, as before.
+  function getPartialMbaBillingFallbackMonths(): BillingMonth[] | null {
+    if (!partialMbaBillingGuardOn) return null
+    return (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+      ? (manualBillingAutoReferenceMonths as BillingMonth[])
+      : null
+  }
+
   function getPartialMbaRawMonthsForBaseline(): BillingMonth[] {
     const primary = getPartialMbaPrimaryBillingMonths()
     if (billingMonthsHaveDetailedLineItems(primary)) return primary
+    const billingFallback = getPartialMbaBillingFallbackMonths()
+    if (billingFallback) return billingFallback
     return autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
   }
 
@@ -8772,6 +8787,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     if (billingMonthsHaveDetailedLineItems(primary)) {
       return deepCloneBillingMonths(primary)
     }
+    const billingFallback = getPartialMbaBillingFallbackMonths()
+    if (billingFallback) return deepCloneBillingMonths(billingFallback)
     const base = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
     return attachLineItemsToMonths(deepCloneBillingMonths(base), "delivery")
   }
@@ -8820,6 +8837,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         campaignStart: start,
         campaignEnd: end,
         selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
+        // M8 (B21): fee from its fee billing months, as the published MBA slice.
+        partialFeeFromFeeMonths: partialMbaBillingGuardOn,
       }
     )
 
