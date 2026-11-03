@@ -9,7 +9,9 @@ import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinanc
 import {
   mapPgLineItemToSnapshot,
   CHANNEL_TO_SOURCE_TABLE,
+  type FixedCostSnapshotFlags,
 } from "@/lib/snowflake/pgLineItemSnapshotMap"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import type {
   FetchAllXanoLineItemsResult,
   XanoLineItem,
@@ -34,6 +36,8 @@ export type PgLineItemSnapshotScope = "tip" | "all"
 export type FetchAllPgLineItemsOptions = {
   /** Default `tip` — published version only. */
   scope?: PgLineItemSnapshotScope
+  /** B23 snapshot switches. Unset reads them (a failed read is off). */
+  fixedCostFlags?: FixedCostSnapshotFlags
 }
 
 /**
@@ -55,6 +59,7 @@ export async function fetchAllPgLineItems(
     buyType: schema.lineItems.buyType,
     bidStrategy: schema.lineItems.bidStrategy,
     fixedCostMedia: schema.lineItems.fixedCostMedia,
+    fixedCostFrom: schema.lineItems.fixedCostFrom,
     bursts: schema.lineItems.bursts,
     publisher: schema.lineItems.publisher,
     noAdserving: schema.lineItems.noAdserving,
@@ -100,13 +105,22 @@ function feeLoadingFrom(raw: unknown): FeeLoading {
           )
 
   const asOfDate = getMelbourneTodayISO()
+  const flags =
+    options?.fixedCostFlags ??
+    (await readDeliveryFlags().then((f) => ({
+      fixedCostReportNet: f.fixedCostReportNet,
+      fixedCostFromDate: f.fixedCostFromDate,
+    })))
   const items: XanoLineItem[] = []
   for (const row of rows) {
-    const mapped = mapPgLineItemToSnapshot({
-      ...row,
-      feePct: resolveFeePctFromFeeLoading(row.channel, feeLoadingFrom(row.fees)),
-      asOfDate,
-    })
+    const mapped = mapPgLineItemToSnapshot(
+      {
+        ...row,
+        feePct: resolveFeePctFromFeeLoading(row.channel, feeLoadingFrom(row.fees)),
+        asOfDate,
+      },
+      flags,
+    )
     if (mapped) items.push(mapped)
   }
 

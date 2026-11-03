@@ -67,7 +67,7 @@ function dedupeByLineItemId(items: XanoLineItem[]): {
 
 function buildBatchMergeSql(rowCount: number): string {
   const valuesPlaceholders = Array(rowCount)
-    .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .join(",\n    ")
 
   return `
@@ -85,7 +85,9 @@ function buildBatchMergeSql(rowCount: number): string {
         column9::NUMBER AS XANO_ROW_ID,
         column10::NUMBER AS XANO_CREATED_AT,
         column11::BOOLEAN AS NO_ADSERVING,
-        column12::BOOLEAN AS ASSUME_SPEND
+        column12::BOOLEAN AS ASSUME_SPEND,
+        column13::DATE AS FIXED_COST_FROM,
+        PARSE_JSON(column14) AS FIXED_COST_BURSTS_JSON
       FROM VALUES
         ${valuesPlaceholders}
     ) s
@@ -103,17 +105,19 @@ function buildBatchMergeSql(rowCount: number): string {
       XANO_CREATED_AT  = s.XANO_CREATED_AT,
       NO_ADSERVING     = COALESCE(s.NO_ADSERVING, t.NO_ADSERVING),
       ASSUME_SPEND     = COALESCE(s.ASSUME_SPEND, t.ASSUME_SPEND),
+      FIXED_COST_FROM  = s.FIXED_COST_FROM,
+      FIXED_COST_BURSTS_JSON = s.FIXED_COST_BURSTS_JSON,
       SYNCED_AT        = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
       FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT,
-      NO_ADSERVING, ASSUME_SPEND, SYNCED_AT
+      NO_ADSERVING, ASSUME_SPEND, FIXED_COST_FROM, FIXED_COST_BURSTS_JSON, SYNCED_AT
     ) VALUES (
       LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
       LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       s.PLATFORM, s.BUY_TYPE,
       s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT,
-      s.NO_ADSERVING, s.ASSUME_SPEND, CURRENT_TIMESTAMP()
+      s.NO_ADSERVING, s.ASSUME_SPEND, s.FIXED_COST_FROM, s.FIXED_COST_BURSTS_JSON, CURRENT_TIMESTAMP()
     )
   `
 }
@@ -148,7 +152,10 @@ function buildRowBinds(items: XanoLineItem[]): unknown[] {
       item.xano_row_id,
       item.xano_created_at,
       item.no_adserving ?? null,
-      item.assume_spend ?? null
+      item.assume_spend ?? null,
+      // B23: null unless the switches send them (the single warehouse gate).
+      item.fixed_cost_from ?? null,
+      item.fixed_cost_bursts_json == null ? null : JSON.stringify(item.fixed_cost_bursts_json)
     )
   }
 

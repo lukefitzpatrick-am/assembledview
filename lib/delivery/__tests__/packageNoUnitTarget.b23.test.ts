@@ -148,10 +148,8 @@ describe("extractKpiReviewPlanLine (KPI plan deliverables)", () => {
 
 describe("delivery flags", () => {
   it("server: reads expert_package_quantity; a failed read is off", async () => {
-    assert.deepEqual(await readDeliveryFlags(async (key) => key === "expert_package_quantity"), {
-      packageNoUnitTarget: true,
-    })
-    assert.deepEqual(await readDeliveryFlags(async () => false), { packageNoUnitTarget: false })
+    assert.equal((await readDeliveryFlags(async (key) => key === "expert_package_quantity")).packageNoUnitTarget, true)
+    assert.equal((await readDeliveryFlags(async () => false)).packageNoUnitTarget, false)
     assert.deepEqual(
       await readDeliveryFlags(async () => {
         throw new Error("db down")

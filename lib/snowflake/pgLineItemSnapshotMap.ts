@@ -7,7 +7,8 @@ import { toCents } from "@/lib/money/cents"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
 import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
-import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
+import type { FixedCostSnapshotBurst, XanoLineItem } from "@/lib/xano/fetchAllLineItems"
+import { normaliseFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 
 /**
  * Map Postgres line_items (+ mba) into the Snowflake snapshot row shape
@@ -72,6 +73,8 @@ export type PgLineRowMapped = {
   buyType: string | null
   bidStrategy: string | null
   fixedCostMedia: boolean | null
+  /** B23: `line_items.fixed_cost_from`. */
+  fixedCostFrom?: string | null
   noAdserving?: boolean | null
   clientPaysForMedia?: boolean | null
   budgetIncludesFees?: boolean | null
@@ -148,7 +151,54 @@ function burstsWithAssumedDailyCents(args: {
   })
 }
 
-export function mapPgLineItemToSnapshot(row: PgLineRowMapped): XanoLineItem | null {
+/**
+ * Snapshot switches (B23). The sync is the single warehouse gate: off sends
+ * null, so the procedure acts exactly as before.
+ */
+export type FixedCostSnapshotFlags = {
+  /** `fixed_cost_report_net`: send per-burst net media and Melbourne days. */
+  fixedCostReportNet: boolean
+  /** `fixed_cost_from_date` and `fixed_cost_report_net`: send the date. */
+  fixedCostFromDate: boolean
+}
+
+export const FIXED_COST_SNAPSHOT_FLAGS_OFF: FixedCostSnapshotFlags = Object.freeze({
+  fixedCostReportNet: false,
+  fixedCostFromDate: false,
+})
+
+/**
+ * Per burst, index aligned to the stored bursts: Melbourne start and end days
+ * and net media cents (`computeBurstAmounts` delivery media, the same net the
+ * delivery schedule uses). FC4: the procedure reports net media.
+ */
+export function fixedCostSnapshotBursts(args: {
+  bursts: unknown[]
+  buyType: string | null
+  budgetIncludesFees: boolean
+  clientPaysForMedia: boolean
+  feePct: number
+}): FixedCostSnapshotBurst[] {
+  return args.bursts.map((raw, index) => {
+    const burst = burstRecord(raw)
+    if (!burst) return { index, startDay: null, endDay: null, netMediaCents: 0 }
+    const { deliveryMediaAmount } = computeBurstAmounts({
+      rawBudget: parseMoney(burst.budget) ?? 0,
+      budgetIncludesFees: args.budgetIncludesFees,
+      clientPaysForMedia: args.clientPaysForMedia,
+      feePct: args.feePct,
+      buyType: burstBuyType(burst, args.buyType),
+    })
+    const startDay = dateField(burst.startDate ?? burst.start_date) || null
+    const endDay = dateField(burst.endDate ?? burst.end_date) || null
+    return { index, startDay, endDay, netMediaCents: toCents(deliveryMediaAmount) }
+  })
+}
+
+export function mapPgLineItemToSnapshot(
+  row: PgLineRowMapped,
+  flags: FixedCostSnapshotFlags = FIXED_COST_SNAPSHOT_FLAGS_OFF,
+): XanoLineItem | null {
   const line_item_id = String(row.lineItemId ?? "").trim()
   if (!line_item_id) return null
 
@@ -181,6 +231,14 @@ export function mapPgLineItemToSnapshot(row: PgLineRowMapped): XanoLineItem | nu
   const platform =
     row.platform === null || row.platform === undefined ? null : String(row.platform)
 
+  const fixedCostMedia = Boolean(row.fixedCostMedia)
+  const fixedCostBursts =
+    flags.fixedCostReportNet && fixedCostMedia ? fixedCostSnapshotBursts(money) : null
+  const fixedCostFrom =
+    flags.fixedCostFromDate && flags.fixedCostReportNet && fixedCostMedia
+      ? normaliseFixedCostFrom(row.fixedCostFrom)
+      : null
+
   return {
     line_item_id,
     mba_number: String(row.mbaNumber ?? "").trim(),
@@ -195,7 +253,10 @@ export function mapPgLineItemToSnapshot(row: PgLineRowMapped): XanoLineItem | nu
       row.buyType === null || row.buyType === undefined
         ? null
         : String(row.buyType),
-    fixed_cost_media: Boolean(row.fixedCostMedia),
+    fixed_cost_media: fixedCostMedia,
+    // B23: keys only when sent, so a switch-off row is the same object as before.
+    ...(fixedCostFrom ? { fixed_cost_from: fixedCostFrom } : {}),
+    ...(fixedCostBursts ? { fixed_cost_bursts_json: fixedCostBursts } : {}),
     bursts_json: burstsWithAssumedDailyCents({ ...money, asOfDate }),
     source_table,
     xano_row_id,

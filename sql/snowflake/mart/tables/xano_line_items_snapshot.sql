@@ -26,3 +26,12 @@ ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
 ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
   ADD COLUMN IF NOT EXISTS ASSUME_SPEND BOOLEAN;
 
+-- B23 (fixed cost from a date, FC2 and FC4). Apply before deploying the B23
+-- code: the nightly sync MERGE names both columns. Both stay null until the
+-- fixed_cost_report_net and fixed_cost_from_date switches send values.
+-- Run file: sql/snowflake/mart/migrations/2026-11-03_B23_fixed_cost_from_ACCOUNTADMIN.sql
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS FIXED_COST_FROM DATE;
+
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS FIXED_COST_BURSTS_JSON VARIANT;

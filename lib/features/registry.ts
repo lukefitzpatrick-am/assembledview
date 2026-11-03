@@ -206,8 +206,20 @@ export const FEATURE_DEFINITIONS = [
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:
-      "A fixed cost media line can start fixed cost on a date inside its flight (decision FC2). Days before the date keep the line's actual delivery; from the date it reports fixed-cost spend. Shows the date field beside the Fixed Cost Media box, checks it on save, sends it to Snowflake, and splits client dashboards, decks, pacing and the fixed-cost margin report by day. Run SQL 0115 first. Off: the field is hidden and every reader treats the line as fixed cost for the whole flight, as before.",
+      "A fixed cost media line can start fixed cost on a date inside its flight (decision FC2). Days before the date keep the line's actual delivery; from the date it reports fixed-cost spend. Shows the date field beside the Fixed Cost Media box, checks it on save, sends it to Snowflake, and splits client dashboards, decks, pacing and the fixed-cost margin report by day. Also needs the fixed-cost report on net media switch (the remainder after the date is net media). Run SQL 0115 and the Snowflake ALTER first. Off: the field is hidden and every reader treats the line as fixed cost for the whole flight, as before.",
     area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["fixed_cost_report_net"],
+  },
+  {
+    key: "fixed_cost_report_net",
+    label: "Fixed-cost report on net media",
+    description:
+      "The nightly Snowflake snapshot sends each fixed-cost burst's net media and Melbourne start and end days, so the fixed-cost report (SP_REFRESH_FIXED_COST_REPORTED_DAILY, B23 version) reports net media, not the fee-inclusive budget (decision FC4), on Melbourne days, and cleans up rows outside the bursts. Changes reported spend on fee-inclusive fixed-cost lines from the next morning. Needs the B23 procedure and the Snowflake ALTER. Off: the snapshot sends nothing new and the procedure keeps the gross budget and UTC days, as before.",
+    area: "reporting",
     defaultOn: false,
     clientVisible: true,
     toggleRole: "admin",

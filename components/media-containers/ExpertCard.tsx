@@ -22,7 +22,7 @@ import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
 import { CanonicalBurstMoney } from "@/components/media-containers/CanonicalBurstMoney"
 import { AaRoutingInfo } from "@/components/media-containers/AaRoutingInfo"
 import { FixedCostFromField } from "@/components/media-containers/FixedCostFromField"
-import { clientFeatureOn } from "@/lib/features/client"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
 import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
 import { Badge } from "@/components/ui/badge"
@@ -1071,7 +1071,7 @@ export function ExpertCard<T extends FieldValues>({
                               if (
                                 flag.key === "fixedCostMedia" &&
                                 !checked &&
-                                clientFeatureOn("fixed_cost_from_date")
+                                deliveryFlagsFromClient().fixedCostFromDate
                               ) {
                                 form.setValue(
                                   fieldName<T>(itemsKey, lineItemIndex, "fixedCostFrom"),
@@ -1098,7 +1098,7 @@ export function ExpertCard<T extends FieldValues>({
                     )}
                   />
                 ))}
-                {clientFeatureOn("fixed_cost_from_date") &&
+                {deliveryFlagsFromClient().fixedCostFromDate &&
                 optionFlags.some((flag) => flag.key === "fixedCostMedia") ? (
                   <FixedCostFromField
                     form={form}

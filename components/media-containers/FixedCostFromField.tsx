@@ -11,7 +11,7 @@ import type { FieldValues, Path, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 
 import { Input } from "@/components/ui/input"
-import { clientFeatureOn } from "@/lib/features/client"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import {
   fixedCostFromIssue,
   lineFlightFromBursts,
@@ -39,7 +39,7 @@ export function FixedCostFromField<T extends FieldValues>({
   lineItemIndex,
   lineLabel,
 }: Props<T>) {
-  const switchOn = clientFeatureOn("fixed_cost_from_date")
+  const switchOn = deliveryFlagsFromClient().fixedCostFromDate
   const fixedCostMedia = useWatch({
     control: form.control,
     name: name<T>(itemsKey, lineItemIndex, "fixedCostMedia"),

@@ -12,7 +12,16 @@ import {
 
 export type FixedCostFromSaveDeps = { isOn: () => Promise<boolean> }
 
-const defaultDeps: FixedCostFromSaveDeps = { isOn: () => isFeatureOn("fixed_cost_from_date") }
+/** The date counts only with the net basis on too (registry `requires`). */
+const defaultDeps: FixedCostFromSaveDeps = {
+  isOn: async () => {
+    const [dateOn, netOn] = await Promise.all([
+      isFeatureOn("fixed_cost_from_date"),
+      isFeatureOn("fixed_cost_report_net"),
+    ])
+    return dateOn && netOn
+  },
+}
 
 /**
  * Off, or a draft: no check. A failed switch read is off (logged): the line

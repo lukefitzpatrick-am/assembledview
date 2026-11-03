@@ -22,12 +22,32 @@ export interface XanoLineItem {
   /** Computed in the Postgres mapper. Absent on a Xano crawl row. */
   assume_spend?: boolean
   /**
+   * B23 FC2: Melbourne date the line becomes fixed cost (`YYYY-MM-DD`). Null
+   * unless `fixed_cost_from_date` and `fixed_cost_report_net` are on and the
+   * line is fixed cost media with a date.
+   */
+  fixed_cost_from?: string | null
+  /**
+   * B23 FC4: per burst (index aligned to `bursts_json`), the Melbourne start
+   * and end days and net media cents. Null unless `fixed_cost_report_net` is
+   * on and the line is fixed cost media. The B23 procedure uses it for net
+   * media and Melbourne days; null keeps the old gross budget and UTC days.
+   */
+  fixed_cost_bursts_json?: FixedCostSnapshotBurst[] | null
+  /**
    * Version FK from a channel row (`media_plan_version` / `_id`).
    * Used for tip-scope parity only — not written to Snowflake.
    */
   media_plan_version_id?: number | null
   /** Version number from a channel row — tip-scope fallback. */
   version_number?: number | null
+}
+
+export interface FixedCostSnapshotBurst {
+  index: number
+  startDay: string | null
+  endDay: string | null
+  netMediaCents: number
 }
 
 export interface FetchAllXanoLineItemsResult {
