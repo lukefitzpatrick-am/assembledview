@@ -17,6 +17,7 @@ import {
   packageHasNoUnitTarget,
   type PackageUnitTargetOptions,
 } from "@/lib/delivery/packageUnitTarget";
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom";
 
 export { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
 
@@ -28,6 +29,8 @@ export type GetLiveSocialLineItemsArgs = {
   mbaNumber?: string;
   /** P14: package lines have no unit target (`expert_package_quantity`). Unset reads the switch. */
   packageNoUnitTarget?: boolean;
+  /** B23 FC11: carry the fixed cost from date onto the row. Unset reads the switch. */
+  fixedCostFromDate?: boolean;
 };
 
 export type LiveSocialLineItemInput = {
@@ -73,7 +76,7 @@ function mapSocialRowToCampaignRow(
   versionRow: VersionRow,
   sr: Record<string, unknown>,
   asOfDate: string,
-  options?: PackageUnitTargetOptions
+  options?: PackageUnitTargetOptions & { fixedCostFrom?: string | null }
 ): SocialPacingCampaignRow | null {
   const socialPlatform = classifySocialPacingPlatform(sr);
   if (!socialPlatform) {
@@ -133,6 +136,7 @@ function mapSocialRowToCampaignRow(
     buyingDemo: String(sr.buying_demo ?? sr.buyingDemo ?? "").trim(),
     market: String(sr.market ?? "").trim(),
     fixedCostMedia: !!sr.fixed_cost_media,
+    ...(options?.fixedCostFrom ? { fixedCostFrom: options.fixedCostFrom } : {}),
     clientPaysForMedia: !!sr.client_pays_for_media,
     budgetIncludesFees: !!sr.budget_includes_fees,
 
@@ -187,13 +191,17 @@ export async function resolveLiveSocialPacingCampaignRows(
 ): Promise<SocialPacingCampaignRow[]> {
   const inputs = await resolveLiveSocialLineItemInputs(args);
   const rows: SocialPacingCampaignRow[] = [];
-  const packageNoUnitTarget =
-    args.packageNoUnitTarget ??
-    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget;
+  const flags =
+    args.packageNoUnitTarget === undefined || args.fixedCostFromDate === undefined
+      ? await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()
+      : null;
+  const packageNoUnitTarget = args.packageNoUnitTarget ?? flags?.packageNoUnitTarget ?? false;
+  const fixedCostFromOn = args.fixedCostFromDate ?? flags?.fixedCostFromDate ?? false;
 
   for (const { master, versionRow, socialRow } of inputs) {
     const row = mapSocialRowToCampaignRow(master, versionRow, socialRow, args.asOfDate, {
       packageNoUnitTarget,
+      fixedCostFrom: effectiveFixedCostFrom(socialRow, fixedCostFromOn),
     });
     if (row) rows.push(row);
   }

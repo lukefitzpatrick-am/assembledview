@@ -150,6 +150,8 @@ function spendDraft(input: {
   channel: LineCardModel["channel"]
   buyType?: string | null
   fixedCost?: boolean
+  /** B23 FC11. */
+  fixedCostFrom?: string
   impressions?: number | null
   clicks?: number | null
   ctr?: number | null
@@ -244,6 +246,7 @@ function spendDraft(input: {
     channel: input.channel,
     buyType: input.buyType ?? null,
     fixedCost: input.fixedCost === true,
+    ...(input.fixedCostFrom ? { fixedCostFrom: input.fixedCostFrom } : {}),
     impressions: input.impressions ?? null,
     clicks: input.clicks ?? null,
     ctr: input.ctr ?? null,
@@ -389,6 +392,7 @@ export function lineCardFromSocial(
     kpiStatus: computeSocialRowKpiStatus(row),
     channel: "social",
     buyType: row.buyType || null,
+    ...(row.fixedCostFrom ? { fixedCostFrom: row.fixedCostFrom } : {}),
     impressions: finite(row.impressions),
     clicks: finite(row.clicks),
     ctr: row.ctr,
@@ -473,6 +477,7 @@ export function lineCardFromProgrammatic(
     channel: "programmatic",
     buyType: row.buyType || null,
     fixedCost: row.fixedCostMedia === true,
+    ...(row.fixedCostFrom ? { fixedCostFrom: row.fixedCostFrom } : {}),
     impressions: finite(row.impressions),
     clicks: finite(row.clicks),
     ctr: row.ctr,

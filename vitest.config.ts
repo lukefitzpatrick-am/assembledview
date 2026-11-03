@@ -45,6 +45,7 @@ export default defineConfig({
       "components/pacing/portfolio/__tests__/CampaignPacingTable.test.tsx",
       "components/pacing/portfolio/__tests__/PortfolioLayoutToggle.test.tsx",
       "components/pacing/channel/__tests__/LinePacingCard.test.tsx",
+      "components/pacing/channel/__tests__/LinePacingCard.fixedCostFrom.b23.test.tsx",
       "components/pacing/channel/__tests__/ChannelLayoutToggle.test.tsx",
       "components/pacing/detail/__tests__/CampaignDetailModal.test.tsx",
       "components/pacing/relabel/__tests__/RelabelsClient.test.tsx",

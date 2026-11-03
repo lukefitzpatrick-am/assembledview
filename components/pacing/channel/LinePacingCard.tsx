@@ -16,6 +16,8 @@ import {
   displayBandTextClass,
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import { cn } from "@/lib/utils"
+import { useIsAdmin } from "@/contexts/AuthContext"
+import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 
 function paceBand(pace: LineCardPace): PortfolioDisplayBand {
   switch (pace) {
@@ -77,6 +79,8 @@ export function LinePacingCard({
   model: LineCardModel
   asOf: string
 }) {
+  // B23 FC12: the fixed cost from note is for staff (admins) only.
+  const isStaff = useIsAdmin()
   const band = paceBand(model.pace)
   const timeFill = clampPct(model.timePct)
   const lineFill = model.budget > 0 ? clampPct((model.spend / model.budget) * 100) : clampPct(model.linePct)
@@ -267,6 +271,12 @@ export function LinePacingCard({
               : `${model.bursts.total}`}
           </span>
         </div>
+      ) : null}
+
+      {model.fixedCostFrom && isStaff ? (
+        <p className="text-xs text-muted-foreground" data-testid="fixed-cost-from-note">
+          Fixed cost from {formatFixedCostFromLabel(model.fixedCostFrom)}. Earlier days show actual delivery.
+        </p>
       ) : null}
 
       {model.why ? (

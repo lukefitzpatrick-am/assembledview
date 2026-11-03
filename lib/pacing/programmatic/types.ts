@@ -89,6 +89,8 @@ export type ProgrammaticPacingCampaignRow = {
   buyingDemo: string;
   market: string;
   fixedCostMedia: boolean;
+  /** B23 FC11: fixed cost from this Melbourne day. Only when the switch is on and a date is saved. */
+  fixedCostFrom?: string;
   clientPaysForMedia: boolean;
   budgetIncludesFees: boolean;
 

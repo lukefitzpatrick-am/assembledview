@@ -75,6 +75,11 @@ export type LineCardModel = {
   channel: ChannelTabKey
   buyType: string | null
   fixedCost: boolean
+  /**
+   * B23 FC11: the line reports fixed cost from this Melbourne day (switch on).
+   * The card shows a staff-only "Fixed cost from" note (FC12). Omitted otherwise.
+   */
+  fixedCostFrom?: string
   impressions: number | null
   clicks: number | null
   ctr: number | null

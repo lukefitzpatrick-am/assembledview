@@ -21,6 +21,7 @@ import {
   packageHasNoUnitTarget,
   type PackageUnitTargetOptions,
 } from "@/lib/delivery/packageUnitTarget";
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom";
 
 export type GetLiveProgrammaticLineItemsArgs = {
   asOfDate: string;
@@ -28,6 +29,8 @@ export type GetLiveProgrammaticLineItemsArgs = {
   mbaNumber?: string;
   /** P14: package lines have no unit target (`expert_package_quantity`). Unset reads the switch. */
   packageNoUnitTarget?: boolean;
+  /** B23 FC11: carry the fixed cost from date onto the row. Unset reads the switch. */
+  fixedCostFromDate?: boolean;
 };
 
 export type LiveProgrammaticLineItemInput = {
@@ -151,7 +154,7 @@ function mapProgRowToCampaignRow(
   asOfDate: string,
   channelFamily: ProgrammaticChannelFamily,
   snowflakeChannel: ProgrammaticSnowflakeChannel,
-  options?: PackageUnitTargetOptions
+  options?: PackageUnitTargetOptions & { fixedCostFrom?: string | null }
 ): ProgrammaticPacingCampaignRow {
   const bursts = parseBurstsToNormalised(pr.bursts_json ?? pr.bursts);
   const lineItemStartDate = bursts.length > 0 ? bursts[0]!.startDate : null;
@@ -210,6 +213,7 @@ function mapProgRowToCampaignRow(
     buyingDemo: String(pr.buying_demo ?? pr.buyingDemo ?? "").trim(),
     market: String(pr.market ?? "").trim(),
     fixedCostMedia: !!pr.fixed_cost_media,
+    ...(options?.fixedCostFrom ? { fixedCostFrom: options.fixedCostFrom } : {}),
     clientPaysForMedia: !!pr.client_pays_for_media,
     budgetIncludesFees: !!pr.budget_includes_fees,
 
@@ -268,9 +272,12 @@ export async function resolveLiveProgrammaticPacingCampaignRows(
 ): Promise<ProgrammaticPacingCampaignRow[]> {
   const inputs = await resolveLiveProgrammaticLineItemInputs(args);
   const rows: ProgrammaticPacingCampaignRow[] = [];
-  const packageNoUnitTarget =
-    args.packageNoUnitTarget ??
-    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget;
+  const flags =
+    args.packageNoUnitTarget === undefined || args.fixedCostFromDate === undefined
+      ? await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()
+      : null;
+  const packageNoUnitTarget = args.packageNoUnitTarget ?? flags?.packageNoUnitTarget ?? false;
+  const fixedCostFromOn = args.fixedCostFromDate ?? flags?.fixedCostFromDate ?? false;
 
   for (const { master, versionRow, progRow, channelFamily, snowflakeChannel } of inputs) {
     rows.push(
@@ -281,7 +288,7 @@ export async function resolveLiveProgrammaticPacingCampaignRows(
         args.asOfDate,
         channelFamily,
         snowflakeChannel,
-        { packageNoUnitTarget }
+        { packageNoUnitTarget, fixedCostFrom: effectiveFixedCostFrom(progRow, fixedCostFromOn) }
       )
     );
   }
