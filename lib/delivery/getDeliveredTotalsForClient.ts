@@ -1,6 +1,6 @@
 import "server-only"
 
-import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
+import { readDeliveryFlags, readHubDeliveredDedupe } from "@/lib/delivery/deliveryFlags.server"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { getCachedDirectPacingRows } from "@/lib/pacing/campaigns/pacingRowsCache"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
@@ -121,7 +121,7 @@ export async function getDeliveredTotalsForClient(
   }
   const failedSources: string[] = []
 
-  const deliveryFlags = await readDeliveryFlags()
+  const [deliveryFlags, hubDeliveredDedupe] = await Promise.all([readDeliveryFlags(), readHubDeliveredDedupe()])
   const [snapshots, directGroups] = await Promise.all([
     boundedMap(
       campaigns,
@@ -177,7 +177,7 @@ export async function getDeliveredTotalsForClient(
       window?.startDate,
       window?.endDate,
       programmaticLineItemIdsFromSnapshot(snapshot, {
-        excludePlatformSocialAndSearch: deliveryFlags.fixedCostFromDate,
+        excludePlatformSocialAndSearch: hubDeliveredDedupe,
       }),
       snapshotSpendByLineId(snapshot),
     )

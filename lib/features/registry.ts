@@ -227,6 +227,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "hub_delivered_dedupe",
+    label: "Hub Delivered counts social and search once",
+    description:
+      "Hub and campaign strip Delivered: the Direct (fixed-cost) leg left out only programmatic lines, so a fixed-cost social or search line with platform delivery counted its platform spend and its reported spend (BICAU001SM1 and SM2 on 3 Nov 2026). On: the Direct leg also leaves out social and search lines the snapshot already counts; plan-only social lines keep the Direct leg. Off: as before. Independent of the fixed-cost switches (Luke, 3 Nov 2026).",
+    area: "reporting",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "web_search",
     label: "Web & search for clients",
     description: "Clients see their Web & search tab once their report is published. Admins see it either way.",

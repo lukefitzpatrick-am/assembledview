@@ -1,6 +1,6 @@
 import "server-only"
 
-import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
+import { readDeliveryFlags, readHubDeliveredDedupe } from "@/lib/delivery/deliveryFlags.server"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
@@ -76,7 +76,7 @@ export async function getDeliveredTotalsForCampaign(
     ? (input.lineItemsMap as Record<string, unknown[]>)
     : undefined
 
-  const deliveryFlags = await readDeliveryFlags()
+  const [deliveryFlags, hubDeliveredDedupe] = await Promise.all([readDeliveryFlags(), readHubDeliveredDedupe()])
   const [snapshot, directGroups] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber: input.mbaNumber,
@@ -121,7 +121,7 @@ export async function getDeliveredTotalsForCampaign(
     window?.startDate,
     window?.endDate,
     programmaticLineItemIdsFromSnapshot(snapshot, {
-      excludePlatformSocialAndSearch: deliveryFlags.fixedCostFromDate,
+      excludePlatformSocialAndSearch: hubDeliveredDedupe,
     }),
     snapshotSpendByLineId(snapshot),
   )

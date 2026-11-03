@@ -16,6 +16,19 @@ import {
 
 type Reader = (key: FeatureKey) => Promise<boolean>
 
+/**
+ * B23fix: `hub_delivered_dedupe`, its own switch (Luke, 3 Nov 2026),
+ * independent of the fixed-cost switches. A failed read is off.
+ */
+export async function readHubDeliveredDedupe(read: Reader = (key) => isFeatureOn(key)): Promise<boolean> {
+  try {
+    return (await read("hub_delivered_dedupe")) === true
+  } catch (err) {
+    console.warn("[delivery] hub_delivered_dedupe read failed; off", err)
+    return false
+  }
+}
+
 export async function readDeliveryFlags(read: Reader = (key) => isFeatureOn(key)): Promise<DeliveryFlags> {
   try {
     const [packageOn, fixedCostReportNet, dateOn] = await Promise.all([
