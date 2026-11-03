@@ -214,11 +214,10 @@ test("MB-30 loud guard: same-canonical bare+decorated duplicates collapse (telem
   assert.equal(collapses[0]!.canonicalId, "supabase001PB1")
 })
 
-test("MB-30 DIAG: template already carries prepaid+auto for same line → merge appends (duplicating call)", () => {
-  // Reproduces the live $40k shape when the auto template is not "auto-only" but
-  // attach(working∪generated) left both rows under progBvod before merge.
-  // Distinct canons (PB1 vs new-0) — loud canonical dedupe does NOT collapse these;
-  // ticket stays open until upstream / template builder is fixed.
+test("MB-30 (B20): template carries prepaid + a new-0 placeholder for the same line → placeholder skipped", () => {
+  // The live $40k shape: attach(working∪generated) left both rows under progBvod before merge.
+  // Distinct canons (PB1 vs new-0): the canonical dedupe can't collapse them. B20 (Q1) skips a
+  // placeholder row in a bucket that already has rows, and reports it.
   const prepaid = line(
     "billing-progBvod::supabase001PB1",
     { [AUG]: 20000, [SEP]: 0 },
@@ -244,17 +243,19 @@ test("MB-30 DIAG: template already carries prepaid+auto for same line → merge 
     month(SEP, { progBvod: [prepaid, autoTwin], search: [search] }, "$14,754.10"),
   ]
 
-  const merged = appendAutoLineItemTemplateIntoWorking(working, template, FMT)
+  const reconciled: Array<{ kind: string; id?: string }> = []
+  const merged = appendAutoLineItemTemplateIntoWorking(working, template, FMT, {
+    onReconcile: (entries) => reconciled.push(...entries),
+  })
   const prog = (merged[0]?.lineItems?.progBvod as BillingLineItem[] | undefined) ?? []
   const total = mediaSum(merged)
 
-  // OPEN defect (distinct canons) — loud canonical dedupe does not collapse these.
-  // When the real fix lands, flip expected length to 1 and mediaTotal to ~30k.
-  assert.equal(
-    prog.length,
-    2,
-    `OPEN MB-30 new-0 ghost: expected progBvod×2 until upstream fix; mediaTotal=${total}; ids=${prog.map((p) => p.id).join(",")}`
-  )
+  assert.equal(prog.length, 1, `ids=${prog.map((p) => p.id).join(",")}`)
+  assert.equal(prog[0]!.id, "billing-progBvod::supabase001PB1")
+  assert.equal(prog[0]!.monthlyAmounts[AUG], 20000)
+  assert.ok(Math.abs(total - 30000) < 0.02, `mediaTotal=${total}`)
+  assert.ok(reconciled.length >= 1)
+  assert.ok(reconciled.every((e) => e.kind === "placeholder_skip" && e.id === "billing-progBvod::new-0"))
 })
 
 test("MB-30 DIAG: empty progBvod lineItems but prepaid under wrong key → AUTO seeded alongside", () => {

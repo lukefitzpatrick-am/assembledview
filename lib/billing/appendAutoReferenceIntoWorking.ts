@@ -8,9 +8,23 @@
  *
  * Matching MUST use billingOverrideLineIdsMatch (bare ↔ billing-{media}::). Strict
  * === or Set.has on raw ids reintroduces the PENFOLD016 double-count class.
+ *
+ * B20 (MB-30 fix): per media key, a template row matches a working row by
+ * 1. canonical id (bare ↔ decorated),
+ * 2. alias (`billingLineIdAlias`: an old `ML`, no-code or production
+ *    `-vNNN-pN` id and its current id, same media key and line number), one
+ *    to one, only working rows no template row matched by id; the working row
+ *    adopts the template id and keeps its amounts, mode, Prebill and fee
+ *    months (resync rules as for a matched row),
+ * 3. a placeholder `new-N` template row is skipped when the bucket already
+ *    has rows (logged), and pushed into an empty bucket as before,
+ * 4. today's single-line rule (one working row, one template row),
+ * 5. else it is a new line and is pushed.
+ * The canonical dedupe stays last as the backstop.
  */
 
 import { shouldResyncBillingLineFromAuto } from "@/lib/billing/applyBillingLineMode"
+import { billingLineAliasKey } from "@/lib/billing/billingLineIdAlias"
 import {
   computeAppendNewMediaTypeBucket,
 } from "@/lib/billing/appendNewMediaTypeBucket"
@@ -18,16 +32,36 @@ import {
   dedupeBillingLineItemsByCanonicalId,
   type CanonicalBillingLineCollapse,
 } from "@/lib/billing/dedupeWorkingBillingCanonicalLines"
+import { isPlaceholderBillingLineId } from "@/lib/billing/rekeyManualBillingForMba"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
+
+/** B20: a working row that took a template row's id through the old-id alias. */
+export type BillingAliasAdoption = { fromId: string; toId: string }
+
+/** B20: a placeholder `new-N` template row not added to a bucket that already has rows. */
+export type BillingPlaceholderSkip = { id: string }
+
+export type BillingAliasReconcileEntry =
+  | ({ kind: "alias_adoption"; mediaKey: string; monthYear: string } & BillingAliasAdoption)
+  | ({ kind: "placeholder_skip"; mediaKey: string; monthYear: string } & BillingPlaceholderSkip)
 
 export type AppendIntoWorkingOpts = {
   isManualBilling?: boolean
   resyncExistingFromTemplate?: boolean
+  /**
+   * B20: the plan's MBA number, for old-id alias matching. Blank or unset:
+   * no alias matching (ids match canonically only, as before).
+   */
+  mbaNumber?: string | null
+  /** B20: media key of the bucket (set per bucket by the month merge). */
+  mediaKey?: string
   /** MB-30 loud guard — fired when merge collapses same-canonical duplicates. */
   onCanonicalDedupe?: (
     collapses: Array<CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }>
   ) => void
+  /** B20: alias adoptions and placeholder skips, once per merge call when any happened. */
+  onReconcile?: (entries: BillingAliasReconcileEntry[]) => void
 }
 
 function cloneBillingMonthGraph<T>(x: T): T {
@@ -74,21 +108,69 @@ function resyncExistingLineItemFromTemplate(
   existing.preBillSnapshot = undefined
 }
 
+/** Keep an adopted or drifted working row's amounts unless the resync rules say to take the template's. */
+function applyTemplateToAdoptedRow(
+  row: BillingLineItem,
+  tLi: BillingLineItem,
+  allCampaignMonthKeys: string[],
+  resync: boolean,
+  isManualBilling: boolean
+) {
+  const shouldResync = shouldResyncBillingLineFromAuto(row, isManualBilling)
+  if (resync && shouldResync) {
+    resyncExistingLineItemFromTemplate(row, tLi, allCampaignMonthKeys)
+  } else if (shouldResync && row.totalAmount === 0 && tLi.totalAmount > 0) {
+    const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
+    row.monthlyAmounts = seeded.monthlyAmounts
+    row.totalAmount = seeded.totalAmount
+    if (seeded.feeMonthlyAmounts) row.feeMonthlyAmounts = seeded.feeMonthlyAmounts
+    if (seeded.totalFeeAmount != null) row.totalFeeAmount = seeded.totalFeeAmount
+    if (seeded.adServingMonthlyAmounts) {
+      row.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
+    }
+    if (seeded.totalAdServingAmount != null) {
+      row.totalAdServingAmount = seeded.totalAdServingAmount
+    }
+  }
+  row.id = tLi.id
+}
+
 /**
  * Append line items that appear in the auto template but not in working for this media type.
- * Identity: billingOverrideLineIdsMatch only (MB-4 / MB-11 / MB-30).
+ * Identity: billingOverrideLineIdsMatch (MB-4 / MB-11 / MB-30), then the B20 old-id alias
+ * (needs `opts.mbaNumber` and `opts.mediaKey`). See the file header for the match order.
  */
 export function appendMissingLineItemsOnly(
   existingItems: BillingLineItem[],
   templateItems: BillingLineItem[],
   allCampaignMonthKeys: string[],
   opts?: AppendIntoWorkingOpts
-): { list: BillingLineItem[]; didAppend: boolean; collapses: CanonicalBillingLineCollapse[] } {
+): {
+  list: BillingLineItem[]
+  didAppend: boolean
+  collapses: CanonicalBillingLineCollapse[]
+  aliasAdoptions: BillingAliasAdoption[]
+  placeholderSkips: BillingPlaceholderSkip[]
+} {
   const resync = Boolean(opts?.resyncExistingFromTemplate)
   const isManualBilling = Boolean(opts?.isManualBilling)
   const list = existingItems.map((li) => cloneBillingMonthGraph(li))
   const findExisting = (candidateId: string) =>
     list.find((li) => billingOverrideLineIdsMatch(String(li.id ?? ""), candidateId))
+  const mediaKey = String(opts?.mediaKey ?? "").trim()
+  const mbaNumber = String(opts?.mbaNumber ?? "").trim()
+  const aliasOf = (id: unknown) =>
+    mbaNumber && mediaKey ? billingLineAliasKey({ id, mediaKey, mbaNumber }) : null
+  // Working rows some template row matches by id are never alias-claimed (one to one).
+  const claimed = new Set<BillingLineItem>()
+  for (const tLi of templateItems) {
+    const tid = billingLineItemIdKey(tLi.id)
+    if (!tid) continue
+    const hit = findExisting(tid)
+    if (hit) claimed.add(hit)
+  }
+  const aliasAdoptions: BillingAliasAdoption[] = []
+  const placeholderSkips: BillingPlaceholderSkip[] = []
   let didAppend = false
   // Single-line scheme-drift reconcile (not bare↔decorated — that is already unified).
   const singleLineSchemeDrift =
@@ -123,26 +205,28 @@ export function appendMissingLineItemsOnly(
       }
       continue
     }
+    // B20: old id ↔ current id for the same line (one to one, unclaimed rows only).
+    const tAlias = aliasOf(tid)
+    if (tAlias) {
+      const aliased = list.find((li) => !claimed.has(li) && aliasOf(li.id) === tAlias)
+      if (aliased) {
+        const fromId = String(aliased.id ?? "")
+        applyTemplateToAdoptedRow(aliased, tLi, allCampaignMonthKeys, resync, isManualBilling)
+        claimed.add(aliased)
+        aliasAdoptions.push({ fromId, toId: tid })
+        didAppend = true
+        continue
+      }
+    }
+    // B20 (Q1): a placeholder row never renames or joins a bucket that has rows.
+    if (list.length > 0 && isPlaceholderBillingLineId(tid)) {
+      placeholderSkips.push({ id: tid })
+      continue
+    }
     if (singleLineSchemeDrift) {
       const only = list[0]
       if (only) {
-        const shouldResync = shouldResyncBillingLineFromAuto(only, isManualBilling)
-        if (resync && shouldResync) {
-          resyncExistingLineItemFromTemplate(only, tLi, allCampaignMonthKeys)
-        } else if (shouldResync && only.totalAmount === 0 && tLi.totalAmount > 0) {
-          const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
-          only.monthlyAmounts = seeded.monthlyAmounts
-          only.totalAmount = seeded.totalAmount
-          if (seeded.feeMonthlyAmounts) only.feeMonthlyAmounts = seeded.feeMonthlyAmounts
-          if (seeded.totalFeeAmount != null) only.totalFeeAmount = seeded.totalFeeAmount
-          if (seeded.adServingMonthlyAmounts) {
-            only.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
-          }
-          if (seeded.totalAdServingAmount != null) {
-            only.totalAdServingAmount = seeded.totalAdServingAmount
-          }
-        }
-        only.id = tLi.id
+        applyTemplateToAdoptedRow(only, tLi, allCampaignMonthKeys, resync, isManualBilling)
         didAppend = true
         continue
       }
@@ -150,10 +234,10 @@ export function appendMissingLineItemsOnly(
     list.push(seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
     didAppend = true
   }
-  // MB-30 loud guard: collapse same-canonical duplicates (does not fix distinct canons).
+  // MB-30 loud guard: collapse same-canonical duplicates (backstop; B20 alias match runs first).
   const { list: deduped, collapses } = dedupeBillingLineItemsByCanonicalId(list)
   if (collapses.length > 0) didAppend = true
-  return { list: deduped, didAppend, collapses }
+  return { list: deduped, didAppend, collapses, aliasAdoptions, placeholderSkips }
 }
 
 function appendMissingMediaTypesOnly(
@@ -248,6 +332,17 @@ function appendMissingMonthsOnly(
   })
 }
 
+function pushReconcile(
+  batch: BillingAliasReconcileEntry[],
+  mediaKey: string,
+  monthYear: string,
+  aliasAdoptions: BillingAliasAdoption[],
+  placeholderSkips: BillingPlaceholderSkip[]
+) {
+  for (const a of aliasAdoptions) batch.push({ kind: "alias_adoption", mediaKey, monthYear, ...a })
+  for (const p of placeholderSkips) batch.push({ kind: "placeholder_skip", mediaKey, monthYear, ...p })
+}
+
 /**
  * Merge auto template into an existing saved month (append-only unless resync).
  */
@@ -279,6 +374,7 @@ export function mergeAppendIntoExistingMonth(
     const collapseBatch: Array<
       CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }
     > = []
+    const reconcileBatch: BillingAliasReconcileEntry[] = []
 
     for (const mk of templateMediaKeys) {
       const templateItems =
@@ -291,19 +387,22 @@ export function mergeAppendIntoExistingMonth(
       if (existingItems.length === 0) {
         appendNewMediaTypeIntoWorkingMonth(base, mk, templateItems, allCampaignMonthKeys, formatter)
       } else {
-        const { list, collapses } = appendMissingLineItemsOnly(
+        const { list, collapses, aliasAdoptions, placeholderSkips } = appendMissingLineItemsOnly(
           existingItems,
           templateItems,
           allCampaignMonthKeys,
           {
             isManualBilling: opts?.isManualBilling,
             resyncExistingFromTemplate: true,
+            mbaNumber: opts?.mbaNumber,
+            mediaKey: mk,
           }
         )
         ;(base.lineItems as Record<string, BillingLineItem[]>)[mk] = list
         for (const c of collapses) {
           collapseBatch.push({ ...c, mediaKey: mk, monthYear: base.monthYear })
         }
+        pushReconcile(reconcileBatch, mk, base.monthYear, aliasAdoptions, placeholderSkips)
       }
     }
 
@@ -315,6 +414,7 @@ export function mergeAppendIntoExistingMonth(
     }
     recomputeFullMonthFromLineItems(base, formatter)
     if (collapseBatch.length > 0) opts?.onCanonicalDedupe?.(collapseBatch)
+    if (reconcileBatch.length > 0) opts?.onReconcile?.(reconcileBatch)
     return base
   }
 
@@ -326,6 +426,7 @@ export function mergeAppendIntoExistingMonth(
   const collapseBatch: Array<
     CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }
   > = []
+  const reconcileBatch: BillingAliasReconcileEntry[] = []
 
   for (const mk of templateMediaKeys) {
     const templateItems =
@@ -347,15 +448,16 @@ export function mergeAppendIntoExistingMonth(
       }
     } else {
       const priorBucket = parseBucketMoney((base.mediaCosts as Record<string, string>)[mk])
-      const { list, didAppend, collapses } = appendMissingLineItemsOnly(
-        existingItems,
-        templateItems,
-        allCampaignMonthKeys,
-        { isManualBilling: opts?.isManualBilling }
-      )
+      const { list, didAppend, collapses, aliasAdoptions, placeholderSkips } =
+        appendMissingLineItemsOnly(existingItems, templateItems, allCampaignMonthKeys, {
+          isManualBilling: opts?.isManualBilling,
+          mbaNumber: opts?.mbaNumber,
+          mediaKey: mk,
+        })
       for (const c of collapses) {
         collapseBatch.push({ ...c, mediaKey: mk, monthYear: base.monthYear })
       }
+      pushReconcile(reconcileBatch, mk, base.monthYear, aliasAdoptions, placeholderSkips)
       if (didAppend) {
         ;(base.lineItems as Record<string, BillingLineItem[]>)[mk] = list
         const newBucket = list.reduce((s, li) => s + (li.monthlyAmounts[base.monthYear] || 0), 0)
@@ -400,6 +502,7 @@ export function mergeAppendIntoExistingMonth(
     )
   }
   if (collapseBatch.length > 0) opts?.onCanonicalDedupe?.(collapseBatch)
+  if (reconcileBatch.length > 0) opts?.onReconcile?.(reconcileBatch)
   return base
 }
 
@@ -420,11 +523,15 @@ export function appendAutoLineItemTemplateIntoWorking(
   const allCollapses: Array<
     CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }
   > = []
+  const allReconcile: BillingAliasReconcileEntry[] = []
   const mergeOpts: AppendIntoWorkingOpts = {
     ...opts,
     onCanonicalDedupe: (batch) => {
       allCollapses.push(...batch)
       opts?.onCanonicalDedupe?.(batch)
+    },
+    onReconcile: (batch) => {
+      allReconcile.push(...batch)
     },
   }
 
@@ -447,6 +554,7 @@ export function appendAutoLineItemTemplateIntoWorking(
       templateProgBvodIds,
     })
   }
+  if (allReconcile.length > 0) opts?.onReconcile?.(allReconcile)
 
   return result
 }
