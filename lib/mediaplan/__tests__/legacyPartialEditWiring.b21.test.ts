@@ -37,7 +37,10 @@ test("approvals effect: mba_scope first, then the GET, then the old partial when
   const apply = body.slice(body.indexOf("const applyLegacyPartial"), getAt)
   assert.doesNotMatch(apply, /setPartialMBAMonthYears|recomputePartialMBAFromLineItems|setIsPartialMBA/)
   assert.match(apply, /if \(r\.changed\) \{/)
-  assert.match(apply, /setLegacyPartialOnOpen\(\{ unresolved: r\.unresolved, leftOutByMedia: r\.leftOutByMedia \}\)/)
+  assert.match(
+    apply,
+    /setLegacyPartialOnOpen\(\{\n\s+unresolved: r\.unresolved,\n\s+addedSince: r\.addedSince,\n\s+leftOutByMedia: r\.leftOutByMedia,\n\s+\}\)/
+  )
   assert.match(page, /\}, \[mbaNumber, selectedVersionNumber, loadPhase, billingFeeSeedEnabledConfigs, allChannelsHydrated\]\)/)
 })
 
@@ -45,10 +48,10 @@ test("MBA billing window shows the unmatched notice in the scope column", () => 
   const at = page.indexOf("scopeNotice={")
   assert.ok(at > 0)
   const slot = page.slice(at, page.indexOf("pendingOverrideRows=", at))
-  assert.match(slot, /isPartialMBA && \(?legacyPartialUnresolved\.length > 0/)
+  assert.match(slot, /isPartialMBA &&\n\s+\(legacyPartialNotices\.unresolved\.length > 0 \|\|/)
   assert.match(
     slot,
-    /<PartialMbaUnmatchedNotice\n\s+message=\{describeLegacyPartialUnresolved\(legacyPartialUnresolved, mediaLabelByBillingKey\)\}/
+    /<PartialMbaUnmatchedNotice\n\s+message=\{describeLegacyPartialUnresolved\(legacyPartialNotices\.unresolved, mediaLabelByBillingKey\)\}/
   )
   assert.match(modal, /\{scopeNotice \? <div data-mba-scope-notice="1">\{scopeNotice\}<\/div> : null\}/)
 })
@@ -92,8 +95,21 @@ test("B21fix finding 5: the unmatched toast fires on open from the match result"
 test("B21fix finding 5: the scope notice reads the current selection, and a version change clears the open result", () => {
   assert.match(
     page,
-    /const legacyPartialUnresolved = useMemo\(\n\s+\(\) => currentLegacyPartialNotices\(legacyPartialOnOpen, partialMBASelectedLineItemIds\)\.unresolved,\n\s+\[legacyPartialOnOpen, partialMBASelectedLineItemIds\]\n\s+\)/
+    /const legacyPartialNotices = useMemo\(\n\s+\(\) => currentLegacyPartialNotices\(legacyPartialOnOpen, partialMBASelectedLineItemIds\),\n\s+\[legacyPartialOnOpen, partialMBASelectedLineItemIds\]\n\s+\)/
   )
   assert.ok((page.match(/setLegacyPartialOnOpen\(null\)/g) ?? []).length >= 1)
   assert.doesNotMatch(page, /setLegacyPartialUnresolved/)
+})
+
+test("B21fix R4: the MBA scope column names lines added since, from the current selection, with the switch off too", () => {
+  const at = page.indexOf("scopeNotice={")
+  const slot = page.slice(at, page.indexOf("pendingOverrideRows=", at))
+  assert.match(slot, /legacyPartialNotices\.addedSince\.length > 0 \|\|\n\s+partialMbaBillingGuard\)/)
+  assert.match(
+    slot,
+    /\{legacyPartialNotices\.addedSince\.length > 0 \? \(\n\s+<PartialMbaAddedSinceNotice\n\s+message=\{describeLegacyPartialAddedSince\(legacyPartialNotices\.addedSince, mediaLabelByBillingKey\)\}/
+  )
+  // Not behind partial_mba_billing_guard: the slot reads no switch for it.
+  const notice = slot.slice(slot.indexOf("{legacyPartialNotices.addedSince.length > 0 ? ("), slot.indexOf("<PartialMbaBillingGuardNotice"))
+  assert.doesNotMatch(notice, /partialMbaBillingGuardOn/)
 })

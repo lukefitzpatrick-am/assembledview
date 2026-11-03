@@ -23,7 +23,9 @@
  * 3. A channel saved with every line selected (`selectedCount === totalCount`)
  *    that still has unmatched ids and the same number of lines today selects
  *    every current line of the channel (decision Q9). When every saved id
- *    matched, lines added since stay out, as for any managed channel.
+ *    matched, lines added since stay out, as for any managed channel. They
+ *    are reported (`addedSince`) so the MBA scope notice can name them
+ *    (B21fix, decision B21 R4).
  * Anything left is unresolved: it stays excluded and is reported so the page
  * can warn (decision Q8).
  *
@@ -91,6 +93,13 @@ export type LegacyPartialUnresolved = {
   reason: LegacyPartialUnresolvedReason
 }
 
+/** A current line of a channel saved with every line selected, left out because it wasn't saved. */
+export type LegacyPartialAddedSinceLine = {
+  mediaKey: string
+  /** Bare editor id. */
+  editorId: string
+}
+
 export type ReconcileLegacyPartialResult = {
   /** Bare ids by media key, for every listed and every later-added channel. Feed to `partialMBASelectedLineItemIds`. */
   selected: Record<string, string[]>
@@ -100,6 +109,8 @@ export type ReconcileLegacyPartialResult = {
   /** Channels filled from every current line (rule 3). */
   expandedMediaKeys: string[]
   unresolved: LegacyPartialUnresolved[]
+  /** Lines added since to a channel saved with every line selected. They stay out. */
+  addedSince: LegacyPartialAddedSinceLine[]
   /** Listed channels with no current lines. */
   missingMediaKeys: string[]
   /** Current channels the saved selection doesn't list. Every current id is in `selected`. */
@@ -154,6 +165,7 @@ export function reconcileLegacyPartialSelection(
   const aliasMatches: LegacyPartialAliasMatch[] = []
   const expandedMediaKeys: string[] = []
   const unresolved: LegacyPartialUnresolved[] = []
+  const addedSince: LegacyPartialAddedSinceLine[] = []
   const missingMediaKeys: string[] = []
   const leftOutByMedia: Record<string, string[]> = {}
   let changed = false
@@ -251,6 +263,11 @@ export function reconcileLegacyPartialSelection(
     const inChannel = new Set(selected[mediaKey])
     const leftOut = current.filter((id) => !inChannel.has(id))
     if (leftOut.length > 0) leftOutByMedia[mediaKey] = leftOut
+    // B21fix (R4): every line was in when the partial was set, so a line left
+    // out now wasn't on the plan then.
+    if (allSelected) {
+      for (const editorId of leftOut) addedSince.push({ mediaKey, editorId })
+    }
   }
 
   const laterAddedMediaKeys = Object.entries(input.editorIdsByMedia)
@@ -269,6 +286,7 @@ export function reconcileLegacyPartialSelection(
     aliasMatches,
     expandedMediaKeys,
     unresolved,
+    addedSince,
     missingMediaKeys,
     laterAddedMediaKeys,
     leftOutByMedia,
@@ -305,6 +323,7 @@ export function legacyPartialUnmatchedToast(
 /** What the reconcile found when the plan opened, kept for the MBA scope notices. */
 export type LegacyPartialOnOpen = {
   unresolved: LegacyPartialUnresolved[]
+  addedSince: LegacyPartialAddedSinceLine[]
   leftOutByMedia: Record<string, string[]>
 }
 
@@ -316,12 +335,13 @@ export type LegacyPartialOnOpen = {
  * A channel's unmatched ids drop off once the planner has ticked in as many
  * of that channel's lines left out on open as there are unmatched ids. A
  * channel the selection doesn't list counts as all in, as `resolveApproval`.
+ * A line added since drops off once it is ticked in.
  */
 export function currentLegacyPartialNotices(
   onOpen: LegacyPartialOnOpen | null,
   selection: Readonly<Record<string, readonly string[] | undefined>>
-): { unresolved: LegacyPartialUnresolved[] } {
-  if (!onOpen) return { unresolved: [] }
+): { unresolved: LegacyPartialUnresolved[]; addedSince: LegacyPartialAddedSinceLine[] } {
+  if (!onOpen) return { unresolved: [], addedSince: [] }
   const sets = new Map<string, ReadonlySet<string>>()
   const isIn = (mediaKey: string, id: string): boolean => {
     const ids = selection[mediaKey]
@@ -342,5 +362,22 @@ export function currentLegacyPartialNotices(
     const tickedIn = (onOpen.leftOutByMedia[mediaKey] ?? []).filter((id) => isIn(mediaKey, id)).length
     if (tickedIn < count) stillOut.add(mediaKey)
   }
-  return { unresolved: onOpen.unresolved.filter((u) => stillOut.has(u.mediaKey)) }
+  return {
+    unresolved: onOpen.unresolved.filter((u) => stillOut.has(u.mediaKey)),
+    addedSince: onOpen.addedSince.filter((line) => !isIn(line.mediaKey, line.editorId)),
+  }
+}
+
+/** Planner-facing names of lines added since to an all-selected channel (decision B21 R4). */
+export function describeLegacyPartialAddedSince(
+  lines: readonly LegacyPartialAddedSinceLine[],
+  mediaLabelByKey?: Readonly<Record<string, string>>
+): string | null {
+  if (lines.length === 0) return null
+  const parts = lines.map((l) => `${mediaLabelByKey?.[l.mediaKey] ?? l.mediaKey} ${l.editorId}`)
+  const oneChannel = new Set(lines.map((l) => l.mediaKey)).size === 1
+  const where = oneChannel ? "a channel that was" : "channels that were"
+  return lines.length === 1
+    ? `A line was added to ${where} all in when this partial MBA was set. It stays out of the MBA: ${parts[0]}. Tick it in the MBA scope if the client has approved it.`
+    : `${lines.length} lines were added to ${where} all in when this partial MBA was set. They stay out of the MBA: ${parts.join(", ")}. Tick them in the MBA scope if the client has approved them.`
 }

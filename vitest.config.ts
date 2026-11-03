@@ -41,6 +41,7 @@ export default defineConfig({
       "components/billing/__tests__/BillingAliasDuplicateNotice.test.tsx",
       "components/billing/__tests__/PartialMbaUnmatchedNotice.test.tsx",
       "components/billing/__tests__/PartialMbaBillingGuardNotice.test.tsx",
+      "components/billing/__tests__/PartialMbaAddedSinceNotice.test.tsx",
       "components/finance/billing-revisions/__tests__/BillingRevisionPanel.test.tsx",
       "components/finance/billing-revisions/__tests__/BillingRevisionLog.test.tsx",
       "components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx",

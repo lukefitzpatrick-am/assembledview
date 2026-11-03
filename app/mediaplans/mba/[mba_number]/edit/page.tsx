@@ -135,6 +135,7 @@ import {
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
 import { PartialMbaUnmatchedNotice } from "@/components/billing/PartialMbaUnmatchedNotice"
+import { PartialMbaAddedSinceNotice } from "@/components/billing/PartialMbaAddedSinceNotice"
 import { PartialMbaBillingGuardNotice } from "@/components/billing/PartialMbaBillingGuardNotice"
 import {
   computePartialMbaBillingVsDelivery,
@@ -399,6 +400,7 @@ import {
 } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   currentLegacyPartialNotices,
+  describeLegacyPartialAddedSince,
   describeLegacyPartialUnresolved,
   legacyPartialUnmatchedToast,
   reconcileLegacyPartialSelection,
@@ -5868,10 +5870,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // B21 (M8, Q11): partial MBA fee and fallback months on the billing basis, and
   // the billing vs delivery guard. Off: as before.
   const partialMbaBillingGuardOn = clientFeatureOn("partial_mba_billing_guard")
-  // MB-33 (B21, B21fix finding 5): unmatched saved lines of an old partial MBA, as
-  // the current selection leaves them. Ticking lines in clears them.
-  const legacyPartialUnresolved = useMemo(
-    () => currentLegacyPartialNotices(legacyPartialOnOpen, partialMBASelectedLineItemIds).unresolved,
+  // MB-33 (B21, B21fix findings 4 and 5): unmatched saved lines of an old partial MBA
+  // and lines added since to an all-selected channel, as the current selection
+  // leaves them. Ticking lines in clears them.
+  const legacyPartialNotices = useMemo(
+    () => currentLegacyPartialNotices(legacyPartialOnOpen, partialMBASelectedLineItemIds),
     [legacyPartialOnOpen, partialMBASelectedLineItemIds]
   )
   const partialMbaBillingGuard = useMemo(
@@ -9139,7 +9142,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           loadedLinesByMedia,
           mbaNumber: String(mbaNumber),
         })
-        setLegacyPartialOnOpen({ unresolved: r.unresolved, leftOutByMedia: r.leftOutByMedia })
+        setLegacyPartialOnOpen({
+          unresolved: r.unresolved,
+          addedSince: r.addedSince,
+          leftOutByMedia: r.leftOutByMedia,
+        })
         setLegacyPartialLaterAddedKeys(r.laterAddedMediaKeys)
         if (r.changed) {
           // Months stay as saved. Only the ids move to the current line ids, and a
@@ -11982,11 +11989,19 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         overridesLoadNotice={billingOverridesLoadNotice}
         aliasDuplicateNotice={billingAliasDuplicateNotice("modal")}
         scopeNotice={
-          isPartialMBA && (legacyPartialUnresolved.length > 0 || partialMbaBillingGuard) ? (
+          isPartialMBA &&
+          (legacyPartialNotices.unresolved.length > 0 ||
+            legacyPartialNotices.addedSince.length > 0 ||
+            partialMbaBillingGuard) ? (
             <div className="space-y-2">
-              {legacyPartialUnresolved.length > 0 ? (
+              {legacyPartialNotices.unresolved.length > 0 ? (
                 <PartialMbaUnmatchedNotice
-                  message={describeLegacyPartialUnresolved(legacyPartialUnresolved, mediaLabelByBillingKey)}
+                  message={describeLegacyPartialUnresolved(legacyPartialNotices.unresolved, mediaLabelByBillingKey)}
+                />
+              ) : null}
+              {legacyPartialNotices.addedSince.length > 0 ? (
+                <PartialMbaAddedSinceNotice
+                  message={describeLegacyPartialAddedSince(legacyPartialNotices.addedSince, mediaLabelByBillingKey)}
                 />
               ) : null}
               <PartialMbaBillingGuardNotice

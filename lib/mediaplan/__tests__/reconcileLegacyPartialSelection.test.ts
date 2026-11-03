@@ -16,6 +16,7 @@ import {
 import { applyMbaScopeLineApprovals, type MbaScopeApprovalLine } from "@/lib/mediaplan/mbaScopeForSave"
 import {
   currentLegacyPartialNotices,
+  describeLegacyPartialAddedSince,
   describeLegacyPartialUnresolved,
   legacyPartialUnmatchedToast,
   reconcileLegacyPartialSelection,
@@ -332,6 +333,11 @@ test("all-selected channel: lines added since stay out when every saved id still
   assert.ok(!r.selected.ooh!.includes("PENFOLD015OH95"))
   assert.equal(r.changed, false)
   assert.deepEqual(r.expandedMediaKeys, [])
+  // B21fix R4: named for the scope notice, still out.
+  assert.deepEqual(r.addedSince, [
+    { mediaKey: "ooh", editorId: "PENFOLD015OH95" },
+    { mediaKey: "ooh", editorId: "PENFOLD015OH96" },
+  ])
 })
 
 test("all-selected channel with unmatched ids and a different line count: warn, don't expand", () => {
@@ -508,6 +514,7 @@ test("B21fix finding 5: unmatched lines drop off the notice once the planner tic
       { mediaKey: "ooh", savedId: "X1ML7", reason: "no_match" as const },
       { mediaKey: "ooh", savedId: "X1ML8", reason: "no_match" as const },
     ],
+    addedSince: [],
     leftOutByMedia: { socialMedia: ["X1SM1", "X1SM2"], ooh: ["X1OH3", "X1OH4", "X1OH5"] },
   }
   const opened = { socialMedia: [], ooh: ["X1OH1"] }
@@ -525,4 +532,70 @@ test("B21fix finding 5: unmatched lines drop off the notice once the planner tic
   // A channel the selection no longer lists counts as all in.
   assert.deepEqual(currentLegacyPartialNotices(onOpen, { ooh: ["X1OH1"] }).unresolved.map((u) => u.mediaKey), ["ooh", "ooh"])
   assert.deepEqual(currentLegacyPartialNotices(null, opened).unresolved, [])
+})
+
+test("B21fix R4: only an all-selected channel reports lines added since", () => {
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "PENFOLD020",
+    channels: [
+      // Partly selected: a line left out may have been left out on purpose. Not reported.
+      { mediaKey: "ooh", selectedLineItemIds: ["PENFOLD020OH1"], selectedCount: 1, totalCount: 2 },
+      // All selected, every id matches, one line added since.
+      { mediaKey: "socialMedia", selectedLineItemIds: ["PENFOLD020SM1"], selectedCount: 1, totalCount: 1 },
+      // All selected, unmatched and a different count: not expanded, the left-out lines are named too.
+      { mediaKey: "search", selectedLineItemIds: ["PENFOLD020SE9"], selectedCount: 1, totalCount: 1 },
+      // All selected and expanded: nothing left out.
+      { mediaKey: "newspaper", selectedLineItemIds: ["PENFOLD0201"], selectedCount: 1, totalCount: 1 },
+    ],
+    editorIdsByMedia: {
+      ooh: dec("ooh", ["PENFOLD020OH1", "PENFOLD020OH2", "PENFOLD020OH3"]),
+      socialMedia: dec("socialMedia", ["PENFOLD020SM1", "PENFOLD020SM2"]),
+      search: dec("search", ["PENFOLD020SE1", "PENFOLD020SE2"]),
+      newspaper: dec("newspaper", ["PENFOLD020NP1"]),
+    },
+  })
+  assert.deepEqual(r.addedSince, [
+    { mediaKey: "socialMedia", editorId: "PENFOLD020SM2" },
+    { mediaKey: "search", editorId: "PENFOLD020SE1" },
+    { mediaKey: "search", editorId: "PENFOLD020SE2" },
+  ])
+  assert.deepEqual(r.selected.socialMedia, ["PENFOLD020SM1"])
+  assert.deepEqual(r.selected.newspaper, ["PENFOLD020NP1"])
+  assert.deepEqual(r.selected.search, [])
+})
+
+test("B21fix R4: a line added since drops off the notice once ticked in", () => {
+  const onOpen = {
+    unresolved: [],
+    addedSince: [
+      { mediaKey: "ooh", editorId: "PENFOLD015OH95" },
+      { mediaKey: "ooh", editorId: "PENFOLD015OH96" },
+    ],
+    leftOutByMedia: { ooh: ["PENFOLD015OH95", "PENFOLD015OH96"] },
+  }
+  const saved = Array.from({ length: 94 }, (_, i) => `PENFOLD015OH${i + 1}`)
+  assert.equal(currentLegacyPartialNotices(onOpen, { ooh: saved }).addedSince.length, 2)
+  assert.deepEqual(
+    currentLegacyPartialNotices(onOpen, { ooh: [...saved, "billing-ooh::PENFOLD015OH95"] }).addedSince,
+    [{ mediaKey: "ooh", editorId: "PENFOLD015OH96" }]
+  )
+  assert.deepEqual(currentLegacyPartialNotices(onOpen, {}).addedSince, [])
+})
+
+test("B21fix R4: describeLegacyPartialAddedSince names each line", () => {
+  assert.equal(describeLegacyPartialAddedSince([]), null)
+  assert.equal(
+    describeLegacyPartialAddedSince([{ mediaKey: "ooh", editorId: "PENFOLD015OH95" }], { ooh: "OOH" }),
+    "A line was added to a channel that was all in when this partial MBA was set. It stays out of the MBA: OOH PENFOLD015OH95. Tick it in the MBA scope if the client has approved it."
+  )
+  assert.equal(
+    describeLegacyPartialAddedSince(
+      [
+        { mediaKey: "ooh", editorId: "PENFOLD015OH95" },
+        { mediaKey: "socialMedia", editorId: "PENFOLD015SM3" },
+      ],
+      { ooh: "OOH" }
+    ),
+    "2 lines were added to channels that were all in when this partial MBA was set. They stay out of the MBA: OOH PENFOLD015OH95, socialMedia PENFOLD015SM3. Tick them in the MBA scope if the client has approved them."
+  )
 })
