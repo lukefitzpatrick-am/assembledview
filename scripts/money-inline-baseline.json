@@ -4,7 +4,7 @@
   "app/dashboard/[slug]/[mba_number]/components/MediaTable.tsx": 2,
   "app/dashboard/[slug]/[mba_number]/page.tsx": 1,
   "app/mediaplans/create/page.tsx": 20,
-  "app/mediaplans/mba/[mba_number]/edit/page.tsx": 25,
+  "app/mediaplans/mba/[mba_number]/edit/page.tsx": 21,
   "app/publishers/[publisherId]/PublisherIngestSection.tsx": 1,
   "app/scopes-of-work/[id]/edit/page.tsx": 2,
   "app/scopes-of-work/create/page.tsx": 2,
