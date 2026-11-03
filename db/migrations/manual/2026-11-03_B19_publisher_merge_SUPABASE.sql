@@ -218,16 +218,18 @@ DECLARE
   n       int;
   v_fk    int;
 BEGIN
+  -- The marker first, so a rerun after the backups are dropped still says
+  -- the merge already ran (B23fix).
+  IF EXISTS (SELECT 1 FROM public.migration_markers WHERE key = 'b19_publisher_merge') THEN
+    RAISE EXCEPTION 'Aborted: marker b19_publisher_merge exists, the merge already ran.';
+  END IF;
+
   -- Guard 0: the step 0 backups exist (the step 5 undo needs them).
   IF to_regclass('public.b19_backup_publishers_20261103') IS NULL
      OR to_regclass('public.b19_backup_publisher_kpi_20261103') IS NULL
      OR to_regclass('public.b19_backup_magazines_20261103') IS NULL
      OR to_regclass('public.b19_backup_publisher_fk_rows_20261103') IS NULL THEN
     RAISE EXCEPTION 'Aborted, nothing changed: run step 0 first';
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM public.migration_markers WHERE key = 'b19_publisher_merge') THEN
-    RAISE EXCEPTION 'Aborted: marker b19_publisher_merge exists, the merge already ran.';
   END IF;
 
   -- Guard 1: all twelve rows exist and still look like the preview.
