@@ -192,6 +192,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "publisher_guard",
+    label: "Publisher guard on publish",
+    description:
+      "Publishing a media plan is blocked when a line names a publisher that isn't in Publishers, or a production line has no publisher. A media line with no publisher publishes with a warning. Admins get an Add to Publishers button (decision Q4). Turn on after the B19 publisher merge SQL has run. Off: publish checks no publishers, as before.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "web_search",
     label: "Web & search for clients",
     description: "Clients see their Web & search tab once their report is published. Admins see it either way.",

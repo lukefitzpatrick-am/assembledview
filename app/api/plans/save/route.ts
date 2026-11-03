@@ -11,6 +11,7 @@ import {
   zeroDeliverableWarnings,
 } from "@/lib/mediaplan/deliverableBudget"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
+import { publisherGuardForSave } from "@/lib/mediaplan/publisherGuard.server"
 import { stripEmptyLinesOnPublish } from "@/lib/mediaplan/stripEmptyLineItems"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
@@ -89,6 +90,15 @@ export async function POST(request: NextRequest) {
   if (burstDatesGate.reject) {
     return NextResponse.json(burstDatesGate.body, { status: 422 })
   }
+
+  // B19 Q4 publisher guard, publish only, behind the publisher_guard switch.
+  // Blocks typed names not in Publishers and production lines with none;
+  // media lines with no publisher only warn.
+  const publisherGate = await publisherGuardForSave(body.mode, body.lineItems)
+  if (publisherGate.reject) {
+    return NextResponse.json(publisherGate.body, { status: 422 })
+  }
+  const publisherWarnings = publisherGate.warnings
 
   // SV-1 stale-base: another editor published during this session.
   // Compares tip-at-load to the current published pointer — not baseVersionId
@@ -322,6 +332,7 @@ export async function POST(request: NextRequest) {
       documents: result.documents,
       ...(removedIds.length > 0 ? { removedIds: strippedPublish.removedIds } : {}),
       ...(deliverableWarnings.length > 0 ? { deliverableWarnings } : {}),
+      ...(publisherWarnings.length > 0 ? { publisherWarnings } : {}),
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
         : {}),

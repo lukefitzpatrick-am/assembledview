@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/writeSessionExpiry"
 import { DOC_STEP_POSTGRES_GENERATE } from "@/lib/docs/saveDocSteps"
 import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
+import type { PublisherGuardFinding } from "@/lib/mediaplan/publisherGuard"
 import {
   noteSavedLineItemIds,
   registerLineIdFloors,
@@ -397,6 +398,13 @@ export type PlansSaveResponse = {
     buyType: string
     message: string
   }>
+  /**
+   * B19 publisher guard (switch `publisher_guard`). 422
+   * `PUBLISHER_NOT_IN_PUBLISHERS` lists the blocked lines here.
+   */
+  publisherIssues?: PublisherGuardFinding[]
+  /** B19 publisher guard. Publish only: media lines with no publisher. The save still commits. */
+  publisherWarnings?: PublisherGuardFinding[]
   /**
    * Publish only. Line ids stripped because they had no buy type and no
    * burst budget, rate, or quantity. Absent when nothing was stripped.
