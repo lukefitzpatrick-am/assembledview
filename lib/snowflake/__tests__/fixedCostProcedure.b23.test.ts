@@ -614,3 +614,52 @@ describe("net basis switched off again (B23fix)", () => {
     assert.match(wrapper, /call ASSEMBLEDVIEW\.MART\.SP_REFRESH_FIXED_COST_REPORTED_DAILY\(:id2, true\)/)
   })
 })
+
+// ---------- B23fix: FC6 boundary cases (review finding 6) ----------
+
+describe("FC6 boundaries (B23fix)", () => {
+  const dated = (fixedCostFrom: string): SnapshotLine => ({
+    id: "krusty001pd1",
+    buyType: "cpm",
+    bursts: [SEP, OCT],
+    sourceTable: "media_plan_prog_display",
+    fixedCostBursts: NET,
+    fixedCostFrom,
+  })
+
+  it("a date on a burst's last day cuts it to that one day (not nothing)", () => {
+    // The last day delivers past the remaining plan, so the cut squares up to its budget.
+    const facts = [
+      ...dv360Facts("krusty001pd1", 50, 4000, "2026-10-01", "2026-10-30"),
+      ...dv360Facts("krusty001pd1", 50, 20000, "2026-10-31", "2026-10-31"),
+    ]
+    const out = runProcedure(NEW, { lines: [dated("2026-10-31")], facts, now: AFTER_FLIGHT, backfill: true })
+    const oct = out.daily.filter((r) => r[1] === 1)
+    assert.deepEqual(
+      oct.map((r) => r[2]),
+      ["2026-10-31"],
+    )
+    // Net $1,700 minus the $1,500 actual on 1 to 30 Oct.
+    assert.equal(oct[0]![7], 200)
+    assert.ok(Math.abs(sumReported(oct) - 200) < 1e-6)
+    assert.equal(out.bursts.length, 1)
+    assert.equal(out.bursts[0]![1], 1)
+  })
+
+  it("the date's own delivery stays in a delivery-shaped cut", () => {
+    // Heavy delivery on the date itself, light after it.
+    const facts = [
+      ...dv360Facts("krusty001pd1", 50, 4000, "2026-10-01", "2026-10-14"),
+      ...dv360Facts("krusty001pd1", 90, 60000, "2026-10-15", "2026-10-15"),
+      ...dv360Facts("krusty001pd1", 10, 1000, "2026-10-16", "2026-10-31"),
+    ]
+    const out = runProcedure(NEW, { lines: [dated("2026-10-15")], facts, now: AFTER_FLIGHT, backfill: true })
+    const first = out.daily.find((r) => r[1] === 1 && r[2] === "2026-10-15")!
+    assert.ok(first, "a row on the date")
+    assert.equal(first[4], 90, "actual platform spend on the date")
+    assert.equal(first[5], 60000, "actual deliverables on the date")
+    assert.ok(Number(first[3]) > 0, "the date carries reported spend")
+    const later = out.daily.find((r) => r[1] === 1 && r[2] === "2026-10-16")!
+    assert.ok(Number(first[3]) > Number(later[3]), "delivery shaped: the heavy day reports more")
+  })
+})
