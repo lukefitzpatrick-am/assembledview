@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "publishers_publisher_name_unique_ci" ON "publishers" USING btree (lower(btrim("publisher_name"))) WHERE "publishers"."publisher_name" IS NOT NULL AND btrim("publishers"."publisher_name") <> '';--> statement-breakpoint
+CREATE UNIQUE INDEX "publishers_publisherid_unique_ci" ON "publishers" USING btree (lower(btrim("publisherid"))) WHERE "publishers"."publisherid" IS NOT NULL AND btrim("publishers"."publisherid") <> '';

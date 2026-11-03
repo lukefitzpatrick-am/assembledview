@@ -612,6 +612,18 @@ export const publishers = pgTable(
   publisherColour: text('publisher_colour'),
   bestPractice: jsonb('best_practice'),
   },
+  (table) => [
+    // DQ-1 (B19): live only after Luke runs step 3 of
+    // db/migrations/manual/2026-11-03_B19_publisher_merge_SUPABASE.sql.
+    // Index only, no column: the mirror can deploy first (db:drift lists
+    // them as mirror-only until the SQL runs).
+    uniqueIndex("publishers_publisher_name_unique_ci")
+      .on(sql`lower(btrim(${table.publisherName}))`)
+      .where(sql`${table.publisherName} IS NOT NULL AND btrim(${table.publisherName}) <> ''`),
+    uniqueIndex("publishers_publisherid_unique_ci")
+      .on(sql`lower(btrim(${table.publisherid}))`)
+      .where(sql`${table.publisherid} IS NOT NULL AND btrim(${table.publisherid}) <> ''`),
+  ],
 )
 
 export const radioStations = pgTable(
