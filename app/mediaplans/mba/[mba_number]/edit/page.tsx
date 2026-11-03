@@ -121,8 +121,16 @@ import {
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
-import { appendAutoLineItemTemplateIntoWorking as appendAutoLineItemTemplateIntoWorkingLib } from "@/lib/billing/appendAutoReferenceIntoWorking"
-import type { CanonicalBillingLineCollapse } from "@/lib/billing/dedupeWorkingBillingCanonicalLines"
+import {
+  appendAutoLineItemTemplateIntoWorking as appendAutoLineItemTemplateIntoWorkingLib,
+  type AppendIntoWorkingOpts,
+  type BillingAliasReconcileEntry,
+} from "@/lib/billing/appendAutoReferenceIntoWorking"
+import { unionGeneratedBillingLines } from "@/lib/billing/unionGeneratedBillingLines"
+import {
+  reportWorkingBillingAliasReconcile,
+  type WorkingBillingAliasReconcileSource,
+} from "@/lib/billing/workingBillingAliasReconcile"
 import {
   buildWorkingBillingCanonicalDedupePayload,
   reportWorkingBillingCanonicalDedupe,
@@ -1086,20 +1094,14 @@ function appendAutoReferenceIntoWorkingBilling(
   autoReferenceMonths: BillingMonth[],
   formatter: Intl.NumberFormat,
   attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[],
-  opts?: {
-    isManualBilling?: boolean
-    resyncExistingFromTemplate?: boolean
-    onCanonicalDedupe?: (
-      collapses: Array<CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }>
-    ) => void
-  }
+  opts?: AppendIntoWorkingOpts
 ): BillingMonth[] {
   const templateWithLineItems = buildWorkingBillingAppendTemplate(
     autoReferenceMonths,
     workingMonths,
     attachLineItemsToMonths
   )
-  // MB-30: use lib merge (canonical dedupe loud guard). Local duplicate helpers remain unused by this path.
+  // MB-30: the lib merge (old-id alias match, placeholder skip, canonical dedupe backstop). Local duplicate helpers remain unused by this path.
   return appendAutoLineItemTemplateIntoWorkingLib(
     workingMonths,
     templateWithLineItems,
@@ -1533,6 +1535,18 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const mbaNumberRef = useRef(mbaNumber)
   const mediaPlanVersionIdRef = useRef(mediaPlanVersionId)
   mbaNumberRef.current = mbaNumber
+  /** MB-30 (B20): alias adoptions and placeholder skips to app_notifications, via refs so no merge re-runs. */
+  const reportAliasReconcileRef = useRef(
+    (source: WorkingBillingAliasReconcileSource, entries: BillingAliasReconcileEntry[]) => {
+      if (entries.length === 0) return
+      void reportWorkingBillingAliasReconcile({
+        versionId: mediaPlanVersionIdRef.current ?? "unknown",
+        mba: String(mbaNumberRef.current ?? ""),
+        source,
+        entries,
+      })
+    }
+  )
   mediaPlanVersionIdRef.current = mediaPlanVersionId
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false)
   const [rollbackTargetVersion, setRollbackTargetVersion] = useState<number | null>(null)
@@ -3063,6 +3077,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         {
           isManualBilling: isManualBillingRef.current,
           resyncExistingFromTemplate: true,
+          mbaNumber: mbaNumberRef.current,
+          onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
           onCanonicalDedupe: (collapses) => {
             // Read identity via refs (not deps): this callback is anomaly telemetry only;
             // adding mbaNumber/mediaPlanVersionId would recreate calculateBillingSchedule and re-fire billing append.
@@ -4351,30 +4367,28 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     });
 
     // Inject auto-generated line items: for media keys with no existing items, add all.
-    // For media keys that already have items, add only NEW items (by ID) without replacing existing.
+    // For media keys that already have items, add only NEW lines without replacing existing:
+    // canonical id, then the B20 old-id alias (the existing row takes the current id), and
+    // placeholder `new-N` rows are skipped (MB-30).
+    const modalReconcile: BillingAliasReconcileEntry[] = []
     Object.entries(allLineItems).forEach(([mediaKey, generatedList]) => {
       deepCopiedMonths.forEach((m) => {
         if (!m.lineItems) m.lineItems = {}
         const li = m.lineItems as Record<string, BillingLineItemType[]>
-        const existing = li[mediaKey]
-
-        if (!existing || existing.length === 0) {
-          // No existing items for this media type — inject all generated
-          li[mediaKey] = generatedList
-        } else {
-          const newItems = generatedList.filter((item) => {
-            const kid = billingLineItemIdKey(item.id)
-            if (!kid) return false
-            return !existing.some((ex) =>
-              billingOverrideLineIdsMatch(String(ex.id ?? ""), kid)
-            )
-          })
-          if (newItems.length > 0) {
-            li[mediaKey] = [...existing, ...newItems]
-          }
+        const union = unionGeneratedBillingLines(li[mediaKey], generatedList, {
+          mediaKey,
+          mbaNumber: mbaNumberRef.current,
+        })
+        if (union.changed) li[mediaKey] = union.list
+        for (const a of union.aliasAdoptions) {
+          modalReconcile.push({ kind: "alias_adoption", mediaKey, monthYear: m.monthYear, ...a })
+        }
+        for (const p of union.placeholderSkips) {
+          modalReconcile.push({ kind: "placeholder_skip", mediaKey, monthYear: m.monthYear, ...p })
         }
       })
     })
+    reportAliasReconcileRef.current("modal_open", modalReconcile)
 
     if (!hasPersistedBillingScheduleRef.current) {
       // Second pass: for months that have mediaCosts > $0 for a media type but no lineItems,
@@ -5196,6 +5210,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
     });
 
+    const attachReconcile: BillingAliasReconcileEntry[] = []
     Object.entries(allLineItems).forEach(([key, generatedList]) => {
       monthsWithLineItems = monthsWithLineItems.map((month) => {
         const monthCopy = { ...month }
@@ -5205,25 +5220,22 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           monthCopy.lineItems = { ...monthCopy.lineItems }
         }
         const li = monthCopy.lineItems as Record<string, BillingLineItemType[]>
-        const existing = li[key]
-
-        if (!existing || existing.length === 0) {
-          li[key] = generatedList
-        } else {
-          const newItems = generatedList.filter((lineItem) => {
-            const kid = billingLineItemIdKey(lineItem.id)
-            if (!kid) return false
-            return !existing.some((ex) =>
-              billingOverrideLineIdsMatch(String(ex.id ?? ""), kid)
-            )
-          })
-          if (newItems.length > 0) {
-            li[key] = [...existing, ...newItems]
-          }
+        // MB-30 (B20): canonical id, then old-id alias, placeholder skip (unionGeneratedBillingLines).
+        const union = unionGeneratedBillingLines(li[key], generatedList, {
+          mediaKey: key,
+          mbaNumber: mbaNumberRef.current,
+        })
+        if (union.changed) li[key] = union.list
+        for (const a of union.aliasAdoptions) {
+          attachReconcile.push({ kind: "alias_adoption", mediaKey: key, monthYear: month.monthYear, ...a })
+        }
+        for (const p of union.placeholderSkips) {
+          attachReconcile.push({ kind: "placeholder_skip", mediaKey: key, monthYear: month.monthYear, ...p })
         }
         return monthCopy
       })
     })
+    reportAliasReconcileRef.current("attach", attachReconcile)
 
     return monthsWithLineItems
   }, [
@@ -9727,6 +9739,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           ? {
               isManualBilling: isManualBillingRef.current,
               resyncExistingFromTemplate: true,
+              mbaNumber: mbaNumberRef.current,
+              onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               // Identity via refs: anomaly telemetry only — deps would re-run this append merge.
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
@@ -9739,6 +9753,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               },
             }
           : {
+              mbaNumber: mbaNumberRef.current,
+              onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
                   buildWorkingBillingCanonicalDedupePayload({

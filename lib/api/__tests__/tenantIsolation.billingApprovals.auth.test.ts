@@ -4,7 +4,7 @@
  *   POST /api/billing-overrides/replace_line
  *   POST /api/billing-overrides/reset_line
  *   POST /api/billing-overrides/refetch-anomaly
- *   POST /api/billing-overrides/working-dedupe-anomaly
+ *   POST /api/billing-overrides/working-dedupe-anomaly (and the B20 alias reconcile kind)
  *   GET  /api/mba-line-approvals
  *   PATCH /api/mba-line-approvals
  *
@@ -384,6 +384,88 @@ test("POST working-dedupe-anomaly — client own MBA → 200; admin foreign → 
     })
   )
   assert.equal(admin.status, 200)
+})
+
+const aliasReconcileBody = {
+  kind: "working_billing_alias_reconcile",
+  versionId: 42,
+  mba: "hema001",
+  source: "merge",
+  aliasAdoptions: [
+    { mediaKey: "digiDisplay", fromId: "hema001ML4", toId: "billing-digiDisplay::hema001DD4", months: ["May 2026"] },
+  ],
+  placeholderSkips: [],
+}
+
+test("POST working-dedupe-anomaly alias reconcile (B20): client foreign MBA → 403; notify not written", { skip }, async () => {
+  dbExecuteMock.mock.resetCalls()
+  forbidAll()
+
+  const { POST } = await import(
+    "../../../app/api/billing-overrides/working-dedupe-anomaly/route.js"
+  )
+  const res = await POST(
+    new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(aliasReconcileBody),
+    })
+  )
+  assert.equal(res.status, 403)
+  assert.equal(dbExecuteMock.mock.calls.length, 0)
+})
+
+test("POST working-dedupe-anomaly alias reconcile (B20): own MBA writes the new kind; empty body 400", { skip }, async () => {
+  const prev = process.env.DATABASE_URL
+  process.env.DATABASE_URL = "postgres://test"
+  try {
+    dbExecuteMock.mock.resetCalls()
+    allowOwnMba("BICAU002")
+    const { POST } = await import(
+      "../../../app/api/billing-overrides/working-dedupe-anomaly/route.js"
+    )
+    const own = await POST(
+      new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...aliasReconcileBody, mba: "BICAU002" }),
+      })
+    )
+    assert.equal(own.status, 200)
+    assert.equal(dbExecuteMock.mock.calls.length, 1)
+    const query = (dbExecuteMock.mock.calls[0] as unknown as { arguments: unknown[] }).arguments[0]
+    const flat = JSON.stringify(query)
+    assert.match(flat, /working_billing_alias_reconcile/)
+    assert.doesNotMatch(flat, /working_billing_canonical_dedupe/)
+    assert.match(flat, /hema001ML4/)
+
+    const empty = await POST(
+      new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...aliasReconcileBody, mba: "BICAU002", aliasAdoptions: [] }),
+      })
+    )
+    assert.equal(empty.status, 400)
+    assert.equal(dbExecuteMock.mock.calls.length, 1)
+
+    // The dedupe body still writes its own kind.
+    const dedupe = await POST(
+      new NextRequest("http://localhost/api/billing-overrides/working-dedupe-anomaly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...workingDedupeBody, mba: "BICAU002" }),
+      })
+    )
+    assert.equal(dedupe.status, 200)
+    assert.match(
+      JSON.stringify((dbExecuteMock.mock.calls[1] as unknown as { arguments: unknown[] }).arguments[0]),
+      /working_billing_canonical_dedupe/
+    )
+  } finally {
+    if (prev === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = prev
+  }
 })
 
 test("GET /api/mba-line-approvals — client foreign MBA → 403; read not called", { skip }, async () => {
