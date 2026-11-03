@@ -38,3 +38,10 @@ test("fallback order: working billing with line rows, then auto billing months (
   const lines = page.slice(page.indexOf("function getPartialMbaLineItemMonths"), page.indexOf("function recomputePartialMBAFromLineItems"))
   assert.match(lines, /if \(billingFallback\) return deepCloneBillingMonths\(billingFallback\)\n\s+const base = autoDeliveryMonths/)
 })
+
+test("guard shows in the MBA billing window and as one line on the save rail", () => {
+  assert.match(page, /partialMbaBillingGuardOn && isPartialMBA && allChannelsHydrated\n\s+\? computePartialMbaBillingVsDelivery\(\{/)
+  assert.match(page, /<PartialMbaBillingGuardNotice\n\s+result=\{partialMbaBillingGuard\}/)
+  assert.match(page, /partialMbaBillingGuard \? describePartialMbaGuardRail\(partialMbaBillingGuard\) : null,/)
+  assert.match(page, /\.filter\(Boolean\)\n\s+\.join\(" "\) \|\| null/)
+})

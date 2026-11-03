@@ -135,6 +135,11 @@ import {
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
 import { PartialMbaUnmatchedNotice } from "@/components/billing/PartialMbaUnmatchedNotice"
+import { PartialMbaBillingGuardNotice } from "@/components/billing/PartialMbaBillingGuardNotice"
+import {
+  computePartialMbaBillingVsDelivery,
+  describePartialMbaGuardRail,
+} from "@/lib/mediaplan/partialMbaBillingVsDelivery"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   reportWorkingBillingAliasReconcile,
@@ -5858,6 +5863,24 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // B21 (M8, Q11): partial MBA fee and fallback months on the billing basis, and
   // the billing vs delivery guard. Off: as before.
   const partialMbaBillingGuardOn = clientFeatureOn("partial_mba_billing_guard")
+  const partialMbaBillingGuard = useMemo(
+    () =>
+      partialMbaBillingGuardOn && isPartialMBA && allChannelsHydrated
+        ? computePartialMbaBillingVsDelivery({
+            perLine: campaignFinancials.perLine,
+            selectedMonthYears: partialMBAMonthYears,
+            laterAddedMediaKeys: legacyPartialLaterAddedKeys,
+          })
+        : null,
+    [
+      partialMbaBillingGuardOn,
+      isPartialMBA,
+      allChannelsHydrated,
+      campaignFinancials.perLine,
+      partialMBAMonthYears,
+      legacyPartialLaterAddedKeys,
+    ]
+  )
   const billingAliasGhostPairs = useMemo(
     () => (billingGhostGuardOn ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber) : []),
     [billingGhostGuardOn, workingBillingMonths, mbaNumber]
@@ -10248,12 +10271,20 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           ? `v${publishedPointerNumber}`
           : null
       }
-      saveScopeNote={describePartialMbaPublishRail({
-        isPartial: isPartialMBA,
-        inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
-          .length,
-        totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
-      })}
+      saveScopeNote={
+        [
+          describePartialMbaPublishRail({
+            isPartial: isPartialMBA,
+            inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
+              .length,
+            totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
+          }),
+          // B21 (Q13): one line on the rail when the partial MBA guard has findings.
+          partialMbaBillingGuard ? describePartialMbaGuardRail(partialMbaBillingGuard) : null,
+        ]
+          .filter(Boolean)
+          .join(" ") || null
+      }
       isSaving={isSaving}
     />
   )
@@ -11916,10 +11947,18 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         overridesLoadNotice={billingOverridesLoadNotice}
         aliasDuplicateNotice={billingAliasDuplicateNotice("modal")}
         scopeNotice={
-          isPartialMBA && legacyPartialUnresolved.length > 0 ? (
-            <PartialMbaUnmatchedNotice
-              message={describeLegacyPartialUnresolved(legacyPartialUnresolved, mediaLabelByBillingKey)}
-            />
+          isPartialMBA && (legacyPartialUnresolved.length > 0 || partialMbaBillingGuard) ? (
+            <div className="space-y-2">
+              {legacyPartialUnresolved.length > 0 ? (
+                <PartialMbaUnmatchedNotice
+                  message={describeLegacyPartialUnresolved(legacyPartialUnresolved, mediaLabelByBillingKey)}
+                />
+              ) : null}
+              <PartialMbaBillingGuardNotice
+                result={partialMbaBillingGuard}
+                mediaLabelByKey={mediaLabelByBillingKey}
+              />
+            </div>
           ) : null
         }
         pendingOverrideRows={pendingBillingOverrideRows}

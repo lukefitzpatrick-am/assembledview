@@ -704,7 +704,8 @@ describe("Partial MBA publish rail", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     assert.match(editSrc, /describePartialMbaPublishRail/)
-    assert.match(editSrc, /saveScopeNote=\{describePartialMbaPublishRail/)
+    // B21: the scope note leads; the partial MBA guard can add one sentence after it.
+    assert.match(editSrc, /saveScopeNote=\{\n\s+\[\n\s+describePartialMbaPublishRail\(\{/)
     // B2a fix 3 (Luke, 2 Nov): partial MBAs are chosen on edit after the first save.
     assert.match(createSrc, /saveScopeNote=\{null\}/)
   })
