@@ -19,3 +19,15 @@ create or replace TABLE FIXED_COST_LINE_ITEM_FACT (
 	primary key (LINE_ITEM_ID)
 )COMMENT='Per-line-item fixed cost summary. WAS_EVER_FIXED_COST is sticky once true.'
 ;
+
+-- B23. Apply before the B23 SP_REFRESH_FIXED_COST_REPORTED_DAILY (its line
+-- fact MERGE names both). Written on backfill CALLs only: the report basis
+-- ('net_melbourne' or null) and the fixed cost from date the line was last
+-- backfilled with. SP_REFRESH_FIXED_COST_NIGHTLY backfills a line once when
+-- either differs from the snapshot.
+-- Run file: sql/snowflake/mart/migrations/2026-11-03_B23_fixed_cost_from_ACCOUNTADMIN.sql
+ALTER TABLE ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT
+  ADD COLUMN IF NOT EXISTS FIXED_COST_FROM_APPLIED DATE;
+
+ALTER TABLE ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT
+  ADD COLUMN IF NOT EXISTS REPORT_BASIS_APPLIED VARCHAR;

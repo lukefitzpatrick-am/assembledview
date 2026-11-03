@@ -1,5 +1,23 @@
 -- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY
--- Rev 2026-09-16. Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
+-- Rev 2026-11-03 (B23). Signature unchanged (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
+-- B23 adds, per line, only when the snapshot carries FIXED_COST_BURSTS_JSON
+-- (the fixed_cost_report_net switch; null = the 2026-09-16 behaviour exactly):
+--   * net media per burst (FC4) and Melbourne burst days, both from the app;
+--   * FIXED_COST_FROM (FC2): reported rows only from that day. A burst cut by
+--     the date reports its net media minus the actual spend before the date,
+--     floored at 0 (FC6), over the days from the date. Expected deliverables
+--     for the cut part are the plan minus those delivered before the date;
+--   * package is time based, like fixed_cost (P14);
+--   * in backfill mode, deletes this line's non-assumed rows outside the days
+--     it reports (before the date, or outside a burst) and burst facts for
+--     bursts it no longer reports; burst and line facts sum the reported days;
+--   * the line fact records the basis and date it was last backfilled with
+--     (REPORT_BASIS_APPLIED, FIXED_COST_FROM_APPLIED) so the nightly wrapper
+--     backfills a line once when either changes.
+-- B23 also, for every line (not switch gated): a line whose latest snapshot is
+-- no longer fixed cost media (and not assumed spend) gets
+-- IS_CURRENTLY_FIXED_COST = FALSE on its line fact.
+-- Needs the B23 ALTERs on XANO_LINE_ITEMS_SNAPSHOT and FIXED_COST_LINE_ITEM_FACT.
 -- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_* and digi_* route to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
 -- ASSUME_SPEND lines are written by SP_REFRESH_ASSUMED_SPEND_DAILY (cents / 100, CAP_APPLIED assumed_spend).
 -- A filtered CALL delegates that one line. The unfiltered window skips them.
@@ -93,11 +111,234 @@ function daysBetween(startStr, endStr) {
     return Math.round((e - s) / 86400000) + 1;
 }
 
+// ---------- B23 helpers (used only when FIXED_COST_BURSTS_JSON is present) ----------
+
+const NET_BASIS = ''net_melbourne'';
+const ESTIMATE_SOURCE_TABLES = [
+    ''media_plan_digi_display'', ''media_plan_digi_video'',
+    ''media_plan_digi_audio'', ''media_plan_digi_bvod''
+];
+
+function isPackageBuyType(buyType) {
+    return (buyType || '''').trim().toLowerCase() === ''package'';
+}
+
+function isIsoDay(s) {
+    return typeof s === ''string'' && /^\\d{4}-\\d{2}-\\d{2}$/.test(s);
+}
+
+// Half up, away from zero, at cents (lib/money toCents).
+function toCents(dollars) {
+    if (!Number.isFinite(dollars)) return 0;
+    const sign = dollars < 0 ? -1 : 1;
+    const scaled = Math.abs(dollars) * 100;
+    const cents = Math.round(scaled + Math.max(scaled, 1) * Number.EPSILON);
+    const out = sign * cents;
+    return out === 0 ? 0 : out;
+}
+
+function round2(dollars) {
+    return toCents(dollars) / 100;
+}
+
+function parseNetBursts(raw) {
+    let value = raw;
+    if (value == null) return null;
+    if (typeof value === ''string'') {
+        try { value = JSON.parse(value); } catch (e) { return null; }
+    }
+    if (!Array.isArray(value)) return null;
+    return value.map(function(b, idx) {
+        const row = (b && typeof b === ''object'') ? b : {};
+        const cents = Number(row.netMediaCents);
+        return {
+            index: Number.isFinite(Number(row.index)) ? Number(row.index) : idx,
+            startDay: isIsoDay(row.startDay) ? row.startDay : null,
+            endDay: isIsoDay(row.endDay) ? row.endDay : null,
+            netMediaCents: Number.isFinite(cents) ? Math.round(cents) : 0
+        };
+    });
+}
+
+// Net media and Melbourne days from the app (FC4). Burst order is the stored order.
+function applyNetBasis(bursts, netBursts) {
+    const byIndex = {};
+    for (const nb of netBursts) byIndex[nb.index] = nb;
+    return bursts.map(function(b) {
+        const nb = byIndex[b.index];
+        if (!nb) return b;
+        const startDate = nb.startDay || b.startDate;
+        const endDate = nb.endDay || b.endDate;
+        return Object.assign({}, b, {
+            startDate: startDate,
+            endDate: endDate,
+            budget: nb.netMediaCents / 100,
+            netMediaCents: nb.netMediaCents,
+            durationDays: daysBetween(startDate, endDate)
+        });
+    });
+}
+
+// CM360 estimate units, as estimateDirectDigitalSpend reads them.
+function estimateUnitColumn(buyType) {
+    const bt = (buyType || '''').trim().toLowerCase();
+    if (bt === ''cpc'' || bt === ''cpa'' || bt === ''cpl'') return ''CLICKS'';
+    if (bt === ''cpv'') return ''VIDEO_3S_VIEWS'';
+    return ''IMPRESSIONS'';
+}
+
+// The CM360 direct digital estimate before the date, by day, as the
+// dashboard shows it when the line is not fixed cost
+// (estimateDirectDigitalSpend, deriveSpendFromPlanRate): rate = planned net
+// media / planned deliverables over the whole line, each day rounded to
+// cents and capped cumulatively at the planned media. fixed_cost and
+// package lines are not estimated (0).
+function cm360EstimateBeforeDay(lineItemId, buyType, bursts, beforeDay) {
+    const bt = (buyType || '''').trim().toLowerCase();
+    if (bt === ''fixed_cost'' || bt === ''package'') return {};
+    let plannedTotal = 0;
+    let plannedDeliverables = 0;
+    for (const b of bursts) {
+        plannedTotal += b.budget;
+        plannedDeliverables += b.calculatedValue;
+    }
+    const rate = plannedDeliverables > 0 ? plannedTotal / plannedDeliverables : 0;
+    let remaining = round2(plannedTotal);
+    if (!(rate > 0) || !(remaining > 0)) return {};
+    const unitCol = estimateUnitColumn(buyType);
+    const rs = snowflake.createStatement({
+        sqlText: `
+            SELECT DATE_DAY, SUM(${unitCol}) AS UNITS
+            FROM ASSEMBLEDVIEW.MART.PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+            AND DATE_DAY < ?
+            GROUP BY DATE_DAY
+            ORDER BY DATE_DAY
+        `,
+        binds: [lineItemId, beforeDay]
+    }).execute();
+    const out = {};
+    while (rs.next()) {
+        const d = rs.getColumnValue(1);
+        const day = (d instanceof Date) ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+        const units = parseFloat(rs.getColumnValue(2) || 0) || 0;
+        if (remaining <= 0) { out[day] = 0; continue; }
+        const derived = round2(Math.min(units * rate, remaining));
+        remaining = round2(remaining - derived);
+        out[day] = derived;
+    }
+    return out;
+}
+
+function sumDaysBefore(byDate, fromDay, startDay, field) {
+    let sum = 0;
+    for (const day of Object.keys(byDate)) {
+        if (day < startDay || day >= fromDay) continue;
+        const v = (field == null) ? byDate[day] : byDate[day][field];
+        sum += Number(v) || 0;
+    }
+    return sum;
+}
+
+// The part of a burst that reports fixed cost from FIXED_COST_FROM.
+//   null   the burst ends before the date: nothing reported.
+//   whole  the burst starts on or after the date: the full burst, as before.
+//   cut    the date falls inside: from the date, the net media minus the
+//          actual spend before it, floored at 0 (FC6), and the plan
+//          deliverables minus those delivered before it.
+function fixedCostPortion(burst, fromDay, deliveryByDate, preEstimateByDate) {
+    if (!fromDay || fromDay <= burst.startDate) return { kind: ''whole'', burst: burst, preActual: 0 };
+    if (fromDay > burst.endDate) return null;
+    const preActual = preEstimateByDate
+        ? sumDaysBefore(preEstimateByDate, fromDay, burst.startDate, null)
+        : sumDaysBefore(deliveryByDate, fromDay, burst.startDate, ''actualSpend'');
+    const preDelivered = sumDaysBefore(deliveryByDate, fromDay, burst.startDate, ''actualDeliverables'');
+    const netCents = Number.isFinite(burst.netMediaCents) ? burst.netMediaCents : toCents(burst.budget);
+    const remainderCents = Math.max(0, netCents - toCents(preActual));
+    return {
+        kind: ''cut'',
+        preActual: preActual,
+        remainderCents: remainderCents,
+        burst: Object.assign({}, burst, {
+            startDate: fromDay,
+            budget: remainderCents / 100,
+            netMediaCents: remainderCents,
+            durationDays: daysBetween(fromDay, burst.endDate),
+            calculatedValue: Math.max(0, burst.calculatedValue - preDelivered)
+        })
+    };
+}
+
+function deliveryFromDay(deliveryByDate, fromDay) {
+    const out = {};
+    for (const day of Object.keys(deliveryByDate)) {
+        if (day >= fromDay) out[day] = deliveryByDate[day];
+    }
+    return out;
+}
+
+// Backfill only: rows and burst facts outside what this line now reports.
+function deleteRowsOutsideReported(lineItemId, keptWindows) {
+    let sql = `
+        DELETE FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT
+        WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+          AND COALESCE(CAP_APPLIED, '''') <> ''assumed_spend''
+    `;
+    const binds = [lineItemId];
+    if (keptWindows.length > 0) {
+        const parts = keptWindows.map(function() { return ''(BURST_INDEX = ? AND DATE_DAY BETWEEN ? AND ?)''; });
+        sql += '' AND NOT ('' + parts.join('' OR '') + '')'';
+        for (const w of keptWindows) binds.push(w.index, w.startDate, w.endDate);
+    }
+    snowflake.createStatement({ sqlText: sql, binds: binds }).execute();
+
+    let burstSql = `
+        DELETE FROM ASSEMBLEDVIEW.MART.FIXED_COST_BURST_FACT
+        WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+    `;
+    const burstBinds = [lineItemId];
+    if (keptWindows.length > 0) {
+        burstSql += '' AND BURST_INDEX NOT IN ('' + keptWindows.map(function() { return ''?''; }).join('', '') + '')'';
+        for (const w of keptWindows) burstBinds.push(w.index);
+    }
+    snowflake.createStatement({ sqlText: burstSql, binds: burstBinds }).execute();
+}
+
+// A line switched off fixed cost no longer lists as current (discovery 3.7).
+function clearStaleCurrentlyFixedCost() {
+    let sql = `
+        UPDATE ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT f
+        SET IS_CURRENTLY_FIXED_COST = FALSE,
+            LAST_CALCULATED_AT = CURRENT_TIMESTAMP()
+        WHERE COALESCE(f.IS_CURRENTLY_FIXED_COST, FALSE) = TRUE
+          AND EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+            WHERE LOWER(s.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+              AND COALESCE(s.FIXED_COST_MEDIA, FALSE) = FALSE
+              AND COALESCE(s.ASSUME_SPEND, FALSE) = FALSE
+              AND s.SYNCED_AT = (
+                SELECT MAX(s2.SYNCED_AT)
+                FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s2
+                WHERE LOWER(s2.LINE_ITEM_ID) = LOWER(s.LINE_ITEM_ID)
+              )
+          )
+    `;
+    const binds = [];
+    if (lineItemIdFilter) {
+        sql += ` AND LOWER(f.LINE_ITEM_ID) = LOWER(?)`;
+        binds.push(lineItemIdFilter);
+    }
+    const rs = snowflake.createStatement({ sqlText: sql, binds: binds }).execute();
+    return (rs && rs.next()) ? (Number(rs.getColumnValue(1)) || 0) : 0;
+}
+
 function fetchLineItems() {
     let sql = `
         SELECT 
             LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME,
-            BUY_TYPE, FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, ASSUME_SPEND
+            BUY_TYPE, FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, ASSUME_SPEND,
+            TO_VARCHAR(FIXED_COST_FROM, ''YYYY-MM-DD'') AS FIXED_COST_FROM,
+            FIXED_COST_BURSTS_JSON
         FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
         WHERE (
             FIXED_COST_MEDIA = TRUE
@@ -123,7 +364,9 @@ function fetchLineItems() {
             fixedCostMedia: rs.getColumnValue(5),
             burstsJson: rs.getColumnValue(6),
             sourceTable: rs.getColumnValue(7),
-            assumeSpend: rs.getColumnValue(8) === true
+            assumeSpend: rs.getColumnValue(8) === true,
+            fixedCostFrom: rs.getColumnValue(9),
+            fixedCostBurstsJson: rs.getColumnValue(10)
         });
     }
     return items;
@@ -292,8 +535,8 @@ function fetchDeliveryForBurst(lineItemId, sourceTable, buyType, burstStart, bur
     return byDate;
 }
 
-function computeBurstReportedSpends(burst, deliveryByDate, buyType) {
-    const fixedCost = isFixedCostBuyType(buyType);
+function computeBurstReportedSpends(burst, deliveryByDate, buyType, timeBasedOverride) {
+    const fixedCost = (timeBasedOverride === true) ? true : isFixedCostBuyType(buyType);
     const evenDailyRate = safeDiv(burst.budget, burst.durationDays);
 
     // ---------- fixed_cost branch: date-based linear smoothing ----------
@@ -575,8 +818,8 @@ const BURST_FACT_MERGE_SQL = `
     )
 `;
 
-function upsertBurstFact(lineItemId, burst, dailyData, today, buyType) {
-    const fixedCost = isFixedCostBuyType(buyType);
+function upsertBurstFact(lineItemId, burst, dailyData, today, buyType, timeBasedOverride) {
+    const fixedCost = (timeBasedOverride === true) ? true : isFixedCostBuyType(buyType);
 
     const burstReported = Object.values(dailyData)
         .reduce(function(s, r) { return s + r.reportedSpend; }, 0);
@@ -634,7 +877,10 @@ const LINE_ITEM_FACT_MERGE_SQL = `
         ?::DECIMAL(18,4) AS LINE_ITEM_VARIANCE,
         ?::NUMBER AS BURST_COUNT,
         ?::NUMBER AS BURSTS_DELIVERED_OVER,
-        ?::NUMBER AS BURSTS_DELIVERED_UNDER
+        ?::NUMBER AS BURSTS_DELIVERED_UNDER,
+        ?::NUMBER::BOOLEAN AS IS_BACKFILL,
+        ?::DATE AS FIXED_COST_FROM_APPLIED,
+        ?::VARCHAR AS REPORT_BASIS_APPLIED
     ) s
     ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
     WHEN MATCHED THEN UPDATE SET
@@ -649,24 +895,28 @@ const LINE_ITEM_FACT_MERGE_SQL = `
         BURST_COUNT = s.BURST_COUNT,
         BURSTS_DELIVERED_OVER = s.BURSTS_DELIVERED_OVER,
         BURSTS_DELIVERED_UNDER = s.BURSTS_DELIVERED_UNDER,
+        FIXED_COST_FROM_APPLIED = IFF(s.IS_BACKFILL, s.FIXED_COST_FROM_APPLIED, t.FIXED_COST_FROM_APPLIED),
+        REPORT_BASIS_APPLIED = IFF(s.IS_BACKFILL, s.REPORT_BASIS_APPLIED, t.REPORT_BASIS_APPLIED),
         LAST_CALCULATED_AT = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
         LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME,
         IS_CURRENTLY_FIXED_COST, WAS_EVER_FIXED_COST,
         LINE_ITEM_TOTAL_BUDGET, LINE_ITEM_TOTAL_REPORTED, LINE_ITEM_TOTAL_ACTUAL, LINE_ITEM_VARIANCE,
         BURST_COUNT, BURSTS_DELIVERED_OVER, BURSTS_DELIVERED_UNDER,
+        FIXED_COST_FROM_APPLIED, REPORT_BASIS_APPLIED,
         LAST_CALCULATED_AT
     ) VALUES (
         s.LINE_ITEM_ID, s.MBA_NUMBER, s.LINE_ITEM_NAME,
         s.IS_CURRENTLY_FIXED_COST, s.IS_CURRENTLY_FIXED_COST,
         s.LINE_ITEM_TOTAL_BUDGET, s.LINE_ITEM_TOTAL_REPORTED, s.LINE_ITEM_TOTAL_ACTUAL, s.LINE_ITEM_VARIANCE,
         s.BURST_COUNT, s.BURSTS_DELIVERED_OVER, s.BURSTS_DELIVERED_UNDER,
+        IFF(s.IS_BACKFILL, s.FIXED_COST_FROM_APPLIED, NULL), IFF(s.IS_BACKFILL, s.REPORT_BASIS_APPLIED, NULL),
         CURRENT_TIMESTAMP()
     )
 `;
 
-function upsertLineItemFact(lineItem, allBurstData, today) {
-    const fixedCost = isFixedCostBuyType(lineItem.buyType);
+function upsertLineItemFact(lineItem, allBurstData, today, applied) {
+    const fixedCost = (applied && applied.timeBased === true) ? true : isFixedCostBuyType(lineItem.buyType);
 
     let totalBudget = 0;
     let totalReported = 0;
@@ -697,7 +947,10 @@ function upsertLineItemFact(lineItem, allBurstData, today) {
             lineItem.lineItemId, lineItem.mbaNumber, lineItem.lineItemName,
             lineItem.fixedCostMedia ? 1 : 0,
             totalBudget, totalReported, totalActual, totalReported - totalActual,
-            burstIndices.length, burstsOver, burstsUnder
+            burstIndices.length, burstsOver, burstsUnder,
+            backfillMode ? 1 : 0,
+            (applied && applied.fromDay) ? applied.fromDay : null,
+            (applied && applied.basis) ? applied.basis : null
         ]
     });
     stmt.execute();
@@ -709,6 +962,7 @@ function upsertLineItemFact(lineItem, allBurstData, today) {
 
 const today = new Date().toISOString().slice(0, 10);
 deleteStaleAssumedSpendRows();
+const staleFlagsCleared = clearStaleCurrentlyFixedCost();
 const lineItems = fetchLineItems();
 const result = {
     line_items_processed: 0,
@@ -719,7 +973,10 @@ const result = {
     errors: [],
     backfill_mode: backfillMode,
     line_item_filter: lineItemIdFilter,
-    today: today
+    today: today,
+    stale_fixed_cost_flags_cleared: staleFlagsCleared,
+    net_basis_lines: 0,
+    fixed_cost_from_lines: 0
 };
 
 for (const li of lineItems) {
@@ -736,26 +993,56 @@ for (const li of lineItems) {
             }
             continue;
         }
-        const fixedCost = isFixedCostBuyType(li.buyType);
-        const bursts = parseBursts(li.burstsJson);
+        // B23: the net basis, Melbourne days and the date apply only when the
+        // snapshot carries FIXED_COST_BURSTS_JSON (fixed_cost_report_net on).
+        const netBursts = parseNetBursts(li.fixedCostBurstsJson);
+        const netMode = netBursts !== null;
+        const fromDay = (netMode && isIsoDay(li.fixedCostFrom)) ? li.fixedCostFrom : null;
+        const lineTimeBased = isFixedCostBuyType(li.buyType) || (netMode && isPackageBuyType(li.buyType));
+        const parsedBursts = parseBursts(li.burstsJson);
+        const bursts = netMode ? applyNetBasis(parsedBursts, netBursts) : parsedBursts;
+        if (netMode) result.net_basis_lines += 1;
+        if (fromDay) result.fixed_cost_from_lines += 1;
+        // CM360 direct digital lines: the actual before the date is the app estimate.
+        let preEstimate = null;
+        if (fromDay && ESTIMATE_SOURCE_TABLES.indexOf(li.sourceTable) >= 0) {
+            preEstimate = cm360EstimateBeforeDay(li.lineItemId, li.buyType, bursts, fromDay);
+        }
         const allBurstData = {};
         const dailyRowsForLineItem = [];
+        const keptWindows = [];
 
-        for (const burst of bursts) {
+        for (const fullBurst of bursts) {
             let dailyData;
+            let burst = fullBurst;
+            let burstTimeBased = lineTimeBased;
             if (assumeSpend) {
                 dailyData = assumedSpendDailyData(burst);
             } else {
                 const delivery = fetchDeliveryForBurst(
                     li.lineItemId, li.sourceTable, li.buyType,
-                    burst.startDate, burst.endDate
+                    fullBurst.startDate, fullBurst.endDate
                 );
-                dailyData = computeBurstReportedSpends(burst, delivery, li.buyType);
+                if (fromDay) {
+                    const portion = fixedCostPortion(fullBurst, fromDay, delivery, preEstimate);
+                    if (!portion) continue;  // the burst ends before the date: actuals only
+                    burst = portion.burst;
+                    // Plan deliverables already met before the date: the rest is time based.
+                    if (portion.kind === ''cut'' && !burstTimeBased && !(burst.calculatedValue > 0)) {
+                        burstTimeBased = true;
+                    }
+                    dailyData = computeBurstReportedSpends(
+                        burst, deliveryFromDay(delivery, burst.startDate), li.buyType, burstTimeBased
+                    );
+                } else {
+                    dailyData = computeBurstReportedSpends(burst, delivery, li.buyType, lineTimeBased);
+                }
             }
-            allBurstData[burst.index] = { burst: burst, dailyData: dailyData };
+            allBurstData[burst.index] = { burst: burst, dailyData: dailyData, timeBased: burstTimeBased };
+            keptWindows.push({ index: burst.index, startDate: burst.startDate, endDate: burst.endDate });
 
             // For fixed_cost and assumed spend, expectedDailyDeliverables is meaningless → 0
-            const expectedDaily = (assumeSpend || fixedCost) ? 0 : safeDiv(burst.calculatedValue, burst.durationDays);
+            const expectedDaily = (assumeSpend || burstTimeBased) ? 0 : safeDiv(burst.calculatedValue, burst.durationDays);
 
             for (const [day, data] of Object.entries(dailyData)) {
                 const locked = isLockedDay(day, today, backfillMode);
@@ -782,6 +1069,10 @@ for (const li of lineItems) {
             }
         }
 
+        if (netMode && backfillMode) {
+            deleteRowsOutsideReported(li.lineItemId, keptWindows);
+        }
+
         if (dailyRowsForLineItem.length > 0) {
             const upserted = batchUpsertDailyFacts(dailyRowsForLineItem);
             result.daily_rows_upserted += upserted;
@@ -789,12 +1080,16 @@ for (const li of lineItems) {
         }
 
         for (const idx of Object.keys(allBurstData)) {
-            const { burst, dailyData } = allBurstData[idx];
-            upsertBurstFact(li.lineItemId, burst, dailyData, today, li.buyType);
+            const { burst, dailyData, timeBased } = allBurstData[idx];
+            upsertBurstFact(li.lineItemId, burst, dailyData, today, li.buyType, timeBased);
             result.burst_rows_upserted += 1;
         }
 
-        upsertLineItemFact(li, allBurstData, today);
+        upsertLineItemFact(li, allBurstData, today, {
+            timeBased: lineTimeBased,
+            fromDay: fromDay,
+            basis: netMode ? NET_BASIS : null
+        });
         result.line_items_processed += 1;
     } catch (err) {
         result.line_items_errored += 1;

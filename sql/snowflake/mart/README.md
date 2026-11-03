@@ -27,6 +27,10 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
                                   reads XANO_LINE_ITEMS_SNAPSHOT (WHERE FIXED_COST_MEDIA = TRUE)
                                   delivery from SEARCH/SOCIAL/PACING_FACT
                                   (partner-file CPV uses VIDEO_3S_VIEWS dual-write from the view)
+                                  B23: FIXED_COST_BURSTS_JSON (net media, Melbourne days) and
+                                  FIXED_COST_FROM (rows only from that day) when the app sends them;
+                                  SP_REFRESH_FIXED_COST_NIGHTLY backfills a line once when its
+                                  basis or date changes (REPORT_BASIS_APPLIED, FIXED_COST_FROM_APPLIED)
 ```
 
 ## App read paths
