@@ -114,6 +114,8 @@ export const lineItems = pgTable(
   platform: text('platform'),
   bidStrategy: text('bid_strategy'),
   fixedCostMedia: boolean('fixed_cost_media'),
+  /** 0115: fixed cost from this Melbourne date (only read when fixedCostMedia). Null: the whole flight. */
+  fixedCostFrom: date('fixed_cost_from'),
   clientPaysForMedia: boolean('client_pays_for_media'),
   budgetIncludesFees: boolean('budget_includes_fees'),
   noAdserving: boolean('no_adserving'),

@@ -169,6 +169,13 @@
       "when": 1793671480955,
       "tag": "0023_publishers_unique_ci",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793676299423,
+      "tag": "0024_line_items_fixed_cost_from",
+      "breakpoints": true
     }
   ]
 }
