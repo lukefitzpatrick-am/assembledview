@@ -61,6 +61,8 @@ import {
 import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import type { DeliveryFlags } from "@/lib/delivery/deliveryFlags"
 import type { PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
+import { mergedSpendInWindow } from "@/lib/delivery/programmatic/applyReportedSpend"
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -314,6 +316,8 @@ function applyDirectDigitalEstimates(
   fixedCostIds: ReadonlySet<string>,
   feePctsByVersionId: FeePctsByVersionId,
   packageOptions?: PackageUnitTargetOptions,
+  /** B23: dated fixed-cost lines whose estimate days are kept for the per-day merge. */
+  captureDays?: Map<string, Map<string, number>>,
 ): Set<string> {
   const estimatedIds = new Set<string>()
   const daysByLine = new Map<string, PacingRow[]>()
@@ -347,6 +351,9 @@ function applyDirectDigitalEstimates(
         days,
         ...(packageOptions?.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
       })
+      if (captureDays?.has(id)) {
+        captureDays.set(id, new Map(estimate.days.map((day) => [day.date, day.derivedSpend])))
+      }
       const cur = deliveredById.get(id) ?? emptyMetrics()
       if (estimate.amount == null) {
         cur.spendToDate = 0
@@ -416,6 +423,8 @@ function applyModelledProgrammaticSpend(
   rows: readonly PacingRow[],
   windowStart: string | undefined,
   windowEnd: string | undefined,
+  /** B23: dated fixed-cost lines whose modelled days are kept for the per-day merge. */
+  captureDays?: Map<string, Map<string, number>>,
 ): Set<string> {
   const ids = new Set<string>()
   if (modelled.length === 0) return ids
@@ -445,6 +454,7 @@ function applyModelledProgrammaticSpend(
       bursts,
       days: [...byDate.values()],
     })
+    if (captureDays?.has(plan.id)) captureDays.set(plan.id, new Map(spendByDate))
     let cents = 0
     for (const [date, dollars] of spendByDate) {
       if (windowStart && date < windowStart) continue
@@ -621,6 +631,36 @@ function collectFixedCostLineIds(
     if (id) ids.add(id)
   }
   return [...ids]
+}
+
+/** B23 FC2: dated fixed-cost lines on any channel (switch on), id to fixed cost from day. */
+function collectDatedFixedCostLines(
+  byChannel: Record<string, MediaContainerLineItem[]>,
+  switchOn: boolean,
+): Map<string, string> {
+  const out = new Map<string, string>()
+  if (!switchOn) return out
+  for (const items of Object.values(byChannel)) {
+    for (const item of items ?? []) {
+      const fromDay = effectiveFixedCostFrom(item as Record<string, unknown>, true)
+      if (!fromDay) continue
+      const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
+      if (id) out.set(id, fromDay)
+    }
+  }
+  return out
+}
+
+/** Actual spend per day from the window's pacing rows (platform spend). */
+function platformSpendByDate(rows: readonly PacingRow[], id: string): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const row of rows) {
+    if (cleanPacingLineItemId(row.lineItemId) !== id) continue
+    const date = (row.dateDay || "").slice(0, 10)
+    if (!date) continue
+    out.set(date, (out.get(date) ?? 0) + (row.amountSpent || 0))
+  }
+  return out
 }
 
 function overlayReportedSpendOnSnapshot(
@@ -998,7 +1038,14 @@ export async function loadDeliverySnapshot(
     input.feePctsByVersionId,
     feeVersionIds,
   )
-  const fixedCostLineIds = collectFixedCostLineIds(byChannel)
+  // B23: lines with a fixed cost from date merge per day; the rest keep the
+  // whole-line overlay exactly as before.
+  const datedFixedCost = collectDatedFixedCostLines(byChannel, deliveryFlags.fixedCostFromDate)
+  const wholeLineFixedCostIds = collectFixedCostLineIds(byChannel).filter((id) => !datedFixedCost.has(id))
+  const fixedCostLineIds =
+    datedFixedCost.size === 0
+      ? wholeLineFixedCostIds
+      : [...new Set([...wholeLineFixedCostIds, ...datedFixedCost.keys()])]
   if (allMetas.length === 0) {
     console.warn("[loadDeliverySnapshot] no plan lines resolved", {
       mba,
@@ -1055,7 +1102,7 @@ export async function loadDeliverySnapshot(
   // REP-1: modelled programmatic spend is capped from the line start, so a
   // window that starts after a line does needs that line's earlier rows.
   const modelled = input.modelProgrammaticSpend
-    ? modelledProgrammaticPlans(groups, new Set(fixedCostLineIds))
+    ? modelledProgrammaticPlans(groups, new Set(wholeLineFixedCostIds))
     : []
   let historyStart: string | undefined
   for (const m of modelled) {
@@ -1098,33 +1145,73 @@ export async function loadDeliverySnapshot(
     deliveredById.set(id, metrics)
   }
 
+  const actualDaysForDated = new Map<string, Map<string, number>>()
+  for (const id of datedFixedCost.keys()) actualDaysForDated.set(id, new Map())
   const estimatedIds = applyDirectDigitalEstimates(
     groups,
     deliveredById,
     pacingRows,
-    new Set(fixedCostLineIds),
+    new Set(wholeLineFixedCostIds),
     feePctsByVersionId,
     packageOptions,
+    datedFixedCost.size > 0 ? actualDaysForDated : undefined,
   )
-  for (const id of applyModelledProgrammaticSpend(
+  const modelledIds = applyModelledProgrammaticSpend(
     modelled,
     deliveredById,
     historyRows ?? pacingRows,
     startDate,
     endDate,
-  )) {
+    datedFixedCost.size > 0 ? actualDaysForDated : undefined,
+  )
+  for (const id of modelledIds) {
     estimatedIds.add(id)
   }
 
   let overlaySpendIds = new Set<string>()
-  if (fixedCostLineIds.length > 0 && facts.length > 0) {
+  if (wholeLineFixedCostIds.length > 0 && facts.length > 0) {
     overlaySpendIds = overlayReportedSpendOnSnapshot(
       deliveredById,
       indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
-      fixedCostLineIds,
+      wholeLineFixedCostIds,
       startDate,
       endDate,
     )
+  }
+  if (datedFixedCost.size > 0) {
+    const reportedIndex = indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts))
+    const estimateGroupIds = new Set<string>()
+    for (const group of DIRECT_DIGITAL_ESTIMATE_GROUPS) {
+      for (const id of groups.get(group)?.keys() ?? []) estimateGroupIds.add(id)
+    }
+    const modelledPlanIds = new Set(modelled.map((m) => m.plan.id))
+    const searchDaily = new Map<string, Map<string, number>>()
+    for (const series of search?.lineItems ?? []) {
+      const id = cleanPacingLineItemId(series.lineItemId)
+      if (!id || !datedFixedCost.has(id)) continue
+      searchDaily.set(id, new Map((series.daily ?? []).map((d) => [d.date, d.cost || 0])))
+    }
+    for (const [id, fromDay] of datedFixedCost) {
+      // Before the date: what the line shows when it isn't fixed cost.
+      const actualByDate =
+        estimateGroupIds.has(id) || modelledPlanIds.has(id)
+          ? (actualDaysForDated.get(id) ?? new Map<string, number>())
+          : searchDaily.get(id) ?? platformSpendByDate(pacingRows, id)
+      const merged = mergedSpendInWindow({
+        actualByDate,
+        reportedByDate: reportedIndex.get(id),
+        fromDay,
+        startDate,
+        endDate,
+      })
+      const cur = deliveredById.get(id) ?? emptyMetrics()
+      cur.spendToDate = merged.spend
+      deliveredById.set(id, cur)
+      if (merged.reportedDays > 0 && merged.spend > 0) {
+        overlaySpendIds.add(id)
+        estimatedIds.delete(id)
+      }
+    }
   }
 
   const factIds = new Set(

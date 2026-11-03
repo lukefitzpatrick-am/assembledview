@@ -17,6 +17,13 @@ export type ChannelPacingInputs = {
   estimateVersionId?: number | null
   /** Override "to date" (defaults to Melbourne yesterday, capped at campaign end). Tests pass a fixed day. */
   pacingAsAtISO?: string
+  /**
+   * B23: REPORTED_SPEND by line then day. Social sections read it only for a
+   * fixed-cost line with a fixed cost from date (switch on).
+   */
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
+  /** B23 (`fixed_cost_from_date` with `fixed_cost_report_net`). Unset reads the browser switch snapshot. */
+  fixedCostFromDate?: boolean
 }
 
 export type PaceFigures = {

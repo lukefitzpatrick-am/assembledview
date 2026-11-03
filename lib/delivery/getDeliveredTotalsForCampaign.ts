@@ -1,5 +1,6 @@
 import "server-only"
 
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
@@ -75,9 +76,11 @@ export async function getDeliveredTotalsForCampaign(
     ? (input.lineItemsMap as Record<string, unknown[]>)
     : undefined
 
+  const deliveryFlags = await readDeliveryFlags()
   const [snapshot, directGroups] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber: input.mbaNumber,
+      deliveryFlags,
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
       snowflakeLabel: "delivered-totals",
@@ -117,7 +120,9 @@ export async function getDeliveredTotalsForCampaign(
     fixedCostGroup,
     window?.startDate,
     window?.endDate,
-    programmaticLineItemIdsFromSnapshot(snapshot),
+    programmaticLineItemIdsFromSnapshot(snapshot, {
+      excludePlatformSocialAndSearch: deliveryFlags.fixedCostFromDate,
+    }),
     snapshotSpendByLineId(snapshot),
   )
   const totals = combineDeliveredTotals(

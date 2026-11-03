@@ -164,6 +164,15 @@ const OVERLAY_SPEND_SNAPSHOT_GROUPS = new Set([
   "bvod",
 ])
 
+/**
+ * B23 FC10: social and search lines delivered by a platform already carry
+ * their spend in the snapshot (platform spend, or the per-day merge for a
+ * dated fixed-cost line). A fixed-cost one is also on /pacing/direct, so the
+ * Direct leg counted it twice. With `fixed_cost_from_date` on they are
+ * excluded too. `plan_only` social (no platform) keeps its Direct spend.
+ */
+const PLATFORM_SPEND_SNAPSHOT_GROUPS = new Set(["social_meta", "social_tiktok", "social_reddit", "search"])
+
 export function programmaticLineItemIdsFromSnapshot(
   snapshot:
     | {
@@ -174,10 +183,14 @@ export function programmaticLineItemIdsFromSnapshot(
       }
     | null
     | undefined,
+  options?: { excludePlatformSocialAndSearch?: boolean },
 ): Set<string> {
   const ids = new Set<string>()
   for (const channel of snapshot?.channels ?? []) {
-    if (!OVERLAY_SPEND_SNAPSHOT_GROUPS.has(channel.group)) continue
+    const excluded =
+      OVERLAY_SPEND_SNAPSHOT_GROUPS.has(channel.group) ||
+      (options?.excludePlatformSocialAndSearch === true && PLATFORM_SPEND_SNAPSHOT_GROUPS.has(channel.group))
+    if (!excluded) continue
     for (const line of channel.lines ?? []) {
       const id = String(line.lineItemId ?? "").trim().toLowerCase()
       if (id) ids.add(id)

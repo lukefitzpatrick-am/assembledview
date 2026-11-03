@@ -29,7 +29,12 @@ import {
 } from "@/lib/dashboard/dateFilter"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 import { deriveSpendFromPlanRate } from "@/lib/delivery/deriveSpendFromPlanRate"
-import { overlayReportedSpendOnActuals } from "@/lib/delivery/programmatic/applyReportedSpend"
+import {
+  mergeReportedSpendFromDate,
+  overlayReportedSpendOnActuals,
+} from "@/lib/delivery/programmatic/applyReportedSpend"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import {
   lookupActiveDeliverySource,
   deliverySourceLookupKey,
@@ -566,7 +571,10 @@ export function buildProgrammaticLineItemMetrics(
   fallbackEnd?: string,
   urlFilter?: DateRange,
   reportedSpendByLineDate?: Map<string, Map<string, number>>,
+  options?: { fixedCostFromDate?: boolean },
 ): ProgrammaticLineItemMetrics[] {
+  // B23 FC2: unset reads the browser switch snapshot (off on the server).
+  const fixedCostFromOn = options?.fixedCostFromDate ?? deliveryFlagsFromClient().fixedCostFromDate
   return items.map((item) => {
     const bursts = item.bursts ?? parseBursts(item.bursts_json)
     const window = getLineItemWindow(bursts, fallbackStart, fallbackEnd)
@@ -627,7 +635,24 @@ export function buildProgrammaticLineItemMetrics(
     const isFixedCostMedia = item.fixedCostMedia === true || item.fixed_cost_media === true
     let spendModelledFromPlanRate = item.deliverySourceMap?.derive_spend_from_plan === true
     let spendFromFixedCostReport = false
-    if (isFixedCostMedia) {
+    const fixedCostFrom = effectiveFixedCostFrom(item as Record<string, unknown>, fixedCostFromOn)
+    if (isFixedCostMedia && fixedCostFrom) {
+      // B23: actual (or modelled) before the date, reported from it.
+      if (spendModelledFromPlanRate) {
+        const spendByDate = modelledProgrammaticSpendByDate({
+          lineItemId: targetId ?? String(item.line_item_id ?? ""),
+          buyType: item.buy_type,
+          bursts,
+          days: actualsDaily,
+        })
+        for (const day of actualsDaily) {
+          day.spend = spendByDate.get(day.date) ?? 0
+        }
+      }
+      mergeReportedSpendFromDate(actualsDaily, reportedSpendByLineDate?.get(targetId ?? ""), fixedCostFrom)
+      spendFromFixedCostReport = true
+      spendModelledFromPlanRate = false
+    } else if (isFixedCostMedia) {
       overlayReportedSpendOnActuals(
         actualsDaily,
         reportedSpendByLineDate?.get(targetId ?? ""),

@@ -1,5 +1,7 @@
 import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { mergedDailyFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
@@ -424,6 +426,8 @@ export function buildDirectDigitalChannelSection(input: {
   pacingAsAtISO?: string
   /** P14 (`expert_package_quantity`). Unset reads the browser switch snapshot. */
   packageNoUnitTarget?: boolean
+  /** B23 (`fixed_cost_from_date` with `fixed_cost_report_net`). Unset reads the browser switch snapshot. */
+  fixedCostFromDate?: boolean
 }): ChannelSectionData | null {
   const {
     key,
@@ -446,6 +450,7 @@ export function buildDirectDigitalChannelSection(input: {
   const packageOptions: PackageUnitTargetOptions = {
     packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
   }
+  const fixedCostFromOn = input.fixedCostFromDate ?? deliveryFlagsFromClient().fixedCostFromDate
   // Pacing compares delivered with what was expected for the selected window
   // (to date = Melbourne yesterday; a date filter narrows it). Charts keep running to today.
   const pacingAsAt = input.pacingAsAtISO ?? asOfDate ?? pacingAsAtISO(campaignEnd)
@@ -535,8 +540,11 @@ export function buildDirectDigitalChannelSection(input: {
     )
     const booked = bookedDeliverables(item, packageOptions)
     const spendPlanned = bookedSpend(item)
-    const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
-    const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
+    // B23 FC2: a dated fixed-cost line shows the estimate before the date and
+    // reported spend from it (one merged daily series, labelled reported).
+    const fixedCostFrom = effectiveFixedCostFrom(item as Record<string, unknown>, fixedCostFromOn)
+    let reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
+    let hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
     const versionId = versionIdFromLine(item) ?? positiveVersionId(estimateVersionId)
     const feeChannel =
       key === "digital-display" ||
@@ -545,25 +553,35 @@ export function buildDirectDigitalChannelSection(input: {
       key === "bvod"
         ? key
         : null
-    const estimate = hasReportedEntries
-      ? null
-      : estimateDirectDigitalSpend({
-          lineItemId: id,
-          buyType: item.buy_type,
-          fixedCost: isFixedCostMedia(item),
-          budgetIncludesFees: item.budget_includes_fees === true,
-          feePct: feePctFromVersionMap(feePctsByVersionId, versionId, feeChannel),
-          versionId,
-          bursts: item.bursts_json ?? item.bursts,
-          ...(packageOptions.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
-          days: daily.map((d) => ({
-            date: d.date,
-            impressions: d.impressions,
-            clicks: d.clicks,
-            results: d.results,
-            video3sViews: d.videoCompletes,
-          })),
-        })
+    const estimateInput = {
+      lineItemId: id,
+      buyType: item.buy_type,
+      fixedCost: isFixedCostMedia(item),
+      budgetIncludesFees: item.budget_includes_fees === true,
+      feePct: feePctFromVersionMap(feePctsByVersionId, versionId, feeChannel),
+      versionId,
+      bursts: item.bursts_json ?? item.bursts,
+      ...(packageOptions.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
+      days: daily.map((d) => ({
+        date: d.date,
+        impressions: d.impressions,
+        clicks: d.clicks,
+        results: d.results,
+        video3sViews: d.videoCompletes,
+      })),
+    }
+    let estimate = hasReportedEntries ? null : estimateDirectDigitalSpend(estimateInput)
+    if (fixedCostFrom) {
+      const actual = estimateDirectDigitalSpend({ ...estimateInput, fixedCost: false })
+      const merged = mergedDailyFromDate(
+        new Map(actual.days.map((day) => [day.date, day.derivedSpend])),
+        reportedByDate,
+        fixedCostFrom,
+      )
+      reportedByDate = merged
+      hasReportedEntries = merged.size > 0
+      estimate = null
+    }
     const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
     const estimateByDate = new Map((estimate?.days ?? []).map((day) => [day.date, day.derivedSpend]))
 

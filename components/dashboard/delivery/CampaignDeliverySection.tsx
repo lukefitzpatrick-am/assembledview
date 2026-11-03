@@ -259,6 +259,7 @@ function CampaignDeliveryBody({
           isAdmin,
           feePctsByVersionId,
           estimateVersionId,
+          reportedSpendByLineDate,
         }),
       )
     }
@@ -280,6 +281,7 @@ function CampaignDeliveryBody({
           isAdmin,
           feePctsByVersionId,
           estimateVersionId,
+          reportedSpendByLineDate,
         }),
       )
     }
@@ -305,6 +307,7 @@ function CampaignDeliveryBody({
           isAdmin,
           feePctsByVersionId,
           estimateVersionId,
+          reportedSpendByLineDate,
         }),
       )
     }

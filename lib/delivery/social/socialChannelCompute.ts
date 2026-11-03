@@ -1,4 +1,7 @@
 import { roundMoney2 } from "@/lib/money/cents"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { mergeReportedSpendFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
@@ -781,11 +784,16 @@ export function computeSocialLineMetricsForPlatform(input: {
   kpiTargets: KPITargetsMap | undefined
   filterRange: DateRange
   pacingWindow: ReturnType<typeof getPacingWindow>
+  /** B23: REPORTED_SPEND by line then day, read only for a dated fixed-cost line. */
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
+  /** B23. Unset reads the browser switch snapshot (off on the server). */
+  fixedCostFromDate?: boolean
 }): SocialLineMetrics[] {
   const { activeItems, socialRows, campaignStart, campaignEnd, mbaNumber, kpiTargets, filterRange, pacingWindow } =
     input
   const resolvedCampaignStart = campaignStart
   const resolvedCampaignEnd = campaignEnd
+  const fixedCostFromOn = input.fixedCostFromDate ?? deliveryFlagsFromClient().fixedCostFromDate
     if (!activeItems.length) return []
     const today = startOfDay(new Date())
     const asAtForSummary = parseDateNativeSafe(pacingWindow.asAtISO) ?? today
@@ -863,6 +871,13 @@ export function computeSocialLineMetricsForPlatform(input: {
           }
         }
       )
+
+      // B23 FC10: a dated fixed-cost social line shows platform spend before
+      // the date and reported spend from it. Lines with no date are unchanged.
+      const fixedCostFrom = effectiveFixedCostFrom(item as Record<string, unknown>, fixedCostFromOn)
+      if (fixedCostFrom) {
+        mergeReportedSpendFromDate(actualsDaily, input.reportedSpendByLineDate?.get(targetId ?? ""), fixedCostFrom)
+      }
 
       const asAtDate = pacingWindow.asAtISO
 

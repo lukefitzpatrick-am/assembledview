@@ -328,6 +328,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     isAdmin = false,
     feePctsByVersionId,
     estimateVersionId,
+    reportedSpendByLineDate,
   } = input
 
   const wantChannel = platform
@@ -351,6 +352,8 @@ export function buildSocialChannelSectionForPlatform(input: {
     kpiTargets,
     filterRange,
     pacingWindow,
+    reportedSpendByLineDate,
+    fixedCostFromDate: input.fixedCostFromDate,
   })
 
   const aggregatePacing = buildSocialAggregatePacing(

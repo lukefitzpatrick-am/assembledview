@@ -1,5 +1,6 @@
 import "server-only"
 
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { getCachedDirectPacingRows } from "@/lib/pacing/campaigns/pacingRowsCache"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
@@ -120,6 +121,7 @@ export async function getDeliveredTotalsForClient(
   }
   const failedSources: string[] = []
 
+  const deliveryFlags = await readDeliveryFlags()
   const [snapshots, directGroups] = await Promise.all([
     boundedMap(
       campaigns,
@@ -130,6 +132,7 @@ export async function getDeliveredTotalsForClient(
             versionNumber: c.versionNumber,
             // Same modelled CM360 spend as the dashboard's programmatic section (REP-1).
             modelProgrammaticSpend: true,
+            deliveryFlags,
             ...(window ?? {}),
           })
           if (snapshot.fixedCostOverlayFailed) {
@@ -173,7 +176,9 @@ export async function getDeliveredTotalsForClient(
       group,
       window?.startDate,
       window?.endDate,
-      programmaticLineItemIdsFromSnapshot(snapshot),
+      programmaticLineItemIdsFromSnapshot(snapshot, {
+        excludePlatformSocialAndSearch: deliveryFlags.fixedCostFromDate,
+      }),
       snapshotSpendByLineId(snapshot),
     )
     const prev = fixedCostByMba.get(key) ?? { spend: 0, assumedSpend: 0, assumedInBooked: 0 }
