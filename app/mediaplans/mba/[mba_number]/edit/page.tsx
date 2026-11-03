@@ -398,11 +398,13 @@ import {
   selectedLineItemIdsFromApprovalRows,
 } from "@/lib/finance/mbaLineApprovalsClient"
 import {
+  currentLegacyPartialNotices,
   describeLegacyPartialUnresolved,
+  legacyPartialUnmatchedToast,
   reconcileLegacyPartialSelection,
   type LegacyPartialChannel,
   type LegacyPartialLoadedLines,
-  type LegacyPartialUnresolved,
+  type LegacyPartialOnOpen,
 } from "@/lib/mediaplan/reconcileLegacyPartialSelection"
 import {
   applyBillingLineMode,
@@ -1502,7 +1504,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // MB-33 (B21): the channels of an old partial MBA (saved billing partialApproval),
   // matched to the current line ids once the channels load. Null when none.
   const legacyPartialChannelsRef = useRef<LegacyPartialChannel[] | null>(null)
-  const [legacyPartialUnresolved, setLegacyPartialUnresolved] = useState<LegacyPartialUnresolved[]>([])
+  // What the match found on open. The MBA scope notices recompute from it and the
+  // current selection (B21fix, finding 5).
+  const [legacyPartialOnOpen, setLegacyPartialOnOpen] = useState<LegacyPartialOnOpen | null>(null)
   const [legacyPartialLaterAddedKeys, setLegacyPartialLaterAddedKeys] = useState<string[]>([])
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null)
   const [partialMBAValues, setPartialMBAValues] = useState({
@@ -2813,7 +2817,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setPartialMBASelectedLineItemIds({})
       setPartialMBAMediaEnabled({})
       legacyPartialChannelsRef.current = null
-      setLegacyPartialUnresolved([])
+      setLegacyPartialOnOpen(null)
       setLegacyPartialLaterAddedKeys([])
 
       // KPI resets (Stage 2)
@@ -5864,6 +5868,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // B21 (M8, Q11): partial MBA fee and fallback months on the billing basis, and
   // the billing vs delivery guard. Off: as before.
   const partialMbaBillingGuardOn = clientFeatureOn("partial_mba_billing_guard")
+  // MB-33 (B21, B21fix finding 5): unmatched saved lines of an old partial MBA, as
+  // the current selection leaves them. Ticking lines in clears them.
+  const legacyPartialUnresolved = useMemo(
+    () => currentLegacyPartialNotices(legacyPartialOnOpen, partialMBASelectedLineItemIds).unresolved,
+    [legacyPartialOnOpen, partialMBASelectedLineItemIds]
+  )
   const partialMbaBillingGuard = useMemo(
     () =>
       partialMbaBillingGuardOn && isPartialMBA && allChannelsHydrated
@@ -9129,7 +9139,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           loadedLinesByMedia,
           mbaNumber: String(mbaNumber),
         })
-        setLegacyPartialUnresolved(r.unresolved)
+        setLegacyPartialOnOpen({ unresolved: r.unresolved, leftOutByMedia: r.leftOutByMedia })
         setLegacyPartialLaterAddedKeys(r.laterAddedMediaKeys)
         if (r.changed) {
           // Months stay as saved. Only the ids move to the current line ids, and a
@@ -9139,10 +9149,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             Object.fromEntries(Object.entries(r.selected).map(([k, ids]) => [k, ids.length > 0]))
           )
         }
-        const warning = describeLegacyPartialUnresolved(r.unresolved, mediaLabelByBillingKey)
-        if (warning) {
-          toast({ variant: "destructive", title: "Partial MBA lines not matched", description: warning })
-        }
+        const unmatchedToast = legacyPartialUnmatchedToast(r.unresolved, mediaLabelByBillingKey)
+        if (unmatchedToast) toast(unmatchedToast)
       }
 
       const result = await fetchMbaLineApprovalsClient({

@@ -15,7 +15,9 @@ import {
 } from "@/lib/mediaplan/mbaScopeClient"
 import { applyMbaScopeLineApprovals, type MbaScopeApprovalLine } from "@/lib/mediaplan/mbaScopeForSave"
 import {
+  currentLegacyPartialNotices,
   describeLegacyPartialUnresolved,
+  legacyPartialUnmatchedToast,
   reconcileLegacyPartialSelection,
 } from "@/lib/mediaplan/reconcileLegacyPartialSelection"
 
@@ -465,4 +467,62 @@ test("describeLegacyPartialUnresolved names each line", () => {
     ),
     "A line saved in this partial MBA has no match on the plan, so it stays out of the MBA: Social Media PGAAUS0051. Check the scope before you publish."
   )
+})
+
+test("B21fix finding 5: the unmatched toast names the lines, and there is none without them", () => {
+  assert.equal(legacyPartialUnmatchedToast([]), null)
+  assert.deepEqual(
+    legacyPartialUnmatchedToast(
+      [{ mediaKey: "socialMedia", savedId: "PGAAUS0051", reason: "line_number_not_kept" }],
+      { socialMedia: "Social Media" }
+    ),
+    {
+      variant: "destructive",
+      title: "Partial MBA lines not matched",
+      description:
+        "A line saved in this partial MBA has no match on the plan, so it stays out of the MBA: Social Media PGAAUS0051. Check the scope before you publish.",
+    }
+  )
+})
+
+test("B21fix finding 5: leftOutByMedia lists each listed channel's current lines left out", () => {
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "PGAAUS005",
+    channels: [
+      { mediaKey: "socialMedia", selectedLineItemIds: ["PGAAUS0051"], selectedCount: 1, totalCount: 2 },
+      { mediaKey: "digiAudio", selectedLineItemIds: ["PGAAUS005DA1"], selectedCount: 1, totalCount: 1 },
+    ],
+    editorIdsByMedia: {
+      socialMedia: dec("socialMedia", ["PGAAUS005SM1", "PGAAUS005SM2"]),
+      digiAudio: dec("digiAudio", ["PGAAUS005DA1"]),
+      search: dec("search", ["PGAAUS005SE1"]),
+    },
+  })
+  assert.deepEqual(r.leftOutByMedia, { socialMedia: ["PGAAUS005SM1", "PGAAUS005SM2"] })
+})
+
+test("B21fix finding 5: unmatched lines drop off the notice once the planner ticks lines in", () => {
+  const onOpen = {
+    unresolved: [
+      { mediaKey: "socialMedia", savedId: "X10051", reason: "line_number_not_kept" as const },
+      { mediaKey: "ooh", savedId: "X1ML7", reason: "no_match" as const },
+      { mediaKey: "ooh", savedId: "X1ML8", reason: "no_match" as const },
+    ],
+    leftOutByMedia: { socialMedia: ["X1SM1", "X1SM2"], ooh: ["X1OH3", "X1OH4", "X1OH5"] },
+  }
+  const opened = { socialMedia: [], ooh: ["X1OH1"] }
+  assert.deepEqual(currentLegacyPartialNotices(onOpen, opened).unresolved, onOpen.unresolved)
+  // One social line ticked in (decorated id): social clears, ooh stays.
+  const social = currentLegacyPartialNotices(onOpen, { ...opened, socialMedia: ["billing-socialMedia::X1SM2"] })
+  assert.deepEqual(social.unresolved.map((u) => u.savedId), ["X1ML7", "X1ML8"])
+  // ooh has two unmatched: one tick keeps both, two ticks clear them.
+  const oneOoh = currentLegacyPartialNotices(onOpen, { ...opened, ooh: ["X1OH1", "X1OH3"] })
+  assert.deepEqual(oneOoh.unresolved.map((u) => u.savedId), ["X10051", "X1ML7", "X1ML8"])
+  const twoOoh = currentLegacyPartialNotices(onOpen, { ...opened, ooh: ["X1OH1", "X1OH3", "X1OH5"] })
+  assert.deepEqual(twoOoh.unresolved.map((u) => u.savedId), ["X10051"])
+  // Unticking a line that was in changes nothing.
+  assert.equal(currentLegacyPartialNotices(onOpen, { ...opened, ooh: [] }).unresolved.length, 3)
+  // A channel the selection no longer lists counts as all in.
+  assert.deepEqual(currentLegacyPartialNotices(onOpen, { ooh: ["X1OH1"] }).unresolved.map((u) => u.mediaKey), ["ooh", "ooh"])
+  assert.deepEqual(currentLegacyPartialNotices(null, opened).unresolved, [])
 })

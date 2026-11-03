@@ -37,7 +37,11 @@
  */
 
 import { billingLineIdAlias, type BillingLineIdAlias } from "@/lib/billing/billingLineIdAlias"
-import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 import { editorClaimedLineNumber, type LineItemWithIdentity } from "@/lib/mediaplan/lineItemOrder"
 
 export type LegacyPartialChannel = {
@@ -100,6 +104,8 @@ export type ReconcileLegacyPartialResult = {
   missingMediaKeys: string[]
   /** Current channels the saved selection doesn't list. Every current id is in `selected`. */
   laterAddedMediaKeys: string[]
+  /** Current ids of each listed channel that are not in `selected` (channels with none left out are omitted). */
+  leftOutByMedia: Record<string, string[]>
 }
 
 function bareUnique(ids: readonly string[] | null | undefined): string[] {
@@ -149,6 +155,7 @@ export function reconcileLegacyPartialSelection(
   const expandedMediaKeys: string[] = []
   const unresolved: LegacyPartialUnresolved[] = []
   const missingMediaKeys: string[] = []
+  const leftOutByMedia: Record<string, string[]> = {}
   let changed = false
 
   const listed = new Set<string>()
@@ -241,6 +248,9 @@ export function reconcileLegacyPartialSelection(
       unresolved.push(...channelUnresolved)
     }
     if (!sameSet(selected[mediaKey]!, saved)) changed = true
+    const inChannel = new Set(selected[mediaKey])
+    const leftOut = current.filter((id) => !inChannel.has(id))
+    if (leftOut.length > 0) leftOutByMedia[mediaKey] = leftOut
   }
 
   const laterAddedMediaKeys = Object.entries(input.editorIdsByMedia)
@@ -261,6 +271,7 @@ export function reconcileLegacyPartialSelection(
     unresolved,
     missingMediaKeys,
     laterAddedMediaKeys,
+    leftOutByMedia,
   }
 }
 
@@ -278,4 +289,58 @@ export function describeLegacyPartialUnresolved(
       ? "A line saved in this partial MBA has no match on the plan, so it stays out of the MBA"
       : `${unresolved.length} lines saved in this partial MBA have no match on the plan, so they stay out of the MBA`
   return `${head}: ${parts.join(", ")}. Check the scope before you publish.`
+}
+
+/** The toast on open when saved lines have no match (Q8), or null. */
+export function legacyPartialUnmatchedToast(
+  unresolved: readonly LegacyPartialUnresolved[],
+  mediaLabelByKey?: Readonly<Record<string, string>>
+): { variant: "destructive"; title: string; description: string } | null {
+  const description = describeLegacyPartialUnresolved(unresolved, mediaLabelByKey)
+  return description
+    ? { variant: "destructive", title: "Partial MBA lines not matched", description }
+    : null
+}
+
+/** What the reconcile found when the plan opened, kept for the MBA scope notices. */
+export type LegacyPartialOnOpen = {
+  unresolved: LegacyPartialUnresolved[]
+  leftOutByMedia: Record<string, string[]>
+}
+
+/**
+ * B21fix (finding 5): the MBA scope notices, recomputed from the current
+ * selection so they don't go stale when the planner changes it.
+ *
+ * An unmatched saved id has no current line, so it can't be ticked itself.
+ * A channel's unmatched ids drop off once the planner has ticked in as many
+ * of that channel's lines left out on open as there are unmatched ids. A
+ * channel the selection doesn't list counts as all in, as `resolveApproval`.
+ */
+export function currentLegacyPartialNotices(
+  onOpen: LegacyPartialOnOpen | null,
+  selection: Readonly<Record<string, readonly string[] | undefined>>
+): { unresolved: LegacyPartialUnresolved[] } {
+  if (!onOpen) return { unresolved: [] }
+  const sets = new Map<string, ReadonlySet<string>>()
+  const isIn = (mediaKey: string, id: string): boolean => {
+    const ids = selection[mediaKey]
+    if (ids === undefined) return true
+    let set = sets.get(mediaKey)
+    if (!set) {
+      set = buildCanonicalBillingLineIdSet(ids)
+      sets.set(mediaKey, set)
+    }
+    return canonicalBillingLineIdSetHas(set, id)
+  }
+  const unmatchedByMedia = new Map<string, number>()
+  for (const u of onOpen.unresolved) {
+    unmatchedByMedia.set(u.mediaKey, (unmatchedByMedia.get(u.mediaKey) ?? 0) + 1)
+  }
+  const stillOut = new Set<string>()
+  for (const [mediaKey, count] of unmatchedByMedia) {
+    const tickedIn = (onOpen.leftOutByMedia[mediaKey] ?? []).filter((id) => isIn(mediaKey, id)).length
+    if (tickedIn < count) stillOut.add(mediaKey)
+  }
+  return { unresolved: onOpen.unresolved.filter((u) => stillOut.has(u.mediaKey)) }
 }

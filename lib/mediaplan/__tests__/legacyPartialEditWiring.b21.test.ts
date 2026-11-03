@@ -37,7 +37,7 @@ test("approvals effect: mba_scope first, then the GET, then the old partial when
   const apply = body.slice(body.indexOf("const applyLegacyPartial"), getAt)
   assert.doesNotMatch(apply, /setPartialMBAMonthYears|recomputePartialMBAFromLineItems|setIsPartialMBA/)
   assert.match(apply, /if \(r\.changed\) \{/)
-  assert.match(apply, /describeLegacyPartialUnresolved\(r\.unresolved, mediaLabelByBillingKey\)/)
+  assert.match(apply, /setLegacyPartialOnOpen\(\{ unresolved: r\.unresolved, leftOutByMedia: r\.leftOutByMedia \}\)/)
   assert.match(page, /\}, \[mbaNumber, selectedVersionNumber, loadPhase, billingFeeSeedEnabledConfigs, allChannelsHydrated\]\)/)
 })
 
@@ -76,4 +76,24 @@ test("B21fix finding 2: the reconcile gets the loaded lines of every billing cha
     assert.equal(value, loadedName[key] ?? `${stem}LineItems`, key)
     assert.match(page, new RegExp(`initialLineItems=\\{${value}\\}`), `${value} feeds a container`)
   }
+})
+
+test("B21fix finding 5: the unmatched toast fires on open from the match result", () => {
+  const body = effectBody()
+  const apply = body.slice(body.indexOf("const applyLegacyPartial"), body.indexOf("await fetchMbaLineApprovalsClient"))
+  assert.match(
+    apply,
+    /const unmatchedToast = legacyPartialUnmatchedToast\(r\.unresolved, mediaLabelByBillingKey\)\n\s+if \(unmatchedToast\) toast\(unmatchedToast\)/
+  )
+  // Once, on open: the toast is not raised anywhere else.
+  assert.equal((page.match(/legacyPartialUnmatchedToast\(/g) ?? []).length, 1)
+})
+
+test("B21fix finding 5: the scope notice reads the current selection, and a version change clears the open result", () => {
+  assert.match(
+    page,
+    /const legacyPartialUnresolved = useMemo\(\n\s+\(\) => currentLegacyPartialNotices\(legacyPartialOnOpen, partialMBASelectedLineItemIds\)\.unresolved,\n\s+\[legacyPartialOnOpen, partialMBASelectedLineItemIds\]\n\s+\)/
+  )
+  assert.ok((page.match(/setLegacyPartialOnOpen\(null\)/g) ?? []).length >= 1)
+  assert.doesNotMatch(page, /setLegacyPartialUnresolved/)
 })
