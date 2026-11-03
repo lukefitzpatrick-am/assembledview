@@ -106,6 +106,35 @@ describe("assembleCampaignDetailPayload", () => {
   })
 })
 
+describe("assembleCampaignDetailPayload package rule wiring (B20, B23fix review finding 2)", () => {
+  const packageLine = () => ({ ...lineCardFromSearch(searchFixture(), LINE_AS_OF), buyType: "package" })
+  const build = (packageNoUnitTarget?: boolean) =>
+    assembleCampaignDetailPayload({
+      row: campaignRow(),
+      lines: [packageLine()],
+      asOf: LINE_AS_OF,
+      ...(packageNoUnitTarget === undefined ? {} : { packageNoUnitTarget }),
+    })
+
+  it("off and unset are identical; a package burst keeps its planned deliverable", () => {
+    const unset = build()
+    assert.equal(JSON.stringify(build(false)), JSON.stringify(unset))
+    assert.ok(unset.bursts.length >= 1)
+    for (const burst of unset.bursts) assert.equal(burst.plannedDeliverable, 200_000)
+  })
+
+  it("on: the flag reaches burstsFromLines, so package bursts plan no deliverables", () => {
+    const off = build(false)
+    const on = build(true)
+    assert.equal(on.bursts.length, off.bursts.length)
+    for (const burst of on.bursts) assert.equal(burst.plannedDeliverable, 0)
+    assert.deepEqual(
+      on.bursts.map((burst) => ({ ...burst, plannedDeliverable: 200_000 })),
+      off.bursts,
+    )
+  })
+})
+
 describe("visibleLineDetailColumns", () => {
   it("hides optional columns that are empty on every line", () => {
     const line = lineCardFromSearch(searchFixture(), LINE_AS_OF)

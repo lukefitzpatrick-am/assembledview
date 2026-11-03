@@ -219,7 +219,7 @@ export const FEATURE_DEFINITIONS = [
     key: "fixed_cost_report_net",
     label: "Fixed-cost report on net media",
     description:
-      "The nightly Snowflake snapshot sends each fixed-cost burst's net media and Melbourne start and end days, so the fixed-cost report (SP_REFRESH_FIXED_COST_REPORTED_DAILY, B23 version) reports net media, not the fee-inclusive budget (decision FC4), on Melbourne days, and cleans up rows outside the bursts. Changes reported spend on fee-inclusive fixed-cost lines from the next morning. Needs the B23 procedure and the Snowflake ALTER. Off: the snapshot sends nothing new and the procedure keeps the gross budget and UTC days, as before.",
+      "The nightly Snowflake snapshot sends each fixed-cost burst's net media and Melbourne start and end days, so the fixed-cost report (SP_REFRESH_FIXED_COST_REPORTED_DAILY, B23 version) reports net media, not the fee-inclusive budget (decision FC4), on Melbourne days, and cleans up rows outside the bursts. Changes reported spend on fee-inclusive fixed-cost lines from the next morning. Needs the B23 procedure and the Snowflake ALTER. Off: the snapshot sends nothing new and the procedure keeps the gross budget and UTC days, as before. Turning it off also turns the package rule off (Expert grid package quantity needs this switch), so saved package quantities become targets again.",
     area: "reporting",
     defaultOn: false,
     clientVisible: true,

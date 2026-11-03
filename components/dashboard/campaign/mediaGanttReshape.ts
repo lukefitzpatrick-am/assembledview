@@ -13,6 +13,8 @@ import type { GanttBurst, GanttRow } from "@/components/charts/system"
 import { channelColorFor } from "@/lib/chart-theme"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { fromCents, parseMoney, sumCents, toCentsOrNull } from "@/lib/money"
+import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import {
   buildGanttSidelineLabel,
@@ -157,6 +159,12 @@ function clampDate(date: Date, start: Date, end: Date) {
 /**
  * Convert normalised line items + campaign window into library `MediaGanttChart` props.
  * Data/query logic stays upstream — this is presentation shaping only.
+ *
+ * P14 (B20, B23fix review finding 1): with `packageNoUnitTarget` on, a package
+ * line has no unit target. Its bars plan no deliverables, show delivered only
+ * ("50K delivered", never "50K of 3") and carry no fill ratio. Unset reads the
+ * browser switch snapshot (`expert_package_quantity` with `fixed_cost_report_net`).
+ * Off: output is identical to before.
  */
 export function reshapeLineItemsToMediaGantt(
   lineItems: Record<string, NormalisedLineItem[]>,
@@ -165,6 +173,9 @@ export function reshapeLineItemsToMediaGantt(
   granularity: MediaGanttGranularity = "weekly",
   deliveredByLineId?: ReadonlyMap<string, number>,
   flighting = false,
+  packageOptions: PackageUnitTargetOptions = {
+    packageNoUnitTarget: deliveryFlagsFromClient().packageNoUnitTarget,
+  },
 ): ReshapedMediaGantt | null {
   const safeStart = safeParseDate(startDate)
   const safeEnd = safeParseDate(endDate)
@@ -221,6 +232,7 @@ export function reshapeLineItemsToMediaGantt(
       const lineId = cleanPacingLineItemId(item.lineItemId)
       const hasDelivery = lineId != null && deliveredByLineId?.has(lineId) === true
       const delivered = hasDelivery ? (deliveredByLineId!.get(lineId!) ?? 0) : null
+      const noUnitTarget = packageHasNoUnitTarget(item.buyType, packageOptions)
 
       const pendingBursts: Array<{
         burst: GanttBurst
@@ -242,7 +254,7 @@ export function reshapeLineItemsToMediaGantt(
 
         const clampedStart = clampDate(barStart, start, end)
         const clampedEnd = clampDate(barEnd, start, end)
-        const deliverables = safeNumber(burst.deliverables ?? 0)
+        const deliverables = noUnitTarget ? 0 : safeNumber(burst.deliverables ?? 0)
         rowMaxDeliverables = Math.max(rowMaxDeliverables, deliverables)
         if (!earliestStart || barStart < earliestStart) earliestStart = barStart
 
@@ -287,7 +299,9 @@ export function reshapeLineItemsToMediaGantt(
         const carrier = deliveryCarrierIndex(pendingBursts, todayISO)
         const deliveryText =
           hasDelivery && delivered != null
-            ? `${compactDeliverables(delivered)} of ${compactDeliverables(linePlanned)}`
+            ? noUnitTarget
+              ? `${compactDeliverables(delivered)} delivered`
+              : `${compactDeliverables(delivered)} of ${compactDeliverables(linePlanned)}`
             : undefined
         pendingBursts.forEach(({ burst, deliverables, startYmd, endYmd }, index) => {
           const containsToday = todayISO >= startYmd && todayISO <= endYmd
@@ -296,9 +310,9 @@ export function reshapeLineItemsToMediaGantt(
           let fillRatio: number | undefined
           if (isCarrier) {
             label = deliveryText
-            fillRatio = linePlanned > 0 ? delivered! / linePlanned : 0
+            fillRatio = noUnitTarget ? undefined : linePlanned > 0 ? delivered! / linePlanned : 0
           } else if (endYmd < todayISO) {
-            label = `${compactDeliverables(deliverables)} planned`
+            label = noUnitTarget ? burst.label : `${compactDeliverables(deliverables)} planned`
           } else if (startYmd > todayISO) {
             const start = safeParseDate(startYmd)
             label = start ? `Starts ${format(start, "d MMM")}` : undefined
@@ -312,7 +326,7 @@ export function reshapeLineItemsToMediaGantt(
             tone: containsToday ? "active" : "context",
             tooltip: [
               burstDateSpan(startYmd, endYmd),
-              `${compactDeliverables(deliverables)} planned`,
+              noUnitTarget ? null : `${compactDeliverables(deliverables)} planned`,
               isCarrier ? `Line delivered to date ${deliveryText}` : null,
             ]
               .filter((line): line is string => line != null)
@@ -324,13 +338,15 @@ export function reshapeLineItemsToMediaGantt(
           const planned = linePlanned > 0 ? linePlanned : deliverables
           const deliveryLabel =
             hasDelivery && delivered != null
-              ? `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
+              ? noUnitTarget
+                ? `${formatDeliverablesDisplay(delivered)} delivered`
+                : `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
               : undefined
           bursts.push({
             ...burst,
             label: deliveryLabel ?? startLabel ?? burst.label,
             fillRatio:
-              hasDelivery && delivered != null
+              hasDelivery && delivered != null && !noUnitTarget
                 ? planned > 0 ? delivered / planned : 0
                 : undefined,
             intensity:
