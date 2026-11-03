@@ -140,6 +140,14 @@ export type ComputeCampaignFinancialsOpts = {
    * those months while deliverySchedule stays full-campaign.
    */
   selectedMonthYears?: readonly string[]
+  /**
+   * M8 (B21, switch `partial_mba_billing_guard`, edit partial MBA panel only):
+   * in month scope, a line's fee is its fee billing months in the selection
+   * (the billing schedule's `feeMonthlyAmounts`, hand edits and media-only
+   * Prebill included), the same as `computeApprovedSlice`. A line with no fee
+   * months keeps the media share. Unset: media share, as before.
+   */
+  partialFeeFromFeeMonths?: boolean
 }
 
 type ResolvedLine = {
@@ -1057,7 +1065,42 @@ export function computeCampaignFinancials(
     },
   }
 
-  return scopeCampaignFinancialsToSelectedMonths(full, opts?.selectedMonthYears)
+  return scopeCampaignFinancialsToSelectedMonths(full, opts?.selectedMonthYears, {
+    feeFromFeeMonths: opts?.partialFeeFromFeeMonths === true,
+  })
+}
+
+/**
+ * Per line id, the fee by month from the billing schedule's line detail, or no
+ * entry when the line has no fee months there. Same read as `computeApprovedSlice`.
+ */
+function feeMonthsByLineFromSchedule(
+  billingSchedule: readonly BillingMonth[]
+): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>()
+  for (const month of billingSchedule) {
+    const lineItems = month.lineItems
+    if (!lineItems) continue
+    for (const items of Object.values(lineItems)) {
+      if (!Array.isArray(items)) continue
+      for (const li of items) {
+        const id = String(li?.id ?? "").trim()
+        const fees = li?.feeMonthlyAmounts
+        if (!id || !fees || typeof fees !== "object") continue
+        let byMonth = out.get(id)
+        if (!byMonth) {
+          byMonth = new Map()
+          out.set(id, byMonth)
+        }
+        const amount = Number(fees[month.monthYear] ?? 0)
+        byMonth.set(
+          month.monthYear,
+          roundMoney2((byMonth.get(month.monthYear) ?? 0) + (Number.isFinite(amount) ? amount : 0))
+        )
+      }
+    }
+  }
+  return out
 }
 
 /**
@@ -1066,7 +1109,8 @@ export function computeCampaignFinancials(
  */
 export function scopeCampaignFinancialsToSelectedMonths(
   financials: CampaignFinancials,
-  selectedMonthYears: readonly string[] | undefined | null
+  selectedMonthYears: readonly string[] | undefined | null,
+  scopeOpts?: { feeFromFeeMonths?: boolean }
 ): CampaignFinancials {
   if (!selectedMonthYears || selectedMonthYears.length === 0) return financials
 
@@ -1092,6 +1136,9 @@ export function scopeCampaignFinancialsToSelectedMonths(
     selectedSet.has(m.monthYear)
   )
   const deliverySchedule = financials.deliverySchedule
+  const feeMonthsByLine = scopeOpts?.feeFromFeeMonths
+    ? feeMonthsByLineFromSchedule(financials.billingSchedule)
+    : null
 
   const perLine = financials.perLine.map((line) => {
     if (line.flags.excluded) return line
@@ -1100,8 +1147,14 @@ export function scopeCampaignFinancialsToSelectedMonths(
     const fullBillingMedia = roundMoney2(
       line.billingMonths.reduce((s, m) => s + m.amount, 0)
     )
-    const fee =
-      fullBillingMedia > 0.005
+    const lineFeeMonths = feeMonthsByLine?.get(String(line.lineItemId).trim())
+    const fee = lineFeeMonths
+      ? roundMoney2(
+          [...lineFeeMonths.entries()]
+            .filter(([month]) => selectedSet.has(month))
+            .reduce((s, [, amount]) => s + amount, 0)
+        )
+      : fullBillingMedia > 0.005
         ? roundMoney2(line.fee * (media / fullBillingMedia))
         : 0
     return {
