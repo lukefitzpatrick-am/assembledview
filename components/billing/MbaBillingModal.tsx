@@ -183,6 +183,11 @@ export type MbaBillingModalProps = {
    */
   overridesLoadNotice?: string | null
   /**
+   * B20 ghost-row guard: old-id and current-id rows for the same line, each
+   * pair with a "duplicate of" chip. The parent renders it (or null).
+   */
+  aliasDuplicateNotice?: ReactNode
+  /**
    * MB-15c — published (approved-or-beyond) versions are immutable to billing writers.
    * Hides Edit timing / Adjust timing / Prebill / Save / Reset; shows lock copy instead.
    */
@@ -817,6 +822,7 @@ export function MbaBillingModal({
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
   overridesLoadNotice = null,
+  aliasDuplicateNotice = null,
   billingTimingReadOnly = false,
   billingTimingReadOnlyMessage,
   pendingOverrideRows,
@@ -983,6 +989,9 @@ export function MbaBillingModal({
                 </div>
               </div>
             </div>
+          ) : null}
+          {aliasDuplicateNotice ? (
+            <div className="border-b border-border px-6 py-3">{aliasDuplicateNotice}</div>
           ) : null}
           {/* Single banner instance — do not also mount BillingDivergenceModal.
               BUX-5: hide while channels still hydrating (same as "Loading channels…"). */}

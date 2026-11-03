@@ -127,6 +127,15 @@ import {
 } from "@/lib/billing/appendAutoReferenceIntoWorking"
 import { unionGeneratedBillingLines } from "@/lib/billing/unionGeneratedBillingLines"
 import {
+  billingAliasGhostSaveBlockMessage,
+  billingAliasGhostTotal,
+  findBillingAliasGhostPairs,
+  removeOldAliasGhostRows,
+  summariseBillingAliasGhostPairs,
+} from "@/lib/billing/billingAliasGhostPairs"
+import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
+import { clientFeatureOn } from "@/lib/features/client"
+import {
   reportWorkingBillingAliasReconcile,
   type WorkingBillingAliasReconcileSource,
 } from "@/lib/billing/workingBillingAliasReconcile"
@@ -5822,6 +5831,60 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   })
   const saveBlockedByClientsError = Boolean(clientsError)
 
+  // B20 ghost-row guard (switch billing_ghost_row_guard, decision Q16): an old line id
+  // and its current id with money in the same month count that line twice. Detect and
+  // warn; Save is refused until the planner keeps the current rows. Saved data is never
+  // changed here. Off: no check.
+  const billingGhostGuardOn = clientFeatureOn("billing_ghost_row_guard")
+  const billingAliasGhostPairs = useMemo(
+    () => (billingGhostGuardOn ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber) : []),
+    [billingGhostGuardOn, workingBillingMonths, mbaNumber]
+  )
+  const billingAliasGhostLines = useMemo(
+    () =>
+      summariseBillingAliasGhostPairs(
+        billingAliasGhostPairs,
+        workingBillingMonths.map((m) => m.monthYear)
+      ),
+    [billingAliasGhostPairs, workingBillingMonths]
+  )
+  const billingAliasGhostDoubled = billingAliasGhostTotal(billingAliasGhostPairs)
+  useEffect(() => {
+    if (!billingGhostGuardOn) return
+    const pairs = findBillingAliasGhostPairs(savedBillingMonths, mbaNumber)
+    if (pairs.length === 0) return
+    void reportWorkingBillingAliasReconcile({
+      versionId: mediaPlanVersionId ?? "unknown",
+      mba: String(mbaNumber ?? ""),
+      source: "saved",
+      entries: [],
+      savedPairs: summariseBillingAliasGhostPairs(pairs, savedBillingMonths.map((m) => m.monthYear)),
+    })
+  }, [billingGhostGuardOn, savedBillingMonths, mbaNumber, mediaPlanVersionId])
+  const handleKeepCurrentBillingRows = useCallback(() => {
+    const strip = (months: BillingMonth[]) =>
+      removeOldAliasGhostRows(months, findBillingAliasGhostPairs(months, mbaNumberRef.current))
+    const nextWorking = strip(workingBillingMonthsRef.current)
+    workingBillingMonthsRef.current = nextWorking
+    setWorkingBillingMonths(nextWorking)
+    setManualBillingMonths((prev) => (prev.length > 0 ? strip(prev) : prev))
+    markUnsavedChanges()
+    toast({
+      title: "Old-id billing rows removed from this edit",
+      description:
+        "Check the billing, then save. Saved billing doesn't change until you save; the save writes the schedule from the plan lines.",
+    })
+  }, [markUnsavedChanges])
+  const billingAliasDuplicateNotice = (variant: "rail" | "modal") =>
+    billingAliasGhostLines.length > 0 ? (
+      <BillingAliasDuplicateNotice
+        lines={billingAliasGhostLines}
+        total={billingAliasGhostDoubled}
+        onKeepCurrentRows={handleKeepCurrentBillingRows}
+        variant={variant}
+      />
+    ) : null
+
   const predictedSaveModeLabel = useMemo(() => {
     if (saveModeLabel) return saveModeLabel
     const saveModeInput = buildSaveModeInput({
@@ -6560,6 +6623,19 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       toast({
         title: "Save disabled",
         description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+    // B20 ghost-row guard: never save while billing counts a line twice.
+    const ghostSaveBlock = billingAliasGhostSaveBlockMessage(
+      billingAliasGhostPairs,
+      workingBillingMonths.map((m) => m.monthYear)
+    )
+    if (ghostSaveBlock) {
+      toast({
+        title: "Cannot save: duplicate billing rows",
+        description: ghostSaveBlock,
         variant: "destructive",
       })
       return
@@ -10072,12 +10148,19 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   if (missingBurstDateLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
+  if (billingAliasGhostLines.length > 0) {
+    extraProblemTexts.push(
+      `Billing counts ${formatMoney(billingAliasGhostDoubled)} twice: ${billingAliasGhostLines.length === 1 ? "1 line has" : `${billingAliasGhostLines.length} lines have`} an old id and its current id. Save is stopped.`
+    )
+  }
 
   const wizardStatusPanel = (
     <PlanWizardSaveMessages
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
       problemActions={
+        <>
+        {billingAliasDuplicateNotice("rail")}
         <PublisherGuardActions
           blocked={publisherGuardBlocked}
           isAdmin={isAdmin}
@@ -10090,6 +10173,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             )
           }}
         />
+        </>
       }
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
       saveSecondary={EDIT_DRAFT_DOWNLOAD_RAIL}
@@ -11764,6 +11848,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
+        aliasDuplicateNotice={billingAliasDuplicateNotice("modal")}
         pendingOverrideRows={pendingBillingOverrideRows}
         tableOverrideRows={savedBillingOverrideRows}
         draftOverrideRows={
