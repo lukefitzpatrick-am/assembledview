@@ -76,6 +76,10 @@ Three former stores, which is authoritative now:
 
 Edit chips (`isPartialMBA` / `partialMBASelectedLineItemIds` / `partialMBAMonthYears`) post via `buildMbaScopeForSaveBody`. Create has no partial MBA: it saves a full MBA and shows "Save the plan, then choose a partial MBA" (`PARTIAL_MBA_AFTER_SAVE_NOTE`); the MBA window's line and channel switches only explain that. Version picker labels Full vs Partial from `mba_scope`. Excel (`filterMediaItemsForMbaScope`) and billing `schedule_months` omit excluded lines.
 
+**Old partial MBAs (MB-33, B21).** A version with `mba_scope` null keeps its selection in the saved billing `partialApproval.channels`, with the line ids of the day. The editor rewrites old ids on load (MB-34), so the approvals effect matches them with `lib/mediaplan/reconcileLegacyPartialSelection.ts` once every channel has loaded and the `mba_line_approvals` GET has no rows: exact, then the B20 alias one to one (current code and `ML` only), then all-selected channels with the same line count. Unmatched ids stay out and show in a toast and at the top of the MBA scope column (`PartialMbaUnmatchedNotice`). Saved months and totals don't change.
+
+**Billing basis and guard (M8, switch `partial_mba_billing_guard`, off by default).** On: the partial panel fee follows the fee billing months (`partialFeeFromFeeMonths`), the fallback months are the auto billing months, and `PartialMbaBillingGuardNotice` lists billing against delivery per selected month and line (`lib/mediaplan/partialMbaBillingVsDelivery.ts`) with a sentence on the save rail. Other readers keep the media-share fee (MB-39). Tests: `test:partial-mba`.
+
 ## Depends on
 
 Shared core (`lib/api/xano.ts` list-payload parser, caches, auth/RBAC, proxyAllowlist), finance/billing engine (`recomputeBillingScheduleOnSave`, `computeCampaignFinancials` — imported back INTO the mega-pages), KPI (`addKPISheet` via `lib/kpi/kpiWorkbook.ts` for standalone + zip-all, fan-out), money/date/tz utils.
