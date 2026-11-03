@@ -261,5 +261,9 @@ test("the local copies are gone; the digital, programmatic and press grids use t
   const calls = src.match(/expertGridDeliverables\(\{/g) ?? []
   assert.equal(calls.length, 9, "6 digital mappers, the programmatic builder, newspaper, magazines")
   assert.equal((src.match(/profile: "press"/g) ?? []).length, 2)
-  assert.match(src, /return options\?\.packageKeepsEnteredQty \?\? clientFeatureOn\("expert_package_quantity"\)/)
+  // B23fix: the switch counts only with fixed_cost_report_net on.
+  assert.match(
+    src,
+    /options\?\.packageKeepsEnteredQty \?\?\s+combinePackageQuantity\(clientFeatureOn\("expert_package_quantity"\), clientFeatureOn\("fixed_cost_report_net"\)\)/,
+  )
 })

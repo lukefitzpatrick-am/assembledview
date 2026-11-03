@@ -3,15 +3,17 @@
  * buy. Pacing, client dashboards, decks and the CM360 estimate don't read a
  * package quantity as impressions, clicks or views.
  *
- * Tied to the `expert_package_quantity` switch: package quantities only reach
- * these readers once that switch saves them (live data on 3 Nov 2026 has no
- * digital, social, search or programmatic package line with a quantity). One
- * switch means the grids and the readers can't disagree. Off: every reader
- * acts exactly as before.
+ * Tied to the `expert_package_quantity` switch, which counts only with
+ * `fixed_cost_report_net` on (B23fix): the grids save digital, social, search
+ * and programmatic package quantities only then, and Snowflake treats package
+ * as time based only on net media. OOH, radio, TV and newspaper package lines
+ * already carry a quantity (47 live on 3 Nov 2026): the rule clears their
+ * planned deliverables too. One switch means the grids and the readers can't
+ * disagree. Off: every reader acts exactly as before.
  */
 
 export type PackageUnitTargetOptions = {
-  /** True when `expert_package_quantity` is on. */
+  /** True when `expert_package_quantity` is on (with `fixed_cost_report_net`). */
   packageNoUnitTarget?: boolean
 }
 

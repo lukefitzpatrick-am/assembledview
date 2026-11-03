@@ -13,6 +13,7 @@ import {
 } from "./deliverableBudget"
 import { resolveLineItemBursts } from "./deriveBursts"
 import { clientFeatureOn } from "@/lib/features/client"
+import { combinePackageQuantity } from "@/lib/delivery/deliveryFlags"
 import {
   clampDateToCampaignRange,
   type WeeklyGanttWeekColumn,
@@ -267,14 +268,18 @@ export interface ExpertToStandardBurstOptions {
   /**
    * B10 (F2, decision D1): a package row's deliverable is the quantity entered
    * on the digital, programmatic and press grids. Unset: the
-   * `expert_package_quantity` switch (default off: the old 0 or 1).
+   * `expert_package_quantity` switch, counted only with
+   * `fixed_cost_report_net` on (B23fix; default off: the old 0 or 1).
    */
   packageKeepsEnteredQty?: boolean
 }
 
-/** B10: the caller's choice, else the `expert_package_quantity` switch. */
+/** B10: the caller's choice, else the `expert_package_quantity` switch (with `fixed_cost_report_net`, B23fix). */
 function packageKeepsEnteredQty(options?: ExpertToStandardBurstOptions): boolean {
-  return options?.packageKeepsEnteredQty ?? clientFeatureOn("expert_package_quantity")
+  return (
+    options?.packageKeepsEnteredQty ??
+    combinePackageQuantity(clientFeatureOn("expert_package_quantity"), clientFeatureOn("fixed_cost_report_net"))
+  )
 }
 
 type ExpertRowWithSourceLineItemId = {

@@ -184,12 +184,13 @@ export const FEATURE_DEFINITIONS = [
     key: "expert_package_quantity",
     label: "Expert grid package quantity",
     description:
-      "Applying an expert grid saves a package line's deliverables as the quantity entered, on every channel (decision D1). Off: the Digital Video, Digital Display, Social, Search, Influencers, Integration and programmatic grids save 0 and the Newspaper and Magazines grids save 1, as before. Budgets and billing don't change either way. On also treats every package line as having no unit target, like fixed cost (P14): ad-serving pacing, client dashboard and deck planned deliverables, the CM360 spend estimate and KPI plan deliverables ignore a package quantity.",
+      "Applying an expert grid saves a package line's deliverables as the quantity entered, on every channel (decision D1). On also treats every package line as having no unit target, like fixed cost (P14): pacing, client dashboard and deck planned deliverables, the CM360 spend estimate and KPI plan deliverables ignore a package quantity. This clears planned deliverables on existing OOH, radio, TV and newspaper package lines that already carry a quantity (47 live lines on 3 Nov 2026). Also needs the fixed-cost report on net media switch (Snowflake treats package as time based only on net media). Off: the Digital Video, Digital Display, Social, Search, Influencers, Integration and programmatic grids save 0 and the Newspaper and Magazines grids save 1, as before. Turning it off after it was on puts saved package quantities back as targets everywhere. Budgets and billing don't change either way.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    requires: ["fixed_cost_report_net"],
   },
   {
     key: "publisher_guard",
