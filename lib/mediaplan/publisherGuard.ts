@@ -11,8 +11,13 @@
  * "In Publishers" means the shared resolver finds it
  * (`lib/publisher/resolvePublisherName.ts`): the trimmed, case-insensitive
  * name, a read-time alias Luke approved, or a publisherid no other
- * publisher shares. The same resolver drives AA routing and the finance
- * codes, so a name that passes here is one billing can place.
+ * publisher shares. The guard reads only the channel's picker field
+ * (`PUBLISHER_FIELD_BY_CHANNEL`). What it guarantees: on publish, that field
+ * names a publisher the resolver places, the one AA routing and the finance
+ * codes read. It doesn't promise every reader places the line: for
+ * newspaper and magazines the investment cut SQL (`PUBLISHER_IDENTITY_SQL`)
+ * and `resolveLineDimensions` read the free-text `publisher` (often the
+ * masthead) before `attrs.network`, and the guard doesn't check that field.
  *
  * Draft and new_version saves are never checked: a planner can save mid-edit.
  */
