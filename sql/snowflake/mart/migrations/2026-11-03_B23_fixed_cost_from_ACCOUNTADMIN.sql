@@ -5,11 +5,18 @@
 -- Not run. Authored 2026-11-03 with read-only queries (CLAUDE_RW).
 -- =============================================================================
 -- Order against the code deploy and the switches
---   PART A  before deploying the B23 code: the nightly sync MERGE names the
---           two new snapshot columns, so the cron fails until they exist.
+--   Supabase 0115 before deploying the B23 code (the app reads and writes
+--   line_items.fixed_cost_from). Unchanged.
+--   PART A  any time before PART B and before fixed_cost_report_net goes on,
+--           before or after the code deploy (B23fix). The nightly sync checks
+--           the snapshot for the two columns each run: without them it sends
+--           the pre-B23 MERGE; with them it names both and writes null while
+--           the switches are off.
 --   (deploy the code; switches fixed_cost_report_net and fixed_cost_from_date
---    stay off, so the sync writes null into both columns)
---   PART B  after the deploy, any time: the procedure and the nightly wrapper.
+--    stay off)
+--   PART B  after PART A and the deploy, any time: the procedure and the
+--           nightly wrapper. Both read the two snapshot columns, so PART A
+--           must come first.
 --           With both switches off the B23 procedure writes what the old one
 --           wrote, except the stale-flag fix (B4).
 --   PART C  turn on fixed_cost_report_net at /admin/features, wait for the
@@ -19,7 +26,7 @@
 -- =============================================================================
 
 -- #############################################################################
--- PART A: snapshot columns (before the code deploy)
+-- PART A: snapshot columns (any time before PART B and the net switch)
 -- #############################################################################
 
 -- A1. BEFORE (read only). Expect 13 columns, ending ASSUME_SPEND.
@@ -40,7 +47,8 @@ SELECT COUNT(*) AS rows_total,
        COUNT(FIXED_COST_BURSTS_JSON) AS with_net_bursts  -- expect 0
 FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT;
 
--- A rollback (only before the code deploy):
+-- A rollback (only before PART B, with fixed_cost_report_net off; the sync
+-- then goes back to the pre-B23 MERGE on its next run):
 --   ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT DROP COLUMN FIXED_COST_FROM;
 --   ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT DROP COLUMN FIXED_COST_BURSTS_JSON;
 

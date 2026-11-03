@@ -33,6 +33,15 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
                                   basis or date changes (REPORT_BASIS_APPLIED, FIXED_COST_FROM_APPLIED)
 ```
 
+B23 run order (`migrations/2026-11-03_B23_fixed_cost_from_ACCOUNTADMIN.sql`):
+
+- Supabase 0115, then the code deploy.
+- Part A (two snapshot columns) any time before part B and before
+  `fixed_cost_report_net` goes on. The sync checks for the columns each run
+  and sends the pre-B23 MERGE without them (B23fix).
+- Part B (procedure and wrapper) after part A: both read the two columns.
+- Part C (`fixed_cost_report_net` on), then part D (`fixed_cost_from_date` on).
+
 ## App read paths
 
 - `/api/pacing/campaigns` reads `SEARCH_PACING_FACT` (search surface and overview).

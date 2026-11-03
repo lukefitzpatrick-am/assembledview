@@ -118,8 +118,12 @@ if (supportsMockModule()) {
   await mock.module!("server-only", {})
   await mock.module!("@/lib/snowflake/client", {
     namedExports: {
-      querySnowflake: async (sql: string, binds: unknown[] = []) => {
+      querySnowflake: async (sql: string, binds: unknown[] = [], options?: { label?: string }) => {
         calls.push({ sql, binds })
+        // B23fix: the sync checks the snapshot for the two columns (part A ran).
+        if (options?.label === "xano_snapshot_fixed_cost_columns") {
+          return [{ COLUMN_NAME: "FIXED_COST_FROM" }, { COLUMN_NAME: "FIXED_COST_BURSTS_JSON" }]
+        }
         return []
       },
     },

@@ -2,6 +2,9 @@ import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/client"
 import {
+  FIXED_COST_MERGE_SET,
+  SNAPSHOT_FIXED_COST_COLUMNS_SQL,
+  snapshotHasFixedCostColumns,
   buildSnapshotPruneDeleteSql,
   buildSnapshotPruneMergeSql,
   buildSnapshotPruneQueries,
@@ -65,9 +68,9 @@ function dedupeByLineItemId(items: XanoLineItem[]): {
   }
 }
 
-function buildBatchMergeSql(rowCount: number): string {
+function buildBatchMergeSql(rowCount: number, fixedCostColumns: boolean): string {
   const valuesPlaceholders = Array(rowCount)
-    .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .fill(fixedCostColumns ? "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" : "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .join(",\n    ")
 
   return `
@@ -85,9 +88,13 @@ function buildBatchMergeSql(rowCount: number): string {
         column9::NUMBER AS XANO_ROW_ID,
         column10::NUMBER AS XANO_CREATED_AT,
         column11::BOOLEAN AS NO_ADSERVING,
-        column12::BOOLEAN AS ASSUME_SPEND,
+        column12::BOOLEAN AS ASSUME_SPEND${
+          fixedCostColumns
+            ? `,
         column13::DATE AS FIXED_COST_FROM,
-        PARSE_JSON(column14) AS FIXED_COST_BURSTS_JSON
+        PARSE_JSON(column14) AS FIXED_COST_BURSTS_JSON`
+            : ""
+        }
       FROM VALUES
         ${valuesPlaceholders}
     ) s
@@ -105,19 +112,17 @@ function buildBatchMergeSql(rowCount: number): string {
       XANO_CREATED_AT  = s.XANO_CREATED_AT,
       NO_ADSERVING     = COALESCE(s.NO_ADSERVING, t.NO_ADSERVING),
       ASSUME_SPEND     = COALESCE(s.ASSUME_SPEND, t.ASSUME_SPEND),
-      FIXED_COST_FROM  = s.FIXED_COST_FROM,
-      FIXED_COST_BURSTS_JSON = s.FIXED_COST_BURSTS_JSON,
-      SYNCED_AT        = CURRENT_TIMESTAMP()
+${fixedCostColumns ? FIXED_COST_MERGE_SET : ""}      SYNCED_AT        = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
       FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT,
-      NO_ADSERVING, ASSUME_SPEND, FIXED_COST_FROM, FIXED_COST_BURSTS_JSON, SYNCED_AT
+      NO_ADSERVING, ASSUME_SPEND, ${fixedCostColumns ? "FIXED_COST_FROM, FIXED_COST_BURSTS_JSON, " : ""}SYNCED_AT
     ) VALUES (
       LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
       LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       s.PLATFORM, s.BUY_TYPE,
       s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT,
-      s.NO_ADSERVING, s.ASSUME_SPEND, s.FIXED_COST_FROM, s.FIXED_COST_BURSTS_JSON, CURRENT_TIMESTAMP()
+      s.NO_ADSERVING, s.ASSUME_SPEND, ${fixedCostColumns ? "s.FIXED_COST_FROM, s.FIXED_COST_BURSTS_JSON, " : ""}CURRENT_TIMESTAMP()
     )
   `
 }
@@ -131,7 +136,7 @@ type SyncLineItemsResult = {
   duplicates_collapsed: number
 }
 
-function buildRowBinds(items: XanoLineItem[]): unknown[] {
+function buildRowBinds(items: XanoLineItem[], fixedCostColumns: boolean): unknown[] {
   const binds: unknown[] = []
 
   for (const item of items) {
@@ -152,25 +157,33 @@ function buildRowBinds(items: XanoLineItem[]): unknown[] {
       item.xano_row_id,
       item.xano_created_at,
       item.no_adserving ?? null,
-      item.assume_spend ?? null,
-      // B23: null unless the switches send them (the single warehouse gate).
-      item.fixed_cost_from ?? null,
-      item.fixed_cost_bursts_json == null ? null : JSON.stringify(item.fixed_cost_bursts_json)
+      item.assume_spend ?? null
     )
+    if (fixedCostColumns) {
+      binds.push(
+        // B23: null unless the switches send them (the single warehouse gate).
+        item.fixed_cost_from ?? null,
+        item.fixed_cost_bursts_json == null ? null : JSON.stringify(item.fixed_cost_bursts_json)
+      )
+    }
   }
 
   return binds
 }
 
-async function mergeLineItemBatches(deduped: XanoLineItem[], result: SyncLineItemsResult): Promise<void> {
+async function mergeLineItemBatches(
+  deduped: XanoLineItem[],
+  result: SyncLineItemsResult,
+  fixedCostColumns: boolean
+): Promise<void> {
   for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
     const batch = deduped.slice(i, i + BATCH_SIZE)
-    const sql = buildBatchMergeSql(batch.length)
+    const sql = buildBatchMergeSql(batch.length, fixedCostColumns)
     const label = `xano_snapshot_batch_merge_${batch.length}`
     const batchOrdinal = Math.floor(i / BATCH_SIZE) + 1
 
     const run = (attemptLabel: string) =>
-      querySnowflake(sql, buildRowBinds(batch), {
+      querySnowflake(sql, buildRowBinds(batch, fixedCostColumns), {
         label: attemptLabel,
         timeoutMs: MERGE_TIMEOUT_MS,
       })
@@ -223,8 +236,12 @@ async function dropPruneStage(stageTable: string): Promise<void> {
   }
 }
 
-async function stagePruneRows(stageTable: string, deduped: XanoLineItem[]): Promise<void> {
-  await querySnowflake(buildSnapshotPruneStageCreateSql(stageTable), [], {
+async function stagePruneRows(
+  stageTable: string,
+  deduped: XanoLineItem[],
+  fixedCostColumns: boolean
+): Promise<void> {
+  await querySnowflake(buildSnapshotPruneStageCreateSql(stageTable, fixedCostColumns), [], {
     label: "xano_snapshot_prune_stage_create",
   })
 
@@ -232,15 +249,20 @@ async function stagePruneRows(stageTable: string, deduped: XanoLineItem[]): Prom
     const batch = deduped.slice(i, i + BATCH_SIZE)
     if (batch.length === 0) continue
 
-    await querySnowflake(buildSnapshotPruneStageInsertSql(stageTable, batch.length), buildRowBinds(batch), {
-      label: `xano_snapshot_prune_stage_insert_${batch.length}`,
-    })
+    await querySnowflake(
+      buildSnapshotPruneStageInsertSql(stageTable, batch.length, fixedCostColumns),
+      buildRowBinds(batch, fixedCostColumns),
+      {
+        label: `xano_snapshot_prune_stage_insert_${batch.length}`,
+      }
+    )
   }
 }
 
 async function syncLineItemsWithActivePrune(
   deduped: XanoLineItem[],
-  result: SyncLineItemsResult
+  result: SyncLineItemsResult,
+  fixedCostColumns: boolean
 ): Promise<void> {
   const pruneQueries = buildSnapshotPruneQueries(
     deduped.map((item) => item.line_item_id),
@@ -259,7 +281,7 @@ async function syncLineItemsWithActivePrune(
     console.error(
       `[xano-sync] prune aborted: orphan count ${orphanCount} exceeds SNAPSHOT_PRUNE_MAX ${pruneMax} — possible keep-set error`
     )
-    await mergeLineItemBatches(deduped, result)
+    await mergeLineItemBatches(deduped, result, fixedCostColumns)
     return
   }
 
@@ -267,13 +289,13 @@ async function syncLineItemsWithActivePrune(
   let transactionStarted = false
 
   try {
-    await stagePruneRows(stageTable, deduped)
+    await stagePruneRows(stageTable, deduped, fixedCostColumns)
     await querySnowflake("BEGIN", [], { label: "xano_snapshot_prune_begin" })
     transactionStarted = true
     await querySnowflake(buildSnapshotPruneDeleteSql(stageTable), [], {
       label: "xano_snapshot_prune_delete",
     })
-    await querySnowflake(buildSnapshotPruneMergeSql(stageTable), [], {
+    await querySnowflake(buildSnapshotPruneMergeSql(stageTable, fixedCostColumns), [], {
       label: "xano_snapshot_prune_merge",
     })
     await querySnowflake("COMMIT", [], { label: "xano_snapshot_prune_commit" })
@@ -304,6 +326,39 @@ async function syncLineItemsWithActivePrune(
   }
 }
 
+/**
+ * B23fix (review finding 2): name FIXED_COST_FROM and FIXED_COST_BURSTS_JSON
+ * only when the snapshot has them, so Snowflake part A can run any time
+ * before `fixed_cost_report_net`. With the columns present the MERGE always
+ * names them, so a switch turned off writes null and clears the old values
+ * (the procedure then goes back to gross). Without them: the pre-B23 MERGE.
+ * Rows that carry B23 values while the columns are missing: an error in the
+ * result (run part A), and the rest of the sync goes on.
+ * A failed probe: name them only when a row carries a value.
+ */
+async function resolveFixedCostColumns(deduped: XanoLineItem[], result: SyncLineItemsResult): Promise<boolean> {
+  const carriesValues = deduped.some((item) => item.fixed_cost_from != null || item.fixed_cost_bursts_json != null)
+  let present: boolean | null
+  try {
+    const rows = await querySnowflake<Record<string, unknown>>(SNAPSHOT_FIXED_COST_COLUMNS_SQL, [], {
+      label: "xano_snapshot_fixed_cost_columns",
+    })
+    present = snapshotHasFixedCostColumns(rows)
+  } catch (err) {
+    console.warn(
+      `[xano-sync] fixed-cost column probe failed: ${err instanceof Error ? err.message : String(err)}`
+    )
+    present = null
+  }
+  if (present === false && carriesValues) {
+    const message =
+      "FIXED_COST_FROM and FIXED_COST_BURSTS_JSON are missing on the snapshot: run Snowflake part A (B23). Fixed-cost values not sent."
+    console.error(`[xano-sync] ${message}`)
+    result.errors.push(message)
+  }
+  return present ?? carriesValues
+}
+
 export async function syncLineItemsToSnowflake(items: XanoLineItem[], complete: boolean): Promise<{
   total: number
   succeeded: number
@@ -329,14 +384,15 @@ export async function syncLineItemsToSnowflake(items: XanoLineItem[], complete: 
     )
   }
 
+  const fixedCostColumns = await resolveFixedCostColumns(deduped, result)
   const pruneMode = normaliseSnapshotPruneMode(process.env.SNAPSHOT_PRUNE_MODE)
 
   if (pruneMode === "active" && complete) {
-    await syncLineItemsWithActivePrune(deduped, result)
+    await syncLineItemsWithActivePrune(deduped, result, fixedCostColumns)
     return result
   }
 
-  await mergeLineItemBatches(deduped, result)
+  await mergeLineItemBatches(deduped, result, fixedCostColumns)
 
   if (!complete) {
     console.log("[xano-sync] prune skipped: incomplete fetch")

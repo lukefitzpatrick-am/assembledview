@@ -93,7 +93,37 @@ export function buildSnapshotPruneQueries(
   return { mode, binds, countSql, sampleSql }
 }
 
-export function buildSnapshotPruneStageCreateSql(stageTable: string): string {
+/**
+ * B23fix: the two B23 columns (FIXED_COST_FROM, FIXED_COST_BURSTS_JSON) are
+ * named only when the snapshot has them (Snowflake part A ran). Without them
+ * every statement is the pre-B23 text, so part A can run any time before
+ * `fixed_cost_report_net` goes on.
+ */
+const FIXED_COST_STAGE_COLUMNS = `,
+      FIXED_COST_FROM DATE,
+      FIXED_COST_BURSTS_JSON VARIANT`
+
+/** The two SET lines, shared by the prune merge and the batch merge. */
+export const FIXED_COST_MERGE_SET = `      FIXED_COST_FROM  = s.FIXED_COST_FROM,
+      FIXED_COST_BURSTS_JSON = s.FIXED_COST_BURSTS_JSON,
+`
+
+/** Snapshot columns probe (Snowflake part A adds both). */
+export const SNAPSHOT_FIXED_COST_COLUMNS_SQL = `
+    SELECT COLUMN_NAME
+    FROM ASSEMBLEDVIEW.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'MART'
+      AND TABLE_NAME = 'XANO_LINE_ITEMS_SNAPSHOT'
+      AND COLUMN_NAME IN ('FIXED_COST_FROM', 'FIXED_COST_BURSTS_JSON')
+  `
+
+/** True when the probe found both columns. */
+export function snapshotHasFixedCostColumns(rows: ReadonlyArray<Record<string, unknown>>): boolean {
+  const names = new Set(rows.map((r) => String(r.COLUMN_NAME ?? r.column_name ?? "").toUpperCase()))
+  return names.has("FIXED_COST_FROM") && names.has("FIXED_COST_BURSTS_JSON")
+}
+
+export function buildSnapshotPruneStageCreateSql(stageTable: string, fixedCostColumns = true): string {
   return `
     CREATE OR REPLACE TRANSIENT TABLE ${stageTable} (
       LINE_ITEM_ID VARCHAR,
@@ -107,16 +137,22 @@ export function buildSnapshotPruneStageCreateSql(stageTable: string): string {
       XANO_ROW_ID NUMBER,
       XANO_CREATED_AT NUMBER,
       NO_ADSERVING BOOLEAN,
-      ASSUME_SPEND BOOLEAN,
-      FIXED_COST_FROM DATE,
-      FIXED_COST_BURSTS_JSON VARIANT
+      ASSUME_SPEND BOOLEAN${fixedCostColumns ? FIXED_COST_STAGE_COLUMNS : ""}
     )
   `
 }
 
-export function buildSnapshotPruneStageInsertSql(stageTable: string, rowCount: number): string {
+export function buildSnapshotPruneStageInsertSql(
+  stageTable: string,
+  rowCount: number,
+  fixedCostColumns = true,
+): string {
   const valuesPlaceholders = Array(rowCount)
-    .fill("(?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?, ?, ?, ?, ?, ?, PARSE_JSON(?))")
+    .fill(
+      fixedCostColumns
+        ? "(?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?, ?, ?, ?, ?, ?, PARSE_JSON(?))"
+        : "(?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?, ?, ?, ?, ?)",
+    )
     .join(",\n    ")
 
   return `
@@ -132,9 +168,7 @@ export function buildSnapshotPruneStageInsertSql(stageTable: string, rowCount: n
       XANO_ROW_ID,
       XANO_CREATED_AT,
       NO_ADSERVING,
-      ASSUME_SPEND,
-      FIXED_COST_FROM,
-      FIXED_COST_BURSTS_JSON
+      ASSUME_SPEND${fixedCostColumns ? ",\n      FIXED_COST_FROM,\n      FIXED_COST_BURSTS_JSON" : ""}
     )
     VALUES
       ${valuesPlaceholders}
@@ -152,7 +186,7 @@ export function buildSnapshotPruneDeleteSql(stageTable: string): string {
   `
 }
 
-export function buildSnapshotPruneMergeSql(stageTable: string): string {
+export function buildSnapshotPruneMergeSql(stageTable: string, fixedCostColumns = true): string {
   return `
     MERGE INTO ${SNAPSHOT} t
     USING ${stageTable} s
@@ -170,19 +204,17 @@ export function buildSnapshotPruneMergeSql(stageTable: string): string {
       XANO_CREATED_AT  = s.XANO_CREATED_AT,
       NO_ADSERVING     = COALESCE(s.NO_ADSERVING, t.NO_ADSERVING),
       ASSUME_SPEND     = COALESCE(s.ASSUME_SPEND, t.ASSUME_SPEND),
-      FIXED_COST_FROM  = s.FIXED_COST_FROM,
-      FIXED_COST_BURSTS_JSON = s.FIXED_COST_BURSTS_JSON,
-      SYNCED_AT        = CURRENT_TIMESTAMP()
+${fixedCostColumns ? FIXED_COST_MERGE_SET : ""}      SYNCED_AT        = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
       FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT,
-      NO_ADSERVING, ASSUME_SPEND, FIXED_COST_FROM, FIXED_COST_BURSTS_JSON, SYNCED_AT
+      NO_ADSERVING, ASSUME_SPEND, ${fixedCostColumns ? "FIXED_COST_FROM, FIXED_COST_BURSTS_JSON, " : ""}SYNCED_AT
     ) VALUES (
       LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
       LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       s.PLATFORM, s.BUY_TYPE,
       s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT,
-      s.NO_ADSERVING, s.ASSUME_SPEND, s.FIXED_COST_FROM, s.FIXED_COST_BURSTS_JSON, CURRENT_TIMESTAMP()
+      s.NO_ADSERVING, s.ASSUME_SPEND, ${fixedCostColumns ? "s.FIXED_COST_FROM, s.FIXED_COST_BURSTS_JSON, " : ""}CURRENT_TIMESTAMP()
     )
   `
 }
