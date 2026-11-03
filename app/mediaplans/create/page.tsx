@@ -65,6 +65,8 @@ import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { PublisherGuardActions } from "@/components/mediaplans/PublisherGuardActions"
+import { useIsAdmin } from "@/contexts/AuthContext"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
@@ -321,6 +323,18 @@ import {
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
 } from "@/lib/mediaplan/missingBuyTypeGate"
+import {
+  PUBLISHER_NOT_IN_PUBLISHERS,
+  clearResolvedPublisherFindings,
+  publisherGuardBuilderIssues,
+  type PublisherGuardFinding,
+} from "@/lib/mediaplan/publisherGuard"
+import {
+  publisherGuardBlockedToast,
+  publisherGuardPreflight,
+  publisherWarningsToast,
+} from "@/lib/mediaplan/publisherGuardClient"
+import type { PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
 import {
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
@@ -674,6 +688,12 @@ function CreateMediaPlan() {
   const [isLoading, setIsLoading] = useState(false)
   const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
   const [missingBurstDateLineIds, setMissingBurstDateLineIds] = useState<string[]>([])
+  // B19 Q4 publisher guard: last publish attempt's blocked lines and warnings,
+  // plus publishers an admin added from the shortcut since the page loaded.
+  const [publisherGuardBlocked, setPublisherGuardBlocked] = useState<PublisherGuardFinding[]>([])
+  const [publisherGuardWarnings, setPublisherGuardWarnings] = useState<PublisherGuardFinding[]>([])
+  const [publishersAddedHere, setPublishersAddedHere] = useState<PublisherIdentityRow[]>([])
+  const isAdmin = useIsAdmin()
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   /** Monotonic token so stale MBA-number responses never overwrite a newer client pick. */
   const mbaNumberRequestTokenRef = useRef(0)
@@ -2343,6 +2363,7 @@ function CreateMediaPlan() {
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    issues.push(...publisherGuardBuilderIssues(publisherGuardBlocked, publisherGuardWarnings))
     aaPublishWarnings.forEach((message, index) => {
       issues.push({
         id: `aa-publish-${index}`,
@@ -2366,6 +2387,8 @@ function CreateMediaPlan() {
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    publisherGuardBlocked,
+    publisherGuardWarnings,
     aaPublishWarnings,
   ])
 
@@ -5524,6 +5547,20 @@ function CreateMediaPlan() {
       }
       setMissingBuyTypeLineIds([])
       setMissingBurstDateLineIds([])
+      setPublisherGuardBlocked([])
+      setPublisherGuardWarnings([])
+      // B19 Q4: same gate as the server, before the round trip.
+      const publisherPreflight = publisherGuardPreflight(modeResolved.mode, lineItemsForSave, [
+        ...kpiPublishers,
+        ...publishersAddedHere,
+      ])
+      if (publisherPreflight.reject) {
+        setPublisherGuardBlocked(publisherPreflight.body.publisherIssues)
+        updateSaveStatus("Save plan (transactional)", "error", publisherPreflight.body.error)
+        toast({ variant: "destructive", ...publisherGuardBlockedToast(publisherPreflight.body.publisherIssues) })
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
+        return "failed"
+      }
       const saveResult = await postPlansSave(
         assemblePlansSaveRequestBody(
           {
@@ -5663,6 +5700,14 @@ function CreateMediaPlan() {
           })
           return "failed"
         }
+        if (saveResult.data.code === PUBLISHER_NOT_IN_PUBLISHERS) {
+          const issues = saveResult.data.publisherIssues ?? []
+          setPublisherGuardBlocked(issues)
+          const human = saveResult.data.error || publisherGuardBlockedToast(issues).description
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({ variant: "destructive", title: publisherGuardBlockedToast(issues).title, description: human })
+          return "failed"
+        }
         const human =
           saveResult.data.code === MASTER_ID_MISMATCH
             ? masterIdMismatchMessage("create")
@@ -5691,6 +5736,12 @@ function CreateMediaPlan() {
       }
       for (const warning of saveResult.data.deliverableWarnings ?? []) {
         toast({ title: "Check the rate", description: warning.message })
+      }
+      {
+        const warnings = saveResult.data.publisherWarnings ?? []
+        setPublisherGuardWarnings(warnings)
+        const warningToast = publisherWarningsToast(warnings)
+        if (warningToast) toast(warningToast)
       }
       const { updates, removedCount } = removedEmptyLineUpdates(
         [
@@ -6563,6 +6614,20 @@ const handleSaveAll = async (opts?: {
     <PlanWizardSaveMessages
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
+      problemActions={
+        <PublisherGuardActions
+          blocked={publisherGuardBlocked}
+          isAdmin={isAdmin}
+          onPublisherAdded={(created) => {
+            if (!created) return
+            const added = [...publishersAddedHere, created]
+            setPublishersAddedHere(added)
+            setPublisherGuardBlocked((prev) =>
+              clearResolvedPublisherFindings(prev, [...kpiPublishers, ...added])
+            )
+          }}
+        />
+      }
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
       saveSecondary={CREATE_DRAFT_DOWNLOAD_RAIL}
       saveTip={null}

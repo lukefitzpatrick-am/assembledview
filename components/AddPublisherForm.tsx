@@ -25,11 +25,21 @@ import {
 
 type PublisherFormValues = PublisherCreateValues
 
-interface AddPublisherFormProps {
-  onSuccess: () => void
+/** The created row as POST /api/publishers returns it (fields the callers read). */
+export type CreatedPublisher = {
+  id?: number | string | null
+  publisher_name?: string | null
+  publisherid?: string | null
+  billingagency?: string | null
 }
 
-export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
+interface AddPublisherFormProps {
+  onSuccess: (created?: CreatedPublisher) => void
+  /** Prefill, e.g. the typed name from the editor's publisher guard (B19). */
+  initialValues?: Partial<PublisherCreateInput>
+}
+
+export function AddPublisherForm({ onSuccess, initialValues }: AddPublisherFormProps) {
   const { toast } = useToast()
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -87,6 +97,7 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       progaudio_comms: 0,
       progooh_comms: 0,
       influencers_comms: 0,
+      ...initialValues,
     },
   })
 
@@ -109,8 +120,9 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
         throw new Error(failure.message)
       }
 
+      const created: unknown = await response.json().catch(() => null)
       setShowSuccess(true)
-      onSuccess()
+      onSuccess(created && typeof created === "object" ? (created as CreatedPublisher) : undefined)
     } catch (error) {
       console.error("Failed to create publisher:", error)
       toast({

@@ -52,6 +52,8 @@ import { editCampaignLede, publishedVersionNumberForEditLede } from "@/component
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { PublisherGuardActions } from "@/components/mediaplans/PublisherGuardActions"
+import { useIsAdmin } from "@/contexts/AuthContext"
 import { MediaTypeChipRow } from "@/components/mediaplans/MediaTypeChipRow"
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { formatAUD, formatMoney } from "@/lib/format/money"
@@ -231,6 +233,18 @@ import {
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
 } from "@/lib/mediaplan/missingBuyTypeGate"
+import {
+  PUBLISHER_NOT_IN_PUBLISHERS,
+  clearResolvedPublisherFindings,
+  publisherGuardBuilderIssues,
+  type PublisherGuardFinding,
+} from "@/lib/mediaplan/publisherGuard"
+import {
+  publisherGuardBlockedToast,
+  publisherGuardPreflight,
+  publisherWarningsToast,
+} from "@/lib/mediaplan/publisherGuardClient"
+import type { PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
 import {
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
@@ -1905,6 +1919,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [isSaving, setIsSaving] = useState(false)
   const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
   const [missingBurstDateLineIds, setMissingBurstDateLineIds] = useState<string[]>([])
+  // B19 Q4 publisher guard: last publish attempt's blocked lines and warnings,
+  // plus publishers an admin added from the shortcut since the page loaded.
+  const [publisherGuardBlocked, setPublisherGuardBlocked] = useState<PublisherGuardFinding[]>([])
+  const [publisherGuardWarnings, setPublisherGuardWarnings] = useState<PublisherGuardFinding[]>([])
+  const [publishersAddedHere, setPublishersAddedHere] = useState<PublisherIdentityRow[]>([])
+  const isAdmin = useIsAdmin()
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   const [sentAaPacks, setSentAaPacks] = useState<SentAaPack[] | null>(null)
@@ -6583,6 +6603,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    issues.push(...publisherGuardBuilderIssues(publisherGuardBlocked, publisherGuardWarnings))
     aaPublishWarnings.forEach((message, index) => {
       issues.push({
         id: `aa-publish-${index}`,
@@ -6609,6 +6630,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    publisherGuardBlocked,
+    publisherGuardWarnings,
     aaPublishWarnings,
   ])
 
@@ -7489,6 +7512,21 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       //   "working_draft"         → never reaches here
       setMissingBuyTypeLineIds([])
       setMissingBurstDateLineIds([])
+      setPublisherGuardBlocked([])
+      setPublisherGuardWarnings([])
+      // B19 Q4: same gate as the server, before the round trip.
+      const publisherPreflight = publisherGuardPreflight(modeResolved.mode, lineItemsForSave, [
+        ...billingPublishers,
+        ...publishersAddedHere,
+      ])
+      if (publisherPreflight.reject) {
+        setPublisherGuardBlocked(publisherPreflight.body.publisherIssues)
+        updateSaveStatus("Save plan (transactional)", "error", publisherPreflight.body.error)
+        toast({ variant: "destructive", ...publisherGuardBlockedToast(publisherPreflight.body.publisherIssues) })
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
+        setIsSaving(false)
+        return
+      }
       const saveResult = await postPlansSave(
         assemblePlansSaveRequestBody(
           {
@@ -7627,6 +7665,15 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           setIsSaving(false)
           return
         }
+        if (saveResult.data.code === PUBLISHER_NOT_IN_PUBLISHERS) {
+          const issues = saveResult.data.publisherIssues ?? []
+          setPublisherGuardBlocked(issues)
+          const human = saveResult.data.error || publisherGuardBlockedToast(issues).description
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({ variant: "destructive", title: publisherGuardBlockedToast(issues).title, description: human })
+          setIsSaving(false)
+          return
+        }
         const human =
           saveResult.data.code === MASTER_ID_MISMATCH
             ? masterIdMismatchMessage("edit")
@@ -7664,6 +7711,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       for (const warning of saveResult.data.deliverableWarnings ?? []) {
         toast({ title: "Check the rate", description: warning.message })
+      }
+      {
+        const warnings = saveResult.data.publisherWarnings ?? []
+        setPublisherGuardWarnings(warnings)
+        const warningToast = publisherWarningsToast(warnings)
+        if (warningToast) toast(warningToast)
       }
       const { updates, removedCount } = removedEmptyLineUpdates(
         [
@@ -10441,6 +10494,20 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     <PlanWizardSaveMessages
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
+      problemActions={
+        <PublisherGuardActions
+          blocked={publisherGuardBlocked}
+          isAdmin={isAdmin}
+          onPublisherAdded={(created) => {
+            if (!created) return
+            const added = [...publishersAddedHere, created]
+            setPublishersAddedHere(added)
+            setPublisherGuardBlocked((prev) =>
+              clearResolvedPublisherFindings(prev, [...billingPublishers, ...added])
+            )
+          }}
+        />
+      }
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
       saveSecondary={EDIT_DRAFT_DOWNLOAD_RAIL}
       saveTip={

@@ -25,6 +25,8 @@ function hasText(value: string | null | undefined): value is string {
 export function PlanWizardSaveMessages(props: {
   issues?: BuilderIssue[]
   extraProblemTexts?: string[]
+  /** Buttons under the problem list (B19 Add to Publishers). Shown only with problems. */
+  problemActions?: ReactNode
   draftBanner?: ReactNode
   savePrimary?: string | null
   saveSecondary?: string | null
@@ -105,6 +107,7 @@ export function PlanWizardSaveMessages(props: {
             </li>
           ))}
         </ul>
+        {props.problemActions ?? null}
       </div>
     )
   }

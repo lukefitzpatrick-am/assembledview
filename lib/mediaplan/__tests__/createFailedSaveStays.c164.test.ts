@@ -73,6 +73,9 @@ test("C-164: each refusal the version save handles returns failed (and never cle
     ["stale base (someone published)", (c) => /saveResult\.data\.code === "STALE_BASE_VERSION"/.test(c)],
     ["missing buy type", (c) => /saveResult\.data\.code === MISSING_BUY_TYPE\b/.test(c)],
     ["missing burst dates", (c) => /saveResult\.data\.code === MISSING_BURST_DATES\b/.test(c)],
+    // B19 Q4 publisher guard: the pre-flight and the server's 422.
+    ["publisher guard pre-flight", (c) => /^publisherPreflight\.reject$/.test(c.trim())],
+    ["publisher not in Publishers", (c) => /saveResult\.data\.code === PUBLISHER_NOT_IN_PUBLISHERS\b/.test(c)],
     ["any other save error", (c) => c.replace(/\s+/g, "") === "!saveResult.ok"],
   ]
   const seen = new Map<string, number>()

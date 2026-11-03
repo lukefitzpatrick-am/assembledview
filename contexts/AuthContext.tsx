@@ -139,6 +139,11 @@ export function useAuthContext(): AuthContextValue {
   return ctx;
 }
 
+/** True for an admin (not while viewing as a client). Safe outside the provider (returns false). */
+export function useIsAdmin(): boolean {
+  return useContext(AuthContext)?.isAdmin === true;
+}
+
 /** The active client view, or null. Safe outside the provider (returns null). */
 export function useViewAs(): ViewAsClientInfo | null {
   return useContext(AuthContext)?.viewAs ?? null;
