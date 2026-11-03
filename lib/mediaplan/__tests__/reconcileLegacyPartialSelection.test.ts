@@ -6,6 +6,8 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { editorBillingStableLineItemId, resolveApproval } from "@/lib/finance/buildEditorLineItemInputs"
+import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { prepareEditorLines } from "@/lib/mediaplan/lineItemOrder"
 import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   buildMbaScopeForSaveBody,
@@ -155,6 +157,123 @@ test("ML id in a partly selected channel pairs one to one", () => {
   })
   assert.deepEqual(r.selected.digiDisplay, ["PGAAUS011DD2"])
   assert.deepEqual(r.aliasMatches, [
+    { mediaKey: "digiDisplay", savedId: "PGAAUS011ML2", editorId: "PGAAUS011DD2" },
+  ])
+})
+
+/** Loaded lines as the editor gets them, and the editor ids `prepareEditorLines` gives them. */
+function loadDigiDisplay(mba: string, lines: Array<[string, number]>) {
+  const loaded = lines.map(([line_item_id, position]) => ({ line_item_id, line_item: position }))
+  const prepared = prepareEditorLines(
+    loaded.map((l) => ({ ...l })),
+    mba,
+    MEDIA_TYPE_ID_CODES.digitalDisplay
+  )
+  return {
+    loaded,
+    editorIds: prepared.map((raw, i) => editorBillingStableLineItemId("digiDisplay", raw, i)),
+  }
+}
+
+test("B21fix finding 2: ML1 beside a current DD1 is refused, not paired with the new DD1", () => {
+  // Reviewer probe: [X1DD1 (new, position 1), X1ML1 (old, position 2)] loads as DD1, DD2.
+  const { loaded, editorIds } = loadDigiDisplay("X1", [["X1DD1", 1], ["X1ML1", 2]])
+  assert.deepEqual(editorIds, ["billing-digiDisplay::X1DD1", "billing-digiDisplay::X1DD2"])
+  const channels = [
+    { mediaKey: "digiDisplay", selectedLineItemIds: ["billing-digiDisplay::X1ML1"], selectedCount: 1, totalCount: 2 },
+  ]
+  // Without the loaded lines: the B21 pairing, onto the wrong line.
+  const blind = reconcileLegacyPartialSelection({ mbaNumber: "X1", channels, editorIdsByMedia: { digiDisplay: editorIds } })
+  assert.deepEqual(blind.selected.digiDisplay, ["X1DD1"])
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "X1",
+    channels,
+    editorIdsByMedia: { digiDisplay: editorIds },
+    loadedLinesByMedia: { digiDisplay: loaded },
+  })
+  assert.deepEqual(r.selected.digiDisplay, [])
+  assert.deepEqual(r.aliasMatches, [])
+  assert.deepEqual(r.unresolved, [{ mediaKey: "digiDisplay", savedId: "X1ML1", reason: "ambiguous" }])
+  assert.equal(
+    resolveApproval("digiDisplay", "billing-digiDisplay::X1DD1", { isPartialMBA: true, partialMBASelectedLineItemIds: r.selected }),
+    "excluded"
+  )
+})
+
+test("B21fix finding 2: a saved number the editor gave to a renumbered line is refused", () => {
+  // DD1 and ML1 both ask for 1; the ML1 line is renumbered to DD2. A saved ML2
+  // (a line no longer loaded) must not take it.
+  const { loaded, editorIds } = loadDigiDisplay("X1", [["X1DD1", 1], ["X1ML1", 2]])
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "X1",
+    channels: [{ mediaKey: "digiDisplay", selectedLineItemIds: ["X1ML2"], selectedCount: 1, totalCount: 2 }],
+    editorIdsByMedia: { digiDisplay: editorIds },
+    loadedLinesByMedia: { digiDisplay: loaded },
+  })
+  assert.deepEqual(r.selected.digiDisplay, [])
+  assert.deepEqual(r.unresolved, [{ mediaKey: "digiDisplay", savedId: "X1ML2", reason: "ambiguous" }])
+})
+
+test("B21fix finding 2: a no-code line holding the number by position refuses the ML pair", () => {
+  // X1007 (no code, position 1) takes number 1 from its position; X1ML1 is renumbered.
+  const { loaded, editorIds } = loadDigiDisplay("X1", [["X1007", 1], ["X1ML1", 2]])
+  assert.deepEqual(editorIds, ["billing-digiDisplay::X1DD1", "billing-digiDisplay::X1DD2"])
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "X1",
+    channels: [{ mediaKey: "digiDisplay", selectedLineItemIds: ["X1ML1"], selectedCount: 1, totalCount: 2 }],
+    editorIdsByMedia: { digiDisplay: editorIds },
+    loadedLinesByMedia: { digiDisplay: loaded },
+  })
+  assert.deepEqual(r.selected.digiDisplay, [])
+  assert.equal(r.unresolved[0]?.reason, "ambiguous")
+})
+
+test("B21fix finding 2: a no-code line is never proof of the number, even when its id and position agree", () => {
+  // X11 (no code, position 1) holds 1 by position; its id number is a guess (B20 finding 3).
+  const { loaded, editorIds } = loadDigiDisplay("X1", [["X11", 1], ["X1ML2", 2]])
+  assert.deepEqual(editorIds, ["billing-digiDisplay::X1DD1", "billing-digiDisplay::X1DD2"])
+  const r = reconcileLegacyPartialSelection({
+    mbaNumber: "X1",
+    channels: [{ mediaKey: "digiDisplay", selectedLineItemIds: ["X1ML1"], selectedCount: 1, totalCount: 2 }],
+    editorIdsByMedia: { digiDisplay: editorIds },
+    loadedLinesByMedia: { digiDisplay: loaded },
+  })
+  assert.deepEqual(r.selected.digiDisplay, [])
+  assert.deepEqual(r.unresolved, [{ mediaKey: "digiDisplay", savedId: "X1ML1", reason: "ambiguous" }])
+})
+
+test("B21fix finding 2: the live shapes still pair with the loaded lines given", () => {
+  // PGAAUS010 v4: one digital display line, loaded as ML1.
+  const v4 = loadDigiDisplay("PGAAUS010", [["PGAAUS010ML1", 1]])
+  const r4 = reconcileLegacyPartialSelection({
+    mbaNumber: "PGAAUS010",
+    channels: [
+      { mediaKey: "digiDisplay", selectedLineItemIds: ["billing-digiDisplay::PGAAUS010ML1"], selectedCount: 1, totalCount: 1 },
+    ],
+    editorIdsByMedia: { digiDisplay: v4.editorIds },
+    loadedLinesByMedia: { digiDisplay: v4.loaded },
+  })
+  assert.deepEqual(r4.selected.digiDisplay, ["PGAAUS010DD1"])
+  assert.deepEqual(r4.unresolved, [])
+  // The line rewritten to DD1 by a later save: still the line whose id carries 1.
+  const rewritten = loadDigiDisplay("PGAAUS010", [["PGAAUS010DD1", 1]])
+  const rr = reconcileLegacyPartialSelection({
+    mbaNumber: "PGAAUS010",
+    channels: [{ mediaKey: "digiDisplay", selectedLineItemIds: ["PGAAUS010ML1"], selectedCount: 1, totalCount: 2 }],
+    editorIdsByMedia: { digiDisplay: rewritten.editorIds },
+    loadedLinesByMedia: { digiDisplay: rewritten.loaded },
+  })
+  assert.deepEqual(rr.selected.digiDisplay, ["PGAAUS010DD1"])
+  // Two ML lines, the second selected: ML2 keeps its number and pairs.
+  const two = loadDigiDisplay("PGAAUS011", [["PGAAUS011ML1", 1], ["PGAAUS011ML2", 2]])
+  const r2 = reconcileLegacyPartialSelection({
+    mbaNumber: "PGAAUS011",
+    channels: [{ mediaKey: "digiDisplay", selectedLineItemIds: ["PGAAUS011ML2"], selectedCount: 1, totalCount: 2 }],
+    editorIdsByMedia: { digiDisplay: two.editorIds },
+    loadedLinesByMedia: { digiDisplay: two.loaded },
+  })
+  assert.deepEqual(r2.selected.digiDisplay, ["PGAAUS011DD2"])
+  assert.deepEqual(r2.aliasMatches, [
     { mediaKey: "digiDisplay", savedId: "PGAAUS011ML2", editorId: "PGAAUS011DD2" },
   ])
 })

@@ -212,6 +212,16 @@ function restoreMintedSuffix<T extends LineItemWithIdentity>(item: T): T {
 }
 
 /**
+ * The line number a loaded line asks for in `prepareEditorLines`: the id
+ * suffix of a minted id, else its saved number (position). When two lines
+ * ask for the same number, the first in position order keeps it and the
+ * other is renumbered (B21fix, finding 2).
+ */
+export function editorClaimedLineNumber(item: LineItemWithIdentity): number | null {
+  return claimLineNumber(restoreMintedSuffix(item))
+}
+
+/**
  * Expert rows that are not an already-minted line id (a grid index or a
  * row uuid) drop their identity so the next assign mints max + 1.
  * Updated lines keep the id they already have.

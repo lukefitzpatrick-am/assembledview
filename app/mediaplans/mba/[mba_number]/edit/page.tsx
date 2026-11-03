@@ -401,6 +401,7 @@ import {
   describeLegacyPartialUnresolved,
   reconcileLegacyPartialSelection,
   type LegacyPartialChannel,
+  type LegacyPartialLoadedLines,
   type LegacyPartialUnresolved,
 } from "@/lib/mediaplan/reconcileLegacyPartialSelection"
 import {
@@ -9098,9 +9099,34 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       if (legacyChannels && !allChannelsHydrated) return
       const applyLegacyPartial = () => {
         if (!legacyChannels) return
+        // B21fix (finding 2): the lines as loaded, before the editor renumbers them,
+        // so an alias pair onto a renumbered line is refused.
+        const loadedLinesByMedia: LegacyPartialLoadedLines = {
+          television: televisionLineItems,
+          radio: radioLineItems,
+          newspaper: newspaperLineItems,
+          magazines: magazinesLineItems,
+          ooh: oohLineItems,
+          cinema: cinemaLineItems,
+          digiDisplay: digitalDisplayLineItems,
+          digiAudio: digitalAudioLineItems,
+          digiVideo: digitalVideoLineItems,
+          bvod: bvodLineItems,
+          integration: integrationLineItems,
+          production: productionLineItems,
+          search: searchLineItems,
+          socialMedia: socialMediaLineItems,
+          progDisplay: progDisplayLineItems,
+          progVideo: progVideoLineItems,
+          progBvod: progBvodLineItems,
+          progAudio: progAudioLineItems,
+          progOoh: progOohLineItems,
+          influencers: influencersLineItems,
+        }
         const r = reconcileLegacyPartialSelection({
           channels: legacyChannels,
           editorIdsByMedia: allByMedia,
+          loadedLinesByMedia,
           mbaNumber: String(mbaNumber),
         })
         setLegacyPartialUnresolved(r.unresolved)

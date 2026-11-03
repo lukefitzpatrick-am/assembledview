@@ -32,7 +32,7 @@ test("approvals effect: mba_scope first, then the GET, then the old partial when
   const getAt = body.indexOf("await fetchMbaLineApprovalsClient")
   const fallbackAt = body.indexOf("if (!result.ok || !result.available || !result.rows.length) {\n        applyLegacyPartial()\n        return\n      }")
   assert.ok(scopeAt > 0 && waitAt > scopeAt && getAt > waitAt && fallbackAt > getAt, "order")
-  assert.match(body, /reconcileLegacyPartialSelection\(\{\n\s+channels: legacyChannels,\n\s+editorIdsByMedia: allByMedia,\n\s+mbaNumber: String\(mbaNumber\),/)
+  assert.match(body, /reconcileLegacyPartialSelection\(\{\n\s+channels: legacyChannels,\n\s+editorIdsByMedia: allByMedia,\n\s+loadedLinesByMedia,\n\s+mbaNumber: String\(mbaNumber\),/)
   // Saved months are not touched; values are not recomputed on load.
   const apply = body.slice(body.indexOf("const applyLegacyPartial"), getAt)
   assert.doesNotMatch(apply, /setPartialMBAMonthYears|recomputePartialMBAFromLineItems|setIsPartialMBA/)
@@ -51,4 +51,29 @@ test("MBA billing window shows the unmatched notice in the scope column", () => 
     /<PartialMbaUnmatchedNotice\n\s+message=\{describeLegacyPartialUnresolved\(legacyPartialUnresolved, mediaLabelByBillingKey\)\}/
   )
   assert.match(modal, /\{scopeNotice \? <div data-mba-scope-notice="1">\{scopeNotice\}<\/div> : null\}/)
+})
+
+test("B21fix finding 2: the reconcile gets the loaded lines of every billing channel, before the editor renumbers them", () => {
+  const body = effectBody()
+  const at = body.indexOf("const loadedLinesByMedia: LegacyPartialLoadedLines = {")
+  assert.ok(at > 0, "loaded lines map")
+  const map = body.slice(at, body.indexOf("}", at))
+  const pairs = [...map.matchAll(/^\s+(\w+): (\w+),$/gm)].map((m) => [m[1]!, m[2]!] as const)
+  // Same billing keys as the fee-seed configs that give the editor ids.
+  const seedAt = page.indexOf("const seedConfigs: SeedLineFeesMediaConfig[] = [")
+  const seed = page.slice(seedAt, page.indexOf("\n    ]\n", seedAt))
+  const seedPairs = [...seed.matchAll(/billingKey: "(\w+)", lineItems: (\w+)MediaLineItems,/g)].map((m) => [m[1]!, m[2]!] as const)
+  assert.equal(seedPairs.length, 20)
+  assert.deepEqual(
+    pairs.map(([k]) => k).toSorted(),
+    seedPairs.map(([k]) => k).toSorted()
+  )
+  // Each value is the loaded state (`<name>LineItems`), never the editor copy.
+  // Search and social keep their own loaded names.
+  const loadedName: Record<string, string> = { socialMedia: "socialMediaLineItems", search: "searchLineItems" }
+  for (const [key, stem] of seedPairs) {
+    const value = pairs.find(([k]) => k === key)?.[1]
+    assert.equal(value, loadedName[key] ?? `${stem}LineItems`, key)
+    assert.match(page, new RegExp(`initialLineItems=\\{${value}\\}`), `${value} feeds a container`)
+  }
 })

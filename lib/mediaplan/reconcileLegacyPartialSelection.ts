@@ -15,6 +15,11 @@
  *    number the editor keeps (current code, `ML`). A no-code or old production
  *    id takes its current number from the line's saved position, so its number
  *    can point at another line (B20 review finding 3). Those never pair here.
+ *    With the loaded lines given, the pair also needs exactly one loaded line
+ *    to ask for that number, and that line's own id (current code or `ML`) to
+ *    carry it. Otherwise the editor renumbered one of them and the current id
+ *    may be another line (B21fix, review finding 2: `[DD1, ML1]` loads as
+ *    `DD1, DD2`, and a saved `ML1` would take the new `DD1`).
  * 3. A channel saved with every line selected (`selectedCount === totalCount`)
  *    that still has unmatched ids and the same number of lines today selects
  *    every current line of the channel (decision Q9). When every saved id
@@ -31,8 +36,9 @@
  * Pure. Never writes.
  */
 
-import { billingLineIdAlias } from "@/lib/billing/billingLineIdAlias"
+import { billingLineIdAlias, type BillingLineIdAlias } from "@/lib/billing/billingLineIdAlias"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+import { editorClaimedLineNumber, type LineItemWithIdentity } from "@/lib/mediaplan/lineItemOrder"
 
 export type LegacyPartialChannel = {
   mediaKey: string
@@ -41,10 +47,20 @@ export type LegacyPartialChannel = {
   totalCount?: number | null
 }
 
+/** Loaded lines (`line_item_id`, `line_item`) by billing media key. */
+export type LegacyPartialLoadedLines = Readonly<Record<string, readonly LineItemWithIdentity[]>>
+
 export type ReconcileLegacyPartialInput = {
   channels: readonly LegacyPartialChannel[]
   /** Editor ids by billing media key (`editorBillingStableLineItemId`, bare or decorated), in editor order. */
   editorIdsByMedia: Readonly<Record<string, readonly string[]>>
+  /**
+   * The lines as loaded, before the editor renumbers them (`line_item_id` and
+   * `line_item`), by billing media key. Used to refuse an alias pair the
+   * editor's renumbering makes unsafe. A channel without loaded lines skips
+   * that check.
+   */
+  loadedLinesByMedia?: LegacyPartialLoadedLines
   mbaNumber: string | null | undefined
 }
 
@@ -57,7 +73,10 @@ export type LegacyPartialAliasMatch = {
 export type LegacyPartialUnresolvedReason =
   /** No current id and no alias. */
   | "no_match"
-  /** Alias key shared by more than one saved id or more than one current id. */
+  /**
+   * Alias key shared by more than one saved id or more than one current id, or
+   * the loaded lines don't show which line holds that number now.
+   */
   | "ambiguous"
   /** No-code or old production id: the editor renumbers these from position. */
   | "line_number_not_kept"
@@ -101,6 +120,27 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return b.every((x) => s.has(x))
 }
 
+/**
+ * True when the current line with this alias number is the line whose loaded
+ * id carries it: exactly one loaded line asks for the number, and its id is a
+ * current-code or `ML` id with the same alias key.
+ */
+function loadedLineHoldsAliasNumber(
+  loaded: readonly LineItemWithIdentity[],
+  alias: BillingLineIdAlias,
+  mediaKey: string,
+  mbaNumber: string | null | undefined
+): boolean {
+  const claimers = loaded.filter((line) => editorClaimedLineNumber(line) === alias.lineNumber)
+  if (claimers.length !== 1) return false
+  const own = billingLineIdAlias({
+    id: claimers[0]!.line_item_id ?? claimers[0]!.lineItemId,
+    mediaKey,
+    mbaNumber,
+  })
+  return own != null && own.key === alias.key && (own.form === "current" || own.form === "ml")
+}
+
 export function reconcileLegacyPartialSelection(
   input: ReconcileLegacyPartialInput
 ): ReconcileLegacyPartialResult {
@@ -142,6 +182,7 @@ export function reconcileLegacyPartialSelection(
     const channelUnresolved: LegacyPartialUnresolved[] = []
     const channelAlias: LegacyPartialAliasMatch[] = []
     if (remaining.length > 0) {
+      const loaded = input.loadedLinesByMedia?.[mediaKey] ?? []
       const aliasOf = (id: string) =>
         billingLineIdAlias({ id, mediaKey, mbaNumber: input.mbaNumber })
       const savedByKey = new Map<string, number>()
@@ -173,6 +214,10 @@ export function reconcileLegacyPartialSelection(
           continue
         }
         if ((savedByKey.get(alias.key) ?? 0) !== 1 || candidates.length !== 1 || claimed.has(candidates[0]!)) {
+          channelUnresolved.push({ mediaKey, savedId: id, reason: "ambiguous" })
+          continue
+        }
+        if (loaded.length > 0 && !loadedLineHoldsAliasNumber(loaded, alias, mediaKey, input.mbaNumber)) {
           channelUnresolved.push({ mediaKey, savedId: id, reason: "ambiguous" })
           continue
         }
