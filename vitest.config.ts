@@ -93,6 +93,7 @@ export default defineConfig({
       "components/brand/__tests__/IAOCards.test.tsx",
       "lib/auth/__tests__/privacyPublicPath.test.ts",
       "components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
+      "components/clients/__tests__/EditClientForm.feeTyping.b22fix.test.tsx",
       "components/finance/receivables/__tests__/ReceivableApproveButton.test.tsx",
       "components/finance/__tests__/rowActionLine.test.tsx",
       "components/finance/sections/invoicing/__tests__/invoicingPlanRow.test.tsx",

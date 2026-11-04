@@ -162,9 +162,9 @@ test("source: both forms gate the 12 on admin and the switch, and pass the switc
     assert.ok(src.includes('clientFeeFormRows("0113").map('), label)
     assert.ok(src.includes(call), label)
   }
-  // Edit: a cleared box is null; the 8 old boxes keep their 0.
+  // Edit: a cleared box is null; the 8 old boxes keep their 0 (TypedNumberInput, B22fix R1).
   const group = editForm.slice(editForm.indexOf('clientFeeFormRows("0113")'))
-  assert.match(group.slice(0, 2000), /field\.onChange\(numericValue \? Number\(numericValue\) : null\)/)
+  assert.match(group.slice(0, 2000), /<TypedNumberInput\s+\{\.\.\.field\}\s+format=\{formatPercentage\}\s+empty=\{null\}/)
   // Add: blank is undefined (never sent), not 0.
   const addGroup = addForm.slice(addForm.indexOf('clientFeeFormRows("0113")'))
   assert.match(addGroup.slice(0, 2000), /numberOrUndefined\(e\.target\.value, e\.target\.valueAsNumber\)/)

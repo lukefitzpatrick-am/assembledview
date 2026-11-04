@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
+import { TypedNumberInput } from "@/components/clients/TypedNumberInput"
 import { useToast } from "@/components/ui/use-toast"
 import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 import { clientFeatureOn } from "@/lib/features/client"
@@ -593,15 +594,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                     <FormItem>
                       <FormLabel>{fee.label}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          value={formatPercentage(field.value?.toString() || "")}
-                          onChange={(e) => {
-                            const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                            field.onChange(numericValue ? Number(numericValue) : 0)
-                          }}
-                        />
+                        {/* Keeps what is typed; formats on blur. Cleared is 0, as before (B22fix R1). */}
+                        <TypedNumberInput {...field} format={formatPercentage} empty={0} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -625,20 +619,16 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                         <FormItem>
                           <FormLabel>{fee.label}</FormLabel>
                           <FormControl>
-                            <Input
+                            {/* Keeps what is typed; formats on blur (B22fix R1). Cleared is null (clears the column), never 0 (B22 Q2). */}
+                            <TypedNumberInput
                               {...field}
-                              type="text"
-                              value={formatPercentage(field.value?.toString() || "")}
+                              format={formatPercentage}
+                              empty={null}
                               placeholder={
                                 fee.field === "feeinfluencers"
                                   ? channelFeeInheritPlaceholder(form.watch("feecontentcreator"))
                                   : "No fee"
                               }
-                              onChange={(e) => {
-                                const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                                // Cleared is null (clears the column), never 0 (B22 Q2).
-                                field.onChange(numericValue ? Number(numericValue) : null)
-                              }}
                             />
                           </FormControl>
                           <FormMessage />
