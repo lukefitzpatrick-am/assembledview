@@ -263,11 +263,6 @@ function formatWholeNumber(value: number | undefined) {
   return Math.round(value ?? 0).toLocaleString("en-AU")
 }
 
-function fmtPct(x: number): string {
-  if (!Number.isFinite(x)) return "0.00%"
-  return `${x.toFixed(2)}%`
-}
-
 function fmtRatioDecimal(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—"
   return `${(value * 100).toFixed(2)}%`
@@ -278,10 +273,11 @@ function safeDiv(num: number, den: number): number {
   return num / den
 }
 
-/** Video completion rate in 0-100 percentage points. ComboChart's
- *  "percent" format divides by 100 when the value exceeds 1. */
-function completionRatePct(videoCompletes: number, impressions: number): number {
-  return safeDiv(videoCompletes, impressions) * 100
+/** Video completion rate as a ratio (1 = 100%), for chart format `percent`
+ *  and `fmtRatioDecimal` tiles. Zero impressions, or a non-finite result, is 0. */
+function completionRateRatio(videoCompletes: number, impressions: number): number {
+  const ratio = safeDiv(videoCompletes, impressions)
+  return Number.isFinite(ratio) ? ratio : 0
 }
 
 /**
@@ -878,7 +874,7 @@ export function buildDirectDigitalChannelSection(input: {
       ? [
           {
             label: "Completion rate",
-            value: fmtPct(completionRatePct(rollup.videoCompletes, rollup.impressions)),
+            value: fmtRatioDecimal(completionRateRatio(rollup.videoCompletes, rollup.impressions)),
             accentColour,
           },
         ]
@@ -1111,7 +1107,7 @@ export function buildDirectDigitalChannelSection(input: {
       date: d.date,
       impressions: Number(d.impressions ?? 0),
       ...(lineHasCompletes
-        ? { completionRate: completionRatePct(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
+        ? { completionRate: completionRateRatio(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
         : { clicks: Number(d.clicks ?? 0) }),
     }))
 
@@ -1214,7 +1210,7 @@ export function buildDirectDigitalChannelSection(input: {
             ? [
                 {
                   label: "Completion rate",
-                  value: fmtPct(completionRatePct(m.totals.videoCompletes, m.totals.impressions)),
+                  value: fmtRatioDecimal(completionRateRatio(m.totals.videoCompletes, m.totals.impressions)),
                   accentColour,
                 },
               ]
@@ -1336,7 +1332,7 @@ export function buildDirectDigitalChannelSection(input: {
           ? [
               {
                 label: "Completion rate",
-                value: fmtPct(completionRatePct(rollup.videoCompletes, rollup.impressions)),
+                value: fmtRatioDecimal(completionRateRatio(rollup.videoCompletes, rollup.impressions)),
               },
             ]
           : []),
@@ -1356,7 +1352,7 @@ export function buildDirectDigitalChannelSection(input: {
           date: d.date,
           impressions: Number(d.impressions ?? 0),
           ...(hasVideoCompletes
-            ? { completionRate: completionRatePct(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
+            ? { completionRate: completionRateRatio(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
             : { clicks: Number(d.clicks ?? 0) }),
         })),
         series: dailyChartSeries,

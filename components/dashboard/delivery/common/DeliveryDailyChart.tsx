@@ -26,6 +26,7 @@ import {
   deliveryAxisPlan,
   type DeliveryAxisTick,
   deliveryChartEmptyCopy,
+  deliveryExportRows,
   deliveryFormatterName,
   formatDeliveryValue,
   paintSeries,
@@ -186,6 +187,7 @@ export function DeliveryDailyChart({
     () => blankFutureDays(labelled, resolvedAsAt, paint.map((item) => item.key)),
     [labelled, resolvedAsAt, paint],
   )
+  const exportRows = useMemo(() => deliveryExportRows(labelled, paint), [labelled, paint])
   const dates = plot.map((row) => String(row.date ?? ""))
   const axisPlan = useMemo(() => deliveryAxisPlan(dates), [dates])
   const axisTicks = useMemo(() => new Map(axisPlan.map((tick) => [tick.iso, tick])), [axisPlan])
@@ -250,7 +252,7 @@ export function DeliveryDailyChart({
       exportTitle={exportName ? `${exportName.channel} daily delivery` : undefined}
       legend={legend}
       exportSeries={{
-        data: labelled,
+        data: exportRows,
         xKey: "dateLabel",
         seriesKeys: paint.map((item) => item.key),
       }}

@@ -185,10 +185,10 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     })
   })
 
-  it("aggregate completionRate is volume-weighted (910/1100*100), not the mean of per-line rates", () => {
-    // Line A 90% on 1,000 imps; line B 10% on 100 imps. Mean of rates = 50%.
-    // Volume-weighted: (900+10) / (1000+100) * 100 = 82.727...
-    const expected = (910 / 1100) * 100
+  it("aggregate completionRate is a volume-weighted ratio (910/1100), not the mean of per-line rates", () => {
+    // Line A 90% on 1,000 imps; line B 10% on 100 imps. Mean of rates = 0.5.
+    // Volume-weighted: (900+10) / (1000+100) = 0.82727... (chart format percent is a ratio).
+    const expected = 910 / 1100
 
     const section = buildSection(
       [
@@ -210,8 +210,16 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     const day = section.aggregate.chart.daily.find((d) => d.date === DATE)
     assert.ok(day)
     assert.equal(day.completionRate, expected)
-    assert.notEqual(day.completionRate, 50)
+    assert.notEqual(day.completionRate, 0.5)
     assert.equal(day.impressions, 1100)
+
+    const lineDay = (id: string) => {
+      const chart = section.lineItems.find((item) => item.id === id)?.block.chart
+      if (!chart || chart.kind !== "daily-delivery") throw new Error("expected a daily chart")
+      return chart.daily.find((d) => d.date === DATE)
+    }
+    assert.equal(lineDay(LINE_A)?.completionRate, 0.9)
+    assert.equal(lineDay(LINE_B)?.completionRate, 0.1)
   })
 
   it("fixed-cost BVOD line with REPORTED_SPEND is labelled Reported spend", () => {

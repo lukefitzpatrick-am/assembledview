@@ -283,13 +283,13 @@ test("B30: a CM360 Digital Display section with an assumed line and no priced de
   assert.equal(section.aggregate.progressCards[1].title, "Impressions delivery")
 })
 
-// ---- Unchanged outside a mixed section (JSON pinned at 9bc95017, production main) ----
+// ---- Unchanged outside a mixed section (JSON pinned at 9bc95017, production main; the two CM360 pins carry the C-159 ratio chart units) ----
 
 const PINNED: Record<string, [number, string]> = {
   // HF2 C-183: the assumed-only rows carry basis "assumed" (+18 chars); without it the 1345 / 40b1d59c pin holds (assumedOnlyGlance.hf2.test.ts).
   "assumed only (no delivery in the section)": [1363, "e59ab729fe5924a81c331bf644b2665c10747764825e464c7e22475e7a40f602"],
-  "CM360 section with a plan-only line that does not qualify": [4827, "9fff3ce0fdbbd85f674e1191f42c2182d6594b9be1b126862363782e5c47519d"],
-  "CM360 section whose no_adserving line has a delivery source": [4827, "9ea631a04980072e94957a370bf4aa7d011bd225efe5c97da4f4a53bcf7acc4b"],
+  "CM360 section with a plan-only line that does not qualify": [4829, "32293f763bb9be259a7112cec0e3b742b82d5aaffed1b8a60fd0255206433d24"],
+  "CM360 section whose no_adserving line has a delivery source": [4829, "7ca194e45b5a6725d086218e1406a142d434eb958d61819f26135a27dc560c18"],
 }
 
 function pinnedScenarios(): Array<[string, ReturnType<typeof build>]> {
@@ -304,7 +304,7 @@ function pinnedScenarios(): Array<[string, ReturnType<typeof build>]> {
   ]
 }
 
-test("B30: sections with no assumed line beside delivery are byte-identical to 9bc95017", () => {
+test("B30: sections with no assumed line beside delivery are byte-identical to 9bc95017 (C-159 chart units aside)", () => {
   const scenarios = pinnedScenarios()
   assert.equal(scenarios.length, Object.keys(PINNED).length)
   for (const [name, section] of scenarios) {

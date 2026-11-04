@@ -178,6 +178,26 @@ export function paintSeries(series: DeliveryDailyChartSeries[]): DeliveryPaintSe
   })
 }
 
+/**
+ * Rows for the chart CSV. `percent` series are ratios on the chart and
+ * percentage points in the CSV (0.605 → 60.5), converted here only.
+ */
+export function deliveryExportRows<T extends Record<string, string | number | null>>(
+  rows: T[],
+  paint: DeliveryPaintSeries[],
+): T[] {
+  const percentKeys = paint.filter((item) => item.format === "percent").map((item) => item.key)
+  if (percentKeys.length === 0) return rows
+  return rows.map((row) => {
+    const next: Record<string, string | number | null> = { ...row }
+    for (const key of percentKeys) {
+      const value = next[key]
+      if (typeof value === "number" && Number.isFinite(value)) next[key] = value * 100
+    }
+    return next as T
+  })
+}
+
 export function blankFutureDays<T extends Record<string, string | number | null>>(
   rows: T[],
   asAtDate: string | null | undefined,
