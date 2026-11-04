@@ -127,15 +127,19 @@ test("add: the 12 default blank, the 8 old fees 20; POST carries the 12 only for
   assert.equal(JSON.stringify(buildAddClientPayload(parsed)), JSON.stringify(buildAddClientPayload(parsedBlank)))
 })
 
-test("writeClients: the 12 are writable; explicit null clears only the 12", () => {
+test("writeClients: with the switch on the 12 are writable; explicit null clears only the 12", () => {
+  const on = { requireIdentity: false, channelFees: true } as const
   const out = normalizeClientWritePayload(
     { feeooh: 10, feeradio: null, feeinfluencers: 0, feecinema: "", feesearch: null, website: null },
-    { requireIdentity: false },
+    on,
   )
   assert.deepEqual(out, { feeooh: 10, feeradio: null, feeinfluencers: 0 })
   for (const f of CHANNEL_CLIENT_FEE_FIELDS) {
-    assert.deepEqual(normalizeClientWritePayload({ [f]: null }, { requireIdentity: false }), { [f]: null }, f)
-    assert.deepEqual(normalizeClientWritePayload({ [f]: 10 }, { requireIdentity: false }), { [f]: 10 }, f)
+    assert.deepEqual(normalizeClientWritePayload({ [f]: null }, on), { [f]: null }, f)
+    assert.deepEqual(normalizeClientWritePayload({ [f]: 10 }, on), { [f]: 10 }, f)
+    // Off (B22fix R2): neither a value nor a null reaches the write.
+    assert.deepEqual(normalizeClientWritePayload({ [f]: null }, { requireIdentity: false }), {}, f)
+    assert.deepEqual(normalizeClientWritePayload({ [f]: 10 }, { requireIdentity: false, channelFees: false }), {}, f)
   }
   for (const f of LEGACY_CLIENT_FEE_FIELDS) {
     assert.deepEqual(normalizeClientWritePayload({ [f]: null }, { requireIdentity: false }), {}, f)

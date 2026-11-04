@@ -26,6 +26,8 @@ test("the description says what off does", () => {
   const d = featureDefinition("channel_client_fees")!
   assert.match(d.description, /Off: the form hides the 12 fields and the editor ignores them/)
   assert.match(d.description, /Influencers keeps the Content Creator rate/)
+  // B22fix R2: the server write path is gated too.
+  assert.match(d.description, /client saves on the server drop them/)
   assert.doesNotMatch(d.description, /—/)
 })
 

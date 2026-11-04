@@ -10,6 +10,7 @@ import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
+import { isFeatureOn } from "@/lib/features/server"
 import { CHANNEL_CLIENT_FEE_FIELDS, LEGACY_CLIENT_FEE_FIELDS } from "@/lib/finance/clientFeeChannels"
 
 type ClientInsertKey = keyof typeof schema.clients.$inferInsert
@@ -52,7 +53,7 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, ClientInsertKey> = {
   bvod_checkbox: "bvodCheckbox",
   // The 8 original fee columns (CLIENT_FEE_CHANNELS, B22). Snake and drizzle names match.
   ...feeColumns(LEGACY_CLIENT_FEE_FIELDS),
-  // The 12 from 0113 (B22). An explicit null clears them (CLEARABLE_FEE_COLUMNS).
+  // The 12 from 0113 (B22). Switch on only; an explicit null clears them (CHANNEL_FEE_COLUMNS).
   ...feeColumns(CHANNEL_CLIENT_FEE_FIELDS),
   adservvideo: "adservvideo",
   adservimp: "adservimp",
@@ -93,22 +94,49 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, ClientInsertKey> = {
 }
 
 /**
- * Columns an explicit null clears (decision B22 Q2): the 12 channel fees from
- * 0113 only. Blank is 0%, or the Content Creator rate for Influencers. Every
+ * The 12 channel fee columns from 0113 (B22). Written only with the switch
+ * channel_client_fees on (B22fix R2). An explicit null clears them (decision
+ * B22 Q2): blank is 0%, or the Content Creator rate for Influencers. Every
  * other column still drops null and "".
  */
-const CLEARABLE_FEE_COLUMNS: ReadonlySet<string> = new Set(CHANNEL_CLIENT_FEE_FIELDS)
+const CHANNEL_FEE_COLUMNS: ReadonlySet<string> = new Set(CHANNEL_CLIENT_FEE_FIELDS)
+
+/** True when the body names any of the 12 channel fee columns (any value, null included). */
+export function hasChannelFeeFields(body: Record<string, unknown>): boolean {
+  return CHANNEL_CLIENT_FEE_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(body, field))
+}
+
+/**
+ * Whether a client write may set the 12 channel fees (B22fix R2): the server
+ * read of channel_client_fees (row, else default off; 60 second cache per
+ * instance). Read only when the body names one of the 12. A failed read is
+ * off, so the 12 are dropped and the rest of the save goes through.
+ */
+export async function channelClientFeesOnForWrite(
+  body: Record<string, unknown>,
+  read: () => Promise<boolean> = () => isFeatureOn("channel_client_fees"),
+): Promise<boolean> {
+  if (!hasChannelFeeFields(body)) return false
+  try {
+    return (await read()) === true
+  } catch (err) {
+    console.warn("[clients] channel_client_fees switch read failed; the 12 channel fees are not written", err)
+    return false
+  }
+}
 
 /**
  * Normalize create/update body: name aliases → mp_client_name, drop empties
- * (an explicit null on a clearable fee column is kept), keep only known
- * client columns.
+ * (an explicit null on one of the 12 channel fees is kept), keep only known
+ * client columns. The 12 are dropped unless `channelFees` is true (the
+ * switch, B22fix R2); without them the result is what it was before B22.
  */
 export function normalizeClientWritePayload(
   body: Record<string, unknown>,
-  options: { requireIdentity?: boolean } = {}
+  options: { requireIdentity?: boolean; channelFees?: boolean } = {}
 ): Record<string, unknown> {
   const requireIdentity = options.requireIdentity !== false
+  const channelFees = options.channelFees === true
   const { clientname_input, mp_client_name, client_name, ...rest } = body
   const clientName = mp_client_name || client_name || clientname_input
   const merged: Record<string, unknown> = {
@@ -120,9 +148,12 @@ export function normalizeClientWritePayload(
 
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(merged)) {
-    if (value === null && CLEARABLE_FEE_COLUMNS.has(key)) {
-      out[key] = null
-      continue
+    if (CHANNEL_FEE_COLUMNS.has(key)) {
+      if (!channelFees) continue
+      if (value === null) {
+        out[key] = null
+        continue
+      }
     }
     if (value === undefined || value === null || value === "") continue
     if (!(key in WRITABLE_SNAKE_TO_CAMEL) && key !== "id") continue
@@ -185,7 +216,10 @@ export type ClientWriteResult = {
 export async function createClientPostgresFirst(
   body: Record<string, unknown>
 ): Promise<ClientWriteResult> {
-  const snake = normalizeClientWritePayload(body, { requireIdentity: true })
+  const snake = normalizeClientWritePayload(body, {
+    requireIdentity: true,
+    channelFees: await channelClientFeesOnForWrite(body),
+  })
   // Persist dashboard slug on create (unique index). Rename path preserves slug —
   // see updateClientPostgresFirst (does not auto-refresh from mp_client_name).
   if (!snake.slug) {
@@ -233,7 +267,10 @@ export async function updateClientPostgresFirst(
   // Rename writes `mp_client_name` here and does NOT refresh `slug` — preserve
   // persisted tenant slug unless the body explicitly includes `slug`.
   // Call sites: PUT/PATCH `app/api/clients/[id]/route.ts` → this function.
-  const snake = normalizeClientWritePayload(body, { requireIdentity: false })
+  const snake = normalizeClientWritePayload(body, {
+    requireIdentity: false,
+    channelFees: await channelClientFeesOnForWrite(body),
+  })
   if (Object.keys(snake).length === 0) {
     const [existing] = await getDb()
       .select()

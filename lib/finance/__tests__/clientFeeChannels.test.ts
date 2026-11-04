@@ -211,11 +211,15 @@ test("client forms: the 8 legacy fields, labels and add defaults are unchanged",
   assert.equal(shapeKeys[at + 20], "adservvideo")
 })
 
-test("write path keeps all 20 fees", () => {
+test("write path keeps all 20 fees with the switch on, the 8 old ones with it off (B22fix R2)", () => {
   const body: Record<string, unknown> = { mp_client_name: "Krusty Krab", mbaidentifier: "krusty" }
   for (const field of CLIENT_FEE_FIELDS) body[field] = 12
-  const out = normalizeClientWritePayload(body)
+  const out = normalizeClientWritePayload(body, { channelFees: true })
   for (const field of CLIENT_FEE_FIELDS) assert.equal(out[field], 12, field)
+  const off = normalizeClientWritePayload(body)
+  for (const field of CLIENT_FEE_FIELDS) {
+    assert.equal(off[field], (LEGACY_CLIENT_FEE_FIELDS as readonly string[]).includes(field) ? 12 : undefined, field)
+  }
 })
 
 test("every fee field is a numeric column on the clients mirror, same name (0113 mirror)", () => {

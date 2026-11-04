@@ -229,7 +229,7 @@ export const FEATURE_DEFINITIONS = [
     key: "channel_client_fees",
     label: "Client fees on traditional and direct digital",
     description:
-      "Client fees on TV, radio, newspapers, magazines, OOH, cinema, digital display, audio and video, BVOD, integration and influencers (decisions P3, P12 and B22; migration 0113). On: the client form shows these 12 fee fields to admins, and the media plan editor reads them from the client, so the next save of a plan bills them. A blank field is 0%. A blank Influencers field uses the Content Creator rate. Off: the form hides the 12 fields and the editor ignores them (Influencers keeps the Content Creator rate), as before. Turning it off after a rate is set drops that fee from the next save of that client's plans. Saved and published plans don't change until they're saved again.",
+      "Client fees on TV, radio, newspapers, magazines, OOH, cinema, digital display, audio and video, BVOD, integration and influencers (decisions P3, P12 and B22; migration 0113). On: the client form shows these 12 fee fields to admins, and the media plan editor reads them from the client, so the next save of a plan bills them. A blank field is 0%. A blank Influencers field uses the Content Creator rate. Off: the form hides the 12 fields and the editor ignores them (Influencers keeps the Content Creator rate), as before, and client saves on the server drop them. Turning it off after a rate is set drops that fee from the next save of that client's plans. Saved and published plans don't change until they're saved again.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,
