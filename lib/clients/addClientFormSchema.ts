@@ -14,7 +14,7 @@ import * as z from "zod"
 
 import { ABN_FORMAT_MESSAGE, isAbnBlankOrElevenDigits, normalizeAbn } from "./abn"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "./brandColour"
-import { LEGACY_PLATFORM_ID_FIELDS, clientEditSchema } from "./editClientFormSchema"
+import { LEGACY_FEE_FORM_FIELDS, LEGACY_PLATFORM_ID_FIELDS, clientEditSchema } from "./editClientFormSchema"
 
 export { normalizeAbn }
 
@@ -49,6 +49,10 @@ export const clientAddSchema = clientEditSchema
 export type ClientAddFormInput = z.input<typeof clientAddSchema>
 export type ClientAddFormValues = z.output<typeof clientAddSchema>
 
+function defaultFees<K extends string>(fields: readonly K[], value: number): Record<K, number> {
+  return Object.fromEntries(fields.map((field) => [field, value])) as Record<K, number>
+}
+
 export const ADD_CLIENT_DEFAULTS: ClientAddFormInput = {
   clientname_input: "",
   mbaidentifier: "",
@@ -81,14 +85,8 @@ export const ADD_CLIENT_DEFAULTS: ClientAddFormInput = {
   digitalaudio_checkbox: true,
   digitalvideo_checkbox: true,
   bvod_checkbox: true,
-  feesocial: 20,
-  feesearch: 20,
-  feeprogdisplay: 20,
-  feeprogvideo: 20,
-  feeprogbvod: 20,
-  feeprogaudio: 20,
-  feeprogooh: 20,
-  feecontentcreator: 20,
+  // The 8 original fees default to 20% (CLIENT_FEE_CHANNELS, B22).
+  ...defaultFees(LEGACY_FEE_FORM_FIELDS, 20),
   adservvideo: 0.89,
   adservimp: 0.12,
   adservdisplay: 0.12,

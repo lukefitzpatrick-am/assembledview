@@ -14,6 +14,7 @@
 import * as z from "zod"
 import { ABN_FORMAT_MESSAGE, isAbnBlankOrElevenDigits, normalizeAbn } from "./abn"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "./brandColour"
+import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 
 export const LEGACY_PLATFORM_ID_FIELDS = [
   "idgoogleads",
@@ -116,6 +117,14 @@ const optionalUrlOrEmpty = withPreprocess(
 )
 
 const percentFee = () => optionalNumber(z.number().min(0).max(100))
+
+/** One percent field per fee column, in the order given. */
+function percentFeeShape<K extends string>(fields: readonly K[]): Record<K, ReturnType<typeof percentFee>> {
+  return Object.fromEntries(fields.map((field) => [field, percentFee()])) as Record<K, ReturnType<typeof percentFee>>
+}
+
+/** The 8 original fee fields in client form order. */
+export const LEGACY_FEE_FORM_FIELDS = clientFeeFormRows("legacy").map((row) => row.field)
 const nonNegative = () => optionalNumber(z.number().nonnegative())
 
 export const clientEditSchema = z.object({
@@ -172,14 +181,8 @@ export const clientEditSchema = z.object({
   bvod_checkbox: optionalBoolean,
   /** 0112. Admin only; off by default. */
   is_test_client: optionalBoolean,
-  feesocial: percentFee(),
-  feesearch: percentFee(),
-  feeprogdisplay: percentFee(),
-  feeprogvideo: percentFee(),
-  feeprogbvod: percentFee(),
-  feeprogaudio: percentFee(),
-  feeprogooh: percentFee(),
-  feecontentcreator: percentFee(),
+  // The 8 original fees, form order (CLIENT_FEE_CHANNELS, B22).
+  ...percentFeeShape(LEGACY_FEE_FORM_FIELDS),
   adservvideo: nonNegative(),
   adservimp: nonNegative(),
   adservdisplay: nonNegative(),
@@ -316,14 +319,7 @@ export const EDIT_CLIENT_FIELD_LABELS: Record<string, string> = {
   billingemail: "Billing email",
   monthlyretainer: "Monthly Retainer",
   organicsocial: "Organic Social",
-  feesocial: "Fee: Social Media",
-  feesearch: "Fee: Search",
-  feeprogdisplay: "Fee: Prog Display",
-  feeprogvideo: "Fee: Prog Video",
-  feeprogbvod: "Fee: Prog BVOD",
-  feeprogaudio: "Fee: Prog Audio",
-  feeprogooh: "Fee: Prog OOH",
-  feecontentcreator: "Fee: Content Creator",
+  ...Object.fromEntries(clientFeeFormRows("legacy").map((row) => [row.field, `Fee: ${row.label}`])),
   adservvideo: "Ad serving: Video",
   adservimp: "Ad serving: Impression",
   adservdisplay: "Ad serving: Display",

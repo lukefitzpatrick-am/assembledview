@@ -20,6 +20,7 @@ import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { useToast } from "@/components/ui/use-toast"
+import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 import {
   asOptionalString,
   buildEditClientDefaults,
@@ -579,20 +580,11 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
           <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Fees</h3>
             <div className={grid4}>
-              {[
-                { name: "feesocial", label: "Social Media" },
-                { name: "feesearch", label: "Search" },
-                { name: "feeprogdisplay", label: "Prog Display" },
-                { name: "feeprogvideo", label: "Prog Video" },
-                { name: "feeprogbvod", label: "Prog BVOD" },
-                { name: "feeprogaudio", label: "Prog Audio" },
-                { name: "feeprogooh", label: "Prog OOH" },
-                { name: "feecontentcreator", label: "Content Creator" },
-              ].map((fee) => (
+              {clientFeeFormRows("legacy").map((fee) => (
                 <FormField
-                  key={fee.name}
+                  key={fee.field}
                   control={form.control}
-                  name={fee.name as keyof ClientFormValues}
+                  name={fee.field as keyof ClientFormValues}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{fee.label}</FormLabel>

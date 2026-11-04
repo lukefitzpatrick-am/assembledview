@@ -8,6 +8,7 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { parseMoneyInput, type MoneyInput } from "@/lib/format/money"
+import { CLIENT_FEE_FIELDS, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 import type {
   BurstInput,
   FeeLoading,
@@ -19,28 +20,8 @@ import {
   canonicalBillingLineIdSetHas,
 } from "@/lib/finance/manualBillingOverridesUi"
 
-export type EditorFeeState = {
-  feetelevision?: number | null
-  feeradio?: number | null
-  feenewspapers?: number | null
-  feemagazines?: number | null
-  feeooh?: number | null
-  feecinema?: number | null
-  feedigidisplay?: number | null
-  feedigiaudio?: number | null
-  feedigivideo?: number | null
-  feebvod?: number | null
-  feeintegration?: number | null
-  feesearch?: number | null
-  feesocial?: number | null
-  feeprogdisplay?: number | null
-  feeprogvideo?: number | null
-  feeprogbvod?: number | null
-  feeprogaudio?: number | null
-  feeprogooh?: number | null
-  feeinfluencers?: number | null
-  feecontentcreator?: number | null
-}
+/** Editor fee state: one entry per client fee field (CLIENT_FEE_CHANNELS, B22). */
+export type EditorFeeState = Partial<Record<ClientFeeField, number | null>>
 
 export type BuildEditorLineItemInputsOpts = {
   isPartialMBA?: boolean
@@ -80,26 +61,7 @@ export function buildFeeLoadingFromEditorFees(fees: EditorFeeState): FeeLoading 
       out[key] = value
     }
   }
-  set("feetelevision", fees.feetelevision)
-  set("feeradio", fees.feeradio)
-  set("feenewspapers", fees.feenewspapers)
-  set("feemagazines", fees.feemagazines)
-  set("feeooh", fees.feeooh)
-  set("feecinema", fees.feecinema)
-  set("feedigidisplay", fees.feedigidisplay)
-  set("feedigiaudio", fees.feedigiaudio)
-  set("feedigivideo", fees.feedigivideo)
-  set("feebvod", fees.feebvod)
-  set("feeintegration", fees.feeintegration)
-  set("feesearch", fees.feesearch)
-  set("feesocial", fees.feesocial)
-  set("feeprogdisplay", fees.feeprogdisplay)
-  set("feeprogvideo", fees.feeprogvideo)
-  set("feeprogbvod", fees.feeprogbvod)
-  set("feeprogaudio", fees.feeprogaudio)
-  set("feeprogooh", fees.feeprogooh)
-  set("feeinfluencers", fees.feeinfluencers)
-  set("feecontentcreator", fees.feecontentcreator)
+  for (const field of CLIENT_FEE_FIELDS) set(field, fees[field])
   return out
 }
 

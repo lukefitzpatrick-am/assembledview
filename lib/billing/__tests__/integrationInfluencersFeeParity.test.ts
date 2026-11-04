@@ -20,6 +20,7 @@ import {
   buildFeeLoadingFromEditorFees,
 } from "../../finance/buildEditorLineItemInputs.js"
 import { stampClientFeePctOnLineItems } from "../../finance/stampClientFeePctOnLineItems.js"
+import { CLIENT_FEE_MEDIA_TYPES } from "../../finance/clientFeeChannels.js"
 import { extractAndFormatBursts, parseBurstMoney } from "../../mediaplan/formatBurstsForPersist.js"
 
 /** Krusty-shaped: no feeintegration/feeinfluencers; feecontentcreator=20. */
@@ -289,4 +290,8 @@ test("Influencers->feecontentcreator fallback fires for a non-Krusty client", ()
     }
   )
   assert.equal(financials.mbaScopeTotals.fee, 1_764.71)
+})
+
+test("ALL20_KEYS is the CLIENT_FEE_CHANNELS media list (B22)", () => {
+  assert.deepEqual([...ALL20_KEYS], [...CLIENT_FEE_MEDIA_TYPES])
 })

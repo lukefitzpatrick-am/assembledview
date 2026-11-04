@@ -9,29 +9,13 @@
  */
 
 import type { BillingMonth } from "@/lib/billing/types"
+import type { ClientFeeField } from "@/lib/finance/clientFeeChannels"
 
-/** Canonical fee columns on a clients record (per media type). */
-export type ClientFeeField =
-  | "feetelevision"
-  | "feeradio"
-  | "feenewspapers"
-  | "feemagazines"
-  | "feeooh"
-  | "feecinema"
-  | "feedigidisplay"
-  | "feedigiaudio"
-  | "feedigivideo"
-  | "feebvod"
-  | "feeintegration"
-  | "feesearch"
-  | "feesocial"
-  | "feeprogdisplay"
-  | "feeprogvideo"
-  | "feeprogbvod"
-  | "feeprogaudio"
-  | "feeprogooh"
-  | "feecontentcreator"
-  | "feeinfluencers"
+/**
+ * Canonical fee columns on a clients record (per media type). The list is
+ * CLIENT_FEE_CHANNELS in lib/finance/clientFeeChannels.ts (B22).
+ */
+export type { ClientFeeField }
 
 /**
  * Client per-media-type fee rates (%). Partial — only media types the client

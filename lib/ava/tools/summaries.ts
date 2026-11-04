@@ -8,30 +8,11 @@ import { getTemplate } from "@/lib/naming/templates"
 import { composeName } from "@/lib/naming/compose"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { PLATFORM_ACCOUNT_PLATFORMS, pickMetaPageId, type PlatformAccountPlatform } from "@/lib/clients/platformAccounts"
+import { CHANNEL_CLIENT_FEE_FIELDS, LEGACY_CLIENT_FEE_FIELDS } from "@/lib/finance/clientFeeChannels"
 import { asNumber, asString, capList, LIST_CAP, truncateText } from "./helpers"
 
-const FEE_KEYS = [
-  "feesearch",
-  "feesocial",
-  "feeprogdisplay",
-  "feeprogvideo",
-  "feeprogbvod",
-  "feeprogaudio",
-  "feeprogooh",
-  "feecontentcreator",
-  "feetelevision",
-  "feeradio",
-  "feenewspapers",
-  "feemagazines",
-  "feeooh",
-  "feecinema",
-  "feedigidisplay",
-  "feedigiaudio",
-  "feedigivideo",
-  "feebvod",
-  "feeintegration",
-  "feeinfluencers",
-] as const
+/** The 8 original fee fields, then the 12 from 0113 (CLIENT_FEE_CHANNELS, B22). */
+const FEE_KEYS = [...LEGACY_CLIENT_FEE_FIELDS, ...CHANNEL_CLIENT_FEE_FIELDS]
 
 /** Active client_platform_accounts rows, as listActivePlatformAccounts returns them. */
 export type ClientSummaryPlatformAccount = {

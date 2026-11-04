@@ -29,6 +29,7 @@ import {
 import { addGst } from "@/lib/finance/gst"
 import { monthExGstFromScheduleEntry } from "@/lib/finance/computeBillableAlignedMbaTotal"
 import { validateBillableEqualsMba } from "@/lib/finance/validateBillableEqualsMba"
+import { CLIENT_FEE_FIELD_BY_MEDIA } from "@/lib/finance/clientFeeChannels"
 import type {
   BillingOverride,
   CampaignFinancials,
@@ -212,28 +213,8 @@ const MEDIA_TYPE_ALIASES: Record<string, ScheduleMediaTypeKey> = {
   production: "production",
 }
 
-const FEE_FIELD_BY_MEDIA: Record<ScheduleMediaTypeKey, ClientFeeField> = {
-  television: "feetelevision",
-  radio: "feeradio",
-  newspaper: "feenewspapers",
-  magazines: "feemagazines",
-  ooh: "feeooh",
-  cinema: "feecinema",
-  digiDisplay: "feedigidisplay",
-  digiAudio: "feedigiaudio",
-  digiVideo: "feedigivideo",
-  bvod: "feebvod",
-  integration: "feeintegration",
-  search: "feesearch",
-  socialMedia: "feesocial",
-  progDisplay: "feeprogdisplay",
-  progVideo: "feeprogvideo",
-  progBvod: "feeprogbvod",
-  progAudio: "feeprogaudio",
-  progOoh: "feeprogooh",
-  influencers: "feeinfluencers",
-  production: "feecontentcreator",
-}
+/** From CLIENT_FEE_CHANNELS (B22). The type checks every schedule key has a field. */
+const FEE_FIELD_BY_MEDIA: Record<ScheduleMediaTypeKey, ClientFeeField> = CLIENT_FEE_FIELD_BY_MEDIA
 
 function normaliseToken(raw: string): string {
   return raw.trim().toLowerCase().replace(/[\s_-]+/g, "")

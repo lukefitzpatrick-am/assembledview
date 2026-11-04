@@ -8,62 +8,21 @@
 
 import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinancials"
 import type { ClientFeeField, FeeLoading } from "@/lib/finance/campaignFinancials.types"
+import { CLIENT_FEE_FIELDS, CLIENT_FEE_MEDIA_TYPES } from "@/lib/finance/clientFeeChannels"
 import {
   type ChannelFeePcts,
   type FeePctsByVersionId,
 } from "@/lib/delivery/directDigitalFeeLookup"
 
-const SCHEDULE_MEDIA_TYPES = [
-  "television",
-  "radio",
-  "newspaper",
-  "magazines",
-  "ooh",
-  "cinema",
-  "digiDisplay",
-  "digiAudio",
-  "digiVideo",
-  "bvod",
-  "integration",
-  "search",
-  "socialMedia",
-  "progDisplay",
-  "progVideo",
-  "progBvod",
-  "progAudio",
-  "progOoh",
-  "influencers",
-  "production",
-] as const
+const SCHEDULE_MEDIA_TYPES = CLIENT_FEE_MEDIA_TYPES
 
-const CLIENT_FEE_FIELDS = new Set<string>([
-  "feetelevision",
-  "feeradio",
-  "feenewspapers",
-  "feemagazines",
-  "feeooh",
-  "feecinema",
-  "feedigidisplay",
-  "feedigiaudio",
-  "feedigivideo",
-  "feebvod",
-  "feeintegration",
-  "feesearch",
-  "feesocial",
-  "feeprogdisplay",
-  "feeprogvideo",
-  "feeprogbvod",
-  "feeprogaudio",
-  "feeprogooh",
-  "feecontentcreator",
-  "feeinfluencers",
-])
+const CLIENT_FEE_FIELD_SET = new Set<string>(CLIENT_FEE_FIELDS)
 
 export function feeLoadingFromSnapshot(fees: unknown): FeeLoading | null {
   if (!fees || typeof fees !== "object" || Array.isArray(fees)) return null
   const out: FeeLoading = {}
   for (const [key, value] of Object.entries(fees as Record<string, unknown>)) {
-    if (!CLIENT_FEE_FIELDS.has(key)) continue
+    if (!CLIENT_FEE_FIELD_SET.has(key)) continue
     const n =
       typeof value === "number"
         ? value

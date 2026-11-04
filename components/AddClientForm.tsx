@@ -20,6 +20,7 @@ import {
   type ClientAddFormInput,
   type ClientAddFormValues,
 } from "@/lib/clients/addClientFormSchema"
+import { LEGACY_FEE_FORM_FIELDS } from "@/lib/clients/editClientFormSchema"
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
@@ -547,7 +548,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
 
           {/* Fees */}
           <div className="grid grid-cols-2 gap-4">
-            {["social", "search", "progdisplay", "progvideo", "progbvod", "progaudio", "progooh", "contentcreator"].map(
+            {LEGACY_FEE_FORM_FIELDS.map((field) => field.slice("fee".length)).map(
               (feeType) => (
                 <FormField
                   key={feeType}

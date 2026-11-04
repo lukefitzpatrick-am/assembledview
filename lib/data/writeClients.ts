@@ -10,9 +10,17 @@ import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
+import { LEGACY_CLIENT_FEE_FIELDS } from "@/lib/finance/clientFeeChannels"
+
+type ClientInsertKey = keyof typeof schema.clients.$inferInsert
+
+/** Fee column names are the same in snake case and in the drizzle mirror. */
+function feeColumns<K extends string & ClientInsertKey>(fields: readonly K[]): Record<K, K> {
+  return Object.fromEntries(fields.map((f) => [f, f])) as Record<K, K>
+}
 
 /** Columns clients writes may set (API snake_case → drizzle). */
-const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$inferInsert> = {
+const WRITABLE_SNAKE_TO_CAMEL: Record<string, ClientInsertKey> = {
   mp_client_name: "mpClientName",
   clientcategory: "clientcategory",
   abn: "abn",
@@ -42,14 +50,8 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$infer
   digitalaudio_checkbox: "digitalaudioCheckbox",
   digitalvideo_checkbox: "digitalvideoCheckbox",
   bvod_checkbox: "bvodCheckbox",
-  feesocial: "feesocial",
-  feesearch: "feesearch",
-  feeprogdisplay: "feeprogdisplay",
-  feeprogvideo: "feeprogvideo",
-  feeprogbvod: "feeprogbvod",
-  feeprogaudio: "feeprogaudio",
-  feeprogooh: "feeprogooh",
-  feecontentcreator: "feecontentcreator",
+  // The 8 original fee columns (CLIENT_FEE_CHANNELS, B22). Snake and drizzle names match.
+  ...feeColumns(LEGACY_CLIENT_FEE_FIELDS),
   adservvideo: "adservvideo",
   adservimp: "adservimp",
   adservdisplay: "adservdisplay",
