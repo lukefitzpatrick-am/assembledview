@@ -506,15 +506,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                   <FormItem>
                     <FormLabel>Monthly Retainer</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="text"
-                        value={formatCurrency(field.value?.toString() || "")}
-                        onChange={(e) => {
-                          const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                          field.onChange(numericValue ? Number(numericValue) : 0)
-                        }}
-                      />
+                      {/* Keeps what is typed; formats on blur. Cleared is 0, as before (B22fix R1). */}
+                      <TypedNumberInput {...field} format={formatCurrency} empty={0} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -528,15 +521,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                   <FormItem>
                     <FormLabel>Organic Social</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
-                        type="text"
-                        value={formatCurrency(field.value?.toString() || "")}
-                        onChange={(e) => {
-                          const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                          field.onChange(numericValue ? Number(numericValue) : 0)
-                        }}
-                      />
+                      {/* Keeps what is typed; formats on blur. Cleared is 0, as before (B22fix R1). */}
+                      <TypedNumberInput {...field} format={formatCurrency} empty={0} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -658,15 +644,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                     <FormItem>
                       <FormLabel>{fee.label}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          value={formatCurrency(field.value?.toString() || "")}
-                          onChange={(e) => {
-                            const numericValue = e.target.value.replace(/[^0-9.]/g, "")
-                            field.onChange(numericValue ? Number(numericValue) : 0)
-                          }}
-                        />
+                        {/* Keeps what is typed; formats on blur. Cleared is 0, as before (B22fix R1). */}
+                        <TypedNumberInput {...field} format={formatCurrency} empty={0} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

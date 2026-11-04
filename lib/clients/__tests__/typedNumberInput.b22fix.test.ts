@@ -89,3 +89,9 @@ test("source: the box keeps a draft while focused and formats on blur", () => {
   assert.match(box, /setDraft\(null\)\s*\n\s*onBlur\?\.\(e\)/)
   assert.match(box, /inputRef\.current\?\.select\(\)/)
 })
+
+test("source: the 6 money boxes (retainer, organic social, 4 ad serving) use TypedNumberInput", () => {
+  assert.equal((editForm.match(/<TypedNumberInput \{\.\.\.field\} format=\{formatCurrency\} empty=\{0\} \/>/g) ?? []).length, 3)
+  assert.doesNotMatch(editForm, /value=\{formatCurrency\(/)
+  assert.doesNotMatch(editForm, /e\.target\.value\.replace/)
+})
