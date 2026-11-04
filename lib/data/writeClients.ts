@@ -10,7 +10,7 @@ import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
-import { LEGACY_CLIENT_FEE_FIELDS } from "@/lib/finance/clientFeeChannels"
+import { CHANNEL_CLIENT_FEE_FIELDS, LEGACY_CLIENT_FEE_FIELDS } from "@/lib/finance/clientFeeChannels"
 
 type ClientInsertKey = keyof typeof schema.clients.$inferInsert
 
@@ -52,6 +52,8 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, ClientInsertKey> = {
   bvod_checkbox: "bvodCheckbox",
   // The 8 original fee columns (CLIENT_FEE_CHANNELS, B22). Snake and drizzle names match.
   ...feeColumns(LEGACY_CLIENT_FEE_FIELDS),
+  // The 12 from 0113 (B22). An explicit null clears them (CLEARABLE_FEE_COLUMNS).
+  ...feeColumns(CHANNEL_CLIENT_FEE_FIELDS),
   adservvideo: "adservvideo",
   adservimp: "adservimp",
   adservdisplay: "adservdisplay",
@@ -91,8 +93,16 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, ClientInsertKey> = {
 }
 
 /**
- * Normalize create/update body: name aliases → mp_client_name, drop empties,
- * keep only known client columns.
+ * Columns an explicit null clears (decision B22 Q2): the 12 channel fees from
+ * 0113 only. Blank is 0%, or the Content Creator rate for Influencers. Every
+ * other column still drops null and "".
+ */
+const CLEARABLE_FEE_COLUMNS: ReadonlySet<string> = new Set(CHANNEL_CLIENT_FEE_FIELDS)
+
+/**
+ * Normalize create/update body: name aliases → mp_client_name, drop empties
+ * (an explicit null on a clearable fee column is kept), keep only known
+ * client columns.
  */
 export function normalizeClientWritePayload(
   body: Record<string, unknown>,
@@ -110,6 +120,10 @@ export function normalizeClientWritePayload(
 
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(merged)) {
+    if (value === null && CLEARABLE_FEE_COLUMNS.has(key)) {
+      out[key] = null
+      continue
+    }
     if (value === undefined || value === null || value === "") continue
     if (!(key in WRITABLE_SNAKE_TO_CAMEL) && key !== "id") continue
     if (key === "id") continue

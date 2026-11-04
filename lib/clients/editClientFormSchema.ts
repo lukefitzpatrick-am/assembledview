@@ -6,6 +6,10 @@
  * Undefined keys are left out of the JSON body, and the PUT route drops
  * null / "" values, so a save never writes a column the user didn't fill in.
  *
+ * The 12 channel fees from 0113 (B22) are the exception: a box the admin
+ * clears is sent as null, and the write path clears the column. They are in
+ * the body only for an admin with the switch channel_client_fees on.
+ *
  * The legacy platform id columns (idgoogleads ... idshopify) are not part of
  * this form. Platform accounts live in PlatformAccountsSection. The columns
  * stay in the DB because creative (idmeta = Meta page id) and Ava summaries
@@ -125,6 +129,42 @@ function percentFeeShape<K extends string>(fields: readonly K[]): Record<K, Retu
 
 /** The 8 original fee fields in client form order. */
 export const LEGACY_FEE_FORM_FIELDS = clientFeeFormRows("legacy").map((row) => row.field)
+
+/**
+ * The 12 fee fields from 0113 (B22) in client form order. Admin only, and
+ * only with the switch channel_client_fees on.
+ */
+export const CHANNEL_FEE_FORM_FIELDS = clientFeeFormRows("0113").map((row) => row.field)
+
+/**
+ * A 0113 fee that can be cleared (decision B22 Q2). undefined: not touched,
+ * left out of the PUT. null or blank: clear the column (0%, or the Content
+ * Creator rate for Influencers). Never turns a blank into 0.
+ */
+const toClearableFee = (value: unknown) => {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed === "") return null
+    const n = Number(trimmed)
+    return Number.isFinite(n) ? n : value
+  }
+  if (typeof value === "number" && Number.isNaN(value)) return null
+  return value
+}
+
+const clearablePercentFee = () =>
+  withPreprocess(toClearableFee, z.number().min(0).max(100).nullable().optional())
+
+function clearablePercentFeeShape<K extends string>(
+  fields: readonly K[]
+): Record<K, ReturnType<typeof clearablePercentFee>> {
+  return Object.fromEntries(fields.map((field) => [field, clearablePercentFee()])) as Record<
+    K,
+    ReturnType<typeof clearablePercentFee>
+  >
+}
 const nonNegative = () => optionalNumber(z.number().nonnegative())
 
 export const clientEditSchema = z.object({
@@ -183,6 +223,8 @@ export const clientEditSchema = z.object({
   is_test_client: optionalBoolean,
   // The 8 original fees, form order (CLIENT_FEE_CHANNELS, B22).
   ...percentFeeShape(LEGACY_FEE_FORM_FIELDS),
+  // The 12 from 0113 (B22): clearable, admin only, switch channel_client_fees.
+  ...clearablePercentFeeShape(CHANNEL_FEE_FORM_FIELDS),
   adservvideo: nonNegative(),
   adservimp: nonNegative(),
   adservdisplay: nonNegative(),
@@ -259,10 +301,32 @@ export function buildEditClientDefaults(
   } as ClientEditFormValues
 }
 
+/** Placeholder for a blank Influencers fee: it uses the Content Creator rate. */
+export function channelFeeInheritPlaceholder(contentCreatorFee: unknown): string {
+  const n = typeof contentCreatorFee === "number" ? contentCreatorFee : Number(contentCreatorFee)
+  return contentCreatorFee != null && contentCreatorFee !== "" && Number.isFinite(n)
+    ? `Uses Content Creator (${n.toFixed(2)}%)`
+    : "Uses Content Creator"
+}
+
+/**
+ * Drops the 12 fee fields from 0113 unless an admin has the switch
+ * channel_client_fees on (B22). Off, the body is what it was before B22.
+ */
+export function stripChannelFeeFields(
+  payload: Record<string, unknown>,
+  options: { isAdmin: boolean; channelFees?: boolean }
+): void {
+  if (options.isAdmin && options.channelFees === true) return
+  for (const field of CHANNEL_FEE_FORM_FIELDS) {
+    delete payload[field]
+  }
+}
+
 /** PUT body for `/api/clients/[id]`. Never carries the legacy id* columns. */
 export function buildEditClientPayload(
   data: ClientEditFormValues,
-  options: { isAdmin: boolean; initialClientBrain: string; now?: () => number }
+  options: { isAdmin: boolean; initialClientBrain: string; channelFees?: boolean; now?: () => number }
 ): Record<string, unknown> {
   const { clientname_input, ...restData } = data
   const payload: Record<string, unknown> = {
@@ -272,6 +336,7 @@ export function buildEditClientPayload(
   for (const field of LEGACY_PLATFORM_ID_FIELDS) {
     delete payload[field]
   }
+  stripChannelFeeFields(payload, options)
   // UI-gate only: non-admins must never write brain/link or admin-only fields
   // (even if defaults rode along). The PUT route is admin only as well.
   if (!options.isAdmin) {
@@ -319,7 +384,9 @@ export const EDIT_CLIENT_FIELD_LABELS: Record<string, string> = {
   billingemail: "Billing email",
   monthlyretainer: "Monthly Retainer",
   organicsocial: "Organic Social",
-  ...Object.fromEntries(clientFeeFormRows("legacy").map((row) => [row.field, `Fee: ${row.label}`])),
+  ...Object.fromEntries(
+    [...clientFeeFormRows("legacy"), ...clientFeeFormRows("0113")].map((row) => [row.field, `Fee: ${row.label}`])
+  ),
   adservvideo: "Ad serving: Video",
   adservimp: "Ad serving: Impression",
   adservdisplay: "Ad serving: Display",

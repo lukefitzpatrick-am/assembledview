@@ -20,7 +20,10 @@ import {
   type ClientAddFormInput,
   type ClientAddFormValues,
 } from "@/lib/clients/addClientFormSchema"
-import { LEGACY_FEE_FORM_FIELDS } from "@/lib/clients/editClientFormSchema"
+import { LEGACY_FEE_FORM_FIELDS, channelFeeInheritPlaceholder } from "@/lib/clients/editClientFormSchema"
+import { useIsAdmin } from "@/contexts/AuthContext"
+import { clientFeatureOn } from "@/lib/features/client"
+import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
@@ -37,6 +40,9 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<{ title: string; message: string } | null>(null)
+  const isAdmin = useIsAdmin()
+  // B22: the 12 channel fees (0113) show to admins with the switch on only.
+  const channelFeesOn = clientFeatureOn("channel_client_fees")
 
   const form = useForm<ClientFormInput, unknown, ClientFormValues>({
     resolver: zodResolver(clientAddSchema),
@@ -46,7 +52,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
-      const payload = buildAddClientPayload(data)
+      const payload = buildAddClientPayload(data, { isAdmin, channelFees: channelFeesOn })
 
       const response = await fetch("/api/clients", {
         method: "POST",
@@ -583,6 +589,54 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               ),
             )}
           </div>
+
+          {/* B22: the 12 channel fees (0113), admins with the switch on. Blank by default (decision B22 Q3). */}
+          {isAdmin && channelFeesOn ? (
+            <div className="space-y-2">
+              <h4 className="text-base font-semibold">Traditional, direct digital, integration and influencers fees</h4>
+              <p className="text-sm text-muted-foreground">
+                Blank is no fee. A blank Influencers fee uses the Content Creator rate.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {clientFeeFormRows("0113").map((fee) => (
+                  <FormField
+                    key={fee.field}
+                    control={form.control}
+                    name={fee.field as keyof ClientFormValues}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{`${fee.label} Fee`}</FormLabel>
+                        <div className="relative">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="pr-7"
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              min={0}
+                              max={100}
+                              value={typeof field.value === "number" ? field.value : ""}
+                              onChange={(e) => field.onChange(numberOrUndefined(e.target.value, e.target.valueAsNumber))}
+                              placeholder={
+                                fee.field === "feeinfluencers"
+                                  ? channelFeeInheritPlaceholder(form.watch("feecontentcreator"))
+                                  : "No fee"
+                              }
+                            />
+                          </FormControl>
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            %
+                          </span>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Ad Serving */}
           <div className="grid grid-cols-2 gap-4">

@@ -21,10 +21,12 @@ import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSe
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { useToast } from "@/components/ui/use-toast"
 import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   asOptionalString,
   buildEditClientDefaults,
   buildEditClientPayload,
+  channelFeeInheritPlaceholder,
   clientEditSchema,
   describeInvalidFields,
   TEST_CLIENT_HELP,
@@ -54,6 +56,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const { isAdmin } = useAuthContext()
+  // B22: the 12 channel fees (0113) show to admins with the switch on only.
+  const channelFeesOn = clientFeatureOn("channel_client_fees")
 
   const { toast } = useToast()
 
@@ -83,7 +87,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
-      const apiPayload = buildEditClientPayload(data, { isAdmin, initialClientBrain })
+      const apiPayload = buildEditClientPayload(data, { isAdmin, initialClientBrain, channelFees: channelFeesOn })
 
       const response = await fetch(`/api/clients/${data.id}`, {
         method: "PUT",
@@ -605,6 +609,46 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                 />
               ))}
             </div>
+            {isAdmin && channelFeesOn ? (
+              <>
+                <h4 className="mt-6 mb-1 text-base font-semibold">Traditional, direct digital, integration and influencers</h4>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Blank is no fee. A blank Influencers fee uses the Content Creator rate.
+                </p>
+                <div className={grid4}>
+                  {clientFeeFormRows("0113").map((fee) => (
+                    <FormField
+                      key={fee.field}
+                      control={form.control}
+                      name={fee.field as keyof ClientFormValues}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{fee.label}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="text"
+                              value={formatPercentage(field.value?.toString() || "")}
+                              placeholder={
+                                fee.field === "feeinfluencers"
+                                  ? channelFeeInheritPlaceholder(form.watch("feecontentcreator"))
+                                  : "No fee"
+                              }
+                              onChange={(e) => {
+                                const numericValue = e.target.value.replace(/[^0-9.]/g, "")
+                                // Cleared is null (clears the column), never 0 (B22 Q2).
+                                field.onChange(numericValue ? Number(numericValue) : null)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="min-w-0 rounded-md border p-4">

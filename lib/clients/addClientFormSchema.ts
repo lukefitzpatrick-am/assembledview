@@ -14,7 +14,12 @@ import * as z from "zod"
 
 import { ABN_FORMAT_MESSAGE, isAbnBlankOrElevenDigits, normalizeAbn } from "./abn"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "./brandColour"
-import { LEGACY_FEE_FORM_FIELDS, LEGACY_PLATFORM_ID_FIELDS, clientEditSchema } from "./editClientFormSchema"
+import {
+  LEGACY_FEE_FORM_FIELDS,
+  LEGACY_PLATFORM_ID_FIELDS,
+  clientEditSchema,
+  stripChannelFeeFields,
+} from "./editClientFormSchema"
 
 export { normalizeAbn }
 
@@ -85,7 +90,8 @@ export const ADD_CLIENT_DEFAULTS: ClientAddFormInput = {
   digitalaudio_checkbox: true,
   digitalvideo_checkbox: true,
   bvod_checkbox: true,
-  // The 8 original fees default to 20% (CLIENT_FEE_CHANNELS, B22).
+  // The 8 original fees default to 20% (CLIENT_FEE_CHANNELS, B22). The 12
+  // from 0113 are left out: blank, so a new client has none (decision B22 Q3).
   ...defaultFees(LEGACY_FEE_FORM_FIELDS, 20),
   adservvideo: 0.89,
   adservimp: 0.12,
@@ -94,8 +100,15 @@ export const ADD_CLIENT_DEFAULTS: ClientAddFormInput = {
   brand_colour: DEFAULT_CLIENT_BRAND_COLOUR,
 }
 
-/** POST body for `/api/clients`. Never carries the legacy id* columns. */
-export function buildAddClientPayload(data: ClientAddFormValues): Record<string, unknown> {
+/**
+ * POST body for `/api/clients`. Never carries the legacy id* columns. The 12
+ * channel fees from 0113 ride along only for an admin with the switch
+ * channel_client_fees on (B22); they default blank, so a new client has none.
+ */
+export function buildAddClientPayload(
+  data: ClientAddFormValues,
+  options: { isAdmin: boolean; channelFees?: boolean } = { isAdmin: false }
+): Record<string, unknown> {
   const { clientname_input, ...restData } = data
   const payload: Record<string, unknown> = {
     ...restData,
@@ -105,5 +118,6 @@ export function buildAddClientPayload(data: ClientAddFormValues): Record<string,
   for (const field of LEGACY_PLATFORM_ID_FIELDS) {
     delete payload[field]
   }
+  stripChannelFeeFields(payload, options)
   return payload
 }

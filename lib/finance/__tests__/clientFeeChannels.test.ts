@@ -203,18 +203,19 @@ test("client forms: the 8 legacy fields, labels and add defaults are unchanged",
   }
   const shapeKeys = Object.keys(clientEditSchema.shape)
   const feeKeys = shapeKeys.filter((k) => k.startsWith("fee"))
-  assert.deepEqual(feeKeys, OLD_FORM_FEES.map(([f]) => f))
+  // The 8 legacy fees in the old order, then the 12 from 0113 (B22, form order).
+  assert.deepEqual(feeKeys, [...OLD_FORM_FEES.map(([f]) => f), ...clientFeeFormRows("0113").map((r) => r.field)])
   // Same place in the shape: right after is_test_client, before adservvideo.
   const at = shapeKeys.indexOf("feesocial")
   assert.equal(shapeKeys[at - 1], "is_test_client")
-  assert.equal(shapeKeys[at + 8], "adservvideo")
+  assert.equal(shapeKeys[at + 20], "adservvideo")
 })
 
-test("write path keeps the 8 legacy fees", () => {
+test("write path keeps all 20 fees", () => {
   const body: Record<string, unknown> = { mp_client_name: "Krusty Krab", mbaidentifier: "krusty" }
-  for (const [field] of OLD_FORM_FEES) body[field] = 12
+  for (const field of CLIENT_FEE_FIELDS) body[field] = 12
   const out = normalizeClientWritePayload(body)
-  for (const [field] of OLD_FORM_FEES) assert.equal(out[field], 12, field)
+  for (const field of CLIENT_FEE_FIELDS) assert.equal(out[field], 12, field)
 })
 
 test("every fee field is a numeric column on the clients mirror, same name (0113 mirror)", () => {

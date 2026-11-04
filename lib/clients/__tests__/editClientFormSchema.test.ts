@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  CHANNEL_FEE_FORM_FIELDS,
   LEGACY_PLATFORM_ID_FIELDS,
   buildEditClientDefaults,
   buildEditClientPayload,
@@ -84,7 +85,13 @@ test("raw row with nulls everywhere optional also passes (schema accepts null it
   }
   const parsed = clientEditSchema.safeParse(row)
   assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues))
+  // B22 Q2: the 12 channel fees from 0113 keep null, which clears them.
+  const clearable = new Set<string>(CHANNEL_FEE_FORM_FIELDS)
   for (const [key, value] of Object.entries(parsed.data ?? {})) {
+    if (clearable.has(key)) {
+      assert.equal(value, null, `${key} should stay null (clearable)`)
+      continue
+    }
     assert.notEqual(value, null, `${key} should not come out as null`)
   }
 })
