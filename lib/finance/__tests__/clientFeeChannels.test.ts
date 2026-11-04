@@ -27,6 +27,8 @@ import {
 } from "@/lib/clients/editClientFormSchema"
 import { ADD_CLIENT_DEFAULTS } from "@/lib/clients/addClientFormSchema"
 import { normalizeClientWritePayload } from "@/lib/data/writeClients"
+import { getTableColumns } from "drizzle-orm"
+import { clients } from "@/db/schema/ported"
 
 /** Live clients fee columns by ordinal_position (Supabase, read only, 4 Nov 2026). */
 const LIVE_FEE_COLUMNS_BY_ORDINAL = [
@@ -213,4 +215,15 @@ test("write path keeps the 8 legacy fees", () => {
   for (const [field] of OLD_FORM_FEES) body[field] = 12
   const out = normalizeClientWritePayload(body)
   for (const [field] of OLD_FORM_FEES) assert.equal(out[field], 12, field)
+})
+
+test("every fee field is a numeric column on the clients mirror, same name (0113 mirror)", () => {
+  const columns = getTableColumns(clients) as Record<string, { name: string; columnType: string; notNull: boolean }>
+  for (const field of CLIENT_FEE_FIELDS) {
+    const col = columns[field]
+    assert.ok(col, field)
+    assert.equal(col.name, field)
+    assert.equal(col.columnType, "PgNumeric", field)
+    assert.equal(col.notNull, false, field)
+  }
 })

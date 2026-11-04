@@ -202,6 +202,24 @@ export const clients = pgTable(
    * its plans out. Apply 0112 before deploying this mirror (C-76).
    */
   isTestClient: boolean("is_test_client").notNull().default(false),
+  /**
+   * Channel client fees (0113, B22), whole percents like the 8 above. All
+   * nullable, no default. Null is 0% on the 11 channels; feeinfluencers null
+   * uses feecontentcreator. 0113 was live before this mirror (any deploy order).
+   * The list and its rules: lib/finance/clientFeeChannels.ts.
+   */
+  feetelevision: numeric("feetelevision"),
+  feeradio: numeric("feeradio"),
+  feenewspapers: numeric("feenewspapers"),
+  feemagazines: numeric("feemagazines"),
+  feeooh: numeric("feeooh"),
+  feecinema: numeric("feecinema"),
+  feedigidisplay: numeric("feedigidisplay"),
+  feedigiaudio: numeric("feedigiaudio"),
+  feedigivideo: numeric("feedigivideo"),
+  feebvod: numeric("feebvod"),
+  feeintegration: numeric("feeintegration"),
+  feeinfluencers: numeric("feeinfluencers"),
   },
   (table) => [
     uniqueIndex("uq_clients_m365_anchor_mbaidentifier")

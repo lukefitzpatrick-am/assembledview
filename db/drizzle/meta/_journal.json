@@ -176,6 +176,13 @@
       "when": 1793676299423,
       "tag": "0024_line_items_fixed_cost_from",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793757871936,
+      "tag": "0025_clients_channel_fees",
+      "breakpoints": true
     }
   ]
 }
