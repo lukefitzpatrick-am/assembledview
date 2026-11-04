@@ -104,3 +104,50 @@ export function clientFeeFormRows<S extends Row["since"]>(since: S): readonly Ex
     (a, b) => a.formOrder - b.formOrder,
   )
 }
+
+/** Editor fee state from a client row: one entry per fee field the row has. */
+export type ClientFeeState = Partial<Record<ClientFeeField, number | null>>
+
+/** Whole percent from a client column value. Numeric strings become numbers; anything else is null. */
+function feeValue(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+/**
+ * The one place a client row becomes editor fee state (B22). The edit and
+ * create pages both call it.
+ *
+ * - A field the row doesn't have is left out, so the edit page keeps its
+ *   current state for it (as before).
+ * - channelFees false (switch channel_client_fees off): the 12 fields from
+ *   0113 are treated as absent, exactly as before the columns existed.
+ * - Influencers is its own rate, else Content Creator (inheritsFrom), else
+ *   null. With the switch off it is always Content Creator. An explicit 0 is
+ *   kept as 0%. Present when either field is present, so the published
+ *   mba_fee_snapshots.fees keeps its feeinfluencers key.
+ */
+export function clientFeeStateFromRow(
+  row: Readonly<Record<string, unknown>> | null | undefined,
+  opts: { channelFees: boolean },
+): ClientFeeState {
+  const state: ClientFeeState = {}
+  if (!row) return state
+  const has = (field: string) => opts.channelFees || !(CHANNEL_CLIENT_FEE_FIELDS as readonly string[]).includes(field)
+  for (const channel of CLIENT_FEE_CHANNELS) {
+    const own = has(channel.field) ? row[channel.field] : undefined
+    if ("inheritsFrom" in channel) {
+      const inherited = row[channel.inheritsFrom]
+      if (own === undefined && inherited === undefined) continue
+      state[channel.field] = feeValue(own) ?? feeValue(inherited)
+      continue
+    }
+    if (own === undefined) continue
+    state[channel.field] = feeValue(own)
+  }
+  return state
+}

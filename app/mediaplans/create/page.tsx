@@ -387,6 +387,8 @@ import {
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
+import { clientFeatureOn } from "@/lib/features/client"
+import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 
 
 const mediaPlanSchema = z.object({
@@ -472,25 +474,11 @@ type PageContext = {
   pageText?: { title?: string; headings?: string[]; breadcrumbs?: string[] };
 };
 
-interface Client {
+/** Client fee fields come from CLIENT_FEE_CHANNELS (B22); handleClientChange reads them. */
+interface Client extends Partial<Record<ClientFeeField, number | null>> {
   id: number
   mp_client_name: string
   mbaidentifier: string
-  feesearch: number
-  feesocial: number
-  feebvod: number
-  feeintegration: number
-  feeinfluencers?: number
-  feeprogdisplay: number
-  feeprogvideo: number
-  feeprogbvod: number
-  feeprogaudio: number
-  feeprogooh: number
-  feecinema: number
-  feedigiaudio: number
-  feedigidisplay: number
-  feedigivideo: number
-  feecontentcreator: number
   adservvideo: number
   adservimp: number
   adservdisplay: number
@@ -3484,24 +3472,34 @@ function CreateMediaPlan() {
         setMbaNumber("")
       }
       setSelectedClientId(clientId)
-      setFeeSearch(selectedClient.feesearch);
-      setFeeSocial(selectedClient.feesocial);
-      setFeeCinema(selectedClient.feecinema);
-      setFeeDigiAudio(selectedClient.feedigiaudio);
-      setFeeDigiDisplay(selectedClient.feedigidisplay);
-      setFeeDigiVideo(selectedClient.feedigivideo);
-      setFeeBVOD(selectedClient.feebvod);
+      // B22: the same client-row-to-fee-state rule as edit (applyClientFees).
+      // Sets all 20, including TV, radio, newspapers, magazines and OOH, which
+      // create never set before. Switch off: the 12 fields from 0113 are null
+      // and Influencers is the Content Creator rate, as before.
+      const clientFees = clientFeeStateFromRow(selectedClient as unknown as Record<string, unknown>, {
+        channelFees: clientFeatureOn("channel_client_fees"),
+      })
+      setFeeTelevision(clientFees.feetelevision ?? null);
+      setFeeRadio(clientFees.feeradio ?? null);
+      setFeeNewspapers(clientFees.feenewspapers ?? null);
+      setFeeMagazines(clientFees.feemagazines ?? null);
+      setFeeOoh(clientFees.feeooh ?? null);
+      setFeeSearch(clientFees.feesearch ?? null);
+      setFeeSocial(clientFees.feesocial ?? null);
+      setFeeCinema(clientFees.feecinema ?? null);
+      setFeeDigiAudio(clientFees.feedigiaudio ?? null);
+      setFeeDigiDisplay(clientFees.feedigidisplay ?? null);
+      setFeeDigiVideo(clientFees.feedigivideo ?? null);
+      setFeeBVOD(clientFees.feebvod ?? null);
       // Integration: feeintegration only (absent => 0%). Influencers: feeinfluencers or feecontentcreator.
-      setFeeIntegration(selectedClient.feeintegration ?? null);
-      setFeeInfluencers(
-        selectedClient.feeinfluencers ?? selectedClient.feecontentcreator ?? null
-      );
-      setFeeProgDisplay(selectedClient.feeprogdisplay);
-      setFeeProgVideo(selectedClient.feeprogvideo);
-      setFeeProgBvod(selectedClient.feeprogbvod);
-      setFeeProgAudio(selectedClient.feeprogaudio);
-      setFeeProgOoh(selectedClient.feeprogooh);
-      setFeeContentCreator(selectedClient.feecontentcreator);
+      setFeeIntegration(clientFees.feeintegration ?? null);
+      setFeeInfluencers(clientFees.feeinfluencers ?? null);
+      setFeeProgDisplay(clientFees.feeprogdisplay ?? null);
+      setFeeProgVideo(clientFees.feeprogvideo ?? null);
+      setFeeProgBvod(clientFees.feeprogbvod ?? null);
+      setFeeProgAudio(clientFees.feeprogaudio ?? null);
+      setFeeProgOoh(clientFees.feeprogooh ?? null);
+      setFeeContentCreator(clientFees.feecontentcreator ?? null);
       setAdServVideo(selectedClient.adservvideo);
       setAdServImp(selectedClient.adservimp);
       setAdServDisplay(selectedClient.adservdisplay);
@@ -3529,6 +3527,11 @@ function CreateMediaPlan() {
         form.setValue("mba_number", "")
       }
       setSelectedClientId("")
+      setFeeTelevision(null);
+      setFeeRadio(null);
+      setFeeNewspapers(null);
+      setFeeMagazines(null);
+      setFeeOoh(null);
       setFeeSearch(null);
       setFeeSocial(null);
       setFeeCinema(null);

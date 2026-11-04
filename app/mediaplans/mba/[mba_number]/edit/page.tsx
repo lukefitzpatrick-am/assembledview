@@ -142,6 +142,7 @@ import {
   describePartialMbaGuardRail,
 } from "@/lib/mediaplan/partialMbaBillingVsDelivery"
 import { clientFeatureOn } from "@/lib/features/client"
+import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 import {
   reportWorkingBillingAliasReconcile,
   type WorkingBillingAliasReconcileSource,
@@ -838,31 +839,12 @@ const mediaPlanSchema = z.object({
 
 type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 
-interface Client {
+/** Client fee fields come from CLIENT_FEE_CHANNELS (B22); applyClientFees reads them. */
+interface Client extends Partial<Record<ClientFeeField, number | null>> {
   id: number
   clientname_input: string
   mp_client_name?: string
   mbaidentifier: string
-  feetelevision?: number
-  feeradio?: number
-  feenewspapers?: number
-  feemagazines?: number
-  feeooh?: number
-  feecinema?: number
-  feedigidisplay?: number
-  feedigiaudio?: number
-  feedigivideo?: number
-  feebvod?: number
-  feeintegration?: number
-  feeinfluencers?: number
-  feesearch: number
-  feesocial: number
-  feeprogdisplay: number
-  feeprogvideo: number
-  feeprogbvod: number
-  feeprogaudio: number
-  feeprogooh: number
-  feecontentcreator: number
   adservvideo: number
   adservimp: number
   adservdisplay: number
@@ -1195,37 +1177,40 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
     }
 
+    // B22: the one client-row-to-fee-state rule (create uses it too). A field
+    // the row doesn't have is left as it is. Switch off: the 12 fields from
+    // 0113 are ignored and Influencers is the Content Creator rate.
+    const fees = clientFeeStateFromRow(clientData, {
+      channelFees: clientFeatureOn("channel_client_fees"),
+    })
+
     // Fees
-    setIfDefined(clientData.feetelevision, setFeeTelevision)
-    setIfDefined(clientData.feeradio, setFeeRadio)
-    setIfDefined(clientData.feenewspapers, setFeeNewspapers)
-    setIfDefined(clientData.feemagazines, setFeeMagazines)
-    setIfDefined(clientData.feeooh, setFeeOoh)
-    setIfDefined(clientData.feecinema, setFeeCinema)
-    setIfDefined(clientData.feedigidisplay, setFeeDigiDisplay)
-    setIfDefined(clientData.feedigiaudio, setFeeDigiAudio)
-    setIfDefined(clientData.feedigivideo, setFeeDigiVideo)
-    setIfDefined(clientData.feebvod, setFeeBvod)
-    setIfDefined(clientData.feesearch, setFeeSearch)
-    setIfDefined(clientData.feesocial, setFeeSocial)
-    setIfDefined(clientData.feeprogdisplay, setFeeProgDisplay)
-    setIfDefined(clientData.feeprogvideo, setFeeProgVideo)
-    setIfDefined(clientData.feeprogbvod, setFeeProgBvod)
-    setIfDefined(clientData.feeprogaudio, setFeeProgAudio)
-    setIfDefined(clientData.feeprogooh, setFeeProgOoh)
+    setIfDefined(fees.feetelevision, setFeeTelevision)
+    setIfDefined(fees.feeradio, setFeeRadio)
+    setIfDefined(fees.feenewspapers, setFeeNewspapers)
+    setIfDefined(fees.feemagazines, setFeeMagazines)
+    setIfDefined(fees.feeooh, setFeeOoh)
+    setIfDefined(fees.feecinema, setFeeCinema)
+    setIfDefined(fees.feedigidisplay, setFeeDigiDisplay)
+    setIfDefined(fees.feedigiaudio, setFeeDigiAudio)
+    setIfDefined(fees.feedigivideo, setFeeDigiVideo)
+    setIfDefined(fees.feebvod, setFeeBvod)
+    setIfDefined(fees.feesearch, setFeeSearch)
+    setIfDefined(fees.feesocial, setFeeSocial)
+    setIfDefined(fees.feeprogdisplay, setFeeProgDisplay)
+    setIfDefined(fees.feeprogvideo, setFeeProgVideo)
+    setIfDefined(fees.feeprogbvod, setFeeProgBvod)
+    setIfDefined(fees.feeprogaudio, setFeeProgAudio)
+    setIfDefined(fees.feeprogooh, setFeeProgOoh)
 
     // Some client data uses feecontentcreator for production/consulting
-    setIfDefined(clientData.feecontentcreator, setFeeProduction)
-    setIfDefined(clientData.feecontentcreator, setFeeContentCreator)
+    setIfDefined(fees.feecontentcreator, setFeeProduction)
+    setIfDefined(fees.feecontentcreator, setFeeContentCreator)
 
     // Integration: feeintegration only (absent => leave null => 0%). No content-creator fallback.
-    setIfDefined(clientData.feeintegration, setFeeIntegration)
-    // Influencers: feeinfluencers, else feecontentcreator for all clients.
-    if (clientData.feeinfluencers !== undefined) {
-      setFeeInfluencers(clientData.feeinfluencers ?? null)
-    } else if (clientData.feecontentcreator !== undefined) {
-      setFeeInfluencers(clientData.feecontentcreator ?? null)
-    }
+    setIfDefined(fees.feeintegration, setFeeIntegration)
+    // Influencers: feeinfluencers (switch on), else feecontentcreator.
+    setIfDefined(fees.feeinfluencers, setFeeInfluencers)
 
     // Ad serving
     setIfDefined(clientData.adservvideo, setAdServVideo)
@@ -1234,51 +1219,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     setIfDefined(clientData.adservaudio, setAdServAudio)
   }, [])
 
-  const refreshClientFeesFromApi = useCallback(async () => {
-    const normalize = (name: string | undefined | null): string =>
-      (name ?? "").trim().toLowerCase()
-
-    const resolveClientId = (): string | null => {
-      const directId = (selectedClient as any)?.id
-      if (directId !== undefined && directId !== null && String(directId).length > 0) {
-        return String(directId)
-      }
-
-      if (selectedClientId && /^\d+$/.test(selectedClientId)) {
-        return selectedClientId
-      }
-
-      if (!selectedClientId) return null
-
-      const normalizedSelected = normalize(selectedClientId)
-      const found =
-        clients.find((c: any) => String(c?.id ?? "") === String(selectedClientId)) ||
-        clients.find((c: any) => c?.clientname_input === selectedClientId) ||
-        clients.find((c: any) => c?.mp_client_name === selectedClientId) ||
-        clients.find((c: any) => normalize(c?.clientname_input) === normalizedSelected) ||
-        clients.find((c: any) => normalize(c?.mp_client_name) === normalizedSelected)
-
-      if (!found?.id) return null
-      return String(found.id)
-    }
-
-    const id = resolveClientId()
-    if (!id) return null
-
-    try {
-      const res = await fetch(`/api/clients/${encodeURIComponent(id)}`, { cache: "no-store" })
-      if (!res.ok) {
-        throw new Error(`Failed to fetch client ${id}: ${res.status}`)
-      }
-      const freshClient = await res.json()
-      setSelectedClient(freshClient)
-      applyClientFees(freshClient)
-      return freshClient
-    } catch (error) {
-      console.error("[CLIENT FEES] Failed to refresh client fees:", error)
-      return null
-    }
-  }, [applyClientFees, clients, selectedClient, selectedClientId])
   const [searchTotal, setSearchTotal] = useState(0)
   const [socialmediaTotal, setSocialMediaTotal] = useState<number>(0)
   // Total state variables for all media types (matching create page pattern)

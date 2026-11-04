@@ -1,11 +1,11 @@
 /**
  * Phase 2 campaign financials — shared input/output types.
  *
- * FeeLoading mirrors Xano `clients` fee columns as loaded into the media-plan
- * editor (see edit-page `Client` + `applyClientFees` / `refreshClientFeesFromApi`,
- * and Ava `FEE_KEYS` in `lib/ava/tools/summaries.ts`). Values are agency fee
- * percentages in [0, 100]. `getClientInfo` only surfaces `feesearch`; full fee
- * loading uses the clients collection record.
+ * FeeLoading mirrors the `clients` fee columns as loaded into the media-plan
+ * editor (`clientFeeStateFromRow` in lib/finance/clientFeeChannels.ts, called by
+ * the edit page `applyClientFees` and the create page client select). Values
+ * are agency fee percentages in [0, 100]. `getClientInfo` only surfaces
+ * `feesearch`; full fee loading uses the clients collection record.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"
