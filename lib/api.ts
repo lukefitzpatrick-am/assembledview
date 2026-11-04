@@ -541,15 +541,6 @@ interface Publisher {
   publisher_name: string;
 }
 
-interface ClientInfo {
-  id: string;
-  name: string;
-  feesearch: number;
-  payment_days: number;
-  payment_terms: string;
-  brand_colour: string;
-}
-
 interface TVStation {
   id: number;
   station: string;
@@ -1131,38 +1122,6 @@ export async function getPublishersForSearch(): Promise<Publisher[]> {
   } catch (error) {
     console.error("Error fetching publishers for search:", error);
     return [];
-  }
-}
-
-export async function getClientInfo(clientId: string): Promise<ClientInfo | null> {
-  try {
-    let clientInfo: ClientInfo
-    if (isBrowser) {
-      const response = await fetch(`/api/clients/${clientId}`)
-      if (!response.ok) {
-        throw new Error("Failed to fetch client information")
-      }
-      clientInfo = await response.json()
-    } else {
-      const { readClientById } = await import(
-        /* webpackIgnore: true */ "@/lib/data/readClients"
-      )
-      const result = await readClientById(clientId)
-      if (result.status >= 400) {
-        throw new Error("Failed to fetch client information")
-      }
-      clientInfo = result.body as ClientInfo
-    }
-
-    if (typeof (clientInfo as any).feesearch !== "number") {
-      console.warn("feesearch is not a number:", (clientInfo as any).feesearch);
-      (clientInfo as any).feesearch = 0;
-    }
-
-    return clientInfo;
-  } catch (error) {
-    console.error("Error fetching client info:", error);
-    return null;
   }
 }
 

@@ -4,8 +4,8 @@
  * FeeLoading mirrors the `clients` fee columns as loaded into the media-plan
  * editor (`clientFeeStateFromRow` in lib/finance/clientFeeChannels.ts, called by
  * the edit page `applyClientFees` and the create page client select). Values
- * are agency fee percentages in [0, 100]. `getClientInfo` only surfaces
- * `feesearch`; full fee loading uses the clients collection record.
+ * are agency fee percentages in [0, 100]. Full fee loading uses the clients
+ * collection record.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"
