@@ -55,7 +55,7 @@ export function ChartSamples() {
         <Card title="Waterfall" span={2}><WaterfallChart steps={D.budgetWaterfall} /></Card>
         <Card title="Bullet" span={2}><BulletChart rows={D.pacingBullets} /></Card>
 
-        <Card title="Donut"><DonutChart data={D.mediaMix} centerValue="$521k" /></Card>
+        <Card title="Donut"><DonutChart data={D.mediaMix.map((s) => ({ ...s, value: s.value / 100 }))} centerValue="$521k" /></Card>
         <Card title="Gauge"><GaugeChart value={73} /></Card>
         <Card title="Radial bars"><RadialBarsChart data={[{ label: 'TV', value: 86 }, { label: 'Social', value: 64 }, { label: 'Search', value: 42 }]} /></Card>
         <Card title="Treemap" span={2}><TreemapChart data={D.mediaMix} /></Card>

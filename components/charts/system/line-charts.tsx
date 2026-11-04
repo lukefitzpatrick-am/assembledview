@@ -43,10 +43,11 @@ export interface LineProps {
   className?: string;
 }
 
+/** `percent` values are ratios (1 = 100%), never guessed from the number's size. */
 const valueFormatters = {
   dollars: fmt.currencyCompact,
   number: fmt.number,
-  percent: (n: number) => fmt.percent(n > 1 ? n / 100 : n),
+  percent: (n: number) => fmt.percent(n),
   compact: fmt.compact,
 };
 

@@ -96,7 +96,7 @@ export type PreparedDisplay =
   | { kind: "bubble"; title: string; points: QueryBubblePoint[]; note: string }
   | { kind: "histogram"; title: string; buckets: PositionBucket[]; note: string }
 
-/** x is position (plotted on a reversed axis so 1 is on the right), y is CTR in percent, z is impressions. */
+/** x is position (plotted on a reversed axis so 1 is on the right), y is CTR in percentage points (ScatterChart `percentPoints`, 3.5 = 3.5%), z is impressions. */
 export type QueryBubblePoint = {
   query: string
   brand: boolean

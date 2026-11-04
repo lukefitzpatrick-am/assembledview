@@ -23,6 +23,7 @@ export interface DonutProps {
   /** center figure, e.g. "$521k" */
   centerValue?: string;
   centerLabel?: string;
+  /** `percent` (the default) values are ratios (1 = 100%), never guessed from the number's size. */
   valueFormat?: 'percent' | 'dollars' | 'number';
   className?: string;
   /** Fixed plot height (px); overrides ChartContainer aspect-video sizing. */
@@ -31,7 +32,7 @@ export interface DonutProps {
 
 /** Donut / media-mix share. Total in the hole. */
 export function DonutChart({ data, centerValue, centerLabel = 'Total', valueFormat = 'percent', className, plotHeight }: DonutProps) {
-  const vf = valueFormat === 'dollars' ? fmt.currencyCompact : valueFormat === 'number' ? fmt.number : (n: number) => fmt.percent(n > 1 ? n / 100 : n);
+  const vf = valueFormat === 'dollars' ? fmt.currencyCompact : valueFormat === 'number' ? fmt.number : (n: number) => fmt.percent(n);
   return (
     <ChartContainer config={cfgFrom(data)} className={className} plotHeight={plotHeight}>
       <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
@@ -51,11 +52,24 @@ export function DonutChart({ data, centerValue, centerLabel = 'Total', valueForm
   );
 }
 
-/** Single 0–100% gauge (utilisation / pacing). */
+/**
+ * Gauge and radial labels for a value in percentage points (73 → "73%").
+ * One decimal place under 10 points (0.5 → "0.5%"), otherwise none.
+ */
+export function percentPointsLabel(points: number): string {
+  return fmt.percentPoints(points, Math.abs(points) < 10 ? 1 : 0);
+}
+
+/** Radial bar rows. `value` is percentage points (0–100), with no guess from the number's size. */
+export function radialBarRows(data: Slice[]) {
+  return data.map((s, i) => ({ name: s.label, value: s.value, fill: colorAt(i, s.color) }));
+}
+
+/** Single 0–100% gauge (utilisation / pacing). `value` is percentage points (73 = 73%), never a ratio. */
 export function GaugeChart({
   value, label = 'Budget utilised', color = 'var(--av-chart-1)', className,
 }: { value: number; label?: string; color?: string; className?: string }) {
-  const pct = value > 1 ? value : value * 100;
+  const pct = value;
   const data = [{ name: label, value: pct, fill: color }];
   return (
     <ChartContainer config={{ [label]: { label, color } }} className={className}>
@@ -63,7 +77,7 @@ export function GaugeChart({
         <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
         <RadialBar background={{ fill: 'var(--av-grid)' }} dataKey="value" cornerRadius={10} isAnimationActive={false} />
         <text x="50%" y="46%" textAnchor="middle" fontSize="30" fontWeight="800" fill="var(--av-ink)" className="tabular-nums">
-          {Math.round(pct)}%
+          {percentPointsLabel(pct)}
         </text>
         <text x="50%" y="60%" textAnchor="middle" fontSize="11" fill="var(--av-axis)">{label}</text>
       </RadialBarChart>
@@ -71,14 +85,14 @@ export function GaugeChart({
   );
 }
 
-/** Concentric proportional rings. */
+/** Concentric proportional rings. Each `value` is percentage points (0–100). */
 export function RadialBarsChart({ data, className }: { data: Slice[]; className?: string }) {
-  const rows = data.map((s, i) => ({ name: s.label, value: s.value > 1 ? s.value : s.value * 100, fill: colorAt(i, s.color) }));
+  const rows = radialBarRows(data);
   return (
     <ChartContainer config={cfgFrom(data)} className={className}>
       <RadialBarChart data={rows} startAngle={90} endAngle={-270} innerRadius="30%" outerRadius="100%" barSize={12}>
         <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-        <ChartTooltip content={<ChartTooltipContent nameKey="name" formatter={(v) => fmt.percent(Number(v) / 100)} />} />
+        <ChartTooltip content={<ChartTooltipContent nameKey="name" formatter={(v) => percentPointsLabel(Number(v))} />} />
         <RadialBar background={{ fill: 'var(--av-grid)' }} dataKey="value" cornerRadius={6} isAnimationActive={false} />
       </RadialBarChart>
     </ChartContainer>

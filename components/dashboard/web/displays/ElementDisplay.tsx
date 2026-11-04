@@ -209,7 +209,7 @@ function BubbleBody({ model }: { model: Extract<PreparedDisplay, { kind: "bubble
           data={points}
           xLabel="Position"
           yLabel="CTR"
-          yFormat="percent"
+          yFormat="percentPoints"
           xFormat="number"
           xReversed
           className={CHART_FILL}

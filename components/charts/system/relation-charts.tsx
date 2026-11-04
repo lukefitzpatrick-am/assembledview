@@ -57,8 +57,10 @@ export function ScatterChart({
   xReversed?: boolean;
   xLabel?: string;
   yLabel?: string;
-  xFormat?: 'compact' | 'dollars' | 'percent' | 'number';
-  yFormat?: 'compact' | 'dollars' | 'percent' | 'number';
+  /** `percentPoints` values are 0–100 percentage points (3.5 = 3.5%). */
+  xFormat?: 'compact' | 'dollars' | 'percentPoints' | 'number';
+  /** `percentPoints` values are 0–100 percentage points (3.5 = 3.5%). */
+  yFormat?: 'compact' | 'dollars' | 'percentPoints' | 'number';
   className?: string;
   /** Vertical guide (e.g. median reach). */
   xReference?: number;
@@ -71,7 +73,7 @@ export function ScatterChart({
   const vf = {
     compact: fmt.compact,
     dollars: fmt.currencyCompact,
-    percent: (n: number) => fmt.percent(n / 100),
+    percentPoints: (n: number) => fmt.percentPoints(n),
     number: fmt.number,
   };
   const showQuadrants = quadrantLabels && xReference != null && yReference != null;

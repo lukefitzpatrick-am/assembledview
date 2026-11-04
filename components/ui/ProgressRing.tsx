@@ -16,6 +16,7 @@ export type ProgressRingStatus =
   | "pacing-critical"
 
 export type ProgressRingProps = React.HTMLAttributes<HTMLDivElement> & {
+  /** Percentage points (0–100), clamped; passed to `GaugeChart` as points. */
   value: number
   status?: ProgressRingStatus
   size?: number

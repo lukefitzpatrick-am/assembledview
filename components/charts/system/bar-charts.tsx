@@ -39,9 +39,10 @@ export type ChartReferenceLine = {
 };
 
 const axisProps = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: NEUTRAL.axis } } as const;
+/** `percent` values are ratios (1 = 100%), never guessed from the number's size. */
 const vfMap = {
   dollars: fmt.currencyCompact, number: fmt.number, compact: fmt.compact,
-  percent: (n: number) => fmt.percent(n > 1 ? n / 100 : n),
+  percent: (n: number) => fmt.percent(n),
 };
 
 /**

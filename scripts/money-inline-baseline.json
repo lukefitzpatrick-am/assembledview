@@ -15,7 +15,6 @@
   "components/billing/EditableLineItemMonthInput.tsx": 1,
   "components/billing/MbaBillingAutoCalcSummary.tsx": 2,
   "components/billing/MbaBillingModal.tsx": 5,
-  "components/charts/system/composition-charts.tsx": 2,
   "components/charts/system/custom-charts.tsx": 1,
   "components/charts/system/domain-charts.tsx": 1,
   "components/dashboard/DashboardOverview.tsx": 1,
