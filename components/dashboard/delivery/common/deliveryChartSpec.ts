@@ -83,11 +83,49 @@ export function resolveDeliveryFormat(
   return axis === "right" ? "compact" : "dollars"
 }
 
-/** Money uses `fmt.currencyCompact`. Counts use `fmt.compact`. Rates stay percent. */
-export function formatDeliveryValue(format: DeliveryValueFormat, value: number): string {
+/** Tooltip decimals for `percent` series (matches the completion rate tiles). */
+export const DELIVERY_PERCENT_TOOLTIP_DP = 2
+
+/** A `percent` axis whose top is under this ratio (10%) gets one decimal place. */
+export const DELIVERY_PERCENT_AXIS_FINE_BELOW = 0.1
+
+/**
+ * Money uses `fmt.currencyCompact`. Counts use `fmt.compact`. `percent` is a
+ * ratio through `fmt.percent(value, dp)`: 0.73 → "73%", 1.2 → "120%". `dp`
+ * applies to `percent` only.
+ */
+export function formatDeliveryValue(format: DeliveryValueFormat, value: number, dp = 0): string {
   if (format === "dollars") return fmt.currencyCompact(value)
-  if (format === "percent") return fmt.percent(value > 1 ? value / 100 : value)
+  if (format === "percent") return fmt.percent(value, dp)
   return fmt.compact(value)
+}
+
+/** Decimal places for a `percent` axis: 1 when its top is under 10%, otherwise 0. */
+export function percentAxisDecimals(axisMax: number): 0 | 1 {
+  return Number.isFinite(axisMax) && axisMax < DELIVERY_PERCENT_AXIS_FINE_BELOW ? 1 : 0
+}
+
+/**
+ * Decimal places for one axis's tick labels. Only a `percent` axis gets any.
+ * The axis top is the largest plotted value of that axis's series (the axis
+ * starts at zero), so an all-blank axis counts as under 10%.
+ */
+export function deliveryAxisDecimals(
+  rows: Array<Record<string, string | number | null>>,
+  paint: DeliveryPaintSeries[],
+  axis: "left" | "right",
+): 0 | 1 {
+  const onAxis = paint.filter((item) => item.axis === axis)
+  if (onAxis[0]?.format !== "percent") return 0
+  const percentSeries = onAxis.filter((item) => item.format === "percent")
+  let max = 0
+  for (const row of rows) {
+    for (const item of percentSeries) {
+      const value = row[item.key]
+      if (typeof value === "number" && Number.isFinite(value) && value > max) max = value
+    }
+  }
+  return percentAxisDecimals(max)
 }
 
 export function deliveryFormatterName(format: DeliveryValueFormat): "currency-compact" | "compact" | "percent" {

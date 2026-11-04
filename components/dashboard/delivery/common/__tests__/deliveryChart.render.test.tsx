@@ -9,6 +9,7 @@ import type { ChannelKey, ChannelSectionData } from "../../channels/types"
 import { LineItemBlock } from "../../shared/LineItemBlock"
 import type { ProgressCardProps } from "../../shared/ProgressCard"
 import {
+  DELIVERY_PERCENT_TOOLTIP_DP,
   DELIVERY_CHART_CHANNEL_HEIGHT_CLASS,
   DELIVERY_CHART_COLOUR,
   DELIVERY_CHART_LINE_HEIGHT_CLASS,
@@ -32,8 +33,21 @@ describe("delivery chart spec", () => {
   it("formats money with currency compact and counts with compact", () => {
     expect(formatDeliveryValue("dollars", 48210)).toMatch(/^\$/)
     expect(formatDeliveryValue("compact", 48210)).not.toMatch(/,/)
+  })
+
+  it("formats percent as a ratio with no guess from the number's size", () => {
     expect(formatDeliveryValue("percent", 0.73)).toBe("73%")
-    expect(formatDeliveryValue("percent", 73)).toBe("73%")
+    expect(formatDeliveryValue("percent", 1.2)).toBe("120%")
+    expect(formatDeliveryValue("percent", 1)).toBe("100%")
+    expect(formatDeliveryValue("percent", 0.006, 2)).toBe("0.60%")
+    expect(formatDeliveryValue("percent", 0.006, DELIVERY_PERCENT_TOOLTIP_DP)).toBe("0.60%")
+    expect(formatDeliveryValue("percent", 0.605, DELIVERY_PERCENT_TOOLTIP_DP)).toBe("60.50%")
+    // 73 is a ratio of 73, not 73 percentage points.
+    expect(formatDeliveryValue("percent", 73)).toBe("7300%")
+    expect(formatDeliveryValue("percent", 73)).not.toBe("73%")
+    // dp only changes percent.
+    expect(formatDeliveryValue("compact", 48210, 2)).toBe(formatDeliveryValue("compact", 48210))
+    expect(formatDeliveryValue("dollars", 48210, 2)).toBe(formatDeliveryValue("dollars", 48210))
   })
 
   it("blanks days after as-at and keeps earlier days", () => {

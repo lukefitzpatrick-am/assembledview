@@ -25,6 +25,8 @@ import {
   countFutureBlanked,
   deliveryAxisPlan,
   type DeliveryAxisTick,
+  DELIVERY_PERCENT_TOOLTIP_DP,
+  deliveryAxisDecimals,
   deliveryChartEmptyCopy,
   deliveryExportRows,
   deliveryFormatterName,
@@ -89,7 +91,7 @@ function DeliveryTooltip({
         return (
           <div key={key} className="flex justify-between gap-3">
             <span>{series.label}</span>
-            <span className="num">{formatDeliveryValue(series.format, numeric)}</span>
+            <span className="num">{formatDeliveryValue(series.format, numeric, DELIVERY_PERCENT_TOOLTIP_DP)}</span>
           </div>
         )
       })}
@@ -193,6 +195,8 @@ export function DeliveryDailyChart({
   const axisTicks = useMemo(() => new Map(axisPlan.map((tick) => [tick.iso, tick])), [axisPlan])
   const today = todayLineDate(dates, resolvedAsAt)
   const hasRightAxis = paint.some((item) => item.axis === "right")
+  const leftDp = deliveryAxisDecimals(plot, paint, "left")
+  const rightDp = deliveryAxisDecimals(plot, paint, "right")
 
   const config = useMemo<ChartConfig>(() => {
     const next: ChartConfig = {}
@@ -282,7 +286,7 @@ export function DeliveryDailyChart({
               yAxisId="left"
               domain={[0, "auto"]}
               tickFormatter={(value: number) =>
-                formatDeliveryValue(paint.find((item) => item.axis === "left")?.format ?? "dollars", Number(value))
+                formatDeliveryValue(paint.find((item) => item.axis === "left")?.format ?? "dollars", Number(value), leftDp)
               }
               width={48}
               tickLine={false}
@@ -295,7 +299,7 @@ export function DeliveryDailyChart({
                 orientation="right"
                 domain={[0, "auto"]}
                 tickFormatter={(value: number) =>
-                  formatDeliveryValue(paint.find((item) => item.axis === "right")?.format ?? "compact", Number(value))
+                  formatDeliveryValue(paint.find((item) => item.axis === "right")?.format ?? "compact", Number(value), rightDp)
                 }
                 width={44}
                 tickLine={false}
