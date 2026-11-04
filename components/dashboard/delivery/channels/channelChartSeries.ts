@@ -7,6 +7,7 @@ export type ChannelChartSeries = {
   key: string
   label: string
   yAxis: "left" | "right"
+  /** `percent` rows carry a ratio (1 = 100%, 0.605 = 60.5%), never percentage points. */
   format?: "dollars" | "number" | "compact" | "percent"
 }
 

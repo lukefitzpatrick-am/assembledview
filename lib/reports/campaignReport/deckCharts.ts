@@ -24,6 +24,7 @@ import {
 export type DeckChartAxis = {
   key: string
   label: string
+  /** `percent` points are ratios (1 = 100%); the deck skill axis format `0.00%` multiplies by 100. */
   format: "money" | "count" | "percent"
 }
 

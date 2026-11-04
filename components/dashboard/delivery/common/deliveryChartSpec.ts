@@ -7,7 +7,8 @@ export type DeliveryDailyChartSeries = {
   yAxis?: "left" | "right"
   /**
    * Omitted left series are money (`fmt.currencyCompact`). Omitted right series
-   * and explicit `number` / `compact` are `fmt.compact`. `percent` stays a rate.
+   * and explicit `number` / `compact` are `fmt.compact`. `percent` is a ratio
+   * (1 = 100%, 0.605 = 60.5%), never guessed from the number's size.
    */
   format?: "dollars" | "number" | "compact" | "percent"
 }
@@ -60,6 +61,7 @@ export type DeliveryChartSpec = {
 
 export type DeliveryPaintMark = "bar" | "dashed" | "line"
 
+/** `percent` values are ratios (1 = 100%). */
 export type DeliveryValueFormat = "dollars" | "compact" | "percent"
 
 export type DeliveryPaintSeries = {

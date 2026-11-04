@@ -120,6 +120,7 @@ export const seriesColor = (i: number, cb = false) =>
 // ─────────────────────────────────────────────────────────────
 const compactNF = new Intl.NumberFormat('en-AU', { notation: 'compact', maximumFractionDigits: 1 });
 const intNF = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
+const ratioAsPercent = (ratio: number, dp: number) => (ratio * 100).toFixed(dp) + '%';
 
 export const fmt = {
   /** 48210 → "48.2K", 2_410_000 → "2.4M" */
@@ -128,8 +129,17 @@ export const fmt = {
   currencyCompact: (n: number) => formatMoneyCompact(n),
   /** 48210 → "$48,210" */
   currency: (n: number) => formatMoney(n, { decimals: 0 }),
-  /** 0.732 → "73%"  (pass ratio 0..1) */
-  percent: (ratio: number, dp = 0) => (ratio * 100).toFixed(dp) + '%',
+  /**
+   * 0.732 → "73%". Chart format `percent` is always a ratio (1 = 100%), never
+   * guessed from the number's size: 1.2 → "120%", 73 → "7300%".
+   */
+  percent: (ratio: number, dp = 0) => ratioAsPercent(ratio, dp),
+  /**
+   * 73 → "73%". Chart format `percentPoints`: the value is already 0-100 points.
+   * Same arithmetic as `percent(points / 100)`, so text is unchanged for callers
+   * that used to divide by 100 themselves.
+   */
+  percentPoints: (points: number, dp = 0) => ratioAsPercent(points / 100, dp),
   /** 1240 → "1,240" */
   number: (n: number) => intNF.format(n),
 };
