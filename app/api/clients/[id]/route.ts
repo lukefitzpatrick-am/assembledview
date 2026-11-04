@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
-import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
 import { requireRole } from "@/lib/requireRole"
-import { getUserRoles, getUserClientIdentifier } from "@/lib/rbac"
 import { updateClientPostgresFirst } from "@/lib/data/writeClients"
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,31 +43,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // SEC-G / SEC-10: intentional split vs collection GET requireRole(admin).
-    // Admin (and other non-client sessions) may read any id; client-role is
-    // own-id only. Do not apply collection requireRole here — it breaks client
-    // self-read. See docs/brain/API-DYNAMIC-ROUTE-GATES.md.
-    const session = await auth0.getSession(request)
-    if (!session?.user) {
-      return NextResponse.json({ error: "unauthorised" }, { status: 401 })
+    // SEC-19: admin only, the same gate as PUT and PATCH. The row is the full
+    // client record (brain, fees, ad serving rates, is_test_client), so a
+    // client user (own id or any other) and a signed-in user with no role get
+    // 403. No client page calls this route. See docs/brain/API-DYNAMIC-ROUTE-GATES.md.
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) {
+      const status = gate.response.status === 401 ? 401 : 403
+      return NextResponse.json(
+        { error: status === 401 ? "unauthorised" : "forbidden" },
+        { status }
+      )
     }
 
     const { id } = await params
-    const roles = getUserRoles(session.user)
-
-    // AuthZ: client-role users may only read their own client id (IDOR guard).
-    if (roles.includes("client")) {
-      const slug = getUserClientIdentifier(session.user)
-      if (!slug) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 })
-      }
-      const ownRow = await fetchXanoClientRowByUrlSlug(slug)
-      const ownId = ownRow?.id != null ? String(ownRow.id) : null
-      if (!ownId || ownId !== String(id)) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 })
-      }
-    }
-
     const { readClientById } = await import("@/lib/data/readClients")
     const result = await readClientById(id)
     if (result.status >= 400) {
