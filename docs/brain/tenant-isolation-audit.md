@@ -62,7 +62,7 @@ Recount check: 151 + 56 + 16 + 6 = **229**.
 | `resolveClientMbaScope` | 1 (`mediaplans` list) |
 | `mbaNumberMatchesClientIdentifier` as **route gate** | 0 (inside `checkClientMbaAccess` / allocate helper only) |
 | `requirePacingAccess` | 6 |
-| Rolled-own tenant check (`getUserClientSlugs` / `getUserClientIdentifier`) | dashboard `[slug]*`, `clients/[id]` GET, chat-v2 tool scope |
+| Rolled-own tenant check (`getUserClientSlugs` / `getUserClientIdentifier`) | dashboard `[slug]*`, chat-v2 tool scope |
 
 Confidence on class totals: **~90%** — method bodies verified for P0/P1 defects and July items; finance thin wrappers / catch-all shared `requireProxyStaff` classified admin without per-method live probe. Channel routes use `export const GET =` (easy to miss in naive greps).
 
@@ -74,7 +74,7 @@ Confidence on class totals: **~90%** — method bodies verified for P0/P1 defect
 |---|---|
 | Global spend endpoints | **Fixed.** `GET /api/dashboard/global-monthly-{client,publisher}-spend` → `requireRole(["admin"])`. |
 | `/api/delivery/meta-adset` | **Fixed for clients.** Session + `checkClientMbaAccess` when `client`; non-admin non-client → empty; admin may omit MBA (book-wide by design). Deleted 3 Nov 2026 (B9, no caller). |
-| `/api/clients*` | **Mostly fixed.** Collection GET/POST + `[id]` PUT/PATCH → `requireRole(["admin"])`. `[id]` GET is **intentional split** (admin any-id; client own-id via slug→row). Soft spot: unknown future non-admin/non-client roles would read any id (today `UserRole = admin \| client` only). |
+| `/api/clients*` | **Fixed.** Collection GET/POST + `[id]` GET/PUT/PATCH → `requireRole(["admin"])`. `[id]` GET was a split (admin any-id; client own-id via slug→row; any non-client session any id) until SEC-19 made it admin only. |
 | Publisher writes | **Fixed.** `POST /api/publishers`, `PUT /api/publishers/[publisherId]` → `requireRole(["admin"])`. GETs remain session-ref (SEC-G). |
 
 ---
@@ -110,7 +110,7 @@ Confidence on class totals: **~90%** — method bodies verified for P0/P1 defect
 | Handler | Note | Confidence |
 |---|---|---|
 | `GET /api/dashboard/spend-parity` | No role gate; **404 in production**; non-prod returns book-wide parity. Deleted 3 Nov 2026 (B9 Q5) | 85% intentional tooling |
-| `GET /api/clients/[id]` | Client own-id OK; any non-client session = any id. Fine while only `admin\|client`. | 80% |
+| `GET /api/clients/[id]` | Closed (SEC-19): admin only. Was client own-id plus any non-client session any id. | 95% |
 | `DELETE /api/creative-assets/[id]` | Blocks `client` role only — no `checkClientMbaAccess`. Equivalent to admin-only today; docs in `API-DYNAMIC-ROUTE-GATES.md` claim check on DELETE (drift). | 88% |
 | `GET/POST …/material-instructions` | Inline admin only; no MBA tenant check (staff product). | 90% admin-only by design |
 
@@ -166,8 +166,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | Path | Methods | Class | Gate | Scope |
 |---|---|---|---|---|
 | `clients` | GET, POST | admin-only | `requireRole(admin)` | — |
-| `clients/[id]` | PUT, PATCH | admin-only | `requireRole(admin)` | — |
-| `clients/[id]` | GET | tenant-scoped | rolled-own (`getUserClientIdentifier` + slug→id) | **OK** (client); admin any-id |
+| `clients/[id]` | GET, PUT, PATCH | admin-only | `requireRole(admin)` | — (GET admin only since SEC-19) |
 | `publishers` | GET | session-ref | middleware only | — |
 | `publishers` | POST | admin-only | `requireRole(admin)` | — |
 | `publishers/[publisherId]` | GET | session-ref | middleware only | — |

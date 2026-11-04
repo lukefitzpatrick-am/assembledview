@@ -6,15 +6,15 @@ Living recount of every HTTP handler under `app/api` `route.ts` files. Regenerat
 
 | Class | Count |
 |---|---:|
-| tenant-scoped | 85 |
-| admin-only | 263 |
+| tenant-scoped | 84 |
+| admin-only | 264 |
 | public | 1 |
 | internal-cron | 41 |
 
 | Mechanism | Count |
 |---|---:|
-| checkClientMbaAccess | 81 |
-| requireRole | 254 |
+| checkClientMbaAccess | 80 |
+| requireRole | 255 |
 | CRON_SECRET | 41 |
 | none | 14 |
 
@@ -143,7 +143,7 @@ Existing `/api/admin/*` handlers in this recount: **36** methods across **31** f
 | POST | `/api/chat-v2` | tenant-scoped | checkClientMbaAccess | `app/api/chat-v2/route.ts` |
 | GET | `/api/clients` | admin-only | requireRole | `app/api/clients/route.ts` |
 | POST | `/api/clients` | admin-only | requireRole | `app/api/clients/route.ts` |
-| GET | `/api/clients/[id]` | tenant-scoped | checkClientMbaAccess | `app/api/clients/[id]/route.ts` |
+| GET | `/api/clients/[id]` | admin-only | requireRole | `app/api/clients/[id]/route.ts` |
 | PATCH | `/api/clients/[id]` | admin-only | requireRole | `app/api/clients/[id]/route.ts` |
 | PUT | `/api/clients/[id]` | admin-only | requireRole | `app/api/clients/[id]/route.ts` |
 | GET | `/api/clients/[id]/conversion-events/available` | admin-only | requireRole | `app/api/clients/[id]/conversion-events/available/route.ts` |

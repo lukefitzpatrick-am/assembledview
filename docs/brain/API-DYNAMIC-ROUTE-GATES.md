@@ -60,18 +60,18 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `finance/forecast/snapshots/[id]/lines` | GET | snapshots list | session + admin (inline) | session + admin (inline) | OK |
 | `planning/audiences/[id]` | GET/PATCH | `planning/audiences` | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `clients/[id]` | PUT/PATCH | `clients` POST | `requireRole(admin)` | `requireRole(admin)` | OK |
-| `clients/[id]` | GET | `clients` GET | `requireRole(admin)` | session + client own-id (admin any-id) | **INTENTIONAL** |
+| `clients/[id]` | GET | `clients` GET | `requireRole(admin)` | `requireRole(["admin"])`, same as PUT/PATCH (SEC-19). Client-role (own id or other) and no-role 403 | OK |
 | `clients/[id]/platform-accounts` | GET/POST/PATCH | `clients/[id]` PUT/PATCH | `requireRole(admin)` | `requireRole(["admin"])` including GET. Client-role 403 | OK |
 | `platform-accounts/advertisers` | GET | — | — | `requireRole(["admin"])` | OK |
 
-**Counts:** dynamic route inventory trimmed by X2 (dedicated channel POSTs + `television/[id]` retired). O6 gated 5 methods; SEC-G publishers/best-practice + creative soft-spot remain; `clients/[id]` GET stays intentional split.
+**Counts:** dynamic route inventory trimmed by X2 (dedicated channel POSTs + `television/[id]` retired). O6 gated 5 methods; SEC-G publishers/best-practice + creative soft-spot remain; `clients/[id]` GET is admin only (SEC-19), no longer a split.
 
 ## Morning answers (SEC-G — applied)
 
 1. **`publishers/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; GETs stay session-auth (reference data for create/edit).
 2. **`media-container-best-practice/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; keep `_name` audit stamp after the gate; reads stay session-auth.
 3. **`media_plans` dedicated mutates** — X2 retired `television/[id]` and all dedicated channel collection POSTs (dead exports / zero browser callers). Live channel writes: `/api/plans/save` only. The editors no longer call the catch-all channel writes (`replaceChannelLineItems` deleted, B5); the admin-gated catch-all stays until B6/B9.
-4. **`clients/[id]` GET** — **intentional split**: collection is admin-only; `[id]` GET allows admin any-id + client own-id only. Do not apply collection `requireRole` (breaks client self-read).
+4. **`clients/[id]` GET** — was an intentional split (admin any-id + client own-id). Superseded by SEC-19: admin only, like the collection and PUT/PATCH. The row is the full client record (brain, fees, ad serving rates, `is_test_client`) and no client page calls the route.
 5. **Creative soft-spot** — all creative MBA-scoped handlers call `checkClientMbaAccess`; helper itself now scopes **only admin** as unscoped (empty `mba_numbers` on non-admin → 403). Closes empty-MBA non-admin sessions across every consumer of the helper.
 6. **Forecast snapshots** — deferred (not in SEC-G apply list).
 7. **Codex** — deferred (keep `requireCodexInternalAccess`).
