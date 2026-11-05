@@ -26,6 +26,7 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/webReport/builder/repo", {
     namedExports: {
       BuilderMigrationError: class BuilderMigrationError extends Error {},
+      listKeyEventNames: mock.fn(async () => [] as string[]),
       loadBuilderPreview: previewMock,
       migration0098Applied: migrationMock,
       resolveBuilderClient: resolveMock,
