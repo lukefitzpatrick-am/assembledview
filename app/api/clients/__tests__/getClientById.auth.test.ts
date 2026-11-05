@@ -165,6 +165,8 @@ for (const method of ["PUT", "PATCH"] as const) {
     res = await write(method, "77", { mp_client_name: "Acme" })
     assert.equal(res.status, 403)
     assert.deepEqual(await res.json(), { error: "Forbidden" })
+    // The writer never runs for a client, so a write-then-gate order can't pass.
+    assert.equal(updateClientMock.mock.calls.length, 0)
 
     reset(ROLE_LESS)
     res = await write(method, "77", { mp_client_name: "Acme" })
