@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
@@ -21,13 +21,10 @@ import {
   type ClientAddFormValues,
 } from "@/lib/clients/addClientFormSchema"
 import { LEGACY_FEE_FORM_FIELDS, channelFeeInheritPlaceholder } from "@/lib/clients/editClientFormSchema"
+import { formatHexColour, typedHexColour } from "@/lib/clients/brandColour"
 import { useIsAdmin } from "@/contexts/AuthContext"
 import { clientFeatureOn } from "@/lib/features/client"
 import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
-const formatHexColour = (value: string) => {
-  const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
-  return `#${cleaned}`.toUpperCase().padEnd(7, "0")
-}
 
 type ClientFormInput = ClientAddFormInput
 type ClientFormValues = ClientAddFormValues
@@ -41,6 +38,14 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState<{ title: string; message: string } | null>(null)
   const isAdmin = useIsAdmin()
+  // C-177: the brand colour box pads to 6 digits once typing is done (blur
+  // or Enter), not on every key. An untouched box is never changed.
+  const brandColourTyped = useRef(false)
+  const padTypedBrandColour = (value: string, onChange: (value: string) => void) => {
+    if (!brandColourTyped.current) return
+    brandColourTyped.current = false
+    onChange(formatHexColour(value))
+  }
   // B22: the 12 channel fees (0113) show to admins with the switch on only.
   const channelFeesOn = clientFeatureOn("channel_client_fees")
 
@@ -690,7 +695,17 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                       value={
                         field.value?.startsWith("#") ? field.value : `#${field.value}`
                       }
-                      onChange={(e) => field.onChange(formatHexColour(e.target.value))}
+                      onChange={(e) => {
+                        brandColourTyped.current = true
+                        field.onChange(typedHexColour(e.target.value))
+                      }}
+                      onBlur={(e) => {
+                        padTypedBrandColour(e.currentTarget.value, field.onChange)
+                        field.onBlur()
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") padTypedBrandColour(e.currentTarget.value, field.onChange)
+                      }}
                       placeholder="Brand hex"
                       maxLength={7}
                     />
