@@ -263,6 +263,21 @@ describe.each<FormKind>(["add", "edit"])("%s client form: brand colour box (C-17
     expect(await savedColour()).toBe("#ABCDEF")
   })
 
+  it("a digit typed over only the # keeps 6 digits (maxLength 7 lets a 7th digit in)", async () => {
+    // B26 review L-1: replacing the `#` with a digit gives `91E40AF`, 7 characters
+    // and 7 hex digits, so maxLength does not stop it. Only the 6-digit cap does.
+    const input = boxAt1E40AF()
+    focus(input)
+    act(() => {
+      input.setSelectionRange(0, 1)
+    })
+    typeKeys(input, "9")
+    expect(input.value).toBe("#91E40A")
+    blur(input)
+    expect(input.value).toBe("#91E40A")
+    expect(await savedColour()).toBe("#91E40A")
+  })
+
   it("a cleared box shows # while typing and saves #000000 after blur (as before)", async () => {
     const input = boxAt1E40AF()
     focus(input)
