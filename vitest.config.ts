@@ -132,6 +132,7 @@ export default defineConfig({
       "components/dashboard/delivery/channels/__tests__/directDigitalCompletion.c159.test.ts",
       "components/dashboard/delivery/common/__tests__/deliveryPercent.c159.test.tsx",
       "components/charts/system/__tests__/percentUnits.c159.test.tsx",
+      "components/charts/system/__tests__/percentTooltips.c159.test.tsx",
       "lib/delivery/__tests__/deliveredTotals.test.ts",
       "components/ui/__tests__/data-table.test.tsx",
       "app/admin/reports/__tests__/OnDemandDecks.test.tsx",
