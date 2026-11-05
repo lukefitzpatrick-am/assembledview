@@ -54,7 +54,6 @@ const WEBPACK_IGNORE_ALLOWLIST = new Set([
   "lib/api.ts -> @/lib/data/readMediaPlans",
   "lib/api.ts -> @/lib/data/readReferenceMediaDetail",
   "lib/api.ts -> @/lib/data/readPublishers",
-  "lib/api.ts -> @/lib/data/readClients",
 ])
 
 /**
