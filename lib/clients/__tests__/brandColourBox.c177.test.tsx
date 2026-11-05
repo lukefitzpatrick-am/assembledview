@@ -98,10 +98,13 @@ function caretAtEnd(input: HTMLInputElement) {
   })
 }
 
-function pressEnter(input: HTMLInputElement) {
+/** Enter keydown, cancelable as in a browser. Returns the event so a test can check `defaultPrevented`. */
+function pressEnter(input: HTMLInputElement): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
   act(() => {
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+    input.dispatchEvent(event)
   })
+  return event
 }
 
 type FormKind = "add" | "edit"
@@ -196,12 +199,14 @@ describe.each<FormKind>(["add", "edit"])("%s client form: brand colour box (C-17
     return input
   }
 
-  async function savedColour(): Promise<unknown> {
+  /** Submits (the save button, unless `submit` is given) and returns the brand colour sent. */
+  async function savedColour(submit?: () => void): Promise<unknown> {
     const label = kind === "edit" ? "Save Changes" : "Create Client"
     const button = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes(label))
     expect(button).toBeTruthy()
     await act(async () => {
-      button!.click()
+      if (submit) submit()
+      else button!.click()
       for (let i = 0; i < 10; i++) await Promise.resolve()
       await new Promise((r) => setTimeout(r, 0))
     })
@@ -238,15 +243,20 @@ describe.each<FormKind>(["add", "edit"])("%s client form: brand colour box (C-17
     expect(await savedColour()).toBe("#120000")
   })
 
-  it("Enter pads an incomplete value before the save, as blur does", async () => {
+  it("Enter pads an incomplete value and still submits the form", async () => {
     const input = boxAt1E40AF()
     focus(input)
     selectAll(input)
     typeKeys(input, "12")
     expect(input.value).toBe("#12")
-    pressEnter(input)
+    const enter = pressEnter(input)
+    // B26 review L-2: the box must not cancel Enter, or Enter no longer saves.
+    expect(enter.defaultPrevented, "Enter keydown was cancelled").toBe(false)
     expect(input.value).toBe("#120000")
-    expect(await savedColour()).toBe("#120000")
+    // jsdom does no implicit submission. Do what a browser does after an
+    // Enter keydown nobody cancelled: submit the form, with no blur and no click.
+    expect(document.activeElement).toBe(input)
+    expect(await savedColour(() => input.form!.requestSubmit())).toBe("#120000")
   })
 
   it("lower case and other characters: upper case, hex only, at most 6 digits", async () => {
