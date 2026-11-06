@@ -7,7 +7,7 @@ import path from "node:path"
 import { after, test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { assertPatternMatchesOnly, escapeTestGlob, main, testPattern } from "../run-node-test-files.mjs"
+import { assertPatternMatchesOnly, escapeTestGlob, main, reporterFlags, testPattern } from "../run-node-test-files.mjs"
 
 const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../run-node-test-files.mjs")
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
@@ -122,4 +122,38 @@ test("a pattern that matches nothing, or other files, is refused before node run
     console.error = original
   }
   assert.match(errors.join("\n"), /does not match exactly/)
+})
+
+test("a file that runs 0 tests fails the run (B27 review M-1)", () => {
+  for (const [name, body] of [
+    ["an empty file", "// no tests here\n"],
+    ["a suite with no test", 'import { describe } from "node:test"\ndescribe("empty", () => {})\n'],
+    ["only skipped and todo tests", 'import test from "node:test"\ntest("s", { skip: "off" }, () => {})\ntest.todo("later")\n'],
+  ]) {
+    const r = run(bracketDir(body))
+    assert.equal(r.status, 1, `${name}: ${r.stdout}${r.stderr}`)
+    assert.match(r.stderr, /: 0 tests ran \(/, name)
+  }
+  // One good file does not hide an empty one beside it.
+  const r = run(bracketDir(ONE_TEST), bracketDir("// no tests here\n"))
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.match(r.stdout, /^# run-node-test-files: files 2, ran 1, skipped 0, todo 0$/m)
+  assert.equal(r.stderr.match(/0 tests ran/g)?.length, 1)
+})
+
+test("your reporter still prints to stdout beside the counting reporter", () => {
+  assert.deepEqual(reporterFlags([], "/c.json", { tty: false }), [
+    "--test-reporter=tap",
+    "--test-reporter-destination=stdout",
+    "--test-reporter=./scripts/test-shims/count-tests-reporter.mjs",
+    "--test-reporter-destination=/c.json",
+  ])
+  assert.deepEqual(reporterFlags(["--test-reporter=dot"], "/c.json").slice(0, 2), [
+    "--test-reporter=dot",
+    "--test-reporter-destination=stdout",
+  ])
+  const r = run(bracketDir(ONE_TEST))
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /^TAP version 13$/m)
+  assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
 })

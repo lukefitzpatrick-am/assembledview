@@ -12,14 +12,20 @@
  * file it was made from, the runner exits 1 before running anything. So a
  * path the escaping gets wrong fails loudly instead of running 0 tests.
  *
+ * It also fails a file that runs 0 tests. `scripts/test-shims/count-tests-reporter.mjs`
+ * counts the tests that ran in each file (skipped and todo tests, suites, and
+ * the placeholder Node reports for an empty file do not count). Your own
+ * reporter still prints to stdout; the runner adds a `#` summary line.
+ *
  * usage: node scripts/run-node-test-files.mjs [--node-flag ...] <file> [<file> ...]
  *
  * Arguments that start with `--` go to node before `--test` (for example
  * `--test-reporter=tap`). Exit 1 when a file is missing, a pattern does not
- * match exactly its file, or a test fails.
+ * match exactly its file, a test fails, or a file runs 0 tests.
  */
 import { spawnSync } from "node:child_process"
 import fs, { existsSync, statSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
@@ -34,6 +40,41 @@ const SHIMS = [
   "--import",
   "tsx",
 ]
+
+/** Counts the tests that ran in each file. Relative to the repo root, like the shims. */
+const COUNT_REPORTER = "./scripts/test-shims/count-tests-reporter.mjs"
+
+/**
+ * The reporter flags: yours (or the default, `spec` on a terminal and `tap`
+ * otherwise) to stdout, then the counting reporter to `countsFile`. Node pairs
+ * reporters and destinations in order.
+ */
+export function reporterFlags(flags, countsFile, { tty = Boolean(process.stdout.isTTY) } = {}) {
+  const reporters = flags.filter((f) => f.startsWith("--test-reporter="))
+  const destinations = flags.filter((f) => f.startsWith("--test-reporter-destination="))
+  const out = [...flags]
+  if (reporters.length === 0) out.push(`--test-reporter=${tty ? "spec" : "tap"}`, "--test-reporter-destination=stdout")
+  else if (destinations.length === 0) out.push(...reporters.map(() => "--test-reporter-destination=stdout"))
+  out.push(`--test-reporter=${COUNT_REPORTER}`, `--test-reporter-destination=${countsFile}`)
+  return out
+}
+
+/**
+ * Problems with the per-file counts: a file with no counts row, or with 0
+ * tests that ran. `counts` is keyed by absolute path, as Node reports it.
+ */
+export function zeroTestProblems(fullPaths, counts, { root = ROOT } = {}) {
+  const byPath = new Map(Object.entries(counts).map(([file, row]) => [path.resolve(file), row]))
+  const problems = []
+  for (const full of fullPaths) {
+    const row = byPath.get(path.resolve(full)) ?? { ran: 0, skipped: 0, todo: 0 }
+    if (row.ran > 0) continue
+    const rel = path.relative(root, full)
+    const name = rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : full
+    problems.push(`[run-node-test-files] ${name}: 0 tests ran (${row.skipped} skipped, ${row.todo} todo). A file that runs no test fails the run.`)
+  }
+  return problems
+}
 
 /**
  * A literal path as a `node --test` pattern.
@@ -108,12 +149,31 @@ export function main(argv, { escape = escapeTestGlob } = {}) {
     console.error(err instanceof Error ? err.message : String(err))
     return 1
   }
-  const r = spawnSync(process.execPath, [...SHIMS, ...flags, "--test", ...patterns], {
-    cwd: ROOT,
-    stdio: "inherit",
-    env: process.env,
-  })
-  return typeof r.status === "number" ? r.status : 1
+  const countsDir = fs.mkdtempSync(path.join(os.tmpdir(), "run-node-test-files-counts-"))
+  const countsFile = path.join(countsDir, "counts.json")
+  try {
+    const r = spawnSync(process.execPath, [...SHIMS, ...reporterFlags(flags, countsFile), "--test", ...patterns], {
+      cwd: ROOT,
+      stdio: "inherit",
+      env: process.env,
+    })
+    const status = typeof r.status === "number" ? r.status : 1
+    let counts
+    try {
+      counts = JSON.parse(fs.readFileSync(countsFile, "utf8"))
+    } catch {
+      console.error(`[run-node-test-files] no test counts from ${COUNT_REPORTER}, so 0 tests cannot be ruled out`)
+      return 1
+    }
+    const rows = Object.values(counts)
+    const total = (key) => rows.reduce((sum, row) => sum + row[key], 0)
+    console.log(`# run-node-test-files: files ${files.length}, ran ${total("ran")}, skipped ${total("skipped")}, todo ${total("todo")}`)
+    const problems = zeroTestProblems(files.map((f) => path.resolve(f)), counts)
+    for (const problem of problems) console.error(problem)
+    return status !== 0 ? status : problems.length > 0 ? 1 : 0
+  } finally {
+    fs.rmSync(countsDir, { recursive: true, force: true })
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
