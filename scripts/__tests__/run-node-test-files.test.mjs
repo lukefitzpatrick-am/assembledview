@@ -7,7 +7,15 @@ import path from "node:path"
 import { after, test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { assertPatternMatchesOnly, escapeTestGlob, main, reporterFlags, testPattern } from "../run-node-test-files.mjs"
+import {
+  assertPatternMatchesOnly,
+  escapeTestGlob,
+  main,
+  missingRequiredFlags,
+  moduleMocksWork,
+  reporterFlags,
+  testPattern,
+} from "../run-node-test-files.mjs"
 
 const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../run-node-test-files.mjs")
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
@@ -155,5 +163,22 @@ test("your reporter still prints to stdout beside the counting reporter", () => 
   const r = run(bracketDir(ONE_TEST))
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /^TAP version 13$/m)
+  assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
+})
+
+test("module mocks are on, so tests that need them cannot skip and pass (B27 review L-1)", () => {
+  assert.deepEqual(missingRequiredFlags(["--import", "tsx", "--test", "--experimental-test-module-mocks"]), [
+    "--experimental-test-module-mocks",
+  ])
+  assert.deepEqual(missingRequiredFlags(["--experimental-test-module-mocks", "--import", "tsx", "--test"]), [])
+  assert.equal(moduleMocksWork(), true)
+  assert.equal(moduleMocksWork([]), false, "without the flag Node has no mock.module")
+  const r = run(
+    bracketDir(
+      'import assert from "node:assert"\nimport test, { mock } from "node:test"\n' +
+        'test("mock.module is there", () => assert.equal(typeof mock.module, "function"))\n',
+    ),
+  )
+  assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
 })

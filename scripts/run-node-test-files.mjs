@@ -17,6 +17,11 @@
  * the placeholder Node reports for an empty file do not count). Your own
  * reporter still prints to stdout; the runner adds a `#` summary line.
  *
+ * B28 (B27 review L-1): the route tests skip when `mock.module` is missing,
+ * and skipped tests would still exit 0. The runner exits 1 unless the node
+ * flags include `--experimental-test-module-mocks` and this Node has
+ * `mock.module` with it.
+ *
  * usage: node scripts/run-node-test-files.mjs [--node-flag ...] <file> [<file> ...]
  *
  * Arguments that start with `--` go to node before `--test` (for example
@@ -40,6 +45,40 @@ const SHIMS = [
   "--import",
   "tsx",
 ]
+
+/** Flags the route tests cannot run without. Kept apart from SHIMS so dropping one there fails the run. */
+const REQUIRED_FLAGS = ["--experimental-test-module-mocks"]
+
+/** The REQUIRED_FLAGS missing from the node flags (everything before `--test`). */
+export function missingRequiredFlags(args) {
+  const end = args.indexOf("--test")
+  const nodeFlags = end === -1 ? args : args.slice(0, end)
+  return REQUIRED_FLAGS.filter((flag) => !nodeFlags.includes(flag))
+}
+
+/**
+ * The test module's specifier, built from two parts. A search for files that
+ * import it (the batch per-file node suite runs one) then does not take this
+ * script for a test file.
+ */
+const NODE_TEST = ["node", "test"].join(":")
+
+/** True when this Node has `mock.module` under `flags` (the self-test also tries none). */
+export function moduleMocksWork(flags = REQUIRED_FLAGS) {
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const r = spawnSync(
+    process.execPath,
+    [
+      ...flags,
+      "--input-type=module",
+      "-e",
+      `import { mock } from "${NODE_TEST}"; process.exit(typeof mock.module === "function" ? 0 : 3)`,
+    ],
+    { env, encoding: "utf8" },
+  )
+  return r.status === 0
+}
 
 /** Counts the tests that ran in each file. Relative to the repo root, like the shims. */
 const COUNT_REPORTER = "./scripts/test-shims/count-tests-reporter.mjs"
@@ -147,6 +186,15 @@ export function main(argv, { escape = escapeTestGlob } = {}) {
     })
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err))
+    return 1
+  }
+  const missing = missingRequiredFlags(SHIMS)
+  if (missing.length > 0) {
+    console.error(`[run-node-test-files] missing node flag ${missing.join(", ")}: tests that need module mocks would skip and pass`)
+    return 1
+  }
+  if (!moduleMocksWork()) {
+    console.error(`[run-node-test-files] Node ${process.versions.node} has no mock.module under --experimental-test-module-mocks: tests that need it would skip`)
     return 1
   }
   const countsDir = fs.mkdtempSync(path.join(os.tmpdir(), "run-node-test-files-counts-"))
