@@ -13,6 +13,7 @@ import {
   main,
   missingRequiredFlags,
   moduleMocksWork,
+  realPath,
   reporterFlags,
   testPattern,
 } from "../run-node-test-files.mjs"
@@ -46,8 +47,9 @@ after(() => {
   for (const dir of tempDirs) fs.rmSync(dir, { recursive: true, force: true })
 })
 
+/** A new temp dir, as its real path: on Windows `os.tmpdir()` can be an 8.3 short name. */
 function tempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "run-node-test-files-"))
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "run-node-test-files-")))
   tempDirs.push(dir)
   return dir
 }
@@ -230,4 +232,19 @@ test("every node:test file under a bracket or glob path is in test:bracket-route
   // The Vitest files under bracket paths run through Vitest, which lists them by name.
   const vitestConfig = fs.readFileSync(path.join(root, "vitest.config.ts"), "utf8")
   for (const file of vitest) assert.ok(vitestConfig.includes(`"${file}"`), `${file} is not in vitest.config.ts`)
+})
+
+test("a file given by another spelling of its path is escaped and checked by its real path (B27 review, Windows)", () => {
+  // On Windows a short 8.3 TEMP name is one such spelling. A link is the one every platform has.
+  const file = bracketDir(ONE_TEST)
+  const real = path.dirname(path.dirname(file))
+  const link = path.join(tempDir(), "link")
+  fs.symlinkSync(real, link, "junction")
+  const viaLink = path.join(link, "[id]", "probe.test.mjs")
+  assert.equal(realPath(viaLink), file)
+  assert.equal(testPattern(viaLink, { root, cwd: root }), escapeTestGlob(file))
+  assert.doesNotThrow(() => assertPatternMatchesOnly(testPattern(viaLink, { root, cwd: root }), viaLink))
+  const r = run(viaLink)
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
 })

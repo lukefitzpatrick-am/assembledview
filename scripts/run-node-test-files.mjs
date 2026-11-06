@@ -36,6 +36,21 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
+/**
+ * The canonical spelling of a path: symlinks resolved and, on Windows, 8.3
+ * short names such as `C:\Users\LUKEFI~1` made long. Node's glob matches long
+ * names only, so every path is compared and escaped in this form (B27
+ * review, Windows). Falls back to `path.resolve` when the path is missing.
+ */
+export function realPath(p) {
+  const full = path.resolve(p)
+  try {
+    return fs.realpathSync.native(full)
+  } catch {
+    return full
+  }
+}
+
 const SHIMS = [
   "--experimental-test-module-mocks",
   "--import",
@@ -103,12 +118,12 @@ export function reporterFlags(flags, countsFile, { tty = Boolean(process.stdout.
  * tests that ran. `counts` is keyed by absolute path, as Node reports it.
  */
 export function zeroTestProblems(fullPaths, counts, { root = ROOT } = {}) {
-  const byPath = new Map(Object.entries(counts).map(([file, row]) => [path.resolve(file), row]))
+  const byPath = new Map(Object.entries(counts).map(([file, row]) => [realPath(file), row]))
   const problems = []
   for (const full of fullPaths) {
-    const row = byPath.get(path.resolve(full)) ?? { ran: 0, skipped: 0, todo: 0 }
+    const row = byPath.get(realPath(full)) ?? { ran: 0, skipped: 0, todo: 0 }
     if (row.ran > 0) continue
-    const rel = path.relative(root, full)
+    const rel = path.relative(realPath(root), realPath(full))
     const name = rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : full
     problems.push(`[run-node-test-files] ${name}: 0 tests ran (${row.skipped} skipped, ${row.todo} todo). A file that runs no test fails the run.`)
   }
@@ -146,7 +161,7 @@ export function globMatches(pattern, { root = ROOT } = {}) {
  */
 export function assertPatternMatchesOnly(pattern, full, { root = ROOT } = {}) {
   const matches = globMatches(pattern, { root })
-  if (matches.length === 1 && matches[0] === path.resolve(full)) return
+  if (matches.length === 1 && realPath(matches[0]) === realPath(full)) return
   const found = matches.length === 0 ? "nothing" : matches.map((m) => path.relative(root, m) || m).join(", ")
   throw new Error(
     `[run-node-test-files] the pattern for ${full} does not match exactly that file.\n` +
@@ -160,11 +175,12 @@ export function assertPatternMatchesOnly(pattern, full, { root = ROOT } = {}) {
  * file is inside it, else absolute. Throws when the file does not exist.
  */
 export function testPattern(file, { root = ROOT, cwd = process.cwd(), escape = escapeTestGlob } = {}) {
-  const full = path.resolve(cwd, file)
-  if (!existsSync(full) || !statSync(full).isFile()) {
+  const given = path.resolve(cwd, file)
+  if (!existsSync(given) || !statSync(given).isFile()) {
     throw new Error(`[run-node-test-files] no such file: ${file}`)
   }
-  const rel = path.relative(root, full)
+  const full = realPath(given)
+  const rel = path.relative(realPath(root), full)
   const inside = rel && !rel.startsWith("..") && !path.isAbsolute(rel)
   return escape(inside ? rel : full)
 }
@@ -181,7 +197,7 @@ export function main(argv, { escape = escapeTestGlob } = {}) {
   try {
     patterns = files.map((f) => {
       const pattern = testPattern(f, { escape })
-      assertPatternMatchesOnly(pattern, path.resolve(f))
+      assertPatternMatchesOnly(pattern, realPath(f))
       return pattern
     })
   } catch (err) {
@@ -216,7 +232,7 @@ export function main(argv, { escape = escapeTestGlob } = {}) {
     const rows = Object.values(counts)
     const total = (key) => rows.reduce((sum, row) => sum + row[key], 0)
     console.log(`# run-node-test-files: files ${files.length}, ran ${total("ran")}, skipped ${total("skipped")}, todo ${total("todo")}`)
-    const problems = zeroTestProblems(files.map((f) => path.resolve(f)), counts)
+    const problems = zeroTestProblems(files.map((f) => realPath(f)), counts)
     for (const problem of problems) console.error(problem)
     return status !== 0 ? status : problems.length > 0 ? 1 : 0
   } finally {
