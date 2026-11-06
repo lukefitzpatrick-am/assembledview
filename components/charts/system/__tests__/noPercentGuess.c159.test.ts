@@ -1,8 +1,10 @@
 import assert from "node:assert/strict"
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
+import ts from "typescript"
 
 /**
  * C-159: charts never guess a percent unit from the number's size. `percent`
@@ -20,6 +22,10 @@ import test from "node:test"
  * wrapped line that starts with the `*` operator are scanned. Strings,
  * template literals and regex literals are kept, so a `//` in a URL does not
  * hide the code after it. Line numbers are kept for the report.
+ *
+ * B28 (B27 review L-2 to L-4): the TypeScript parser finds the comments (see
+ * `stripComments`). The repo scan only parses files that hold both `100`
+ * and `?`, the characters every guess pattern needs.
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..")
@@ -37,110 +43,51 @@ const DIVIDE_GUESS = /[>]=?\s*1(?:\.0+)?\s*\?[^:\n]*\/\s*100\b/
 const MULTIPLY_GUESS = /[>]=?\s*1(?:\.0+)?\s*\?\s*([\w.]+)\s*:\s*\1\s*\*\s*100\b/
 /** `x <= 1 ? x * 100 : x` (the same guess the other way round). */
 const LOW_GUESS = /<=?\s*1(?:\.0+)?\s*\?\s*([\w.]+)\s*\*\s*100\s*:\s*\1\b/
-/** After one of these, a `/` starts a regex literal, not a division. */
-const REGEX_AFTER_CHAR = new Set([..."(,=:[!&|?{};+-*%~^"])
-const REGEX_AFTER_WORD = /(?:^|[^\w$])(?:return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$/
-
 /**
- * Blanks every comment (`//` to the end of the line, and `/* ... *\/`) with
- * spaces, keeping newlines, so line numbers stay the same. Strings, template
- * literals (with `${}` nesting) and regex literals are copied as they are, and
- * comment markers inside them are not comments.
+ * Blanks every comment (`//` to the end of the line, and `/* ... *\/`, JSDoc
+ * included) with spaces, keeping newlines, so line numbers stay the same.
+ *
+ * B28 (B27 review L-2 to L-4): the TypeScript parser decides what is code,
+ * not a hand-written scanner. So a regex after `=>`, `<`, `>` or `return`, a
+ * `//` or `/*` in JSX text, and a division after `i++` are all read the way
+ * the compiler reads them. `fileName` picks TS or TSX parsing.
+ *
+ * How: walk the syntax tree. A token node (an identifier, a string, a regex,
+ * a template part, JSX text) is copied as it is. Between and around the child
+ * nodes of any other node there is only punctuation, keywords and trivia, and
+ * no literal, so the plain scanner reads that text exactly and its comment
+ * tokens are blanked. That includes an empty `catch {}` body.
  */
-export function stripComments(src: string): string {
-  let out = ""
-  let i = 0
-  /** Open `{` count inside each `${` of the template literals we are in. */
-  const templates: number[] = []
-  /** Last code character that is not white space, to tell a regex from a division. */
-  let prev = ""
-  const blank = (text: string) => text.replace(/[^\n]/g, " ")
-
-  /** Copies template text from `i` up to the closing backtick or a `${`. */
-  function templateText() {
-    while (i < src.length) {
-      const c = src[i]
-      if (c === "\\") {
-        out += src.slice(i, i + 2)
-        i += 2
-      } else if (c === "`") {
-        out += c
-        i++
-        prev = c
-        return
-      } else if (c === "$" && src[i + 1] === "{") {
-        out += "${"
-        i += 2
-        templates.push(0)
-        prev = "{"
-        return
-      } else {
-        out += c
-        i++
+export function stripComments(src: string, fileName = "probe.ts"): string {
+  const tsx = fileName.endsWith(".tsx")
+  const sf = ts.createSourceFile(fileName, src, ts.ScriptTarget.Latest, false, tsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, tsx ? ts.LanguageVariant.JSX : ts.LanguageVariant.Standard)
+  const out = src.split("")
+  function blankCommentsIn(start: number, end: number) {
+    if (end <= start) return
+    scanner.setText(src, start, end - start)
+    for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
+      if (kind === ts.SyntaxKind.SingleLineCommentTrivia || kind === ts.SyntaxKind.MultiLineCommentTrivia) {
+        for (let i = scanner.getTokenStart(); i < scanner.getTokenEnd(); i++) if (out[i] !== "\n") out[i] = " "
       }
     }
   }
-
-  while (i < src.length) {
-    const c = src[i]
-    const next = src[i + 1]
-    if (c === "/" && next === "/") {
-      const end = src.indexOf("\n", i)
-      const stop = end === -1 ? src.length : end
-      out += blank(src.slice(i, stop))
-      i = stop
-    } else if (c === "/" && next === "*") {
-      const end = src.indexOf("*/", i + 2)
-      const stop = end === -1 ? src.length : end + 2
-      out += blank(src.slice(i, stop))
-      i = stop
-    } else if (c === '"' || c === "'") {
-      // A quoted string ends at its quote or at the end of the line.
-      let j = i + 1
-      while (j < src.length && src[j] !== c && src[j] !== "\n") j += src[j] === "\\" ? 2 : 1
-      const stop = src[j] === c ? j + 1 : j
-      out += src.slice(i, stop)
-      i = stop
-      prev = c
-    } else if (c === "`") {
-      out += c
-      i++
-      templateText()
-    } else if (c === "}" && templates.length > 0 && templates[templates.length - 1] === 0) {
-      templates.pop()
-      out += c
-      i++
-      templateText()
-    } else if (
-      c === "/" &&
-      (prev === "" || REGEX_AFTER_CHAR.has(prev) || REGEX_AFTER_WORD.test(out.slice(-12).trimEnd()))
-    ) {
-      // A regex literal ends at its unescaped `/` (outside a class) or at the end of the line.
-      let j = i + 1
-      let inClass = false
-      while (j < src.length && src[j] !== "\n") {
-        const r = src[j]
-        if (r === "\\") j++
-        else if (r === "[") inClass = true
-        else if (r === "]") inClass = false
-        else if (r === "/" && !inClass) break
-        j++
-      }
-      const stop = src[j] === "/" ? j + 1 : j
-      out += src.slice(i, stop)
-      i = stop
-      prev = "/"
-    } else {
-      if (templates.length > 0) {
-        if (c === "{") templates[templates.length - 1]++
-        else if (c === "}") templates[templates.length - 1]--
-      }
-      out += c
-      i++
-      if (!/\s/.test(c)) prev = c
+  function visit(node: ts.Node) {
+    if (ts.isToken(node)) {
+      // Only the trivia before the token can hold a comment.
+      blankCommentsIn(node.pos, node.getStart(sf))
+      return
     }
+    let cursor = node.pos
+    ts.forEachChild(node, (child) => {
+      blankCommentsIn(cursor, child.pos)
+      visit(child)
+      cursor = child.end
+    })
+    blankCommentsIn(cursor, node.end)
   }
-  return out
+  visit(sf)
+  return out.join("")
 }
 
 function sourceFiles(dir: string): string[] {
@@ -158,10 +105,10 @@ function sourceFiles(dir: string): string[] {
 }
 
 /** Guess lines in `src`, comments stripped: 1-based line number and the original text. */
-function guesses(src: string): { line: number; text: string }[] {
+function guesses(src: string, fileName = "probe.ts"): { line: number; text: string }[] {
   const original = src.split("\n")
   const found: { line: number; text: string }[] = []
-  stripComments(src)
+  stripComments(src, fileName)
     .split("\n")
     .forEach((code, index) => {
       if (DIVIDE_GUESS.test(code) || MULTIPLY_GUESS.test(code) || LOW_GUESS.test(code)) {
@@ -226,6 +173,41 @@ test("comments are stripped, not skipped: code beside or after a comment is scan
   }
 })
 
+test("the parser reads regex, JSX text and division the way the compiler does (B27 review L-2 to L-4)", () => {
+  const guess = "const r = n > 1 ? n / 100 : n"
+  const caught: [string, string, number, string?][] = [
+    ["a regex holding /* after =>", `const t = (s: string) => /[/*]/.test(s)\n${guess}\n// */`, 2],
+    ["a regex holding // after =>", `const t = (s: string) => /\\/\\//.test(s); ${guess}`, 1],
+    ["a regex after <", `const a = b < /[/*]/.source.length\n${guess}\n// */`, 2],
+    ["a regex after >", `const a = b > /[/*]/.source.length\n${guess}\n// */`, 2],
+    ["a regex after return and many spaces", `function f(s: string) {\n  return          /[/*]/.test(s)\n}\n${guess}\n// */`, 4],
+    ["a regex after return", `function f(s: string) {\n  return /[/*]/.test(s)\n}\n${guess}\n// */`, 4],
+    ["a regex class holding */ then //", `const re = /[*/]/; ${guess} // x`, 1],
+    ["an object literal inside a template ${}", `const t = \`\${ {a: "}"}.a }//\`; ${guess}`, 1],
+    ["an unterminated string ends at its line", `const s = "abc\n${guess}`, 2],
+    ["// in JSX text", "const el = <p>see http://x {n > 1 ? n / 100 : n}</p>", 1, "probe.tsx"],
+    ["/* in JSX text", `const el = <p>use /* here</p>\n${guess}\n// */`, 2, "probe.tsx"],
+  ]
+  for (const [name, src, line, fileName] of caught) {
+    assert.deepEqual(
+      guesses(src, fileName).map((hit) => hit.line),
+      [line],
+      name,
+    )
+  }
+  const ignored: [string, string, string?][] = [
+    ["a division after i++, then a comment", "const x = i++ / 2 // n > 1 ? n / 100 : n"],
+    ["a comment in an empty catch block", "try {\n  f()\n} catch {\n  // n > 1 ? n / 100 : n\n}"],
+    ["a comment in an empty object literal", "const o = { /* n > 1 ? n / 100 : n */ }"],
+    ["a JSX comment", "const el = <p>{/* n > 1 ? n / 100 : n */}</p>", "probe.tsx"],
+    // In a .ts file `<number>x` is a type assertion, not JSX, so this is a comment.
+    ["a comment after a type assertion in a .ts file", "const v = <number>x // n > 1 ? n / 100 : n", "probe.ts"],
+  ]
+  for (const [name, src, fileName] of ignored) {
+    assert.deepEqual(guesses(src, fileName), [], name)
+  }
+})
+
 test("stripping comments keeps every line and every non-comment character", () => {
   const src = [
     "/**",
@@ -252,18 +234,49 @@ test("stripping comments keeps every line and every non-comment character", () =
   ])
 })
 
+/** Guess hits in `files` as `file:line: text`, and how many files were parsed. */
+function scanFiles(files: string[]): { found: string[]; parsed: number } {
+  const found: string[] = []
+  let parsed = 0
+  for (const file of files) {
+    const src = readFileSync(file, "utf8")
+    // Every guess pattern needs `100` and `?`, and stripping only blanks text, so a
+    // file without both cannot hold a guess. Saves parsing about 1,700 of the files.
+    if (!src.includes("100") || !src.includes("?")) continue
+    parsed++
+    for (const hit of guesses(src, file)) {
+      found.push(`${relative(ROOT, file)}:${hit.line}: ${hit.text.trim()}`)
+    }
+  }
+  return { found, parsed }
+}
+
+test("the repo scan parses each file as TS or TSX by its name", () => {
+  const dir = mkdtempSync(join(tmpdir(), "no-percent-guess-"))
+  try {
+    const tsx = join(dir, "Probe.tsx")
+    const tsFile = join(dir, "probe.ts")
+    const none = join(dir, "none.ts")
+    writeFileSync(tsx, "export const P = ({ n }: { n: number }) => <p>see http://x/a {n > 1 ? n / 100 : n}</p>\n")
+    writeFileSync(tsFile, "export const v = <number>x // n > 1 ? n / 100 : n\n")
+    writeFileSync(none, "export const v = 1\n")
+    const { found, parsed } = scanFiles([tsx, tsFile, none])
+    assert.equal(parsed, 2)
+    assert.equal(found.length, 1, found.join("\n"))
+    assert.match(found[0]!, /Probe\.tsx:1: export const P = /)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test("no chart, delivery, web report, lib or app file guesses the percent unit from the number's size", () => {
   for (const dir of DIRS) {
     assert.ok(sourceFiles(join(ROOT, dir)).length > 5, `scanned ${dir}`)
   }
   const files = DIRS.flatMap((dir) => sourceFiles(join(ROOT, dir)))
   assert.ok(files.length > 1000, `scanned ${files.length} files`)
-  const found: string[] = []
-  for (const file of files) {
-    for (const hit of guesses(readFileSync(file, "utf8"))) {
-      found.push(`${relative(ROOT, file)}:${hit.line}: ${hit.text.trim()}`)
-    }
-  }
+  const { found, parsed } = scanFiles(files)
+  assert.ok(parsed > 100, `parsed ${parsed} files`)
   assert.deepEqual(found, [])
 })
 
