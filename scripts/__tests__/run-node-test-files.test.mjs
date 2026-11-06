@@ -182,3 +182,52 @@ test("module mocks are on, so tests that need them cannot skip and pass (B27 rev
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
 })
+
+/**
+ * B27 review M-2: every node:test file under a glob-character path is in
+ * `test:bracket-routes`, so a new one cannot sit in no suite.
+ * - Files: `git ls-files --cached --others --exclude-standard` (tracked, and
+ *   new files not yet added). A glob-character path has `[`, `]`, `{`, `}`,
+ *   `*` or `?`, or an extglob opener such as `+(` or `@(`, anywhere in it.
+ * - node:test or Vitest: the repo tells them apart by import. A node:test
+ *   file imports `node:test` (the per-file node suite greps for the same
+ *   thing). A Vitest file imports `vitest` and is listed in
+ *   `vitest.config.ts` `test.include`. A file that imports both fails here.
+ */
+const GLOB_PATH = /[[\]{}*?]|[+@!](?=\()/
+const IMPORTS_NODE_TEST = /["']node:test["']/
+const IMPORTS_VITEST = /from\s+["']vitest["']/
+
+function globPathTestFiles() {
+  const r = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8" })
+  assert.equal(r.status, 0, `git ls-files failed: ${r.stderr}`)
+  const nodeTest = []
+  const vitest = []
+  for (const file of r.stdout.split("\0")) {
+    if (!file || !GLOB_PATH.test(file) || !/\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file)) continue
+    if (!fs.existsSync(path.join(root, file))) continue
+    const src = fs.readFileSync(path.join(root, file), "utf8")
+    const isNode = IMPORTS_NODE_TEST.test(src)
+    const isVitest = IMPORTS_VITEST.test(src)
+    assert.ok(!(isNode && isVitest), `${file} imports both node:test and vitest`)
+    if (isNode) nodeTest.push(file)
+    if (isVitest) vitest.push(file)
+  }
+  return { nodeTest: nodeTest.sort(), vitest: vitest.sort() }
+}
+
+test("every node:test file under a bracket or glob path is in test:bracket-routes (B27 review M-2)", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"))
+  const script = pkg.scripts["test:bracket-routes"]
+  assert.match(script, /^node scripts\/run-node-test-files\.mjs /)
+  const listed = [...script.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort()
+  const { nodeTest, vitest } = globPathTestFiles()
+  assert.ok(nodeTest.length >= 9, `found ${nodeTest.length} node:test files under bracket paths`)
+  const missing = nodeTest.filter((f) => !listed.includes(f))
+  const extra = listed.filter((f) => !nodeTest.includes(f))
+  assert.deepEqual(missing, [], "add these to test:bracket-routes in package.json")
+  assert.deepEqual(extra, [], "test:bracket-routes lists files that are not node:test files under a bracket path")
+  // The Vitest files under bracket paths run through Vitest, which lists them by name.
+  const vitestConfig = fs.readFileSync(path.join(root, "vitest.config.ts"), "utf8")
+  for (const file of vitest) assert.ok(vitestConfig.includes(`"${file}"`), `${file} is not in vitest.config.ts`)
+})
