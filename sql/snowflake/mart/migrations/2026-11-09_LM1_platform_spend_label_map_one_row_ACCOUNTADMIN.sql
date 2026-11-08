@@ -17,9 +17,13 @@
 -- What changes
 --   A label_map_one CTE keeps one active row per
 --   (LOWER(TRIM(channel)), LOWER(TRIM(platform_line_item_id))): latest
---   UPDATED_AT, then CREATED_AT, then the highest line id (the same tie-break as
---   the tasks' MAX(line_item_id)). prog_relabel joins it instead of the raw
---   table. Every other line is the FCM1 text.
+--   UPDATED_AT, then CREATED_AT, then the highest line id. This is not the
+--   refresh tasks' pick: they take MAX(final_line_item_id) across duplicates
+--   whatever the timestamps. With two active rows for one key on different
+--   line ids, PACING_FACT and this view could credit different lines until
+--   the tasks take the same label_map_one CTE (same ORDER BY, C-180). No such
+--   key today. prog_relabel joins it instead of the raw table. Every other
+--   line is the FCM1 text.
 --
 -- Measured 2026-11-09
 --   GET_DDL of the live view equals the FCM1 body byte for byte.
