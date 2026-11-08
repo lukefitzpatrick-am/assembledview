@@ -42,6 +42,27 @@ B23 run order (`migrations/2026-11-03_B23_fixed_cost_from_ACCOUNTADMIN.sql`):
 - Part B (procedure and wrapper) after part A: both read the two columns.
 - Part C (`fixed_cost_report_net` on), then part D (`fixed_cost_from_date` on).
 
+Label map rule (C-180, B29). A reader of `LINE_ITEM_LABEL_MAP` keeps one active
+row per (`LOWER(TRIM(channel))`, `LOWER(TRIM(platform_line_item_id))`) before it
+joins or sums, or a duplicate map row multiplies delivery. Snowflake does not
+enforce unique keys. `npm run test:label-map-fanout` checks every file in
+`tasks/`, `views/` and `procedures/`.
+
+- `TSK_REFRESH_PACING_FACT` and `TSK_REFRESH_SOCIAL_PACING_FACT` still join the
+  raw map. They are on the test's pending list until their repo files are
+  compared with `GET_DDL` as ACCOUNTADMIN (CLAUDE_RW cannot see the tasks).
+- `views/vw_platform_spend_line_month.sql` joins `label_map_one`. Deploy with
+  `migrations/2026-11-09_LM1_platform_spend_label_map_one_row_ACCOUNTADMIN.sql`.
+- `views/vw_pacing_fact_cm360_drift.sql` (`VW_PACING_FACT_CM360_DRIFT`) lists
+  every CM360 placement and day where `PACING_FACT` differs from
+  `CM_360_PACING`, manual rows left out. Deploy with
+  `migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql`.
+  No cron or page reads it yet.
+- `migrations/2026-11-09_BV7_bic_7plus_label_map_fanout_ACCOUNTADMIN.sql` records
+  the BIC 7plus BVOD correction (applied by Luke on 9 Nov, 15 rows).
+- In a view file with a migration copy, the views file is the source and the
+  test keeps the two `CREATE` blocks equal.
+
 ## App read paths
 
 - `/api/pacing/campaigns` reads `SEARCH_PACING_FACT` (search surface and overview).
