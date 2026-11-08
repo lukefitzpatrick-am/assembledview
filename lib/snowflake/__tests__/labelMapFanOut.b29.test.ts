@@ -224,6 +224,12 @@ describe("LINE_ITEM_LABEL_MAP readers keep one row per key (C-180)", () => {
     const lm1 = read("migrations/2026-11-09_LM1_platform_spend_label_map_one_row_ACCOUNTADMIN.sql")
     assert.equal(createBlock(lm1, "VW_PLATFORM_SPEND_LINE_MONTH"), createBlock(view, "VW_PLATFORM_SPEND_LINE_MONTH"))
   })
+
+  it("the CD1 migration holds the same drift view text as the views file", () => {
+    const view = read("views/vw_pacing_fact_cm360_drift.sql")
+    const cd1 = read("migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql")
+    assert.equal(createBlock(cd1, "VW_PACING_FACT_CM360_DRIFT"), createBlock(view, "VW_PACING_FACT_CM360_DRIFT"))
+  })
 })
 
 describe("labelMapFanOutFindings", () => {
