@@ -5,11 +5,12 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { after, test } from "node:test"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 import {
   assertPatternMatchesOnly,
   escapeTestGlob,
+  isMainModule,
   main,
   missingRequiredFlags,
   moduleMocksWork,
@@ -247,4 +248,26 @@ test("a file given by another spelling of its path is escaped and checked by its
   const r = run(viaLink)
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
+})
+
+test("started through a symlink or junction, the runner still runs or fails (B28 review L-1)", () => {
+  // A directory link is a junction on Windows and a symlink elsewhere; node resolves it for the main module.
+  const link = path.join(tempDir(), "scripts-link")
+  fs.symlinkSync(path.dirname(script), link, "junction")
+  const viaLink = path.join(link, path.basename(script))
+  assert.notEqual(viaLink, script)
+  assert.equal(isMainModule(viaLink, pathToFileURL(script).href), true)
+  assert.equal(isMainModule(script, pathToFileURL(script).href), true)
+  assert.equal(isMainModule(path.join(root, "package.json"), pathToFileURL(script).href), false)
+  assert.equal(isMainModule("", pathToFileURL(script).href), false)
+
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const runVia = (...args) =>
+    spawnSync(process.execPath, [viaLink, "--test-reporter=tap", ...args], { cwd: root, encoding: "utf8", env })
+  const ok = runVia(bracketDir(ONE_TEST))
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr)
+  assert.match(ok.stdout, /^# run-node-test-files: files 1, ran 1, skipped 0, todo 0$/m)
+  assert.equal(runVia(path.join(os.tmpdir(), "[id]", "missing.test.mjs")).status, 1)
+  assert.equal(runVia().status, 1)
 })

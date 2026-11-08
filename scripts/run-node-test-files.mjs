@@ -32,7 +32,7 @@ import { spawnSync } from "node:child_process"
 import fs, { existsSync, statSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -240,6 +240,17 @@ export function main(argv, { escape = escapeTestGlob } = {}) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+/**
+ * True when node was started with this file. Both sides are real paths (B28
+ * review L-1): started through a symlink or a Windows junction, `argv[1]` is
+ * the link while `import.meta.url` is the target, and a plain URL compare made
+ * the runner do nothing and exit 0.
+ */
+export function isMainModule(argv1 = process.argv[1], moduleUrl = import.meta.url) {
+  if (!argv1) return false
+  return realPath(argv1) === realPath(fileURLToPath(moduleUrl))
+}
+
+if (isMainModule()) {
   process.exit(main(process.argv.slice(2)))
 }
