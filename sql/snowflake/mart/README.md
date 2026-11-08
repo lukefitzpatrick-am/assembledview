@@ -46,11 +46,14 @@ Label map rule (C-180, B29). A reader of `LINE_ITEM_LABEL_MAP` keeps one active
 row per (`LOWER(TRIM(channel))`, `LOWER(TRIM(platform_line_item_id))`) before it
 joins or sums, or a duplicate map row multiplies delivery. Snowflake does not
 enforce unique keys. `npm run test:label-map-fanout` checks every file in
-`tasks/`, `views/` and `procedures/`.
+`tasks/`, `views/` and `procedures/`: the map is read in a named CTE with
+`WHERE is_active = TRUE` and `QUALIFY ROW_NUMBER() ... = 1` (or `GROUP BY` the
+two keys), and every JOIN onto that CTE matches on both channel and platform id.
 
 - `TSK_REFRESH_PACING_FACT` and `TSK_REFRESH_SOCIAL_PACING_FACT` still join the
   raw map. They are on the test's pending list until their repo files are
-  compared with `GET_DDL` as ACCOUNTADMIN (CLAUDE_RW cannot see the tasks).
+  compared with `GET_DDL` as ACCOUNTADMIN (CLAUDE_RW cannot see the tasks). The
+  pending list is held to these two entries.
 - `views/vw_platform_spend_line_month.sql` joins `label_map_one`. Deploy with
   `migrations/2026-11-09_LM1_platform_spend_label_map_one_row_ACCOUNTADMIN.sql`.
 - `views/vw_pacing_fact_cm360_drift.sql` (`VW_PACING_FACT_CM360_DRIFT`) lists
