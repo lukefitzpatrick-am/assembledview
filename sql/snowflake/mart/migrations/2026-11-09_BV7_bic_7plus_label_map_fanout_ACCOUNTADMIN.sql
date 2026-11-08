@@ -40,11 +40,38 @@
 --     bv4 includes 1 impression from cake_ezreach on 4 Aug (not a 4x row).
 --     Every 4 to 9 Aug row equals CM360 (ratio 1).
 --
--- Left as it is (question for Luke)
---   FIXED_COST_REPORTED_DAILY_FACT.ACTUAL_DELIVERABLES for bv2 to bv4 still
---   holds the 4x values for 6 to 9 Aug (locked rows; for example bv2 6 Aug
---   10,040 against 2,510). REPORTED_SPEND on those days is time based
---   (104.32 a day) and does not move. Optional step 4 rebuilds the three lines.
+-- Fixed cost (question for Luke before the next nightly run)
+--   The three lines are buy type cpm on media_plan_digi_bvod. The nightly
+--   wrapper SP_REFRESH_FIXED_COST_NIGHTLY (TSK_REFRESH_FIXED_COST_REPORTED,
+--   about 06:30 AEDT) backfills every FIXED_COST_MEDIA line on that source
+--   every night, locked rows included. The 9 Nov run (06:34 AEDT) came before
+--   the UPDATE, so FIXED_COST_REPORTED_DAILY_FACT.ACTUAL_DELIVERABLES for
+--   bv2 to bv4 still holds the 4x values for 6 to 9 Aug (for example bv2
+--   6 Aug 10,040 against 2,510). The next nightly run rebuilds them from the
+--   corrected PACING_FACT on its own.
+--   Daily REPORTED_SPEND on 6 to 9 Aug does not move. Each corrected day's
+--   share of the expected 1,910.64 a day is still above the 1.3 cap (bv2
+--   6 Aug 2,510 is 1.314), so 6 to 8 Aug stay at the high cap (104.3210) and
+--   9 Aug stays at the pace remainder (88.2716).
+--   The 24 Oct squareup does move for bv2 and bv4. The proc squares the last
+--   delivery day up to the full 6,500 only when the burst's deliverables reach
+--   the planned 154,762. The burst window is 5 Aug to 24 Oct (UTC slicing,
+--   C-170 a; FIXED_COST_BURSTS_JSON is null, so the Melbourne-day fix is off),
+--   so 25 Oct is left out. Corrected window totals:
+--     bv2 154,697 (99.96%) | bv3 154,778 (100.01%) | bv4 154,663 (99.94%)
+--   With 25 Oct every line is over 100% (154,863 | 154,935 | 154,845).
+--   So the next run, as the repo proc reads, drops the squareup on bv2 and bv4
+--   and 24 Oct falls to the low cap (40.1235):
+--     bv2 6,500.00 -> about 5,535.49 (-964.51)
+--     bv3 6,500.00 -> 6,500.00 (squareup kept)
+--     bv4 6,500.00 -> about 5,802.04 (-697.96)
+--   The 4x rows had pushed every line over 154,762, which is why the squareup
+--   was there. Worked out by running the repo proc's own
+--   computeBurstReportedSpends on PACING_FACT: on the pre-UPDATE data it
+--   gives today's stored squareups to 4 places (1,004.6311 | 907.8077 |
+--   738.0821). Whether that drop is right is Luke's call (B29fix notes).
+--   Step 4 is optional: it makes the same call sooner, with the same result.
+--   Step 5 is the after-check for the morning after.
 -- =============================================================================
 
 USE ROLE ACCOUNTADMIN;
@@ -112,17 +139,55 @@ where r.date = f.date_day and r.ent = lower(trim(f.entity_name))
 -- row with 0 impressions in both (0 = 4 * 0): it would be set to the same
 -- values again. None of the 15 rows is like that.
 
--- ----- 4. Optional: fixed-cost report for the three lines --------------------
--- FIXED_COST_REPORTED_DAILY_FACT locks rows after 3 days, so the nightly proc
--- will not pick up the corrected deliverables on its own. A filtered backfill
--- recomputes one line (lowercase id; never a null id with TRUE). Run only if
--- you want ACTUAL_DELIVERABLES on those days to match:
+-- ----- 4. Optional: fixed-cost backfill now ----------------------------------
+-- Not needed. SP_REFRESH_FIXED_COST_NIGHTLY makes this same call for every
+-- FIXED_COST_MEDIA line on media_plan_digi_bvod each night, so the next
+-- 06:30 AEDT run rebuilds the three lines anyway. Run it only to see the
+-- corrected ACTUAL_DELIVERABLES before then (lowercase id; never a null id
+-- with TRUE). It moves REPORTED_SPEND exactly as the nightly run will: the
+-- bv2 and bv4 squareups go (see the header).
 -- CALL ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY('bicau002bv2', TRUE);
 -- CALL ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY('bicau002bv3', TRUE);
 -- CALL ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY('bicau002bv4', TRUE);
--- expect 6 Aug: bv2 2,510, bv3 3,656, bv4 3,261:
--- SELECT LOWER(line_item_id) lid, date_day, actual_deliverables, reported_spend
+
+-- ----- 5. After-check, the morning after (read-only) -------------------------
+-- Run after the next TSK_REFRESH_FIXED_COST_REPORTED run (or after step 4).
+-- Expected values assume the repo proc and the snapshot are unchanged.
+-- a) Per day. Expect ACTUAL_DELIVERABLES equal to PACING_FACT:
+--      6 Aug bv2 2,510 | bv3 3,656 | bv4 3,261
+--      7 Aug bv2 5,276 | bv3 5,385 | bv4 6,157
+--      8 Aug bv2 2,798 | bv3 3,099 | bv4 2,731
+--      9 Aug bv2 6,357 | bv3 3,864 | bv4 2,840
+--    and REPORTED_SPEND unchanged: 104.3210 on 6 to 8 Aug, 88.2716 on 9 Aug.
+-- SELECT LOWER(line_item_id) lid, date_day, actual_deliverables, reported_spend,
+--        share_today, cap_applied, calculated_at
 -- FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT
 -- WHERE LOWER(line_item_id) IN ('bicau002bv2', 'bicau002bv3', 'bicau002bv4')
---   AND date_day BETWEEN '2026-08-05' AND '2026-08-12'
+--   AND date_day BETWEEN '2026-08-05' AND '2026-08-10'
 -- ORDER BY 1, 2;
+--
+-- b) Per line. Expect 81 rows each and SUM(actual_deliverables)
+--    bv2 154,697 | bv3 154,778 | bv4 154,663.
+--    SUM(reported_spend): bv3 still about 6,500.00 (6,500.0017); bv2 about
+--    5,535.49 and bv4 about 5,802.04 (the squareup has gone).
+-- SELECT LOWER(line_item_id) lid, COUNT(*) n, SUM(reported_spend) reported,
+--        SUM(actual_deliverables) deliverables, MAX(calculated_at) calculated_at
+-- FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT
+-- WHERE LOWER(line_item_id) IN ('bicau002bv2', 'bicau002bv3', 'bicau002bv4')
+-- GROUP BY 1 ORDER BY 1;
+--
+-- c) The 24 Oct row. Expect bv3 'squareup' 907.8077; bv2 and bv4 'low' 40.1235:
+-- SELECT LOWER(line_item_id) lid, date_day, actual_deliverables, reported_spend, cap_applied
+-- FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT
+-- WHERE LOWER(line_item_id) IN ('bicau002bv2', 'bicau002bv3', 'bicau002bv4')
+--   AND date_day = '2026-10-24'
+-- ORDER BY 1;
+--
+-- Read with CLAUDE_RW on 9 Nov about 10:40 AEDT (before the next nightly run),
+-- so still 4x:
+--   a) 6 Aug bv2 10,040 | bv3 14,624 | bv4 13,044; REPORTED_SPEND 104.3210 on
+--      6 to 8 Aug and 88.2716 on 9 Aug; CALCULATED_AT 2026-11-08 11:34
+--      (account time, 9 Nov 06:34 AEDT).
+--   b) 81 rows each; reported bv2 6,500.0021 | bv3 6,500.0017 |
+--      bv4 6,500.0011; deliverables 205,520 | 202,790 | 199,630.
+--   c) all three 'squareup': bv2 1,004.6311 | bv3 907.8077 | bv4 738.0821.
