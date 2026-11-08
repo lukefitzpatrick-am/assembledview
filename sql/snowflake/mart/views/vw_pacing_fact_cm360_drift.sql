@@ -12,7 +12,10 @@
 --   missing_in_fact    CM360 has the key and PACING_FACT does not
 --   missing_in_source  PACING_FACT has the key and CM360 does not
 -- Keys loaded by hand into MART.CM360_MANUAL_ROWS (VW_PACING_CM360 unions
--- them in) have no CM360 source and are left out.
+-- them in) are left out only when CM360 has no row for that key and day
+-- (they would be missing_in_source). A key and day in both raw CM360 and
+-- the manual table makes VW_PACING_CM360 double count, so it stays in as
+-- drift.
 -- IN_REFRESH_WINDOW: the day is inside the task's 14-day MERGE window, so the
 -- next 06:30 run rewrites it. Drift outside the window stays until fixed.
 -- IMPRESSIONS_RATIO 4.0 on a values_differ row is the C-180 label map fan-out.
@@ -56,7 +59,10 @@ WITH src AS (
   GROUP BY 1, 2
 ),
 manual AS (
-  -- Hand-loaded rows have no CM360 source. Their keys are left out.
+  -- Hand-loaded rows (one row per key here, so the LEFT JOIN below cannot
+  -- multiply). A manual key/day is left out only when raw CM360 has no row
+  -- for it. If raw also has it, VW_PACING_CM360 double counts it, and that
+  -- shows here as drift.
   SELECT DISTINCT
     m.date AS date_day,
     LOWER(TRIM(m.placement)) AS entity_key
@@ -120,11 +126,10 @@ SELECT
   j.source_results,
   j.fact_updated_at
 FROM joined j
-WHERE NOT EXISTS (
-    SELECT 1 FROM manual m
-    WHERE m.date_day = j.date_day
-      AND m.entity_key = j.entity_key
-  )
+LEFT JOIN manual m
+  ON m.date_day = j.date_day
+ AND m.entity_key = j.entity_key
+WHERE NOT (j.drift_kind = 'missing_in_source' AND m.entity_key IS NOT NULL)
   AND (
     j.drift_kind <> 'values_differ'
     OR j.fact_rows <> 1

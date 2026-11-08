@@ -58,7 +58,8 @@ two keys), and every JOIN onto that CTE matches on both channel and platform id.
   `migrations/2026-11-09_LM1_platform_spend_label_map_one_row_ACCOUNTADMIN.sql`.
 - `views/vw_pacing_fact_cm360_drift.sql` (`VW_PACING_FACT_CM360_DRIFT`) lists
   every CM360 placement and day where `PACING_FACT` differs from
-  `CM_360_PACING`, manual rows left out. Deploy with
+  `CM_360_PACING`. A manual key and day is left out only when CM360 has no
+  row for it, so a raw and manual overlap shows as drift. Deploy with
   `migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql`.
   No cron or page reads it yet.
 - `migrations/2026-11-09_BV7_bic_7plus_label_map_fanout_ACCOUNTADMIN.sql` records

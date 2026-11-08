@@ -24,6 +24,11 @@
 --   all values_differ, all ratio 4.0000, nothing else:
 --     bicau002bv2 5 rows 67,768 vs 16,942 | bv3 5 rows 64,020 vs 16,005 |
 --     bv4 5 rows 59,960 vs 14,990 (4 to 9 Aug 2026)
+--   Manual keys (derived as above, which also counts an overlap): 448, 0 also
+--   in raw CM360. The view leaves out the 448 missing_in_source rows only.
+--   Overlap control: with three of those keys also given a 1-impression raw
+--   row, the old wholesale exclusion returned 0 rows and this body returns
+--   the 3 as values_differ (B29fix, review L-3).
 --
 -- Not done here (question for Luke): no cron, page or digest reads this view.
 -- =============================================================================
@@ -70,7 +75,10 @@ WITH src AS (
   GROUP BY 1, 2
 ),
 manual AS (
-  -- Hand-loaded rows have no CM360 source. Their keys are left out.
+  -- Hand-loaded rows (one row per key here, so the LEFT JOIN below cannot
+  -- multiply). A manual key/day is left out only when raw CM360 has no row
+  -- for it. If raw also has it, VW_PACING_CM360 double counts it, and that
+  -- shows here as drift.
   SELECT DISTINCT
     m.date AS date_day,
     LOWER(TRIM(m.placement)) AS entity_key
@@ -134,11 +142,10 @@ SELECT
   j.source_results,
   j.fact_updated_at
 FROM joined j
-WHERE NOT EXISTS (
-    SELECT 1 FROM manual m
-    WHERE m.date_day = j.date_day
-      AND m.entity_key = j.entity_key
-  )
+LEFT JOIN manual m
+  ON m.date_day = j.date_day
+ AND m.entity_key = j.entity_key
+WHERE NOT (j.drift_kind = 'missing_in_source' AND m.entity_key IS NOT NULL)
   AND (
     j.drift_kind <> 'values_differ'
     OR j.fact_rows <> 1
@@ -155,8 +162,19 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.VW_PACING_FACT_CM360_DRIFT TO ROLE CLAUD
 -- a) expect 0 rows today (15 BIC rows before BV7):
 -- SELECT * FROM ASSEMBLEDVIEW.MART.VW_PACING_FACT_CM360_DRIFT ORDER BY date_day, entity_key;
 --
--- b) Manual keys are left out (expect 448 or more manual keys, 0 of them in the view):
--- SELECT COUNT(DISTINCT date, LOWER(TRIM(placement))) FROM ASSEMBLEDVIEW.MART.CM360_MANUAL_ROWS;
+-- b) Manual keys. b1: how many there are, and how many raw CM360 also has
+--    (expect 448 or more keys, 0 also in raw today; SQ1 says they must not
+--    overlap). b2: view rows on a manual key (expect the b1 also_in_raw
+--    count, so 0 today). Each overlap shows in the view unless its manual
+--    rows add nothing to the metrics. A manual key with no raw row is the
+--    only thing the view leaves out.
+-- SELECT COUNT(*) AS manual_keys, COUNT_IF(r.k IS NOT NULL) AS also_in_raw
+-- FROM (SELECT DISTINCT date AS d, LOWER(TRIM(placement)) AS k
+--       FROM ASSEMBLEDVIEW.MART.CM360_MANUAL_ROWS) m
+-- LEFT JOIN (SELECT DISTINCT date::date AS d, LOWER(TRIM(placement)) AS k
+--            FROM ASSEMBLEDVIEW.DOUBLE_CLICK_CAMPAIGN_MANAGER.CM_360_PACING
+--            WHERE placement IS NOT NULL AND TRIM(placement) <> '') r
+--   ON r.d = m.d AND r.k = m.k;
 -- SELECT COUNT(*) FROM ASSEMBLEDVIEW.MART.VW_PACING_FACT_CM360_DRIFT d
 -- WHERE EXISTS (SELECT 1 FROM ASSEMBLEDVIEW.MART.CM360_MANUAL_ROWS m
 --               WHERE m.date = d.date_day AND LOWER(TRIM(m.placement)) = d.entity_key);
