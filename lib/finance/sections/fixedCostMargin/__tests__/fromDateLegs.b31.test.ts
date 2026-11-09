@@ -447,3 +447,65 @@ test("FC3: only the margin report's own files read the date, the FC9 switch or t
   assert.ok(hits.length >= 5, `scan found the report files: ${hits.join(", ")}`)
   assert.deepEqual(hits.filter((h) => !allowed.has(h)).sort(), [])
 })
+
+// ---------------------------------------------------------------------------
+// Totals pin where the before leg has margin (FC6 floor), and on random plans
+// ---------------------------------------------------------------------------
+
+test("totals pin with the FC6 floor: cost before the date over billing; month figures unchanged", () => {
+  const plan = bossPlan(BOSS_FROM).filter((c) => c.lineItemId === "BOSS011PD2")
+  const spend = bossSpend().filter((c) => c.lineItemId === "boss011pd2")
+  // October: billing $800, cost $950 for the month, $900 of it before 30 Oct (above billing).
+  const octSpend = spend.map((c) => (c.month === "2026-10" ? { ...c, spendCents: 95000 } : c))
+  const pre = new Map([["boss011pd2", 90000]])
+  const on = composeFixedCostMargin({ plan, spend: octSpend, invoiced: new Set(), ...BOSS_RANGE, preDateSpendCents: pre })
+  const off = composeFixedCostMargin({
+    plan: plan.map(({ fixedCostFrom: _d, ...c }) => c),
+    spend: octSpend,
+    invoiced: new Set(),
+    ...BOSS_RANGE,
+  })
+  const oct = on[0]!.months.find((m) => m.month === "2026-10")!
+  assert.equal(oct.marginCents, 80000 - 95000)
+  assert.deepEqual(oct.legs, {
+    kind: "split",
+    before: { billedCents: 80000, actualCents: 90000, marginCents: -10000 },
+    from: { billedCents: 0, actualCents: 5000, marginCents: -5000 },
+  })
+  assert.deepEqual(withoutFc9(on), withoutFc9(off))
+  assert.deepEqual(summariseFixedCostMargin(on), summariseFixedCostMargin(off))
+  assertLegsAddUp(on)
+})
+
+test("totals pin on 300 random dated plans: on equals off for every line, month and report total", () => {
+  let seed = 9
+  const rnd = (n: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return seed % n
+  }
+  const months = ["2026-08", "2026-09", "2026-10", "2026-11"]
+  for (let run = 0; run < 300; run += 1) {
+    const from = `2026-${["09", "10", "11"][rnd(3)]}-${String(1 + rnd(28)).padStart(2, "0")}`
+    const plan: FixedCostPlanCell[] = []
+    const spend: Array<{ lineItemId: string; month: string; source: string; spendCents: number; impressions: number; rowCount: number }> = []
+    const pre = new Map<string, number>()
+    for (let l = 0; l < 3; l += 1) {
+      const id = `RND${run}PD${l}`
+      for (const month of months) {
+        if (rnd(4)) plan.push({ ...bossPlan()[0]!, mbaNumber: `RND${run}`, lineItemId: id, month, amountCents: rnd(300000) - 20000, fixedCostFrom: from })
+        if (rnd(3)) spend.push({ lineItemId: id.toLowerCase(), month, source: l === 1 ? "DV360" : "Taboola", spendCents: rnd(400000), impressions: 1, rowCount: 1 + rnd(3) })
+      }
+      if (rnd(5)) pre.set(id.toLowerCase(), rnd(450000))
+    }
+    const on = composeFixedCostMargin({ plan, spend, invoiced: new Set(), ...BOSS_RANGE, preDateSpendCents: pre })
+    const off = composeFixedCostMargin({
+      plan: plan.map(({ fixedCostFrom: _d, ...c }) => c),
+      spend,
+      invoiced: new Set(),
+      ...BOSS_RANGE,
+    })
+    assert.deepEqual(withoutFc9(on), withoutFc9(off), `run ${run}`)
+    assert.deepEqual(summariseFixedCostMargin(on), summariseFixedCostMargin(off), `run ${run}`)
+    assertLegsAddUp(on)
+  }
+})
