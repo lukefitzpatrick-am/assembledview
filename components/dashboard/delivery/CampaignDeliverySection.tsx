@@ -422,6 +422,7 @@ function CampaignDeliveryBody({
         isAdmin,
         feePctsByVersionId,
         estimateVersionId,
+        deliveryLineIds,
       })
       if (s) out.push(s)
     }
@@ -442,6 +443,7 @@ function CampaignDeliveryBody({
         isAdmin,
         feePctsByVersionId,
         estimateVersionId,
+        deliveryLineIds,
       })
       if (s) out.push(s)
     }
@@ -462,6 +464,7 @@ function CampaignDeliveryBody({
         isAdmin,
         feePctsByVersionId,
         estimateVersionId,
+        deliveryLineIds,
       })
       if (s) out.push(s)
     }
@@ -482,6 +485,7 @@ function CampaignDeliveryBody({
         isAdmin,
         feePctsByVersionId,
         estimateVersionId,
+        deliveryLineIds,
       })
       if (s) out.push(s)
     }

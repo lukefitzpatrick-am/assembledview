@@ -20,6 +20,8 @@ export function buildDigitalAudioSection(input: {
   isAdmin?: boolean
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
+  /** HF2: page delivery line ids, so a fixed-cost reported line is not shown as assumed. */
+  deliveryLineIds?: ReadonlySet<string>
 }): ChannelSectionData | null {
   return buildDirectDigitalChannelSection({
     key: "digital-audio",

@@ -528,6 +528,12 @@ export function buildDirectDigitalChannelSection(input: {
   packageNoUnitTarget?: boolean
   /** B23 (`fixed_cost_from_date` with `fixed_cost_report_net`). Unset reads the browser switch snapshot. */
   fixedCostFromDate?: boolean
+  /**
+   * Page delivery line ids (`CampaignDeliverySection` `deliveryLineIds`): loaded
+   * rows plus non-`assumed_spend` fixed-cost facts. A line in it is never shown
+   * as Assumed spend beside delivered lines (the hub's presence rule).
+   */
+  deliveryLineIds?: ReadonlySet<string>
 }): ChannelSectionData | null {
   const {
     key,
@@ -775,7 +781,12 @@ export function buildDirectDigitalChannelSection(input: {
   const assumedBeside = assumedLinesBesideDelivery({
     key,
     normalized,
-    deliveringIds: new Set(adRowsWithDelivery.map((r) => String(r.lineItemId).toLowerCase())),
+    // HF2 (B30 review M1): fixed-cost reported spend is delivery too, as in the
+    // hub (`planHasDeliveryPresence`), so such a line stays Reported.
+    deliveringIds: new Set([
+      ...adRowsWithDelivery.map((r) => String(r.lineItemId).toLowerCase()),
+      ...[...(input.deliveryLineIds ?? [])].map((id) => String(id).trim().toLowerCase()),
+    ]),
     campaignStart,
     campaignEnd,
     lastSyncedAt,
