@@ -1,5 +1,6 @@
 import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
+import { deliverySourceLookupKey, lookupActiveDeliverySource } from "@/lib/delivery/deliverySourceMap"
 import { mergedDailyFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
@@ -71,6 +72,9 @@ const FIXED_COST_SPEND_LABEL = CLIENT_REPORTED_SPEND_LABEL
 const CM360_ESTIMATED_CONNECTION =
   "Ad server verification (CM360) — spend estimated from the plan rate"
 const CM360_COUNTS_CONNECTION = "Ad server verification (CM360) — delivery counts"
+/** HF1: app channel of a Channel Factory row (`VW_PACING_PARTNER_FILE` emits 'Programmatic - Video'). */
+const PARTNER_FILE_VIDEO_CHANNEL = "programmatic-video"
+const CHANNEL_FACTORY_CONNECTION = "Channel Factory (partner file)"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -79,6 +83,7 @@ type AdServingLineItem = {
   line_item_name?: string
   lineItemName?: string
   buy_type?: string
+  publisher?: string | null
   platform?: string
   bursts?: unknown
   bursts_json?: unknown
@@ -387,6 +392,26 @@ function markEstimatedCostTiles(tiles: KpiTileProps[], estimated: boolean): KpiT
   )
 }
 
+/**
+ * HF1: Digital Video lines booked with Channel Factory (`delivery_source_map`
+ * `partner_file`) read their own partner-file rows as well as CM360. Every
+ * other container and publisher reads CM360 `ad-serving` rows only.
+ */
+export function directDigitalPartnerFileLineIds(
+  key: ChannelKey,
+  items: ReadonlyArray<{ line_item_id?: string; publisher?: unknown; platform?: unknown }>,
+): Set<string> {
+  const ids = new Set<string>()
+  if (key !== "digital-video") return ids
+  for (const item of items) {
+    const id = cleanId(item.line_item_id)
+    if (!id) continue
+    const row = lookupActiveDeliverySource(deliverySourceLookupKey(item.publisher, item.platform))
+    if (row?.delivery_source === "partner_file" && row.publisher_key === "channel factory") ids.add(id)
+  }
+  return ids
+}
+
 function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLineItem[] {
   const arr = Array.isArray(items) ? items : []
   return arr.flatMap((item) => {
@@ -473,9 +498,15 @@ export function buildDirectDigitalChannelSection(input: {
   const knownPlanLineIds = Array.from(idSet)
   // Snowflake PACING_FACT channel is still "ad-serving" (Ad Serving - CM360) for
   // every Direct Booked Digital media type — not the container ChannelKey.
-  const adRows = combinedRows.filter(
-    (r) => r.channel === "ad-serving" && r.lineItemId && idSet.has(String(r.lineItemId).toLowerCase()),
-  )
+  // HF1: a Channel Factory Digital Video line also takes its partner-file rows.
+  const partnerFileIds = directDigitalPartnerFileLineIds(key, normalized)
+  const adRows = combinedRows.filter((r) => {
+    if (!r.lineItemId) return false
+    const id = String(r.lineItemId).toLowerCase()
+    if (!idSet.has(id)) return false
+    if (r.channel === "ad-serving") return true
+    return r.channel === PARTNER_FILE_VIDEO_CHANNEL && partnerFileIds.has(id)
+  })
   const adRowsWithDelivery = adRows.filter((row) =>
     hasPositiveDelivery({
       impressions: row.impressions,
@@ -483,7 +514,7 @@ export function buildDirectDigitalChannelSection(input: {
       spend: row.amountSpent,
     }),
   )
-  // No CM360 delivery: an assume-spend plan renders Assumed spend. A zero row is not delivery.
+  // No CM360 (or HF1 Channel Factory) delivery: an assume-spend plan renders Assumed spend. A zero row is not delivery.
   if (!adRowsWithDelivery.length) {
     const source = digitalAssumedSource(key)
     if (!source) return null
@@ -793,6 +824,9 @@ export function buildDirectDigitalChannelSection(input: {
   })
   const reportedLines = withDelivery.filter((m) => m.hasReportedEntries)
   const estimatedLines = withDelivery.filter((m) => m.estimatedAmount > 0)
+  // HF1: name each source that delivered. Without a Channel Factory row the pill is CM360, as before.
+  const hasCm360Delivery = adRowsWithDelivery.some((r) => r.channel === "ad-serving")
+  const hasPartnerFileDelivery = adRowsWithDelivery.some((r) => r.channel === PARTNER_FILE_VIDEO_CHANNEL)
   const reportedSpendTotal = reportedLines.reduce((sum, m) => sum + m.reportedTotal, 0)
   const estimatedSpendTotal = estimatedLines.reduce((sum, m) => sum + m.estimatedAmount, 0)
   const reportedSpendSpark = aggDaily.map((d) => {
@@ -1132,10 +1166,15 @@ export function buildDirectDigitalChannelSection(input: {
     dateRange: { startISO: input.campaignStart, endISO: input.campaignEnd },
     lastSyncedAt: input.lastSyncedAt,
     connections: [
-      {
-        label: estimatedLines.length > 0 ? CM360_ESTIMATED_CONNECTION : CM360_COUNTS_CONNECTION,
-        tone: "cm360",
-      },
+      ...(hasCm360Delivery || !hasPartnerFileDelivery
+        ? [
+            {
+              label: estimatedLines.length > 0 ? CM360_ESTIMATED_CONNECTION : CM360_COUNTS_CONNECTION,
+              tone: "cm360",
+            },
+          ]
+        : []),
+      ...(hasPartnerFileDelivery ? [{ label: CHANNEL_FACTORY_CONNECTION, tone: "partner-file" }] : []),
     ],
     mediaTypeColour,
     aggregate: {
