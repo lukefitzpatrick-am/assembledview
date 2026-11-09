@@ -39,6 +39,45 @@ const UNCODED_LIVE_NAMES = [
   "CF13_AT1_P35-99_3",
 ]
 
+/** Every coded Channel Factory name in RAW on 8 Nov 2026, with the code it loaded under. */
+const CODED_LIVE_NAMES: Array<[string, string]> = [
+  ["CF12_AT1_P18-99_Birthday V2_BICAU002PV1", "bicau002pv1"],
+  ["CF12_AT1_P18-99_Campfire_BICAU002PV1", "bicau002pv1"],
+  ["CF12_AT1_P18-99_Birthday Hero_BICAU002PV1", "bicau002pv1"],
+  ["CF12_AT1_P18-99_BBQ_BICAU002PV1", "bicau002pv1"],
+  ["CF12_AT1_P18-99_Birthday V2_BICAU002PV2", "bicau002pv2"],
+  ["CF12_AT1_P18-99_Birthday Hero_BICAU002PV2", "bicau002pv2"],
+  ["CF12_AT1_P18-99_BBQ_BICAU002PV2", "bicau002pv2"],
+  ["CF12_AT1_P18-99_Campfire_BICAU002PV2", "bicau002pv2"],
+  ["CF12_AT1_P18-99_Birthday Hero_BICAU002PV3", "bicau002pv3"],
+  ["CF12_AT1_P18-99_BBQ_BICAU002PV3", "bicau002pv3"],
+  ["CF12_AT1_P18-99_Birthday V2_BICAU002PV3", "bicau002pv3"],
+  ["CF12_AT1_P18-99_Campfire_BICAU002PV3", "bicau002pv3"],
+  ["CF12_AT1_P18-99_Campfire_BICAU002PV4", "bicau002pv4"],
+  ["CF12_AT1_P18-99_Birthday V2_BICAU002PV4", "bicau002pv4"],
+  ["CF12_AT1_P18-99_Birthday Hero_BICAU002PV4", "bicau002pv4"],
+  ["CF12_AT1_P18-99_BBQ_BICAU002PV4", "bicau002pv4"],
+  ["CF12_AT1_M18-44_BICAU006PV1", "bicau006pv1"],
+  ["CF12_AT1_M18-44_BICAU006PV5", "bicau006pv5"],
+  ["CF12_AT1_P25-64_1_PENFOLD015PV1", "penfold015pv1"],
+  ["CF12_AT1_P25-64_2_PENFOLD015PV1", "penfold015pv1"],
+  ["CF14_AT1_P25-64_PENFOLD015PV1", "penfold015pv1"],
+  ["CF12_AT1_P25-64_3_PENFOLD015PV1", "penfold015pv1"],
+  ["CF12_AT1_P25-64_2_PENFOLD016PV1", "penfold016pv1"],
+  ["CF12_AT1_P25-64_1_PENFOLD016PV1", "penfold016pv1"],
+  ["CF14_AT1_P25-64_PENFOLD016PV1", "penfold016pv1"],
+  ["CF12_AT1_P25-64_3_PENFOLD016PV1", "penfold016pv1"],
+  ["CF12_AT1_P25-64_1_PENFOLD018PV1", "penfold018pv1"],
+  ["CF12_AT1_P25-64_2_PENFOLD018PV1", "penfold018pv1"],
+  ["CF12_AT1_P25-64_3_Lux_PENFOLD018PV1", "penfold018pv1"],
+  ["CF14_AT1_P25-64__PENFOLD018PV1", "penfold018pv1"],
+  ["CF12_AT1_F18-44_2_rwico002PV1", "rwico002pv1"],
+  ["CF13_AT1_P25-44_STRMEA001PV1", "strmea001pv1"],
+  ["CF12_AT1_P25-44_STRMEA001PV1", "strmea001pv1"],
+  ["CF14_AT1_F18-44_trwico002PV1", "trwico002pv1"],
+  ["CF12_AT1_F18-44__1_trwico002PV1", "trwico002pv1"],
+]
+
 /** PV / PO inputs from the existing extractPlanCode tests. */
 const PV_PO_CASES = [
   "CF12_AT1_P18-99_Birthday Hero_BICAU002PV4",
@@ -68,6 +107,13 @@ test("HF1: Channel Factory PV and PO results match extractPlanCode exactly", () 
   }
   assert.equal(extractChannelFactoryPlanCode("CF12_AT1_P25-64_3_Lux_PENFOLD018PV1"), "penfold018pv1")
   assert.equal(extractChannelFactoryPlanCode("legal004PO1"), "legal004po1")
+})
+
+test("HF1: every coded live Channel Factory name keeps the code it loaded under", () => {
+  for (const [name, code] of CODED_LIVE_NAMES) {
+    assert.equal(extractChannelFactoryPlanCode(name), code, name)
+    assert.equal(extractPlanCode(name), code, name)
+  }
 })
 
 test("HF1: Channel Factory accepts DV only, not other direct or programmatic codes", () => {
