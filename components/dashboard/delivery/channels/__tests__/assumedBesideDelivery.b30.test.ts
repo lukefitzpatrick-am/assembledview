@@ -166,10 +166,22 @@ test("B30: the section Spend total is delivered plus assumed, matching the hub",
   assert.equal(card.title, "Spend")
   assert.equal(card.value, total)
   assert.match(card.detail ?? "", new RegExp(`includes \\${formatMoney(assumed)} assumed spend`))
+  // HF2 (B30 review L1): the lead names both kinds of dollars.
+  assert.match(card.detail ?? "", /^Estimated and assumed \$/)
   assert.equal(card.plannedTotal, 50_000)
   // Delivery counts stay DV2's only.
   assert.equal(c.get("Impressions") ?? c.get("Served impressions"), "42,000")
   assert.equal(section.aggregate.progressCards[1].title, "Impressions delivery")
+})
+
+test("HF2 (B30 review L1): with reported delivered spend the lead says Reported and assumed", () => {
+  const dv2Fixed = { ...DV2, fixed_cost_media: true }
+  const reportedSpendByLineDate = new Map([["penfold020dv2", new Map([["2026-10-20", 1_000], ["2026-10-21", 500]])]])
+  const section = troye([DV1, dv2Fixed], CF_ROWS, { reportedSpendByLineDate })
+  assert.ok(section)
+  const card = section.aggregate.progressCards[0]
+  assert.equal(card.title, "Spend")
+  assert.match(card.detail ?? "", /^Reported and assumed \$/)
 })
 
 test("B30: expected adds the assumed sum; expected to date ignores the date filter", () => {

@@ -1005,7 +1005,7 @@ export function buildDirectDigitalChannelSection(input: {
           window,
           sparkline,
           spendMode: estimatedLines.length > 0 ? "estimated" : "reported",
-          ...(deliveredSpendCard ? {} : { lead: "Assumed" }),
+          lead: deliveredSpendCard ? (estimatedLines.length > 0 ? "Estimated and assumed" : "Reported and assumed") : "Assumed",
           note: `includes ${formatMoney(assumedBeside.assumedTotal)} assumed spend`,
         })
       })()
