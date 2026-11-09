@@ -73,6 +73,21 @@ const FIXED_COST_SPEND_LABEL = CLIENT_REPORTED_SPEND_LABEL
 const CM360_ESTIMATED_CONNECTION =
   "Ad server verification (CM360) — spend estimated from the plan rate"
 const CM360_COUNTS_CONNECTION = "Ad server verification (CM360) — delivery counts"
+/** B30: wording for a section whose only delivery is Channel Factory (partner-reported, not verification). */
+const SECTION_LABELS = {
+  cm360: {
+    impressions: "Served impressions",
+    kpiBand: "Verification KPIs",
+    counts: "CM360 delivery counts",
+    countsOnly: "verification counts only",
+  },
+  partnerFile: {
+    impressions: "Impressions",
+    kpiBand: "Delivery KPIs",
+    counts: "Channel Factory delivery counts",
+    countsOnly: "delivery counts only",
+  },
+} as const
 /** HF1: app channel of a Channel Factory row (`VW_PACING_PARTNER_FILE` emits 'Programmatic - Video'). */
 const PARTNER_FILE_VIDEO_CHANNEL = "programmatic-video"
 const CHANNEL_FACTORY_CONNECTION = "Channel Factory (partner file)"
@@ -290,6 +305,8 @@ function deliveryProgressCard(input: {
   untrackedLines?: number
   /** True when every line in this card is a click tracker. */
   allUntracked?: boolean
+  /** B30: variance label with no plan goal. Defaults to the CM360 wording. */
+  countsOnlyLabel?: string
 }): ProgressCardProps {
   const { title, actual, planned, sparkline, dense, emptyReason, window } = input
   if (!(planned > 0)) {
@@ -299,7 +316,7 @@ function deliveryProgressCard(input: {
       detail: `Delivered ${formatWholeNumber(actual)} · ${emptyReason || "No plan goal"}`,
       progress: 0,
       variance: 0,
-      varianceLabel: "verification counts only",
+      varianceLabel: input.countsOnlyLabel ?? SECTION_LABELS.cm360.countsOnly,
       status: "no-data",
       sparkline,
       dense,
@@ -572,6 +589,11 @@ export function buildDirectDigitalChannelSection(input: {
       spend: row.amountSpent,
     }),
   )
+  // HF1: name each source that delivered. Without a Channel Factory row the pill is CM360, as before.
+  const hasCm360Delivery = adRowsWithDelivery.some((r) => r.channel === "ad-serving")
+  const hasPartnerFileDelivery = adRowsWithDelivery.some((r) => r.channel === PARTNER_FILE_VIDEO_CHANNEL)
+  // B30: a Channel Factory-only section is partner-reported delivery, not ad server verification.
+  const labels = hasPartnerFileDelivery && !hasCm360Delivery ? SECTION_LABELS.partnerFile : SECTION_LABELS.cm360
   // No CM360 (or HF1 Channel Factory) delivery: an assume-spend plan renders Assumed spend. A zero row is not delivery.
   if (!adRowsWithDelivery.length) {
     const source = digitalAssumedSource(key)
@@ -813,7 +835,7 @@ export function buildDirectDigitalChannelSection(input: {
 
   const aggregateKpiTiles: KpiTileProps[] = [
     {
-      label: "Served impressions",
+      label: labels.impressions,
       value: formatWholeNumber(rollup.impressions),
       accentColour,
     },
@@ -880,6 +902,7 @@ export function buildDirectDigitalChannelSection(input: {
     .filter((m) => m.pace.impressions.tracked)
     .reduce((sum, m) => sum + m.booked.impressions, 0)
   const impressionsCard = deliveryProgressCard({
+    countsOnlyLabel: labels.countsOnly,
     title: "Impressions delivery",
     actual: sumPace((m) => m.pace.impressions.delivered),
     planned: allImpressionsUntracked ? rollup.plannedImpressions : trackedPlannedImpressions,
@@ -891,6 +914,7 @@ export function buildDirectDigitalChannelSection(input: {
     allUntracked: allImpressionsUntracked,
   })
   const clicksCard = deliveryProgressCard({
+    countsOnlyLabel: labels.countsOnly,
     title: "Clicks delivery",
     actual: sumPace((m) => m.pace.clicks.delivered),
     planned: rollup.plannedClicks,
@@ -901,9 +925,6 @@ export function buildDirectDigitalChannelSection(input: {
   })
   const reportedLines = withDelivery.filter((m) => m.hasReportedEntries)
   const estimatedLines = withDelivery.filter((m) => m.estimatedAmount > 0)
-  // HF1: name each source that delivered. Without a Channel Factory row the pill is CM360, as before.
-  const hasCm360Delivery = adRowsWithDelivery.some((r) => r.channel === "ad-serving")
-  const hasPartnerFileDelivery = adRowsWithDelivery.some((r) => r.channel === PARTNER_FILE_VIDEO_CHANNEL)
   const reportedSpendTotal = reportedLines.reduce((sum, m) => sum + m.reportedTotal, 0)
   const estimatedSpendTotal = estimatedLines.reduce((sum, m) => sum + m.estimatedAmount, 0)
   const reportedSpendSpark = aggDaily.map((d) => {
@@ -1082,6 +1103,7 @@ export function buildDirectDigitalChannelSection(input: {
     const displayName = deliveryLineItemDisplayName(m.item as Record<string, unknown>)
     const placementRows = groupPacingRowsByPlacement(m.matched)
     const impressionCard = deliveryProgressCard({
+      countsOnlyLabel: labels.countsOnly,
       title: "Impressions delivery",
       actual: m.pace.impressions.delivered,
       planned: m.booked.impressions,
@@ -1094,6 +1116,7 @@ export function buildDirectDigitalChannelSection(input: {
       allUntracked: m.booked.impressions > 0 && !m.pace.impressions.tracked,
     })
     const clicksCard = deliveryProgressCard({
+      countsOnlyLabel: labels.countsOnly,
       title: "Clicks delivery",
       actual: m.pace.clicks.delivered,
       planned: m.booked.clicks,
@@ -1144,11 +1167,11 @@ export function buildDirectDigitalChannelSection(input: {
       platform: String(m.item.buy_type ?? m.item.platform ?? "CM360"),
       progressCards: lineSpendCard ? [lineSpendCard, impressionCard] : [impressionCard, clicksCard],
       kpiBand: {
-        title: "Verification KPIs",
+        title: labels.kpiBand,
         tiles: markEstimatedCostTiles(applyKpiBandTargetsFromPlan(
           [
           {
-            label: "Served impressions",
+            label: labels.impressions,
             value: formatWholeNumber(m.totals.impressions),
             accentColour,
           },
@@ -1290,7 +1313,7 @@ export function buildDirectDigitalChannelSection(input: {
         ...(assumedBeside
           ? [{ label: ASSUMED_SPEND_LABEL, value: formatMoney(assumedBeside.assumedTotal) }]
           : []),
-        { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },
+        { label: labels.impressions, value: formatWholeNumber(rollup.impressions) },
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
         { label: "CTR", value: fmtRatioDecimal(ctrDecimal) },
         { label: "Video completes", value: formatWholeNumber(rollup.videoCompletes) },
@@ -1305,12 +1328,12 @@ export function buildDirectDigitalChannelSection(input: {
       ],
       progressCards: aggregateProgressCards,
       kpiBand: {
-        title: "Verification KPIs",
+        title: labels.kpiBand,
         subtitle: aggregateSpendEstimated
           ? "Spend estimated from the plan rate"
           : reportedLines.length > 0
             ? CLIENT_REPORTED_SPEND_LABEL
-            : "CM360 delivery counts",
+            : labels.counts,
         tiles: bandTiles,
       },
       chart: {

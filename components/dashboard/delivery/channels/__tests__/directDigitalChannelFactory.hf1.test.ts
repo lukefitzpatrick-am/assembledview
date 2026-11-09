@@ -237,7 +237,7 @@ test("HF1: Troye DV2 Channel Factory rows show in the Digital Video section", ()
   assert.equal(section.lineItems.length, 1)
   assert.equal(section.lineItems[0]!.id, "penfold020dv2")
   const chips = new Map(section.aggregate.summaryChips.map((c) => [c.label, c.value]))
-  assert.equal(chips.get("Served impressions"), "23,000")
+  assert.equal(chips.get("Impressions"), "23,000") // B30: partner wording on a Channel Factory-only section
   assert.equal(chips.get("Video completes"), "16,800")
   const daily = section.aggregate.chart.daily
   assert.deepEqual(
@@ -300,7 +300,7 @@ test("HF1: a line with no delivery source does not take partner-file rows", () =
   assert.ok(section)
   assert.deepEqual(section.lineItems.map((l) => l.id), ["penfold020dv2"])
   const chips = new Map(section.aggregate.summaryChips.map((c) => [c.label, c.value]))
-  assert.equal(chips.get("Served impressions"), "23,000")
+  assert.equal(chips.get("Impressions"), "23,000") // B30: partner wording on a Channel Factory-only section
 })
 
 test("HF1: Channel Factory rows do not reach a Digital Display line", () => {
@@ -316,7 +316,7 @@ test("HF1: a partner-file row for another plan line is ignored", () => {
   const section = troye([TROYE_DV2], [...TROYE_ROWS, other])
   assert.ok(section)
   const chips = new Map(section.aggregate.summaryChips.map((c) => [c.label, c.value]))
-  assert.equal(chips.get("Served impressions"), "23,000")
+  assert.equal(chips.get("Impressions"), "23,000") // B30: partner wording on a Channel Factory-only section
 })
 
 test("HF1: a fixed-cost Channel Factory Digital Video line keeps reported spend", () => {
