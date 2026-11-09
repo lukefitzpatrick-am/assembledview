@@ -25,6 +25,7 @@
  * feeds billing, pacing or dashboards.
  */
 
+import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 import { toCents } from "@/lib/money/cents"
 
 import { COUNTED_BILL_STATUSES } from "./bills/policy"
@@ -49,6 +50,12 @@ export type FixedCostPlanCell = {
   amountCents: number
   /** Where our cost comes from. Defaults to platform spend. */
   costBasis?: CostBasis
+  /**
+   * FC9: the line's fixed cost from date (YYYY-MM-DD), only when the
+   * `fixed_cost_margin_from_date` switch reads on and the line has one.
+   * Absent otherwise, so the report is exactly as before.
+   */
+  fixedCostFrom?: string
 }
 
 /** "platform": platform spend feeds. "xero_bill": supplier bills (CF, AA, direct). */
@@ -187,6 +194,8 @@ export type FixedCostMarginLine = {
     negativeMargin: boolean
     outOfRangeMonths: string[]
   }
+  /** FC9: fixed cost from this day (YYYY-MM-DD). Only on a dated line with the switch on. */
+  fixedCostFrom?: string
 }
 
 export type MarginTotals = {
@@ -367,6 +376,19 @@ export const OUT_OF_RANGE_LABEL = "Spend outside line months"
 export const NO_BILL_YET_LABEL = "No bill yet"
 export const PENDING_BILLS_LABEL = "Pending bills"
 
+/** FC9 (C1): "Fixed cost from 30 Oct 2026" on the line, the page and the Excel export. */
+export function fixedCostFromFlagLabel(ymd: string): string {
+  return `Fixed cost from ${formatFixedCostFromLabel(ymd)}`
+}
+
+/**
+ * Page and Excel Notes lines, added only when a line in the report has a
+ * fixed cost from date (FC9). Nothing is added otherwise.
+ */
+export const FIXED_COST_FROM_NOTES = [
+  "Fixed cost from [date]: the line became fixed cost on that day (decision FC2). Billed is still the billing schedule and cost is still what the platform or supplier charged, so the date never changes a line's billed, cost or margin. Billing, true-up, accruals and Xero never read the date (FC3).",
+] as const
+
 function emptyTotals(): MarginTotals {
   return {
     billedCents: 0,
@@ -437,6 +459,7 @@ type LineAcc = {
   lastMonth: string
   billedByMonth: Map<string, number>
   deliveryByMonth: Map<string, number>
+  fixedCostFrom: string | null
 }
 
 type BillAcc = {
@@ -503,6 +526,7 @@ export function composeFixedCostMargin(input: {
         lastMonth: cell.month,
         billedByMonth: new Map(),
         deliveryByMonth: new Map(),
+        fixedCostFrom: null,
       }
       lines.set(key, acc)
       const lid = cell.lineItemId.trim().toLowerCase()
@@ -510,6 +534,7 @@ export function composeFixedCostMargin(input: {
       set.add(key)
       keysByLineId.set(lid, set)
     }
+    if (cell.fixedCostFrom && !acc.fixedCostFrom) acc.fixedCostFrom = cell.fixedCostFrom
     if (cell.amountCents !== 0) {
       if (cell.month < acc.firstMonth) acc.firstMonth = cell.month
       if (cell.month > acc.lastMonth) acc.lastMonth = cell.month
@@ -661,6 +686,7 @@ export function composeFixedCostMargin(input: {
         outOfRangeMonths: outOfRange,
       },
     }
+    if (acc.fixedCostFrom) line.fixedCostFrom = acc.fixedCostFrom
     line.totals = totalsForLines([line])
     line.flags.negativeMargin = costStatus === "reported" && line.totals.marginCents < 0
     out.push(line)
@@ -851,6 +877,7 @@ export function filterFixedCostMarginLines(
 /** Short flag labels for a line, for the table and the export. */
 export function lineFlagLabels(line: FixedCostMarginLine): string[] {
   const out: string[] = []
+  if (line.fixedCostFrom) out.push(fixedCostFromFlagLabel(line.fixedCostFrom))
   if (line.flags.noPlatformData) out.push(NO_PLATFORM_DATA_LABEL)
   if (line.flags.noCostInFeed) out.push(NO_COST_IN_FEED_LABEL)
   if (line.flags.noBillYet) out.push(NO_BILL_YET_LABEL)

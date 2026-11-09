@@ -53,6 +53,7 @@ import {
 import {
   buildDv360CheckRows,
   composeFixedCostMargin,
+  FIXED_COST_FROM_NOTES,
   FIXED_COST_MARGIN_CAPTION,
   FIXED_COST_MARGIN_NOTES,
   invoicedMonthKey,
@@ -79,7 +80,9 @@ import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinS
 import { IS_SERVICE_LINE_SQL } from "@/lib/finance/sections/serviceLineBucket"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { toCents } from "@/lib/money/cents"
+import { readFixedCostMarginFromDate } from "@/lib/finance/sections/fixedCostMargin/fromDate.server"
 import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
+import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 export type FinanceFixedCostMarginQuery = Pick<FinanceCostsQuery, "fy" | "from" | "to" | "clientIds">
@@ -154,11 +157,23 @@ const LINE_NAME_SQL = `COALESCE(
   ''
 )`
 
-/** Every billing and delivery media cell of fixed-cost lines on approved/booked/completed tips. */
-async function loadPlanCells(q: FinanceFixedCostMarginQuery): Promise<FixedCostPlanCell[]> {
-  const db = getDb()
+/**
+ * Every billing and delivery media cell of fixed-cost lines on approved/booked/completed tips.
+ * `fromDateOn` (FC9 switch): also read `fixed_cost_from`. Off: the SQL and the
+ * cells are exactly as before.
+ */
+async function loadPlanCells(q: FinanceFixedCostMarginQuery, fromDateOn = false): Promise<FixedCostPlanCell[]> {
+  const result = await getDb().execute(planCellsSql(q, fromDateOn))
+  return executeRows(result).map((r) => planCellFromRow(r, fromDateOn))
+}
+
+/** The plan cells query. Exported for tests (switch off is the old text exactly). */
+export function planCellsSql(q: Pick<FinanceFixedCostMarginQuery, "clientIds">, fromDateOn = false): SQL {
   const publisherExpr = `COALESCE(${PUBLISHER_IDENTITY_SQL.trim()}, '${UNSPECIFIED_PUBLISHER}')`
-  const result = await db.execute(sql`
+  const fromDateSelect = fromDateOn ? sql`,
+      li.fixed_cost_from::text AS fixed_cost_from` : sql``
+  const fromDateGroup = fromDateOn ? sql`, 15` : sql``
+  return sql`
     SELECT
       m.client_id AS client_id,
       COALESCE(NULLIF(BTRIM(c.mp_client_name), ''), NULLIF(BTRIM(m.mp_client_name), ''), 'Unknown') AS client_name,
@@ -174,7 +189,7 @@ async function loadPlanCells(q: FinanceFixedCostMarginQuery): Promise<FixedCostP
       COALESCE(li.fixed_cost_media, FALSE) AS fixed_cost_media,
       sm.basis::text AS basis,
       to_char(date_trunc('month', sm.month)::date, 'YYYY-MM') AS month,
-      SUM(sm.amount_cents)::bigint AS amount_cents
+      SUM(sm.amount_cents)::bigint AS amount_cents${fromDateSelect}
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
@@ -191,9 +206,13 @@ async function loadPlanCells(q: FinanceFixedCostMarginQuery): Promise<FixedCostP
       AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
       AND NOT ${sql.raw(IS_SERVICE_LINE_SQL)}
       AND ${clientFilterSql(q.clientIds)}
-    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
-  `)
-  return executeRows(result).map((r) => ({
+    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14${fromDateGroup}
+  `
+}
+
+/** One plan cell row. `fromDateOn` off: no `fixedCostFrom` key, as before. */
+export function planCellFromRow(r: Record<string, unknown>, fromDateOn: boolean): FixedCostPlanCell {
+  const cell: FixedCostPlanCell = {
     clientId: asNumber(r.client_id),
     clientName: asText(r.client_name) || "Unknown",
     mbaNumber: asText(r.mba_number),
@@ -209,7 +228,11 @@ async function loadPlanCells(q: FinanceFixedCostMarginQuery): Promise<FixedCostP
     basis: asText(r.basis) === "delivery" ? "delivery" : "billing",
     month: asText(r.month),
     amountCents: asNumber(r.amount_cents),
-  }))
+  }
+  // FC9: the date applies only to a fixed cost media line (FC8), as every other reader.
+  const from = fromDateOn ? effectiveFixedCostFrom({ fixed_cost_media: cell.fixedCostMedia, fixed_cost_from: r.fixed_cost_from }, true) : null
+  if (from) cell.fixedCostFrom = from
+  return cell
 }
 
 /** MBA-months with an invoiced media record (not cancelled). */
@@ -659,8 +682,9 @@ function inRangeMonth(month: string, q: FinanceFixedCostMarginQuery): boolean {
 export async function fetchFinanceFixedCostMargin(
   q: FinanceFixedCostMarginQuery
 ): Promise<FinanceFixedCostMarginPayload> {
+  const fromDateOn = await readFixedCostMarginFromDate()
   const [rawPlan, invoiced, publisherRows, mbaClients, manualReady] = await Promise.all([
-    loadPlanCells(q),
+    loadPlanCells(q, fromDateOn),
     loadInvoicedKeys(q),
     loadPublishers(),
     loadMbaClients(),
@@ -737,6 +761,6 @@ export async function fetchFinanceFixedCostMargin(
     manualMatches,
     summary: summariseFixedCostMargin(lines),
     options: { publishers, platforms },
-    notes: [...FIXED_COST_MARGIN_NOTES],
+    notes: [...FIXED_COST_MARGIN_NOTES, ...(lines.some((l) => l.fixedCostFrom) ? FIXED_COST_FROM_NOTES : [])],
   }
 }

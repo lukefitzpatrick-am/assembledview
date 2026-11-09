@@ -29,6 +29,7 @@ import {
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import {
   filterFixedCostMarginLines,
+  fixedCostFromFlagLabel,
   NO_BILL_YET_LABEL,
   NO_COST_IN_FEED_LABEL,
   NO_PLATFORM_DATA_LABEL,
@@ -111,6 +112,11 @@ function tileState(
 function LineFlags({ line }: { line: FixedCostMarginLine }) {
   return (
     <span className="flex flex-wrap gap-1">
+      {line.fixedCostFrom ? (
+        <Badge variant="info" size="sm">
+          {fixedCostFromFlagLabel(line.fixedCostFrom)}
+        </Badge>
+      ) : null}
       {line.flags.noPlatformData ? (
         <Badge variant="neutral" size="sm">
           {NO_PLATFORM_DATA_LABEL}
