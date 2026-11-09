@@ -1,5 +1,5 @@
 import { COL } from "../columnNames"
-import { extractPlanCode } from "../extractPlanCode"
+import { extractChannelFactoryPlanCode } from "../extractPlanCode"
 import type { ParsedPartnerFile, PartnerDeliveryRow } from "../types"
 
 import {
@@ -61,7 +61,7 @@ export function parsePartnerFileMatrix(matrix: unknown[][]): ParsedPartnerFile {
       partnerCampaignName:
         cellDisplay(col(cols, COL.campaignName, cells)).trim() || null,
       partnerLineItemName,
-      avLineItemId: extractPlanCode(partnerLineItemName),
+      avLineItemId: extractChannelFactoryPlanCode(partnerLineItemName),
       impressions,
       clicks,
       videoViews,
