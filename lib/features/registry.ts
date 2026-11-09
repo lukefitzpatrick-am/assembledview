@@ -157,6 +157,18 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "fixed_cost_margin_from_date",
+    label: "Fixed cost margin by the from date",
+    description:
+      "Finance > Publishers > Fixed cost margin reads each line's fixed cost from date (decision FC9, option C). On: a dated line shows \"Fixed cost from [date]\" on the line, the page and the Excel export, and each of its months is a before-the-date leg (actual) or a fixed cost from the date leg. The date's month is split by the FC6 rule: the days before the date carry their actual spend as billed, and the fixed cost leg is the month's billing less that spend, never below 0. Line, month and report totals don't change. Billing, true-up, accruals and Xero never read the date (FC3). Splitting the date's month needs the Snowflake view VW_PLATFORM_SPEND_LINE_DAY (FC9 migration); until it exists that month shows unsplit. Lines costed from Xero bills show the date only (bills have no day grain). Also needs the fixed cost from a date and fixed-cost report on net media switches. Off: the report is exactly as before.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["fixed_cost_from_date", "fixed_cost_report_net"],
+  },
+  {
     key: "billing_balancer",
     label: "Billing balancer",
     description: "Manual billing edits keep the line total by moving the difference into a balancer month.",
@@ -240,7 +252,7 @@ export const FEATURE_DEFINITIONS = [
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:
-      "A fixed cost media line can start fixed cost on a date inside its flight (decision FC2). Days before the date keep the line's actual delivery; from the date it reports fixed-cost spend. Shows the date field beside the Fixed Cost Media box, checks it on save, sends it to Snowflake, and splits client dashboards, decks and pacing by day. The fixed-cost margin report doesn't read the date yet (FC9 not built). Also needs the fixed-cost report on net media switch (the remainder after the date is net media). Run SQL 0115 and the Snowflake ALTER first. Off: the field is hidden and every reader treats the line as fixed cost for the whole flight, as before.",
+      "A fixed cost media line can start fixed cost on a date inside its flight (decision FC2). Days before the date keep the line's actual delivery; from the date it reports fixed-cost spend. Shows the date field beside the Fixed Cost Media box, checks it on save, sends it to Snowflake, and splits client dashboards, decks and pacing by day. The fixed-cost margin report reads the date only when its own switch, Fixed cost margin by the from date, is on too (FC9). Also needs the fixed-cost report on net media switch (the remainder after the date is net media). Run SQL 0115 and the Snowflake ALTER first. Off: the field is hidden and every reader treats the line as fixed cost for the whole flight, as before.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,
