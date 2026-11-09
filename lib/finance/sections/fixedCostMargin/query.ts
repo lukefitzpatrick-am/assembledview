@@ -54,6 +54,7 @@ import {
   buildDv360CheckRows,
   composeFixedCostMargin,
   FIXED_COST_FROM_NOTES,
+  FIXED_COST_FROM_UNSPLIT_NOTE,
   FIXED_COST_MARGIN_CAPTION,
   FIXED_COST_MARGIN_NOTES,
   invoicedMonthKey,
@@ -80,6 +81,7 @@ import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinS
 import { IS_SERVICE_LINE_SQL } from "@/lib/finance/sections/serviceLineBucket"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { toCents } from "@/lib/money/cents"
+import { dateMonthNeedsSplit, dateMonthStart } from "@/lib/finance/sections/fixedCostMargin/fromDate"
 import { readFixedCostMarginFromDate } from "@/lib/finance/sections/fixedCostMargin/fromDate.server"
 import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
@@ -88,6 +90,8 @@ import { querySnowflake } from "@/lib/snowflake/query"
 export type FinanceFixedCostMarginQuery = Pick<FinanceCostsQuery, "fy" | "from" | "to" | "clientIds">
 
 export const PLATFORM_SPEND_VIEW = "ASSEMBLEDVIEW.MART.VW_PLATFORM_SPEND_LINE_MONTH"
+/** FC9 (C2): the same spend by day, read only for a dated line's date month. */
+export const PLATFORM_SPEND_DAY_VIEW = "ASSEMBLEDVIEW.MART.VW_PLATFORM_SPEND_LINE_DAY"
 
 const VIEW_NOTE =
   "Platform spend from VW_PLATFORM_SPEND_LINE_MONTH: DV360 report, Taboola, Vistar and Channel Factory feeds (relabelled), Meta, TikTok and Reddit, Google and Microsoft Ads."
@@ -355,6 +359,69 @@ async function loadPlatformSpend(
       { label: "fixed_cost_margin_spend_fallback" }
     )
     return { cells: mapSpendRows(rows), mode: "pacing_facts_fallback" }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FC9 (C2): platform cost before the date in a dated line's date month
+// ---------------------------------------------------------------------------
+
+export type PreDateWindow = { lineItemId: string; fromYmd: string }
+
+/**
+ * Dated platform-cost lines whose date month is in range and has days before
+ * the date (a date on the 1st needs no split). One window per line id.
+ */
+export function preDateWindows(
+  plan: readonly FixedCostPlanCell[],
+  q: Pick<FinanceFixedCostMarginQuery, "from" | "to">
+): PreDateWindow[] {
+  const byLine = new Map<string, string>()
+  for (const c of plan) {
+    if (!c.fixedCostFrom || c.costBasis === "xero_bill") continue
+    const lid = c.lineItemId.trim().toLowerCase()
+    if (!lid || byLine.has(lid)) continue
+    const month = c.fixedCostFrom.slice(0, 7)
+    if (month < q.from || month > q.to || !dateMonthNeedsSplit(c.fixedCostFrom)) continue
+    byLine.set(lid, c.fixedCostFrom)
+  }
+  return [...byLine.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([lineItemId, fromYmd]) => ({ lineItemId, fromYmd }))
+}
+
+/** One window per line: the date month's first day up to (not including) the date. */
+export function preDateSpendSql(windows: readonly PreDateWindow[]): { sql: string; binds: string[] } {
+  const where = windows.map(() => "(LINE_ITEM_ID = ? AND DATE_DAY >= ? AND DATE_DAY < ?)").join("\n       OR ")
+  return {
+    sql: `
+    SELECT LINE_ITEM_ID, SUM(AMOUNT_SPENT) AS AMOUNT_SPENT
+    FROM ${PLATFORM_SPEND_DAY_VIEW}
+    WHERE ${where}
+    GROUP BY 1
+  `,
+    binds: windows.flatMap((w) => [w.lineItemId, dateMonthStart(w.fromYmd), w.fromYmd]),
+  }
+}
+
+/**
+ * Cents by lowercase line id (one rounding per line), or null when the day
+ * view can't be read (not created yet, or any error): the date month then
+ * stays unsplit and the page says so. Never fails the report.
+ */
+async function loadPreDateSpend(windows: readonly PreDateWindow[], mode: SpendSourceMode): Promise<Map<string, number> | null> {
+  if (!windows.length) return new Map()
+  // Month figures must come from the month view, or the split would not add up.
+  if (mode !== "line_month_view") return null
+  try {
+    const { sql: text, binds } = preDateSpendSql(windows)
+    const rows = await querySnowflake<{ LINE_ITEM_ID: string; AMOUNT_SPENT: number | string | null }>(text, binds, {
+      label: "fixed_cost_margin_pre_date_spend",
+    })
+    const out = new Map<string, number>()
+    for (const r of rows) out.set(asText(r.LINE_ITEM_ID).toLowerCase(), toCents(asNumber(r.AMOUNT_SPENT)))
+    return out
+  } catch (error) {
+    console.warn("[fixed-cost-margin] day view unavailable; date month not split", error)
+    return null
   }
 }
 
@@ -716,7 +783,11 @@ export async function fetchFinanceFixedCostMargin(
         .filter(Boolean)
     ),
   ].sort()
-  const dv360 = await loadDv360Bills(q, reportDv360Mbas, new Set(mbaClients.keys()), mode)
+  const windows = fromDateOn ? preDateWindows(plan, q) : []
+  const [dv360, preDateSpendCents] = await Promise.all([
+    loadDv360Bills(q, reportDv360Mbas, new Set(mbaClients.keys()), mode),
+    loadPreDateSpend(windows, mode),
+  ])
   const lines = composeFixedCostMargin({
     plan,
     spend: cells,
@@ -725,6 +796,7 @@ export async function fetchFinanceFixedCostMargin(
     to: q.to,
     billCosts: bills.costs,
     dv360Bills: dv360.cells,
+    ...(fromDateOn ? { preDateSpendCents } : {}),
   })
   const manualMatches: FixedCostManualMatchInfo = {
     ready: manualReady,
@@ -761,6 +833,10 @@ export async function fetchFinanceFixedCostMargin(
     manualMatches,
     summary: summariseFixedCostMargin(lines),
     options: { publishers, platforms },
-    notes: [...FIXED_COST_MARGIN_NOTES, ...(lines.some((l) => l.fixedCostFrom) ? FIXED_COST_FROM_NOTES : [])],
+    notes: [
+      ...FIXED_COST_MARGIN_NOTES,
+      ...(lines.some((l) => l.fixedCostFrom) ? FIXED_COST_FROM_NOTES : []),
+      ...(lines.some((l) => l.months.some((m) => m.legs?.kind === "unsplit")) ? [FIXED_COST_FROM_UNSPLIT_NOTE] : []),
+    ],
   }
 }

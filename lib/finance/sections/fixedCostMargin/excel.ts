@@ -16,6 +16,8 @@ import {
   type MarginSummary,
   type MarginTotals,
 } from "@/lib/finance/sections/fixedCostMargin/compose"
+import { monthLegLabel, type FixedCostLegAmounts } from "@/lib/finance/sections/fixedCostMargin/fromDate"
+import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 import { fromCents } from "@/lib/money/cents"
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -263,6 +265,57 @@ function writeBillLinesSheet(wb: ExcelJS.Workbook, bills: FixedCostMarginWorkboo
   stampAptos(tw)
 }
 
+/**
+ * FC9 (C2): one row per leg per month of each dated platform line, then the
+ * line's two leg totals. Written only when a line has legs, so an undated
+ * report has the same sheets as before.
+ */
+function writeLegsSheet(wb: ExcelJS.Workbook, lines: readonly FixedCostMarginLine[]): void {
+  const dated = lines.filter((l) => l.fixedCostFrom && l.months.some((m) => m.legs))
+  if (!dated.length) return
+  const ws = wb.addWorksheet("Fixed cost legs")
+  writeHeader(ws, ["Client", "MBA", "Line ID", "Publisher", "Fixed cost from", "Month", "Leg", "Billed", "Actual cost", "Margin $"])
+  const add = (line: FixedCostMarginLine, month: string, leg: string, a: FixedCostLegAmounts, bold = false) => {
+    const row = ws.addRow([
+      line.clientName,
+      line.mbaNumber,
+      line.lineItemId,
+      line.publisher,
+      formatFixedCostFromLabel(line.fixedCostFrom ?? ""),
+      month,
+      leg,
+      money(a.billedCents),
+      money(a.actualCents),
+      money(a.marginCents),
+    ])
+    if (bold) row.font = excelFont({ bold: true })
+    paintNegative(row.getCell(10), money(a.marginCents), bold)
+  }
+  for (const line of dated) {
+    const from = line.fixedCostFrom ?? ""
+    const day = formatFixedCostFromLabel(from)
+    for (const m of line.months) {
+      const legs = m.legs
+      if (!legs) continue
+      const whole = { billedCents: m.billedCents, actualCents: m.actualCents, marginCents: m.marginCents }
+      if (legs.kind === "split") {
+        add(line, m.month, `Before ${day} (actual)`, legs.before)
+        add(line, m.month, `Fixed cost from ${day}`, legs.from)
+      } else {
+        add(line, m.month, monthLegLabel(legs, from, formatFixedCostFromLabel), whole)
+      }
+    }
+    if (line.fixedCostLegs) {
+      add(line, "Total", "Before fixed cost", line.fixedCostLegs.before, true)
+      add(line, "Total", "Fixed cost", line.fixedCostLegs.from, true)
+    }
+  }
+  formatColumns(ws, [8, 9, 10], [])
+  const widths = [24, 12, 16, 20, 16, 10, 26, 14, 14, 14]
+  widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
+  stampAptos(ws)
+}
+
 function writeTimingSheet(wb: ExcelJS.Workbook, lines: readonly FixedCostMarginLine[]): void {
   const ws = wb.addWorksheet("Billed vs delivered")
   writeHeader(ws, [
@@ -350,6 +403,7 @@ export async function buildFixedCostMarginWorkbookBytes(
     const lineFlags = lineFlagLabels(line).filter((f) => !f.startsWith("Spend outside"))
     for (const m of line.months) {
       const flags = [...lineFlags]
+      if (m.legs && line.fixedCostFrom) flags.push(monthLegLabel(m.legs, line.fixedCostFrom, formatFixedCostFromLabel))
       if (m.outsideLineMonths) flags.push("Spend outside line months")
       const row = ws.addRow([
         line.clientName,
@@ -385,6 +439,8 @@ export async function buildFixedCostMarginWorkbookBytes(
   const widths = [24, 12, 28, 16, 28, 20, 18, 18, 10, 14, 14, 16, 14, 10, 40, 14, 14, 12, 14, 18, 30, 14, 20, 14, 10]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
   stampAptos(ws)
+
+  writeLegsSheet(wb, lines)
 
   writeTotalsSheet(
     wb,

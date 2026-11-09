@@ -64,10 +64,13 @@ test("dated line: carries the date and the label first; billed, cost and margin 
   assert.equal(summariseFixedCostMargin(on).grand.marginCents, BOSS_TODAY_MARGIN_CENTS)
 })
 
-test("notes: one FC9 line that says the date moves no money and FC3 holds", () => {
-  assert.equal(FIXED_COST_FROM_NOTES.length, 1)
+test("notes: the FC9 lines say the date moves no money, FC3 holds, legs add up, bills are label only", () => {
+  assert.equal(FIXED_COST_FROM_NOTES.length, 3)
   assert.match(FIXED_COST_FROM_NOTES[0], /never changes a line's billed, cost or margin/)
   assert.match(FIXED_COST_FROM_NOTES[0], /Billing, true-up, accruals and Xero never read the date \(FC3\)/)
+  assert.match(FIXED_COST_FROM_NOTES[1], /split by the FC6 rule/)
+  assert.match(FIXED_COST_FROM_NOTES[1], /no line, month or report total changes/)
+  assert.match(FIXED_COST_FROM_NOTES[2], /show the date only/)
   const query = readFileSync(join(here, "..", "query.ts"), "utf8")
   assert.match(query, /lines\.some\(\(l\) => l\.fixedCostFrom\) \? FIXED_COST_FROM_NOTES : \[\]/)
 })

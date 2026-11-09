@@ -29,6 +29,7 @@ import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 import { toCents } from "@/lib/money/cents"
 
 import { COUNTED_BILL_STATUSES } from "./bills/policy"
+import { lineLegTotals, monthLegs, type FixedCostLineLegs, type FixedCostMonthLegs } from "./fromDate"
 
 /** One billed (or delivery) schedule cell of a fixed-cost line on a published tip. */
 export type FixedCostPlanCell = {
@@ -157,6 +158,12 @@ export type FixedCostMarginLineMonth = {
   fiveStonesGapCents: number | null
   /** Gap over DV360 AMOUNT_SPENT. */
   fiveStonesGapPct: number | null
+  /**
+   * FC9 (C2): this month's before-the-date and fixed cost legs. Only on a
+   * dated platform-cost line. The legs add to this month's billed, actual
+   * and margin exactly.
+   */
+  legs?: FixedCostMonthLegs
 }
 
 export type FixedCostMarginLine = {
@@ -196,6 +203,11 @@ export type FixedCostMarginLine = {
   }
   /** FC9: fixed cost from this day (YYYY-MM-DD). Only on a dated line with the switch on. */
   fixedCostFrom?: string
+  /**
+   * FC9 (C2): the line's two legs over the range, adding to `totals`. Only on
+   * a dated platform-cost line whose months are all whole or split.
+   */
+  fixedCostLegs?: FixedCostLineLegs
 }
 
 export type MarginTotals = {
@@ -387,7 +399,13 @@ export function fixedCostFromFlagLabel(ymd: string): string {
  */
 export const FIXED_COST_FROM_NOTES = [
   "Fixed cost from [date]: the line became fixed cost on that day (decision FC2). Billed is still the billing schedule and cost is still what the platform or supplier charged, so the date never changes a line's billed, cost or margin. Billing, true-up, accruals and Xero never read the date (FC3).",
+  "Legs (FC9): a dated line's months before the date's month are Before fixed cost (billed less actual platform cost). Months after it are Fixed cost. The date's month is split by the FC6 rule, as client dashboards report it: the days before the date carry their platform cost as billed (margin 0, unless that cost is more than the month's billing), and the Fixed cost leg is the rest of the month's billing against the cost from the date. The legs add to the month, so no line, month or report total changes.",
+  "Lines costed from Xero bills (Channel Factory, Advertising Associates, direct publishers) show the date only. Bills have no day grain, so their months are not split into legs.",
 ] as const
+
+/** Added when a dated line's date month can't be split (no day view). */
+export const FIXED_COST_FROM_UNSPLIT_NOTE =
+  "The date's month is not split for dated lines: platform spend by day (VW_PLATFORM_SPEND_LINE_DAY) could not be read. Run the FC9 Snowflake migration. Other months still show their leg."
 
 function emptyTotals(): MarginTotals {
   return {
@@ -492,6 +510,12 @@ export function composeFixedCostMargin(input: {
   billCosts?: readonly LineBillCostCell[]
   /** Five Stones DV360 bills by MBA-month (MAR-10). Shown beside the cost only. */
   dv360Bills?: readonly Dv360BillInput[]
+  /**
+   * FC9 (C2): platform cost on the days of a dated line's date month before
+   * the date, by lowercase line id (no entry: 0). Null or absent: the day
+   * view could not be read, so that month stays unsplit.
+   */
+  preDateSpendCents?: ReadonlyMap<string, number> | null
 }): FixedCostMarginLine[] {
   const { from, to } = input
   const dv360BillByMbaMonth = new Map<string, Dv360BillInput>()
@@ -637,7 +661,7 @@ export function composeFixedCostMargin(input: {
         ? fiveStonesShareCents(fsBill.countedCents, dv360SpendCents, fsBill.mbaDv360SpendCents)
         : null
       const fiveStonesGapCents = fiveStonesBillCents == null ? null : dv360SpendCents - fiveStonesBillCents
-      lineMonths.push({
+      const lineMonth: FixedCostMarginLineMonth = {
         month,
         billedCents,
         invoicedCents: invoiced ? billedCents : 0,
@@ -654,7 +678,13 @@ export function composeFixedCostMargin(input: {
         fiveStonesGapCents,
         fiveStonesGapPct:
           fiveStonesGapCents == null || !dv360SpendCents ? null : fiveStonesGapCents / dv360SpendCents,
-      })
+      }
+      // FC9 (C2): legs on a dated platform line only. Bill lines: the date is a label.
+      if (acc.fixedCostFrom && !isBill) {
+        const pre = input.preDateSpendCents ? input.preDateSpendCents.get(lid) ?? 0 : null
+        lineMonth.legs = monthLegs(month, acc.fixedCostFrom, { billedCents, actualCents, marginCents }, pre)
+      }
+      lineMonths.push(lineMonth)
     }
 
     const timing = timingMonths(acc, lineMonths, bills, isBill)
@@ -686,7 +716,11 @@ export function composeFixedCostMargin(input: {
         outOfRangeMonths: outOfRange,
       },
     }
-    if (acc.fixedCostFrom) line.fixedCostFrom = acc.fixedCostFrom
+    if (acc.fixedCostFrom) {
+      line.fixedCostFrom = acc.fixedCostFrom
+      const legTotals = isBill ? null : lineLegTotals(lineMonths)
+      if (legTotals) line.fixedCostLegs = legTotals
+    }
     line.totals = totalsForLines([line])
     line.flags.negativeMargin = costStatus === "reported" && line.totals.marginCents < 0
     out.push(line)

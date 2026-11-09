@@ -30,6 +30,7 @@ import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import {
   filterFixedCostMarginLines,
   fixedCostFromFlagLabel,
+  marginPctOf,
   NO_BILL_YET_LABEL,
   NO_COST_IN_FEED_LABEL,
   NO_PLATFORM_DATA_LABEL,
@@ -48,6 +49,12 @@ import {
   billStateLabel,
   downloadFixedCostMarginWorkbook,
 } from "@/lib/finance/sections/fixedCostMargin/excel"
+import {
+  monthLegLabel,
+  type FixedCostLegAmounts,
+  type FixedCostMonthLegs,
+} from "@/lib/finance/sections/fixedCostMargin/fromDate"
+import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
 import {
@@ -147,6 +154,49 @@ function LineFlags({ line }: { line: FixedCostMarginLine }) {
           {OUT_OF_RANGE_LABEL}
         </Badge>
       ) : null}
+    </span>
+  )
+}
+
+/** FC9: the month's leg tag on a dated line (Before fixed cost, Fixed cost, Split at [date]). */
+function MonthLegTag({ legs, from }: { legs: FixedCostMonthLegs; from: string }) {
+  return (
+    <Badge variant={legs.kind === "unsplit" ? "attention" : "info"} size="sm">
+      {monthLegLabel(legs, from, formatFixedCostFromLabel)}
+    </Badge>
+  )
+}
+
+/** FC9: one leg of the date's month, under the month row. */
+function LegSubRow({ label, leg }: { label: string; leg: FixedCostLegAmounts }) {
+  const cell = "num px-2 py-0.5 text-right text-xs"
+  return (
+    <tr className="border-b border-border/30 text-muted-foreground">
+      <td className="sticky left-0 z-10 bg-card px-3 py-0.5 pl-14 text-xs">{label}</td>
+      <td className="px-2 py-0.5" />
+      <td className="px-2 py-0.5" />
+      <td className={cell}>{money(leg.billedCents)}</td>
+      <td className={cell} />
+      <td className={cell}>{money(leg.actualCents)}</td>
+      <td className={cn(cell, marginClass(leg.marginCents))}>{money(leg.marginCents)}</td>
+      <td className={cn(cell, marginClass(leg.marginCents))}>
+        {leg.marginCents == null ? "—" : pct(marginPctOf(leg.marginCents, leg.billedCents))}
+      </td>
+      <td className={cell} />
+      <td className={cell} />
+      <td className={cell} />
+      <td className="px-3 py-0.5" />
+    </tr>
+  )
+}
+
+/** FC9: a dated line's two legs, under its flags. */
+function LineLegsSummary({ line }: { line: FixedCostMarginLine }) {
+  if (!line.fixedCostLegs) return null
+  const { before, from } = line.fixedCostLegs
+  return (
+    <span className="mt-1 block text-xs text-muted-foreground">
+      Before fixed cost: margin {money(before.marginCents)} · Fixed cost: margin {money(from.marginCents)}
     </span>
   )
 }
@@ -813,61 +863,78 @@ export function CostsFixedCostMarginClient() {
                               <TotalsCells t={line.totals} withBills />
                               <td className="px-3 py-1.5">
                                 <LineFlags line={line} />
+                                <LineLegsSummary line={line} />
                               </td>
                             </tr>
                             {line.months.map((m) => (
-                              <tr
-                                key={`${line.key}-${m.month}`}
-                                className="interactive-row border-b border-border/40"
-                              >
-                                <td className="sticky left-0 z-10 bg-card px-3 py-1 pl-10 text-muted-foreground">
-                                  {monthLabel(m.month)}
-                                  {m.month === ready.scope.currentMonth ? " (to date)" : ""}
-                                </td>
-                                <td className="px-2 py-1" />
-                                <td className="px-2 py-1" />
-                                <td className="num px-2 py-1 text-right">{money(m.billedCents)}</td>
-                                <td className="num px-2 py-1 text-right text-muted-foreground">
-                                  {m.invoiced ? money(m.invoicedCents) : "—"}
-                                </td>
-                                <td className="num px-2 py-1 text-right">
-                                  {line.costStatus === "none" ||
-                                  (line.costBasis === "xero_bill" && m.marginCents == null && !m.actualCents)
-                                    ? "—"
-                                    : money(m.actualCents)}
-                                  {m.fiveStonesBillCents != null ? (
-                                    <span
-                                      className="block text-xs text-muted-foreground"
-                                      title="Five Stones DV360 bill for the MBA-month, split by this line's DV360 spend. Not the cost."
-                                    >
-                                      Five Stones {money(m.fiveStonesBillCents)} · gap {money(m.fiveStonesGapCents)} (
-                                      {pct(m.fiveStonesGapPct)})
+                              <Fragment key={`${line.key}-${m.month}`}>
+                                <tr className="interactive-row border-b border-border/40">
+                                  <td className="sticky left-0 z-10 bg-card px-3 py-1 pl-10 text-muted-foreground">
+                                    {monthLabel(m.month)}
+                                    {m.month === ready.scope.currentMonth ? " (to date)" : ""}
+                                  </td>
+                                  <td className="px-2 py-1" />
+                                  <td className="px-2 py-1" />
+                                  <td className="num px-2 py-1 text-right">{money(m.billedCents)}</td>
+                                  <td className="num px-2 py-1 text-right text-muted-foreground">
+                                    {m.invoiced ? money(m.invoicedCents) : "—"}
+                                  </td>
+                                  <td className="num px-2 py-1 text-right">
+                                    {line.costStatus === "none" ||
+                                    (line.costBasis === "xero_bill" && m.marginCents == null && !m.actualCents)
+                                      ? "—"
+                                      : money(m.actualCents)}
+                                    {m.fiveStonesBillCents != null ? (
+                                      <span
+                                        className="block text-xs text-muted-foreground"
+                                        title="Five Stones DV360 bill for the MBA-month, split by this line's DV360 spend. Not the cost."
+                                      >
+                                        Five Stones {money(m.fiveStonesBillCents)} · gap {money(m.fiveStonesGapCents)} (
+                                        {pct(m.fiveStonesGapPct)})
+                                      </span>
+                                    ) : null}
+                                  </td>
+                                  <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
+                                    {money(m.marginCents)}
+                                  </td>
+                                  <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
+                                    {pct(m.marginPct)}
+                                  </td>
+                                  <td className="num px-2 py-1 text-right text-muted-foreground">
+                                    {m.billGrossCents ? money(m.billGrossCents) : "—"}
+                                  </td>
+                                  <td className="num px-2 py-1 text-right text-muted-foreground">
+                                    {m.billRebateCents ? money(m.billRebateCents) : "—"}
+                                  </td>
+                                  <td className="num px-2 py-1 text-right text-muted-foreground">
+                                    {m.pendingBillCents ? money(m.pendingBillCents) : "—"}
+                                  </td>
+                                  <td className="px-3 py-1">
+                                    <span className="flex flex-wrap gap-1">
+                                      {m.legs && line.fixedCostFrom ? (
+                                        <MonthLegTag legs={m.legs} from={line.fixedCostFrom} />
+                                      ) : null}
+                                      {m.outsideLineMonths ? (
+                                        <Badge variant="attention" size="sm">
+                                          {OUT_OF_RANGE_LABEL}
+                                        </Badge>
+                                      ) : null}
                                     </span>
-                                  ) : null}
-                                </td>
-                                <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
-                                  {money(m.marginCents)}
-                                </td>
-                                <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
-                                  {pct(m.marginPct)}
-                                </td>
-                                <td className="num px-2 py-1 text-right text-muted-foreground">
-                                  {m.billGrossCents ? money(m.billGrossCents) : "—"}
-                                </td>
-                                <td className="num px-2 py-1 text-right text-muted-foreground">
-                                  {m.billRebateCents ? money(m.billRebateCents) : "—"}
-                                </td>
-                                <td className="num px-2 py-1 text-right text-muted-foreground">
-                                  {m.pendingBillCents ? money(m.pendingBillCents) : "—"}
-                                </td>
-                                <td className="px-3 py-1">
-                                  {m.outsideLineMonths ? (
-                                    <Badge variant="attention" size="sm">
-                                      {OUT_OF_RANGE_LABEL}
-                                    </Badge>
-                                  ) : null}
-                                </td>
-                              </tr>
+                                  </td>
+                                </tr>
+                                {m.legs?.kind === "split" && line.fixedCostFrom ? (
+                                  <>
+                                    <LegSubRow
+                                      label={`Before ${formatFixedCostFromLabel(line.fixedCostFrom)} (actual)`}
+                                      leg={m.legs.before}
+                                    />
+                                    <LegSubRow
+                                      label={`Fixed cost from ${formatFixedCostFromLabel(line.fixedCostFrom)}`}
+                                      leg={m.legs.from}
+                                    />
+                                  </>
+                                ) : null}
+                              </Fragment>
                             ))}
                           </Fragment>
                         ))}
