@@ -78,5 +78,11 @@ export interface ChannelSectionData {
     /** Stable id for accordion expansion state. */
     id: string
     block: LineItemBlockProps
+    /**
+     * B30: "assumed" marks an assumed-spend line shown beside delivered lines
+     * in a Direct Booked Digital section. Coverage counts those dollars from
+     * its assumed lines instead, so it skips these rows. Unset everywhere else.
+     */
+    basis?: "assumed"
   }>
 }

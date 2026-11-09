@@ -4,10 +4,11 @@ import { deliverySourceLookupKey, lookupActiveDeliverySource } from "@/lib/deliv
 import { mergedDailyFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
-import { buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
+import { buildAssumedSpendLines, buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
+import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { cpm, ctr as clickThroughRate } from "@/lib/money/rates"
@@ -75,6 +76,8 @@ const CM360_COUNTS_CONNECTION = "Ad server verification (CM360) — delivery cou
 /** HF1: app channel of a Channel Factory row (`VW_PACING_PARTNER_FILE` emits 'Programmatic - Video'). */
 const PARTNER_FILE_VIDEO_CHANNEL = "programmatic-video"
 const CHANNEL_FACTORY_CONNECTION = "Channel Factory (partner file)"
+/** B30: the section spend card when assumed lines sit beside delivered lines. */
+const ASSUMED_MIXED_SPEND_LABEL = "Spend"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -347,19 +350,23 @@ function spendDeliveryProgressCard(input: {
   sparkline: number[]
   dense?: boolean
   spendMode?: "reported" | "estimated"
+  /** B30: lead word override ("Assumed" when the card holds assumed spend only). */
+  lead?: string
+  /** B30: extra note on the detail line (the assumed dollars inside the figure). */
+  note?: string | null
 }): ProgressCardProps {
-  const { title, actual, planned, expected, sparkline, dense, spendMode = "reported", window } = input
+  const { title, actual, planned, expected, sparkline, dense, spendMode = "reported", window, note } = input
   const titleTooltip =
     spendMode === "estimated"
       ? "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
       : undefined
-  const lead = spendMode === "estimated" ? "Estimated" : "Reported"
+  const lead = input.lead ?? (spendMode === "estimated" ? "Estimated" : "Reported")
   if (!(planned > 0) && !(expected > 0)) {
     return {
       title,
       titleTooltip,
       value: formatMoney(actual),
-      detail: `${lead} ${formatMoney(actual)} · No plan goal`,
+      detail: `${lead} ${formatMoney(actual)} · No plan goal${note ? ` · ${note}` : ""}`,
       progress: 0,
       variance: 0,
       varianceLabel: "reported spend",
@@ -380,6 +387,7 @@ function spendDeliveryProgressCard(input: {
     sparkline,
     dense,
     lead,
+    ...(note ? { note } : {}),
   })
 }
 
@@ -410,6 +418,56 @@ export function directDigitalPartnerFileLineIds(
     if (row?.delivery_source === "partner_file" && row.publisher_key === "channel factory") ids.add(id)
   }
   return ids
+}
+
+/**
+ * B30 H1: assumed-spend lines in a section that has delivery. A line qualifies
+ * by `isAssumedSpendLine` with its own delivery (impressions, clicks, or spend
+ * above 0 on the section's rows) as presence, the per-line rule the hub uses.
+ * Rows are tagged `basis: "assumed"`. Null when no line qualifies.
+ */
+function assumedLinesBesideDelivery(input: {
+  key: ChannelKey
+  normalized: AdServingLineItem[]
+  deliveringIds: ReadonlySet<string>
+  campaignStart: string
+  campaignEnd: string
+  lastSyncedAt: Date | null
+  asOfDate: string
+  window: PacingWindow
+  toDate: PacingWindow
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
+}): {
+  lineItems: ChannelSectionData["lineItems"]
+  assumedTotal: number
+  assumedToDateTotal: number
+  mediaTotal: number
+} | null {
+  const source = digitalAssumedSource(input.key)
+  if (!source) return null
+  const args = {
+    key: input.key,
+    lineItems: input.normalized.map((item) => ({ ...item, sourceTable: source.sourceTable })),
+    campaignStart: input.campaignStart,
+    campaignEnd: input.campaignEnd,
+    lastSyncedAt: input.lastSyncedAt,
+    asOfDate: input.asOfDate,
+    feePctsByVersionId: input.feePctsByVersionId,
+    estimateVersionId: input.estimateVersionId,
+    mediaType: source.mediaType,
+    deliveryLineIds: input.deliveringIds,
+  }
+  const inWindow = buildAssumedSpendLines({ ...args, window: input.window })
+  if (!inWindow) return null
+  // Expected to date ignores the date filter, like the delivered lines' cards.
+  const toDate = input.window.filtered ? buildAssumedSpendLines({ ...args, window: input.toDate }) : inWindow
+  return {
+    lineItems: inWindow.lineItems.map((row) => ({ ...row, basis: "assumed" as const })),
+    assumedTotal: inWindow.assumedTotal,
+    assumedToDateTotal: toDate?.assumedTotal ?? 0,
+    mediaTotal: inWindow.mediaTotal,
+  }
 }
 
 function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLineItem[] {
@@ -688,8 +746,27 @@ export function buildDirectDigitalChannelSection(input: {
     }
   })
 
+  // B30 H1: a line that passes the assume rule and has no delivery of its own
+  // renders as Assumed spend beside the delivered lines, and the section spend
+  // counts it, as the hub does (per line, `isAssumedSpendLine`). Null when no
+  // line qualifies, which leaves the section as it was.
+  const assumedBeside = assumedLinesBesideDelivery({
+    key,
+    normalized,
+    deliveringIds: new Set(adRowsWithDelivery.map((r) => String(r.lineItemId).toLowerCase())),
+    campaignStart,
+    campaignEnd,
+    lastSyncedAt,
+    asOfDate: asOfDate || getMelbourneTodayISO(),
+    window,
+    toDate,
+    feePctsByVersionId,
+    estimateVersionId,
+  })
+  const assumedIds = new Set(assumedBeside?.lineItems.map((row) => row.id) ?? [])
+
   // Drop plan-only orphans with zero matched rows from the accordion; keep aggregate from matched.
-  const withDelivery = metrics.filter((m) => m.daily.length > 0)
+  const withDelivery = metrics.filter((m) => m.daily.length > 0 && !assumedIds.has(m.id))
   if (!withDelivery.length) return null
 
   const rollup = withDelivery.reduce(
@@ -845,7 +922,7 @@ export function buildDirectDigitalChannelSection(input: {
   })
   // Mixed reported + estimated: one card against the expected media of both.
   const mixedSpendLines = [...reportedLines, ...estimatedLines.filter((m) => !m.hasReportedEntries)]
-  const spendCard =
+  const deliveredSpendCard =
     reportedLines.length > 0 && estimatedLines.length > 0
       ? spendDeliveryProgressCard({
           title: "Spend",
@@ -871,12 +948,35 @@ export function buildDirectDigitalChannelSection(input: {
               spendMode: "estimated",
             })
           : null
-  const spendCardDelivered =
+  const deliveredSpendLines =
     reportedLines.length > 0 && estimatedLines.length > 0
-      ? spendPace(mixedSpendLines).actual
+      ? mixedSpendLines
       : reportedLines.length > 0
-        ? spendPace(reportedLines).actual
-        : spendPace(estimatedLines).actual
+        ? reportedLines
+        : estimatedLines
+  // B30 H1: with assumed lines beside, one Spend card holds delivered and
+  // assumed dollars. Assumed spend is its own expected; its plan is delivery media.
+  const spendCard = assumedBeside
+    ? (() => {
+        const delivered = spendPace(deliveredSpendLines)
+        const sparkline = deliveredSpendCard?.sparkline ?? aggDaily.map(() => 0)
+        return spendDeliveryProgressCard({
+          title: ASSUMED_MIXED_SPEND_LABEL,
+          actual: delivered.actual + assumedBeside.assumedTotal,
+          planned: delivered.planned + assumedBeside.mediaTotal,
+          expected: delivered.expected + assumedBeside.assumedTotal,
+          expectedToDate: delivered.expectedToDate + assumedBeside.assumedToDateTotal,
+          window,
+          sparkline,
+          spendMode: estimatedLines.length > 0 ? "estimated" : "reported",
+          ...(deliveredSpendCard ? {} : { lead: "Assumed" }),
+          note: `includes ${formatMoney(assumedBeside.assumedTotal)} assumed spend`,
+        })
+      })()
+    : deliveredSpendCard
+  const spendCardDelivered = assumedBeside
+    ? spendPace(deliveredSpendLines).actual + assumedBeside.assumedTotal
+    : spendPace(deliveredSpendLines).actual
   const aggregateProgressCards: [ProgressCardProps, ProgressCardProps] = spendCard
     ? [spendCard, impressionsCard]
     : [impressionsCard, clicksCard]
@@ -1187,6 +1287,9 @@ export function buildDirectDigitalChannelSection(input: {
               },
             ]
           : []),
+        ...(assumedBeside
+          ? [{ label: ASSUMED_SPEND_LABEL, value: formatMoney(assumedBeside.assumedTotal) }]
+          : []),
         { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
         { label: "CTR", value: fmtRatioDecimal(ctrDecimal) },
@@ -1223,6 +1326,6 @@ export function buildDirectDigitalChannelSection(input: {
         brandColour: input.brandColour,
       },
     },
-    lineItems: accordionItems,
+    lineItems: assumedBeside ? [...accordionItems, ...assumedBeside.lineItems] : accordionItems,
   }
 }

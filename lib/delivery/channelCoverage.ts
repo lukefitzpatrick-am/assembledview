@@ -453,7 +453,11 @@ function deliverableLabelFromCards(
 function matchingLineItems(section: ChannelSectionData | undefined, lineIds: string[]) {
   if (!section) return []
   const idSet = new Set(lineIds)
-  return section.lineItems.filter((row) => idSet.has(String(row.id).trim().toLowerCase()))
+  // B30: an assumed line beside delivered lines is counted from `assumedLines`
+  // (stampChannelExpected), not from its card, so it is not counted twice.
+  return section.lineItems.filter(
+    (row) => row.basis !== "assumed" && idSet.has(String(row.id).trim().toLowerCase()),
+  )
 }
 
 function sectionForFamily(sections: ChannelSectionData[], family: Family): ChannelSectionData | undefined {

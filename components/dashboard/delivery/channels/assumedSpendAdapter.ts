@@ -162,11 +162,7 @@ function lineFigures(
   return { assumedCents, media }
 }
 
-/**
- * One Assumed spend section. Progress is assumed-to-date ÷ delivery media.
- * No impressions, clicks, or CPM.
- */
-export function buildAssumedSpendSection(input: {
+type AssumedSpendInput = {
   key: ChannelKey
   lineItems: unknown[]
   campaignStart: string
@@ -180,7 +176,17 @@ export function buildAssumedSpendSection(input: {
   estimateVersionId?: number | null
   mediaType?: string
   deliveryLineIds?: ReadonlySet<string>
-}): ChannelSectionData | null {
+}
+
+/**
+ * The assumed lines of a section, with their accordion blocks and totals.
+ * Null when no line qualifies. `buildAssumedSpendSection` wraps this.
+ */
+export function buildAssumedSpendLines(input: AssumedSpendInput): {
+  lineItems: ChannelSectionData["lineItems"]
+  assumedTotal: number
+  mediaTotal: number
+} | null {
   const window =
     input.window ??
     resolvePacingWindow({
@@ -213,7 +219,6 @@ export function buildAssumedSpendSection(input: {
 
   const assumedTotal = lines.reduce((sum, line) => sum + line.assumed, 0)
   const mediaTotal = lines.reduce((sum, line) => sum + line.media, 0)
-  const spend = spendCard(assumedTotal, mediaTotal, window)
   const emptyChart = {
     daily: [] as Array<Record<string, string | number>>,
     series: [],
@@ -221,18 +226,8 @@ export function buildAssumedSpendSection(input: {
   }
 
   return {
-    key: input.key,
-    title: ASSUMED_SPEND_LABEL,
-    dateRange: { startISO: input.campaignStart, endISO: input.campaignEnd },
-    lastSyncedAt: input.lastSyncedAt,
-    connections: [],
-    mediaTypeColour: channelMediaTypeColour(input.key),
-    aggregate: {
-      summaryChips: [{ label: ASSUMED_SPEND_LABEL, value: formatMoney(assumedTotal, { decimals: 0 }) }],
-      progressCards: [spend, mediaCard(mediaTotal, spend.progress)],
-      kpiBand: { tiles: [] },
-      chart: emptyChart,
-    },
+    assumedTotal,
+    mediaTotal,
     lineItems: lines.map((line) => {
       const { label, full } = deliveryLineItemDisplayName(line.record)
       const card = spendCard(line.assumed, line.media, window)
@@ -251,6 +246,44 @@ export function buildAssumedSpendSection(input: {
         },
       }
     }),
+  }
+}
+
+/**
+ * One Assumed spend section. Progress is assumed-to-date ÷ delivery media.
+ * No impressions, clicks, or CPM.
+ */
+export function buildAssumedSpendSection(input: AssumedSpendInput): ChannelSectionData | null {
+  const assumed = buildAssumedSpendLines(input)
+  if (!assumed) return null
+  const window =
+    input.window ??
+    resolvePacingWindow({
+      campaignStartISO: input.campaignStart,
+      campaignEndISO: input.campaignEnd,
+      asAtISO: input.asOfDate,
+    })
+  const { assumedTotal, mediaTotal } = assumed
+  const spend = spendCard(assumedTotal, mediaTotal, window)
+
+  return {
+    key: input.key,
+    title: ASSUMED_SPEND_LABEL,
+    dateRange: { startISO: input.campaignStart, endISO: input.campaignEnd },
+    lastSyncedAt: input.lastSyncedAt,
+    connections: [],
+    mediaTypeColour: channelMediaTypeColour(input.key),
+    aggregate: {
+      summaryChips: [{ label: ASSUMED_SPEND_LABEL, value: formatMoney(assumedTotal, { decimals: 0 }) }],
+      progressCards: [spend, mediaCard(mediaTotal, spend.progress)],
+      kpiBand: { tiles: [] },
+      chart: {
+        daily: [] as Array<Record<string, string | number>>,
+        series: [],
+        asAtDate: input.asOfDate,
+      },
+    },
+    lineItems: assumed.lineItems,
   }
 }
 
