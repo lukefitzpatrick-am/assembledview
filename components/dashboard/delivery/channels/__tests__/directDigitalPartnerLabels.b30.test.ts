@@ -3,7 +3,7 @@
  * is Channel Factory uses partner wording, not CM360 verification wording.
  * CM360 and mixed sections keep their labels (CM360 pins live in the HF1 test).
  * Also pins the channel guard, the pill edge, and the CM360 plus Channel
- * Factory sum on one line that the C-182 watch query looks for in live data.
+ * Factory sum on one line that the C-90 watch query looks for in live data.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -120,7 +120,7 @@ test("B30 (L4): a zero CM360 row beside Channel Factory delivery names Channel F
 })
 
 test("B30 (L6 watch): CM360 and Channel Factory rows on one line are both counted", () => {
-  // The hub (loadDeliverySnapshot) sums both too. KNOWN-ISSUES C-182 holds the live watch query.
+  // The hub (loadDeliverySnapshot) sums both too. KNOWN-ISSUES C-90 holds the live watch query.
   const cm360 = row("ad-serving", "penfold020dv2", "2026-10-21", 4_000, 0)
   const s = section([CF_LINE], [...CF_ROWS, cm360])
   const chips = new Map(s.aggregate.summaryChips.map((c) => [c.label, c.value]))
