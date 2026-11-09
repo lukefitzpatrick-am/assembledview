@@ -604,7 +604,7 @@ export function buildDirectDigitalChannelSection(input: {
   if (!adRowsWithDelivery.length) {
     const source = digitalAssumedSource(key)
     if (!source) return null
-    return buildAssumedSpendSection({
+    const assumedOnly = buildAssumedSpendSection({
       key,
       lineItems: normalized.map((item) => ({ ...item, sourceTable: source.sourceTable })),
       campaignStart,
@@ -616,6 +616,10 @@ export function buildDirectDigitalChannelSection(input: {
       estimateVersionId,
       mediaType: source.mediaType,
     })
+    // HF2 (C-183): tag the rows so the glance reads them as assumed spend and
+    // does not add the same lines' `assumedLines` dollars again.
+    if (!assumedOnly) return null
+    return { ...assumedOnly, lineItems: assumedOnly.lineItems.map((row) => ({ ...row, basis: "assumed" as const })) }
   }
 
   const asAtISO = asOfDate || getMelbourneTodayISO()

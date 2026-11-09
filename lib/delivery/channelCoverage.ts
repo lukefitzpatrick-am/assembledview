@@ -453,11 +453,20 @@ function deliverableLabelFromCards(
 function matchingLineItems(section: ChannelSectionData | undefined, lineIds: string[]) {
   if (!section) return []
   const idSet = new Set(lineIds)
+  const rows = section.lineItems.filter((row) => idSet.has(String(row.id).trim().toLowerCase()))
   // B30: an assumed line beside delivered lines is counted from `assumedLines`
   // (stampChannelExpected), not from its card, so it is not counted twice.
-  return section.lineItems.filter(
-    (row) => row.basis !== "assumed" && idSet.has(String(row.id).trim().toLowerCase()),
-  )
+  // HF2 (C-183): an assumed-only section (every row `basis: "assumed"`) keeps
+  // its cards as the delivered spend; stampChannelExpected does not add
+  // `assumedLines` again for it.
+  if (!section.lineItems.some((row) => row.basis !== "assumed")) return rows
+  return rows.filter((row) => row.basis !== "assumed")
+}
+
+/** HF2 (C-183): the group's delivered spend is read from Assumed spend cards only. */
+function spendFromAssumedCards(acc: Acc, section: ChannelSectionData | undefined): boolean {
+  const subset = matchingLineItems(section, acc.lineIds)
+  return subset.length > 0 && subset.every((row) => row.basis === "assumed")
 }
 
 function sectionForFamily(sections: ChannelSectionData[], family: Family): ChannelSectionData | undefined {
@@ -702,6 +711,7 @@ function collectCoverageGroups(input: ChannelCoverageInput): Map<string, Acc> {
 
 function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput): ChannelCoverageEntry[] {
   const entries: ChannelCoverageEntry[] = []
+  const assumedInSpend = new Set<ChannelCoverageEntry>()
   for (const acc of groups.values()) {
     const section = sectionForFamily(input.sections, acc.family)
     const hasFacts = groupHasFactRows(acc, section)
@@ -731,6 +741,7 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
       deliveryStatus: status === "reporting" ? delivered.deliveryStatus : null,
       impressionsStatus: status === "reporting" ? delivered.impressionsStatus : null,
     })
+    if (spendFromAssumedCards(acc, section)) assumedInSpend.add(entries[entries.length - 1]!)
   }
 
   entries.sort((a, b) => {
@@ -742,7 +753,7 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
 
   const assumedRange = input.window ?? { startISO: null, endISO: input.todayISO }
   appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [], input.assumedLines, assumedRange)
-  stampChannelExpected(entries, input.channelExpected, input.assumedLines, assumedRange)
+  stampChannelExpected(entries, input.channelExpected, input.assumedLines, assumedRange, assumedInSpend)
 
   return entries
 }
@@ -839,6 +850,8 @@ function stampChannelExpected(
   slices: ChannelCoverageInput["channelExpected"],
   assumedLines: ChannelCoverageInput["assumedLines"],
   asOf: AssumedRange,
+  /** HF2 (C-183): entries whose delivered spend already is the assumed dollars. */
+  assumedInSpend?: ReadonlySet<ChannelCoverageEntry>,
 ): void {
   if (!slices || slices.length === 0) return
   const groups = new Map<string, ChannelCoverageEntry[]>()
@@ -882,7 +895,7 @@ function stampChannelExpected(
     )
     members.forEach((member, index) => {
       member.expectedToDate = fromCents(parts[index] ?? 0)
-      if (members.length === 1 && !member.spendAssumed && assumedToDate > 0) {
+      if (members.length === 1 && !member.spendAssumed && !assumedInSpend?.has(member) && assumedToDate > 0) {
         member.deliveredSpend = (member.deliveredSpend ?? 0) + assumedToDate
       }
       if ((member.expectedToDate ?? 0) > 0 && member.deliveredSpend != null) {

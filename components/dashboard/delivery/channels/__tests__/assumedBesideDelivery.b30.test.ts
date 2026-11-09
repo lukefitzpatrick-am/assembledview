@@ -274,7 +274,8 @@ test("B30: a CM360 Digital Display section with an assumed line and no priced de
 // ---- Unchanged outside a mixed section (JSON pinned at 9bc95017, production main) ----
 
 const PINNED: Record<string, [number, string]> = {
-  "assumed only (no delivery in the section)": [1345, "40b1d59c318c7475b8eca55ec12ea45943f91a3e0bcaef21f56bb569e09b2b35"],
+  // HF2 C-183: the assumed-only rows carry basis "assumed" (+18 chars); without it the 1345 / 40b1d59c pin holds (assumedOnlyGlance.hf2.test.ts).
+  "assumed only (no delivery in the section)": [1363, "e59ab729fe5924a81c331bf644b2665c10747764825e464c7e22475e7a40f602"],
   "CM360 section with a plan-only line that does not qualify": [4827, "9fff3ce0fdbbd85f674e1191f42c2182d6594b9be1b126862363782e5c47519d"],
   "CM360 section whose no_adserving line has a delivery source": [4827, "9ea631a04980072e94957a370bf4aa7d011bd225efe5c97da4f4a53bcf7acc4b"],
 }

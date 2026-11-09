@@ -81,7 +81,10 @@ export interface ChannelSectionData {
     /**
      * B30: "assumed" marks an assumed-spend line shown beside delivered lines
      * in a Direct Booked Digital section. Coverage counts those dollars from
-     * its assumed lines instead, so it skips these rows. Unset everywhere else.
+     * its assumed lines instead, so it skips these rows. HF2 (C-183): every
+     * row of a Direct Booked Digital Assumed spend section (no delivery in the
+     * container) carries it too; coverage reads those cards and does not add
+     * the assumed lines again. Unset everywhere else.
      */
     basis?: "assumed"
   }>
