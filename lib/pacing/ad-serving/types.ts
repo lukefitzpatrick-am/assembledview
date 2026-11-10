@@ -1,5 +1,8 @@
 /**
- * Ad Serving (CM360) pacing row types — verification counts on this DTO.
+ * Ad Serving (CM360) pacing row types — delivery counts on this DTO.
+ * Counts are CM360 verification, plus partner-reported delivery for a
+ * Direct Booked line whose publisher is a partner feed (Channel Factory
+ * Digital Video, B32), marked by `deliverySource`.
  * Direct digital dollars are estimated later by `estimateDirectDigitalSpend`
  * (campaign delivery and the portfolio assembler). This row stays
  * `serving | no-data` and does not run `computePacing`.
@@ -16,6 +19,14 @@ export type AdServingChannelFamily =
 
 /** Delivery-based status only — never spend/budget variance. */
 export type AdServingLineItemStatus = "serving" | "no-data";
+
+/**
+ * B32: where a row's counts came from when they include partner-file rows.
+ * `partner_file`: Channel Factory partner-reported rows only (CM360 rows, if
+ * any, had no delivery). `partner_file_and_cm360`: both delivered and the
+ * counts are their sum (the dashboard rule, C-182). Unset: CM360 only.
+ */
+export type AdServingDeliverySource = "partner_file" | "partner_file_and_cm360";
 
 export type AdServingPacingCampaignRow = {
   mbaNumber: string;
@@ -54,7 +65,7 @@ export type AdServingPacingCampaignRow = {
   currentBurstIndex: number | null;
   currentBurst: NormalisedBurst | null;
 
-  /** Delivery-based only: "serving" when any CM360 rows matched; else "no-data". */
+  /** Delivery-based only: "serving" when any CM360 (or B32 partner-file) rows matched; else "no-data". */
   lineItemStatus: AdServingLineItemStatus;
 
   /** Plan deliverable goals from bursts (impressions for CPM buys, clicks for CPC/CPA/CPL). */
@@ -87,4 +98,14 @@ export type AdServingPacingCampaignRow = {
    * the line or its bursts, and no CM360 estimate. Omitted otherwise.
    */
   noUnitTarget?: true;
+
+  /**
+   * B32: plan publisher, trimmed. Set only on a Channel Factory Digital Video
+   * line (`isDirectDigitalPartnerFileLine`); every other row omits it and is
+   * unchanged.
+   */
+  publisher?: string;
+
+  /** B32: set only when the counts include Channel Factory partner-file rows. */
+  deliverySource?: AdServingDeliverySource;
 };

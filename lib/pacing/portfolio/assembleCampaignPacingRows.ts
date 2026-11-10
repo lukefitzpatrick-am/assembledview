@@ -21,7 +21,8 @@ import {
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
-import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import type { AdServingDeliverySource, AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import { PARTNER_FEED_NAME } from "@/lib/pacing/ad-serving/deliverySourceLabel"
 import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
@@ -93,6 +94,8 @@ type DraftChannel = {
   contributesSpend: boolean
   /** Estimated dollars already added, so reported spend can replace them. */
   estimatedByLine?: Map<string, { spend: number; budget: number }>
+  /** B32: ad-serving lines whose counts are partner-reported (Channel Factory), by lowercase id. */
+  partnerLines?: Map<string, AdServingDeliverySource>
 }
 
 type DraftCampaign = {
@@ -149,6 +152,21 @@ function adServingKey(family: AdServingPacingCampaignRow["channelFamily"]): stri
   if (family === "digitalVideo") return "digital-video"
   if (family === "digitalAudio") return "digital-audio"
   return "bvod"
+}
+
+/**
+ * B32: a channel holding partner-reported ad-serving lines says so. Every line
+ * partner-only: "· Channel Factory (partner-reported)"; some CM360 counts too:
+ * "· incl. Channel Factory (partner-reported)". Other channels keep their label.
+ */
+function labelWithPartnerSource(channel: DraftChannel): string {
+  const partner = channel.partnerLines
+  if (!partner || partner.size === 0) return channel.label
+  const tag = `${PARTNER_FEED_NAME} (partner-reported)`
+  const allPartnerOnly = channel.lineItemIds.every(
+    (id) => partner.get(id.trim().toLowerCase()) === "partner_file",
+  )
+  return allPartnerOnly ? `${channel.label} · ${tag}` : `${channel.label} · incl. ${tag}`
 }
 
 function socialLabel(platform: SocialPacingCampaignRow["socialPlatform"]): string {
@@ -300,6 +318,10 @@ function upsertChannel(campaign: DraftCampaign, next: DraftChannel): DraftChanne
   if (next.estimatedByLine) {
     if (!existing.estimatedByLine) existing.estimatedByLine = new Map()
     for (const [id, entry] of next.estimatedByLine) existing.estimatedByLine.set(id, entry)
+  }
+  if (next.partnerLines) {
+    if (!existing.partnerLines) existing.partnerLines = new Map()
+    for (const [id, source] of next.partnerLines) existing.partnerLines.set(id, source)
   }
   if (next.lineStart && (!existing.lineStart || next.lineStart < existing.lineStart)) {
     existing.lineStart = next.lineStart
@@ -828,7 +850,9 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       startDate: row.campaignStartDate,
       endDate: row.campaignEndDate,
     })
-    const lookupKey = deliverySourceLookupKey(row.platform, row.platform)
+    // B32: `publisher` is set only on a Channel Factory Digital Video line, so
+    // every other row keeps the platform-only lookup it had.
+    const lookupKey = deliverySourceLookupKey(row.publisher ?? row.platform, row.platform)
     const mapRow = lookupActiveDeliverySource(lookupKey)
     const hasFacts =
       finite(row.impressions) > 0 || finite(row.clicks) > 0 || finite(row.daysActive) > 0
@@ -880,6 +904,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             estimatedByLine: new Map([[lineKey, { spend: estimatedAmount, budget: estimatedBudget }]]),
           }
         : {}),
+      ...(row.deliverySource ? { partnerLines: new Map([[lineKey, row.deliverySource]]) } : {}),
       deliverable:
         planned > 0 || finite(row.deliverableActual) > 0
           ? {
@@ -1077,7 +1102,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       })
       return {
         channelKey: ch.channelKey,
-        label: ch.label,
+        label: labelWithPartnerSource(ch),
         spendToDate: ch.spendToDate,
         budget: ch.budget,
         expectedToDate: channelExpected,

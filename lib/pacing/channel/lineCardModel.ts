@@ -8,6 +8,7 @@ import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import { adServingDeliverySourceShort, PARTNER_REPORTED } from "@/lib/pacing/ad-serving/deliverySourceLabel"
 import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import {
   buildKpiComparisons,
@@ -531,6 +532,8 @@ export function lineCardFromAdServing(
     inFlight: !start || asOf >= start,
   })
   const remainingLine = Math.max(0, planned - delivered)
+  // B32: partner-reported counts (Channel Factory) are labelled as such, not CM360 verification.
+  const partnerSource = adServingDeliverySourceShort(row.deliverySource)
   const draft: Draft = {
     client: row.clientName,
     ...(row.campaignEnded ? { ended: true } : {}),
@@ -538,7 +541,7 @@ export function lineCardFromAdServing(
     mba: row.mbaNumber,
     clientSlug: slugifyPlanClientName(row.clientName),
     lineItemId: row.lineItemId,
-    platform: row.platform || "CM360",
+    platform: partnerSource ?? (row.platform || "CM360"),
     pace,
     kpiStatus: null,
     timePct,
@@ -554,15 +557,15 @@ export function lineCardFromAdServing(
     perDayPlan: perDayPlanForWindow(planned, start, end),
     yesterday: 0,
     metrics: [
-      { label: "Served impressions", value: formatCount(row.impressions) },
+      { label: partnerSource ? "Impressions" : "Served impressions", value: formatCount(row.impressions) },
       { label: "Clicks", value: formatCount(row.clicks) },
       { label: "CTR", value: ratioOrDash(row.ctr) },
       { label: "Video completes", value: formatCount(row.videoCompletes) },
     ],
     kpis: [
       kpiChip({
-        label: "Verification only",
-        delivered: "CM360",
+        label: partnerSource ? PARTNER_REPORTED : "Verification only",
+        delivered: partnerSource ?? "CM360",
         target: "",
         source: null,
         status: null,

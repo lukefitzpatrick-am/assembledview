@@ -1,4 +1,5 @@
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import { PARTNER_FEED_NAME } from "@/lib/pacing/ad-serving/deliverySourceLabel"
 import type { CampaignPacingRow, PortfolioPace } from "@/lib/pacing/portfolio/types"
 import type {
   DirectCampaignGroup,
@@ -275,8 +276,21 @@ export function buildDirectDigestCampaignRows(
 }
 
 /**
+ * B32: the digest channel tag for an ad-serving campaign row. "ad-serving"
+ * unless a line's counts are partner-reported (Channel Factory): all lines
+ * partner-only → "partner-reported (Channel Factory)"; else
+ * "ad-serving, incl. partner-reported (Channel Factory)".
+ */
+function adServingDigestChannel(sources: ReadonlyArray<AdServingPacingCampaignRow["deliverySource"]>): string {
+  if (!sources.some(Boolean)) return "ad-serving"
+  const tag = `partner-reported (${PARTNER_FEED_NAME})`
+  return sources.every((source) => source === "partner_file") ? tag : `ad-serving, incl. ${tag}`
+}
+
+/**
  * Ad-serving (CM360) line rows → campaign-grain digest rows.
  * deliveredPct = average deliverableProgress over lines where non-null.
+ * B32: partner-reported lines (Channel Factory) tag the row's channel.
  */
 export function buildAdServingDigestCampaignRows(
   sources: AdServingPacingCampaignRow[],
@@ -293,6 +307,7 @@ export function buildAdServingDigestCampaignRows(
     timeElapsedN: number
     daysLeftMin: number | null
     lineItemCount: number
+    deliverySources: Array<AdServingPacingCampaignRow["deliverySource"]>
   }
 
   const map = new Map<string, Acc>()
@@ -317,6 +332,7 @@ export function buildAdServingDigestCampaignRows(
         timeElapsedN: metrics.timeElapsedPct != null ? 1 : 0,
         daysLeftMin: metrics.daysLeft,
         lineItemCount: 1,
+        deliverySources: [row.deliverySource],
       })
       continue
     }
@@ -337,6 +353,7 @@ export function buildAdServingDigestCampaignRows(
           : Math.min(existing.daysLeftMin, metrics.daysLeft)
     }
     existing.lineItemCount += 1
+    existing.deliverySources.push(row.deliverySource)
   }
 
   const rows: DigestCampaignRow[] = []
@@ -345,7 +362,7 @@ export function buildAdServingDigestCampaignRows(
       clientName: acc.clientName,
       mbaNumber: acc.mbaNumber,
       campaignName: acc.campaignName,
-      channel: "ad-serving",
+      channel: adServingDigestChannel(acc.deliverySources),
       band: acc.band,
       deliveredPct:
         acc.progressN > 0 ? acc.progressSum / acc.progressN : null,

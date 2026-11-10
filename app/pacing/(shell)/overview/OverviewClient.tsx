@@ -280,6 +280,9 @@ function AttentionSection({
                 >
                   {CHANNEL_LABEL[item.channel]}
                 </Link>
+                {item.sourceLabel ? (
+                  <span className="ml-1 text-[10px] text-muted-foreground">{item.sourceLabel}</span>
+                ) : null}
               </td>
               <td className="px-3 py-2">{item.clientName}</td>
               <td className="px-3 py-2">{item.campaignName}</td>

@@ -8,6 +8,8 @@ import type {
   OverviewStatusCounts,
 } from "@/lib/pacing/overview/types";
 import { pacingStatus } from "@/lib/pacing/status";
+import { adServingDeliverySourceLabel } from "@/lib/pacing/ad-serving/deliverySourceLabel";
+import type { AdServingDeliverySource } from "@/lib/pacing/ad-serving/types";
 
 const CHANNEL_HREF: Record<OverviewChannel, string> = {
   search: "/pacing/search",
@@ -191,9 +193,12 @@ export type AdServingLineInput = {
   lineItemId: string;
   lineItemLabel?: string | null;
   lineItemStatus: "serving" | "no-data";
+  /** B32: set when the counts are partner-reported (Channel Factory). */
+  deliverySource?: AdServingDeliverySource;
 };
 
 export function mapAdServingRowToOverviewItem(row: AdServingLineInput): OverviewAttentionItem {
+  const sourceLabel = adServingDeliverySourceLabel(row.deliverySource);
   return {
     id: `ad-serving:${row.mbaNumber}:${row.lineItemId}`,
     channel: "ad-serving",
@@ -205,6 +210,7 @@ export function mapAdServingRowToOverviewItem(row: AdServingLineInput): Overview
     budget: null,
     spendToDate: null,
     href: CHANNEL_HREF["ad-serving"],
+    ...(sourceLabel ? { sourceLabel } : {}),
   };
 }
 

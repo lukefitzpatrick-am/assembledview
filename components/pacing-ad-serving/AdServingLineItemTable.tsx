@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types";
+import { adServingDeliverySourceLabel } from "@/lib/pacing/ad-serving/deliverySourceLabel";
 import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll";
 import { pacingStatusFromBand } from "@/lib/pacing/status";
 import { cn } from "@/lib/utils";
@@ -438,6 +439,11 @@ export function AdServingLineItemTable({
                     )}
                     {row.campaignEnded ? (
                       <span className="ml-1 text-[10px] text-muted-foreground">Ended</span>
+                    ) : null}
+                    {row.deliverySource ? (
+                      <span className="ml-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                        {adServingDeliverySourceLabel(row.deliverySource)}
+                      </span>
                     ) : null}
                   </td>
                   <td className="p-2 text-right num">{fmtNum(row.impressions)}</td>

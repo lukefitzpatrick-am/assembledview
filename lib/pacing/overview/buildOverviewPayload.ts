@@ -360,6 +360,7 @@ export async function buildOverviewPayload(
             lineItemId: row.lineItemId,
             lineItemLabel: row.creative || row.lineItemId,
             lineItemStatus: row.lineItemStatus,
+            ...(row.deliverySource ? { deliverySource: row.deliverySource } : {}),
           })
         );
       }

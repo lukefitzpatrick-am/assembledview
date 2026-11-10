@@ -11,6 +11,8 @@ import {
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { summarisePacingSnapshot, type CompactPacingRow } from "./summaries"
+import { adServingDeliverySourceLabel } from "@/lib/pacing/ad-serving/deliverySourceLabel"
+import type { AdServingDeliverySource } from "@/lib/pacing/ad-serving/types"
 import {
   asRecord,
   asString,
@@ -23,6 +25,8 @@ import {
 export { summarisePacingSnapshot } from "./summaries"
 
 function pickRowFields(channel: string, row: Record<string, unknown>): CompactPacingRow {
+  // B32: only an ad-serving row with partner-reported counts carries a source label.
+  const deliverySource = adServingDeliverySourceLabel(row.deliverySource as AdServingDeliverySource | undefined)
   return {
     channel,
     mbaNumber: asString(row.mbaNumber) ?? asString(row.mba_number) ?? "",
@@ -47,6 +51,7 @@ function pickRowFields(channel: string, row: Record<string, unknown>): CompactPa
           ? row.budget
           : null,
     ...(row.campaignEnded === true ? { ended: true } : {}),
+    ...(deliverySource ? { deliverySource } : {}),
   }
 }
 

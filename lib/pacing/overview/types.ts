@@ -46,6 +46,11 @@ export type OverviewAttentionItem = {
   href: string;
   /** Campaign ended before the view day (listed for a week after its end). */
   ended?: boolean;
+  /**
+   * B32: Ad Serving row whose counts are partner-reported (Channel Factory),
+   * e.g. "Partner-reported (Channel Factory)". Omitted for CM360 rows.
+   */
+  sourceLabel?: string;
 };
 
 export type OverviewStatusCounts = {

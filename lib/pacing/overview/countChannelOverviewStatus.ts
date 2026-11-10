@@ -129,6 +129,7 @@ export function countAdServingOverviewStatus(
       lineItemId: row.lineItemId,
       lineItemLabel: row.creative || row.lineItemId,
       lineItemStatus: row.lineItemStatus,
+      ...(row.deliverySource ? { deliverySource: row.deliverySource } : {}),
     })
   );
   return summarizeOverviewItems(items, 0).counts;

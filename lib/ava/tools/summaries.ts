@@ -225,6 +225,11 @@ export type CompactPacingRow = {
   budget: number | null
   /** Campaign ended before the view day (listed for a week after its end). Spend vs full budget. */
   ended?: boolean
+  /**
+   * B32: set only on a Direct Booked row whose counts are partner-reported,
+   * e.g. "Partner-reported (Channel Factory)", not CM360 verification.
+   */
+  deliverySource?: string
 }
 
 function matchesClientFilter(row: CompactPacingRow, clientSlug?: string): boolean {
