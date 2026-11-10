@@ -17,6 +17,7 @@ import {
   packageHasNoUnitTarget,
   type PackageUnitTargetOptions,
 } from "@/lib/delivery/packageUnitTarget";
+import { adServingPartnerPublisher } from "@/lib/pacing/ad-serving/composeAdServingPacingRows";
 
 export type GetLiveAdServingLineItemsArgs = {
   asOfDate: string;
@@ -122,6 +123,9 @@ function mapDigitalRowToCampaignRow(
   const currentBurst = currentBurstIndex !== null ? bursts[currentBurstIndex]! : null;
   const booked = bookedDeliverablesFromRow(dr, options);
   const noUnitTarget = packageHasNoUnitTarget(dr.buy_type ?? dr.buyType, options);
+  // B32: a Channel Factory Digital Video line carries its publisher, so the
+  // composer reads its partner-file rows and the portfolio finds its source.
+  const partnerPublisher = adServingPartnerPublisher(channelFamily, dr.publisher, dr.platform);
 
   const deliverableKind: AdServingPacingCampaignRow["deliverableKind"] =
     booked.impressions > 0 ? "impressions" : booked.clicks > 0 ? "clicks" : null;
@@ -184,6 +188,7 @@ function mapDigitalRowToCampaignRow(
     deliverableKind,
     budgetIncludesFees: dr.budget_includes_fees === true,
     ...(noUnitTarget ? { noUnitTarget: true } : {}),
+    ...(partnerPublisher !== undefined ? { publisher: partnerPublisher } : {}),
   };
 }
 
