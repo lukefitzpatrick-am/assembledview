@@ -31,6 +31,7 @@ import {
   filterFixedCostMarginLines,
   fixedCostFromLineLabel,
   marginPctOf,
+  monthNoSpendLabel,
   NO_BILL_YET_LABEL,
   NO_COST_IN_FEED_LABEL,
   NO_PLATFORM_DATA_LABEL,
@@ -913,6 +914,11 @@ export function CostsFixedCostMarginClient() {
                                     <span className="flex flex-wrap gap-1">
                                       {m.legs && line.fixedCostFrom ? (
                                         <MonthLegTag legs={m.legs} from={line.fixedCostFrom} />
+                                      ) : null}
+                                      {m.noSpendYet ? (
+                                        <Badge variant="attention" size="sm">
+                                          {monthNoSpendLabel(m)}
+                                        </Badge>
                                       ) : null}
                                       {m.outsideLineMonths ? (
                                         <Badge variant="attention" size="sm">

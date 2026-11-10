@@ -169,6 +169,17 @@ export const FEATURE_DEFINITIONS = [
     requires: ["fixed_cost_from_date", "fixed_cost_report_net"],
   },
   {
+    key: "fixed_cost_margin_no_spend_yet",
+    label: "Fixed cost margin: no spend yet is not margin",
+    description:
+      "Finance > Publishers > Fixed cost margin (C-185). Today a platform-cost line's month with billing and no platform spend recorded counts as margin of the whole billed amount (100%). On: such a month before the current Melbourne month shows \"Billed, no spend recorded\", its margin is blank, and it is left out of margin totals and margin %. A later month is left out of margin the same way (\"Future month, no spend yet\"). The current month keeps today's rule (month to date, spend still arriving). Lines costed from Xero bills already work this way. This moves the report's margin down: on 10 Nov, sinch001po1 July 2026 ($952.38 billed, Vistar spend from August) leaves the default range's margin. Billed and cost don't change. Billing, true-up, accruals and Xero never read it. Off: the report is exactly as before.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "billing_balancer",
     label: "Billing balancer",
     description: "Manual billing edits keep the line total by moving the difference into a balancer month.",

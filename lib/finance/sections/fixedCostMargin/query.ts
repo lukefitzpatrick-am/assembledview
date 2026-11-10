@@ -83,6 +83,9 @@ import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuar
 import { toCents } from "@/lib/money/cents"
 import { dateMonthNeedsSplit, dateMonthStart } from "@/lib/finance/sections/fixedCostMargin/fromDate"
 import { readFixedCostMarginFromDate } from "@/lib/finance/sections/fixedCostMargin/fromDate.server"
+import { NO_SPEND_YET_NOTE } from "@/lib/finance/sections/fixedCostMargin/noSpend"
+import { readFixedCostMarginNoSpendYet } from "@/lib/finance/sections/fixedCostMargin/noSpend.server"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { querySnowflake } from "@/lib/snowflake/query"
@@ -747,9 +750,11 @@ function inRangeMonth(month: string, q: FinanceFixedCostMarginQuery): boolean {
 }
 
 export async function fetchFinanceFixedCostMargin(
-  q: FinanceFixedCostMarginQuery
+  q: FinanceFixedCostMarginQuery,
+  /** Tests only: the clock for the C-185 current month. */
+  opts: { now?: () => Date } = {}
 ): Promise<FinanceFixedCostMarginPayload> {
-  const fromDateOn = await readFixedCostMarginFromDate()
+  const [fromDateOn, noSpendYetOn] = await Promise.all([readFixedCostMarginFromDate(), readFixedCostMarginNoSpendYet()])
   const [rawPlan, invoiced, publisherRows, mbaClients, manualReady] = await Promise.all([
     loadPlanCells(q, fromDateOn),
     loadInvoicedKeys(q),
@@ -797,6 +802,8 @@ export async function fetchFinanceFixedCostMargin(
     billCosts: bills.costs,
     dv360Bills: dv360.cells,
     ...(fromDateOn ? { preDateSpendCents } : {}),
+    // C-185: the current month in Melbourne, only with its switch on.
+    ...(noSpendYetOn ? { noSpendYet: { currentMonth: getMelbourneTodayISO(opts.now ? opts.now() : new Date()).slice(0, 7) } } : {}),
   })
   const manualMatches: FixedCostManualMatchInfo = {
     ready: manualReady,
@@ -837,6 +844,7 @@ export async function fetchFinanceFixedCostMargin(
       ...FIXED_COST_MARGIN_NOTES,
       ...(lines.some((l) => l.fixedCostFrom) ? FIXED_COST_FROM_NOTES : []),
       ...(lines.some((l) => l.months.some((m) => m.legs?.kind === "unsplit")) ? [FIXED_COST_FROM_UNSPLIT_NOTE] : []),
+      ...(lines.some((l) => l.months.some((m) => m.noSpendYet)) ? [NO_SPEND_YET_NOTE] : []),
     ],
   }
 }

@@ -33,9 +33,11 @@ type State = {
   dayViewError: boolean
   /** Day view rows (dollars) by lowercase line id; default the BOSS 1 to 29 Oct figures. */
   preDate: Map<string, number>
+  /** "lid|YYYY-MM" spend rows left out (C-185: a billed month with no spend). */
+  dropSpend: Set<string>
 }
 
-const state: State = { fixedCostFrom: null, viewMissing: false, dayViewError: false, preDate: new Map() }
+const state: State = { fixedCostFrom: null, viewMissing: false, dayViewError: false, preDate: new Map(), dropSpend: new Set() }
 const pgQueries: string[] = []
 const sfCalls: Array<{ label: string; sql: string; binds: unknown[] }> = []
 
@@ -85,7 +87,7 @@ const querySnowflake = mock.fn(async (sql: string, binds: unknown[] = [], opts: 
   const label = opts.label ?? ""
   sfCalls.push({ label, sql, binds })
   const spendRows = () =>
-    bossSpend().map((c) => ({
+    bossSpend().filter((c) => !state.dropSpend.has(`${c.lineItemId}|${c.month}`)).map((c) => ({
       LINE_ITEM_ID: c.lineItemId,
       MONTH: c.month,
       SOURCE: label === "fixed_cost_margin_spend_fallback" ? `Pacing fact (${c.source})` : c.source,
@@ -137,7 +139,7 @@ if (supportsMockModule()) {
 
 const Q = { fy: 2026, from: "2026-08", to: "2026-11", clientIds: [] as number[] }
 
-async function load(opts: { fc9: boolean } & Partial<State>) {
+async function load(opts: { fc9: boolean; noSpend?: boolean; now?: Date } & Partial<State>) {
   const { setFeatureRowReaderForTests } = await import("@/lib/features/server")
   const row = (key: string, enabled: boolean) => [
     key,
@@ -149,19 +151,22 @@ async function load(opts: { fc9: boolean } & Partial<State>) {
         row("fixed_cost_margin_from_date", opts.fc9),
         row("fixed_cost_from_date", true),
         row("fixed_cost_report_net", true),
+        row("fixed_cost_margin_no_spend_yet", opts.noSpend ?? false),
       ]),
   )
   state.fixedCostFrom = opts.fixedCostFrom === undefined ? BOSS_FROM : opts.fixedCostFrom
   state.viewMissing = opts.viewMissing ?? false
   state.dayViewError = opts.dayViewError ?? false
   state.preDate = opts.preDate ?? new Map(BOSS_LINES.map((l) => [l.id.toLowerCase(), l.preOctCents / 100]))
+  state.dropSpend = opts.dropSpend ?? new Set()
   pgQueries.length = 0
   sfCalls.length = 0
   const warn = console.warn
   console.warn = () => {}
   try {
     const { fetchFinanceFixedCostMargin } = await import("../query.js")
-    return await fetchFinanceFixedCostMargin(Q)
+    const now = opts.now
+    return await fetchFinanceFixedCostMargin(Q, now ? { now: () => now } : {})
   } finally {
     console.warn = warn
     setFeatureRowReaderForTests(null)
@@ -248,4 +253,52 @@ test("switch on, no line dated: no day view read, no FC9 notes", { skip }, async
   const p = await load({ fc9: true, fixedCostFrom: null })
   assert.equal(dayViewCalls().length, 0)
   assert.deepEqual(p.notes, [...FIXED_COST_MARGIN_NOTES])
+})
+
+// ---------------------------------------------------------------------------
+// C-185 (`fixed_cost_margin_no_spend_yet`) through the loader
+// ---------------------------------------------------------------------------
+
+const month = (p: Awaited<ReturnType<typeof load>>, lid: string, m: string) =>
+  p.lines.find((l) => l.lineItemId.toLowerCase() === lid)!.months.find((x) => x.month === m)!
+
+test("C-185 off: a past billed month with no spend still counts as margin; no tag, base notes", { skip }, async () => {
+  const { FIXED_COST_MARGIN_NOTES } = await import("../compose.js")
+  const p = await load({ fc9: false, dropSpend: new Set(["boss010pd2|2026-09"]), now: new Date("2026-11-10T01:00:00Z") })
+  const sep = month(p, "boss010pd2", "2026-09")
+  assert.equal(sep.marginCents, 136000)
+  assert.equal("noSpendYet" in sep, false)
+  assert.deepEqual(p.notes, [...FIXED_COST_MARGIN_NOTES])
+  assert.equal(p.summary.grand.marginCents, 484399 + 61902)
+})
+
+test("C-185 on: the past month is tagged, out of margin, and the note is added", { skip }, async () => {
+  const { NO_SPEND_YET_NOTE } = await import("../noSpend.js")
+  const p = await load({ fc9: false, noSpend: true, dropSpend: new Set(["boss010pd2|2026-09"]), now: new Date("2026-11-10T01:00:00Z") })
+  const sep = month(p, "boss010pd2", "2026-09")
+  assert.equal(sep.noSpendYet, "past")
+  assert.equal(sep.marginCents, null)
+  assert.ok(p.notes.includes(NO_SPEND_YET_NOTE))
+  // 484399 less boss010pd2 September's margin (136000 - 61902 = 74098).
+  assert.equal(p.summary.grand.marginCents, 484399 - 74098)
+})
+
+test("C-185 on: the current month is the Melbourne month, not the server's UTC month", { skip }, async () => {
+  // 31 Oct 2026 14:30 UTC is 1 Nov 01:30 in Melbourne: October is already past.
+  const p = await load({ fc9: false, noSpend: true, dropSpend: new Set(["boss010pd2|2026-10"]), now: new Date("2026-10-31T14:30:00Z") })
+  assert.equal(month(p, "boss010pd2", "2026-10").noSpendYet, "past")
+  // 1 Oct 2026 12:00 UTC is 1 Oct 22:00 in Melbourne: October is current, counted as today.
+  const q = await load({ fc9: false, noSpend: true, dropSpend: new Set(["boss010pd2|2026-10"]), now: new Date("2026-10-01T12:00:00Z") })
+  const oct = month(q, "boss010pd2", "2026-10")
+  assert.equal("noSpendYet" in oct, false)
+  assert.equal(oct.marginCents, 136000)
+  // November is future then, and billed with spend in the fixture: not tagged (spend recorded).
+  assert.equal("noSpendYet" in month(q, "boss010pd2", "2026-11"), false)
+})
+
+test("C-185 on, no month without spend: the payload equals the switch off", { skip }, async () => {
+  const now = new Date("2026-11-10T01:00:00Z")
+  const off = await load({ fc9: true, now })
+  const on = await load({ fc9: true, noSpend: true, now })
+  assert.deepEqual(on, off)
 })

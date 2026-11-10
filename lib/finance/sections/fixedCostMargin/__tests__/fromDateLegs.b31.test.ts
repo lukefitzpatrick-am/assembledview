@@ -405,7 +405,7 @@ test("Excel: a Fixed cost legs sheet only when a line has legs; its rows add to 
 // FC3: billing, true-up, accruals and Xero never read the date
 // ---------------------------------------------------------------------------
 
-test("FC3: only the margin report's own files read the date, the FC9 switch or the day view", async () => {
+test("FC3: only the margin report's own files read the date, the FC9 and C-185 switches or the day view", async () => {
   const { readdirSync, readFileSync, statSync } = await import("node:fs")
   const { join, relative } = await import("node:path")
   const repo = join(import.meta.dirname, "../../../../..")
@@ -425,9 +425,13 @@ test("FC3: only the margin report's own files read the date, the FC9 switch or t
     "lib/finance/sections/fixedCostMargin/query.ts",
     "lib/finance/sections/fixedCostMargin/fromDate.ts",
     "lib/finance/sections/fixedCostMargin/fromDate.server.ts",
+    "lib/finance/sections/fixedCostMargin/noSpend.ts",
+    "lib/finance/sections/fixedCostMargin/noSpend.server.ts",
     "components/finance/sections/costs/CostsFixedCostMarginClient.tsx",
   ])
-  const pattern = /fixed_cost_from|fixedCostFrom|fixed_cost_margin_from_date|VW_PLATFORM_SPEND_LINE_DAY|fixedCostMargin\/fromDate|FixedCostLeg|fixedCostLegs/
+  // B31fix: the C-185 switch and its rule (noSpendYet) are held to the same scan.
+  const pattern =
+    /fixed_cost_from|fixedCostFrom|fixed_cost_margin_from_date|VW_PLATFORM_SPEND_LINE_DAY|fixedCostMargin\/fromDate|FixedCostLeg|fixedCostLegs|fixed_cost_margin_no_spend_yet|fixedCostMargin\/noSpend|noSpendYet|NoSpendYet/
   const hits: string[] = []
   const walk = (dir: string) => {
     let names: string[]

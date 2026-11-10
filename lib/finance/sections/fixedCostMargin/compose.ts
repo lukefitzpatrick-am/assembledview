@@ -30,6 +30,7 @@ import { toCents } from "@/lib/money/cents"
 
 import { COUNTED_BILL_STATUSES } from "./bills/policy"
 import { lineLegTotals, monthLegs, type FixedCostLineLegs, type FixedCostMonthLegs } from "./fromDate"
+import { noSpendYetFor, noSpendYetLabel, type NoSpendYet } from "./noSpend"
 
 /** One billed (or delivery) schedule cell of a fixed-cost line on a published tip. */
 export type FixedCostPlanCell = {
@@ -164,6 +165,13 @@ export type FixedCostMarginLineMonth = {
    * and margin exactly.
    */
   legs?: FixedCostMonthLegs
+  /**
+   * C-185 (`fixed_cost_margin_no_spend_yet` on): a platform-cost month with
+   * billing and no spend recorded, before ("past") or after ("future") the
+   * current Melbourne month. Its margin is null, so it is out of margin
+   * totals. Absent otherwise, so the report is exactly as before.
+   */
+  noSpendYet?: NoSpendYet
 }
 
 export type FixedCostMarginLine = {
@@ -532,6 +540,12 @@ export function composeFixedCostMargin(input: {
    * view could not be read, so that month stays unsplit.
    */
   preDateSpendCents?: ReadonlyMap<string, number> | null
+  /**
+   * C-185: the current Melbourne month (YYYY-MM), only with
+   * `fixed_cost_margin_no_spend_yet` on. Absent: today's rule, a platform
+   * month with billing and no spend counts as margin.
+   */
+  noSpendYet?: { currentMonth: string } | null
 }): FixedCostMarginLine[] {
   const { from, to } = input
   const dv360BillByMbaMonth = new Map<string, Dv360BillInput>()
@@ -667,7 +681,13 @@ export function composeFixedCostMargin(input: {
       if (outsideLineMonths) outOfRange.push(month)
       // Bill lines: a month with no counted bill yet has no margin (the bill is
       // not in), so it is not counted as margin of the full billed amount.
-      const monthHasCost = isBill ? !!b && b.statuses.some((st) => COUNTED_BILL_STATUSES.has(st)) : true
+      // C-185 (switch on): a platform month with billing and no spend recorded
+      // has no margin either, except the current month (month to date).
+      const noSpendYet =
+        !isBill && input.noSpendYet && costStatus === "reported" && billedCents !== 0 && !(s && s.rows > 0)
+          ? noSpendYetFor(month, input.noSpendYet.currentMonth)
+          : null
+      const monthHasCost = isBill ? !!b && b.statuses.some((st) => COUNTED_BILL_STATUSES.has(st)) : noSpendYet == null
       const marginCents = costStatus === "reported" && monthHasCost ? billedCents - actualCents : null
       const dv360SpendCents = isBill ? 0 : s?.dv360 ?? 0
       const fsBill = dv360SpendCents
@@ -695,6 +715,7 @@ export function composeFixedCostMargin(input: {
         fiveStonesGapPct:
           fiveStonesGapCents == null || !dv360SpendCents ? null : fiveStonesGapCents / dv360SpendCents,
       }
+      if (noSpendYet) lineMonth.noSpendYet = noSpendYet
       // FC9 (C2): legs on a dated platform line only. Bill lines: the date is a label.
       if (acc.fixedCostFrom && !isBill) {
         const pre = input.preDateSpendCents ? input.preDateSpendCents.get(lid) ?? 0 : null
@@ -922,6 +943,11 @@ export function filterFixedCostMarginLines(
       (!pubs.size || pubs.has(l.publisher.toLowerCase())) &&
       (!plats.size || plats.has(l.platform.toLowerCase()))
   )
+}
+
+/** C-185: the month's tag, or null (see ./noSpend.ts). */
+export function monthNoSpendLabel(m: Pick<FixedCostMarginLineMonth, "noSpendYet">): string | null {
+  return m.noSpendYet ? noSpendYetLabel(m.noSpendYet) : null
 }
 
 /** Short flag labels for a line, for the table and the export. */

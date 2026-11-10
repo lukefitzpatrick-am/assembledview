@@ -10,6 +10,7 @@ import { excelFont, paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 import {
   BILLS_NOT_SPLIT_LEG_LABEL,
   lineFlagLabels,
+  monthNoSpendLabel,
   type Dv360CheckRow,
   type FixedCostBillLineView,
   type FixedCostBillTotals,
@@ -448,6 +449,8 @@ export async function buildFixedCostMarginWorkbookBytes(
     for (const m of line.months) {
       const flags = [...lineFlags]
       if (m.legs && line.fixedCostFrom) flags.push(monthLegLabel(m.legs, line.fixedCostFrom, formatFixedCostFromLabel))
+      const noSpend = monthNoSpendLabel(m)
+      if (noSpend) flags.push(noSpend)
       if (m.outsideLineMonths) flags.push("Spend outside line months")
       const row = ws.addRow([
         line.clientName,
