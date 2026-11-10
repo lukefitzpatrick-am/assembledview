@@ -94,6 +94,12 @@ const SECTION_LABELS = {
 const CHANNEL_FACTORY_CONNECTION = "Channel Factory (partner file)"
 /** B30: the section spend card when assumed lines sit beside delivered lines. */
 const ASSUMED_MIXED_SPEND_LABEL = "Spend"
+const PLAN_RATE_SPEND_TOOLTIP =
+  "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
+/** B33 (HF2 review L-C): the mixed card names its assumed dollars too. */
+const ASSUMED_IN_SPEND_TOOLTIP =
+  "Includes assumed spend for lines with no delivery: planned media spread evenly across each burst's days, to date."
+const ASSUMED_IN_SPEND_SUBTITLE = "Spend card includes assumed spend"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -368,12 +374,16 @@ function spendDeliveryProgressCard(input: {
   lead?: string
   /** B30: extra note on the detail line (the assumed dollars inside the figure). */
   note?: string | null
+  /** B33: the figure includes assumed lines; the tooltip says so. */
+  includesAssumed?: boolean
 }): ProgressCardProps {
   const { title, actual, planned, expected, sparkline, dense, spendMode = "reported", window, note } = input
-  const titleTooltip =
-    spendMode === "estimated"
-      ? "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
-      : undefined
+  const rateTooltip = spendMode === "estimated" ? PLAN_RATE_SPEND_TOOLTIP : undefined
+  const titleTooltip = input.includesAssumed
+    ? rateTooltip
+      ? `${rateTooltip} ${ASSUMED_IN_SPEND_TOOLTIP}`
+      : ASSUMED_IN_SPEND_TOOLTIP
+    : rateTooltip
   const lead = input.lead ?? (spendMode === "estimated" ? "Estimated" : "Reported")
   if (!(planned > 0) && !(expected > 0)) {
     return {
@@ -403,6 +413,15 @@ function spendDeliveryProgressCard(input: {
     lead,
     ...(note ? { note } : {}),
   })
+}
+
+/**
+ * B33 (HF2 review L-C): with assumed lines beside delivery, the band subtitle
+ * also names the assumed spend in the Spend card. The band's own cost tiles
+ * read delivered spend only, so the base wording stays. Unchanged otherwise.
+ */
+function withAssumedSubtitle(subtitle: string, includesAssumed: boolean): string {
+  return includesAssumed ? `${subtitle} · ${ASSUMED_IN_SPEND_SUBTITLE}` : subtitle
 }
 
 function markEstimatedCostTiles(tiles: KpiTileProps[], estimated: boolean): KpiTileProps[] {
@@ -991,6 +1010,7 @@ export function buildDirectDigitalChannelSection(input: {
           spendMode: estimatedLines.length > 0 ? "estimated" : "reported",
           lead: deliveredSpendCard ? (estimatedLines.length > 0 ? "Estimated and assumed" : "Reported and assumed") : "Assumed",
           note: `includes ${formatMoney(assumedBeside.assumedTotal)} assumed spend`,
+          includesAssumed: true,
         })
       })()
     : deliveredSpendCard
@@ -1328,11 +1348,14 @@ export function buildDirectDigitalChannelSection(input: {
       progressCards: aggregateProgressCards,
       kpiBand: {
         title: labels.kpiBand,
-        subtitle: aggregateSpendEstimated
-          ? "Spend estimated from the plan rate"
-          : reportedLines.length > 0
-            ? CLIENT_REPORTED_SPEND_LABEL
-            : labels.counts,
+        subtitle: withAssumedSubtitle(
+          aggregateSpendEstimated
+            ? "Spend estimated from the plan rate"
+            : reportedLines.length > 0
+              ? CLIENT_REPORTED_SPEND_LABEL
+              : labels.counts,
+          assumedBeside != null,
+        ),
         tiles: bandTiles,
       },
       chart: {
