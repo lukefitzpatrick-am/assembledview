@@ -22,6 +22,7 @@ import { lineIdInName, parseMatchLineId } from "@/lib/pacing/relabel/match/rules
 import { suggestedMbaFromCampaignName } from "./suggestedMbaFromCampaignName"
 import {
   labelMapJoinSql,
+  labelMapOneCteSql,
   resolvedLineIdSql,
   resolvedLineIsUnmappedSql,
   type UnmappedPlacementQueryFn,
@@ -102,7 +103,8 @@ const ENTITY_NAME =
  */
 export function buildUnmappedDeliverySql(): string {
   return `
-    WITH raw AS (${factSelect({
+    WITH ${labelMapOneCteSql()},
+    raw AS (${factSelect({
       table: FACT_PACING,
       nameExpr: ENTITY_NAME,
       accountExpr: "CAST(NULL AS VARCHAR)",

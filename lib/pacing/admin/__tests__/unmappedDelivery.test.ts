@@ -14,7 +14,12 @@ import {
   suggestUnmappedFix,
   summariseUnmappedDelivery,
 } from "../unmappedDelivery.js"
-import { buildUnmappedPlacementsSql, labelMapJoinSql, resolvedLineIsUnmappedSql } from "../unmappedPlacements.js"
+import {
+  buildUnmappedPlacementsSql,
+  labelMapJoinSql,
+  labelMapOneCteSql,
+  resolvedLineIsUnmappedSql,
+} from "../unmappedPlacements.js"
 
 const published = {
   lineIds: new Set(["pgaaus015sm3", "hartm001se8"]),
@@ -53,6 +58,14 @@ test("SQL reads all three pacing facts over the window with the shared map-then-
   assert.ok(buildUnmappedPlacementsSql().includes(labelMapJoinSql("f", "m")))
   assert.ok(buildUnmappedPlacementsSql().includes(resolvedLineIsUnmappedSql("r.RESOLVED_LINE_ITEM_ID")))
   assert.equal(UNMAPPED_DELIVERY_WINDOW_DAYS, 30)
+})
+
+test("B33 (C-181): all three facts join the one-row map CTE, which is read once", () => {
+  const sql = buildUnmappedDeliverySql()
+  assert.ok(sql.trimStart().startsWith(`WITH ${labelMapOneCteSql()},`), "the CTE leads the WITH")
+  assert.equal(sql.match(/LINE_ITEM_LABEL_MAP\b/g)?.length, 1)
+  assert.equal(sql.split(labelMapJoinSql("f", "m")).length - 1, 3)
+  assert.doesNotMatch(sql, /JOIN\s+ASSEMBLEDVIEW\.MART\.LINE_ITEM_LABEL_MAP/i)
 })
 
 test("maps a Snowflake row: rounds spend, lower-cases the line id, blank account is null", () => {

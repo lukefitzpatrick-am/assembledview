@@ -29,6 +29,9 @@ import { dirname, join } from "node:path"
 import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 
+import { buildUnmappedDeliverySql } from "../../pacing/admin/unmappedDelivery.js"
+import { buildUnmappedPlacementsSql } from "../../pacing/admin/unmappedPlacements.js"
+
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, "../../..")
 const MART = join(repo, "sql/snowflake/mart")
@@ -431,5 +434,50 @@ describe("labelMapFanOutFindings", () => {
       assert.ok(sql.includes(join) && !sql.includes("LEFT JOIN label_map_one m\n"))
       assert.deepEqual(labelMapFanOutFindings(sql), [], join)
     }
+  })
+})
+
+describe("app-side Unmapped SQL keeps one map row per key (C-181, B33)", () => {
+  /** The pre-B33 labelMapJoinSql text: the raw map joined straight onto the fact. */
+  const RAW_JOIN = `LEFT JOIN ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
+        ON LOWER(TRIM(m.CHANNEL)) = LOWER(TRIM(f.CHANNEL))
+       AND LOWER(TRIM(CAST(m.PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(CAST(f.PLATFORM_LINE_ITEM_ID AS VARCHAR)))
+       AND m.IS_ACTIVE = TRUE`
+
+  const builders: Array<[string, () => string, number]> = [
+    ["unmapped placements (CM360)", buildUnmappedPlacementsSql, 1],
+    ["unmapped delivery (all facts)", buildUnmappedDeliverySql, 3],
+  ]
+
+  for (const [name, buildSql, joins] of builders) {
+    it(`${name} passes the fan-out rule`, () => {
+      const sql = buildSql()
+      assert.deepEqual(labelMapFanOutFindings(sql), [])
+      assert.equal(sql.match(/LINE_ITEM_LABEL_MAP\b/g)?.length, 1, "the map is read once, in the CTE")
+      assert.equal(sql.match(/LEFT JOIN LABEL_MAP_ONE m\b/g)?.length, joins, "every fact joins the one-row CTE")
+    })
+
+    it(`${name}: the pre-B33 raw join (a duplicate map row multiplies) is caught`, () => {
+      const sql = buildSql()
+      const cte = sql.indexOf("LABEL_MAP_ONE AS (")
+      const end = sql.indexOf("\n    ),\n", cte)
+      assert.ok(cte > 0 && end > cte, "the CTE is where the test expects it")
+      const old = (sql.slice(0, cte) + sql.slice(end + "\n    ),\n".length)).replaceAll(
+        /LEFT JOIN LABEL_MAP_ONE m\n {8}ON LOWER\(TRIM\(m\.CHANNEL\)\) = LOWER\(TRIM\(f\.CHANNEL\)\)\n {7}AND LOWER\(TRIM\(m\.PLATFORM_LINE_ITEM_ID\)\) = LOWER\(TRIM\(CAST\(f\.PLATFORM_LINE_ITEM_ID AS VARCHAR\)\)\)\n {7}AND m\.IS_ACTIVE = TRUE/g,
+        RAW_JOIN,
+      )
+      assert.equal(old.match(/LEFT JOIN ASSEMBLEDVIEW\.MART\.LINE_ITEM_LABEL_MAP m\b/g)?.length, joins)
+      const findings = labelMapFanOutFindings(old)
+      assert.equal(findings.length, joins)
+      for (const finding of findings) assert.match(finding, /joins the raw map/)
+    })
+  }
+
+  it("the CTE keeps the LM1 ordering (latest UPDATED_AT, then CREATED_AT, then highest line id)", () => {
+    const view = normalise(read("views/vw_platform_spend_line_month.sql"))
+    const app = normalise(buildUnmappedPlacementsSql())
+    const order = (text: string) => /QUALIFY ROW_NUMBER\(\) OVER \((PARTITION BY .*?)\) = 1/.exec(text)?.[1]
+    assert.ok(order(app)?.includes("ORDER BY UPDATED_AT DESC NULLS LAST, CREATED_AT DESC NULLS LAST"), order(app))
+    assert.equal(order(app), order(view))
   })
 })

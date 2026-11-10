@@ -5,8 +5,11 @@ import {
   CM360_PACING_CHANNEL,
   UNMAPPED_PLACEMENTS_WINDOW_DAYS,
   applyLabelMapThenResolve,
+  LABEL_MAP_ONE_CTE,
   buildUnmappedPlacementsSql,
   getUnmappedPlacements,
+  labelMapJoinSql,
+  labelMapOneCteSql,
   mapUnmappedPlacementRow,
   resolvedLineItemIsUnmapped,
 } from "../unmappedPlacements.js"
@@ -45,6 +48,24 @@ test("SQL applies LABEL_MAP first, then 60-day CM360 PACING_FACT against publish
   assert.match(sql, /CAMPAIGN_NAME/i)
   assert.equal(CM360_PACING_CHANNEL, "Ad Serving - CM360")
   assert.equal(UNMAPPED_PLACEMENTS_WINDOW_DAYS, 60)
+})
+
+test("B33 (C-181): the map is read once, in a one-row CTE, and the fact joins that CTE", () => {
+  const sql = buildUnmappedPlacementsSql()
+  assert.equal(LABEL_MAP_ONE_CTE, "LABEL_MAP_ONE")
+  assert.ok(sql.trimStart().startsWith(`WITH ${labelMapOneCteSql()},`), "the CTE leads the WITH")
+  assert.equal(sql.match(/LINE_ITEM_LABEL_MAP\b/g)?.length, 1)
+  assert.doesNotMatch(sql, /JOIN\s+ASSEMBLEDVIEW\.MART\.LINE_ITEM_LABEL_MAP/i)
+  assert.ok(sql.includes(labelMapJoinSql("f", "m")))
+  const cte = labelMapOneCteSql()
+  assert.match(cte, /WHERE IS_ACTIVE = TRUE\s+QUALIFY ROW_NUMBER\(\) OVER \(/)
+  assert.match(cte, /PARTITION BY LOWER\(TRIM\(CHANNEL\)\), LOWER\(TRIM\(PLATFORM_LINE_ITEM_ID\)\)/)
+  assert.match(cte, /ORDER BY UPDATED_AT DESC NULLS LAST, CREATED_AT DESC NULLS LAST,\s+LOWER\(TRIM\(LINE_ITEM_ID\)\) DESC NULLS LAST\s+\) = 1/)
+  const join = labelMapJoinSql("f", "m")
+  assert.match(join, /^LEFT JOIN LABEL_MAP_ONE m\b/)
+  assert.match(join, /LOWER\(TRIM\(m\.CHANNEL\)\) = LOWER\(TRIM\(f\.CHANNEL\)\)/)
+  assert.match(join, /LOWER\(TRIM\(m\.PLATFORM_LINE_ITEM_ID\)\) = LOWER\(TRIM\(CAST\(f\.PLATFORM_LINE_ITEM_ID AS VARCHAR\)\)\)/)
+  assert.doesNotMatch(join, /\bOR\b/)
 })
 
 test("maps a Snowflake row and derives suggested MBA from the campaign prefix", () => {

@@ -59,18 +59,45 @@ export function resolvedLineItemIsUnmapped(
   return !publishedIdSet(publishedLineIds).has(id)
 }
 
+/** The named CTE that holds one active LINE_ITEM_LABEL_MAP row per key (C-181). */
+export const LABEL_MAP_ONE_CTE = "LABEL_MAP_ONE"
+
+/**
+ * One active map row per (channel, platform line id) before any join, with
+ * the B29 LM1 ordering (`label_map_one` in vw_platform_spend_line_month.sql):
+ * latest UPDATED_AT, then CREATED_AT, then the highest line id. Snowflake does
+ * not enforce unique keys, so a duplicate active row joined raw would count
+ * that delivery once per copy (C-180, C-181).
+ *
+ * A WITH item: a query that uses labelMapJoinSql puts this first in its WITH.
+ */
+export function labelMapOneCteSql(): string {
+  return `${LABEL_MAP_ONE_CTE} AS (
+      SELECT CHANNEL, PLATFORM_LINE_ITEM_ID, LINE_ITEM_ID, IS_ACTIVE
+      FROM ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP
+      WHERE IS_ACTIVE = TRUE
+      QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY LOWER(TRIM(CHANNEL)), LOWER(TRIM(PLATFORM_LINE_ITEM_ID))
+        ORDER BY UPDATED_AT DESC NULLS LAST, CREATED_AT DESC NULLS LAST,
+                 LOWER(TRIM(LINE_ITEM_ID)) DESC NULLS LAST
+      ) = 1
+    )`
+}
+
 /**
  * The one copy of the warehouse "is this delivery on a published line" rule,
  * shared by the CM360 placements list and the all-channel unmapped delivery
  * list (lib/pacing/admin/unmappedDelivery.ts).
  *
- * Join an active LINE_ITEM_LABEL_MAP override onto a fact alias. The resolved
- * line id is then COALESCE(map.LINE_ITEM_ID, fact.LINE_ITEM_ID): the map wins.
+ * Join the active LINE_ITEM_LABEL_MAP override onto a fact alias, through
+ * the one-row CTE (labelMapOneCteSql must be in the query's WITH). The
+ * resolved line id is then COALESCE(map.LINE_ITEM_ID, fact.LINE_ITEM_ID):
+ * the map wins. The map columns are TEXT, so the map side needs no CAST.
  */
 export function labelMapJoinSql(factAlias: string, mapAlias: string): string {
-  return `LEFT JOIN ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP ${mapAlias}
+  return `LEFT JOIN ${LABEL_MAP_ONE_CTE} ${mapAlias}
         ON LOWER(TRIM(${mapAlias}.CHANNEL)) = LOWER(TRIM(${factAlias}.CHANNEL))
-       AND LOWER(TRIM(CAST(${mapAlias}.PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(CAST(${factAlias}.PLATFORM_LINE_ITEM_ID AS VARCHAR)))
+       AND LOWER(TRIM(${mapAlias}.PLATFORM_LINE_ITEM_ID)) = LOWER(TRIM(CAST(${factAlias}.PLATFORM_LINE_ITEM_ID AS VARCHAR)))
        AND ${mapAlias}.IS_ACTIVE = TRUE`
 }
 
@@ -102,7 +129,8 @@ export function resolvedLineIsUnmappedSql(resolvedExpr: string): string {
  */
 export function buildUnmappedPlacementsSql(): string {
   return `
-    WITH resolved AS (
+    WITH ${labelMapOneCteSql()},
+    resolved AS (
       SELECT
         COALESCE(NULLIF(TRIM(CAST(f.ENTITY_NAME AS VARCHAR)), ''), CAST(f.LINE_ITEM_NAME AS VARCHAR)) AS PLACEMENT_NAME,
         CAST(f.CAMPAIGN_NAME AS VARCHAR) AS CAMPAIGN_NAME,
