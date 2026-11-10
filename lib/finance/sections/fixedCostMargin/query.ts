@@ -179,7 +179,9 @@ export function planCellsSql(q: Pick<FinanceFixedCostMarginQuery, "clientIds">, 
   const publisherExpr = `COALESCE(${PUBLISHER_IDENTITY_SQL.trim()}, '${UNSPECIFIED_PUBLISHER}')`
   const fromDateSelect = fromDateOn ? sql`,
       li.fixed_cost_from::text AS fixed_cost_from` : sql``
-  const fromDateGroup = fromDateOn ? sql`, 15` : sql``
+  // Grouped by name, not by select position: the date is select column 16 and
+  // column 15 is the SUM. Postgres rejects an aggregate in GROUP BY (42803).
+  const fromDateGroup = fromDateOn ? sql`, li.fixed_cost_from` : sql``
   return sql`
     SELECT
       m.client_id AS client_id,

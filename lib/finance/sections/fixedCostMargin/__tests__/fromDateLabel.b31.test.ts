@@ -107,9 +107,10 @@ test("plan cells SQL: off is the old text; on adds only the date column and its 
   assert.match(off.sql, /AS amount_cents\n    FROM media_plan_masters m/)
   assert.match(off.sql, /GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14\n/)
   assert.match(on.sql, /AS amount_cents,\n      li\.fixed_cost_from::text AS fixed_cost_from\n    FROM/)
-  assert.match(on.sql, /GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15\n/)
+  // B31fix2 H1: the date is grouped by name. `, 15` grouped by the SUM (Postgres 42803).
+  assert.match(on.sql, /GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, li\.fixed_cost_from\n/)
   assert.equal(
-    on.sql.replace(",\n      li.fixed_cost_from::text AS fixed_cost_from", "").replace("13, 14, 15\n", "13, 14\n"),
+    on.sql.replace(",\n      li.fixed_cost_from::text AS fixed_cost_from", "").replace("13, 14, li.fixed_cost_from\n", "13, 14\n"),
     off.sql,
   )
   assert.deepEqual(on.params, off.params)
