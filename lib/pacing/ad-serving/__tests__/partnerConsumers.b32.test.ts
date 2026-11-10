@@ -188,3 +188,26 @@ test("B32: a channel or campaign with CM360 and partner lines says 'incl.'", { s
   assert.equal(both.digest[0]!.channel, "ad-serving, incl. partner-reported (Channel Factory)")
   assert.equal(both.avaBody.rows[0]!.deliverySource, "Partner-reported (Channel Factory) + CM360")
 })
+
+test("B32: a Channel Factory line with zero partner counts reads connecting, not 'no source'", { skip }, async () => {
+  const run = await consumers()
+  const zero = {
+    ...partnerRows()[0]!,
+    impressions: 0,
+    clicks: 0,
+    videoCompletes: 0,
+    daysActive: 0,
+    ctr: null,
+    deliverableActual: 0,
+    deliverableProgress: 0,
+  }
+  const out = await run([zero])
+  const channel = out.portfolio[0]!.channels[0]!
+  // The Channel Factory source is found through `publisher` (platform is blank).
+  assert.equal(channel.sourceState, "connecting")
+  assert.notEqual(out.portfolio[0]!.pace, "no_source")
+  // The same row without the B32 publisher stamp has no source, as before.
+  const { publisher: _p, ...unstamped } = zero
+  const before = await run([unstamped as AdServingPacingCampaignRow])
+  assert.equal(before.portfolio[0]!.channels[0]!.sourceState, "no_source")
+})
