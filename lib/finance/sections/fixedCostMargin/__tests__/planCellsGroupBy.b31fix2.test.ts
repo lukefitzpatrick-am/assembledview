@@ -21,7 +21,7 @@ import { checkGroupBy } from "./fixtures/sqlGroupBy.js"
 const dialect = new PgDialect()
 const render = (on: boolean, clientIds: number[] = []) => dialect.sqlToQuery(planCellsSql({ clientIds }, on)).sql
 
-/** sha256 of the switch-off text (all clients) at 7dc59420. Off must never move. */
+/** sha256 of the switch-off text (all clients) at patch 0154, before B31fix2. Off must never move. */
 const OFF_SQL_SHA256 = "4e036ed9e05ce1c970a9611514f8d66eabcf4cbcafa795bca1747bf02f87e805"
 
 test("switch off: the plan cells SQL text is byte-identical to before", () => {
