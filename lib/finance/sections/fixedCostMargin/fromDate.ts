@@ -75,14 +75,23 @@ export function dateMonthStart(fromYmd: string): string {
  *   = the month's cost less that.
  * Each leg is the month minus the other, so the two always add to the month
  * exactly. Integer cents in, integer cents out.
+ *
+ * The cost before the date comes from the day view and the month's cost from
+ * the month view. When the day figure is more than the month figure (a
+ * rounding cent per source, a restatement between the two reads, or a
+ * duplicate label map key while the month view is still FCM1, C-184), the
+ * cost before the date is capped at the month's cost (`preDateCostCap`), so
+ * the fixed cost leg's cost is never below 0. The capped figure drives both
+ * the billed split and the cost split.
  */
 export function splitDateMonth(
   month: FixedCostLegAmounts,
   preDateCostCents: number,
 ): { before: FixedCostLegAmounts; from: FixedCostLegAmounts } {
-  const fromBilled = Math.max(0, month.billedCents - preDateCostCents)
+  const pre = preDateCostCap(preDateCostCents, month.actualCents)
+  const fromBilled = Math.max(0, month.billedCents - pre)
   const beforeBilled = month.billedCents - fromBilled
-  const beforeActual = preDateCostCents
+  const beforeActual = pre
   const fromActual = month.actualCents - beforeActual
   const beforeMargin = month.marginCents == null ? null : beforeBilled - beforeActual
   const fromMargin = month.marginCents == null || beforeMargin == null ? null : month.marginCents - beforeMargin
@@ -90,6 +99,11 @@ export function splitDateMonth(
     before: { billedCents: beforeBilled, actualCents: beforeActual, marginCents: beforeMargin },
     from: { billedCents: fromBilled, actualCents: fromActual, marginCents: fromMargin },
   }
+}
+
+/** The day view's cost before the date, never more than the month's cost (L4). */
+export function preDateCostCap(preDateCostCents: number, monthActualCents: number): number {
+  return Math.min(preDateCostCents, monthActualCents)
 }
 
 /**
