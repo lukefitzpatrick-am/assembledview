@@ -23,6 +23,8 @@ test("registry: finance, default off, admin, requires the date and net switches"
   assert.match(def.description, /Line, month and report totals don't change/)
   assert.match(def.description, /Billing, true-up, accruals and Xero never read the date \(FC3\)/)
   assert.match(def.description, /Off: the report is exactly as before/)
+  // B31fix N3: the pacing-facts fallback also leaves the date's month unsplit.
+  assert.match(def.description, /pacing facts \(fallback/)
 })
 
 test("combine: on only when all three are on", () => {
