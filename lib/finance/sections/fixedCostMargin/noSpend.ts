@@ -39,4 +39,3 @@ export function noSpendYetFor(month: string, currentMonth: string): NoSpendYet |
 export function noSpendYetLabel(kind: NoSpendYet): string {
   return kind === "past" ? NO_SPEND_RECORDED_LABEL : NO_SPEND_FUTURE_LABEL
 }
-
