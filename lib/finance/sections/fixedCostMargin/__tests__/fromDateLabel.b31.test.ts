@@ -65,7 +65,10 @@ test("dated line: carries the date and the label first; billed, cost and margin 
 })
 
 test("notes: the FC9 lines say the date moves no money, FC3 holds, legs add up, bills are label only", () => {
-  assert.equal(FIXED_COST_FROM_NOTES.length, 3)
+  // B31fix: a fourth note documents the prebilled and credit cases (L2, L3).
+  assert.equal(FIXED_COST_FROM_NOTES.length, 4)
+  assert.match(FIXED_COST_FROM_NOTES[3], /prebilled/)
+  assert.match(FIXED_COST_FROM_NOTES[3], /credit \(negative billing\) in the date's month lands wholly on the Before leg/)
   assert.match(FIXED_COST_FROM_NOTES[0], /never changes a line's billed, cost or margin/)
   assert.match(FIXED_COST_FROM_NOTES[0], /Billing, true-up, accruals and Xero never read the date \(FC3\)/)
   assert.match(FIXED_COST_FROM_NOTES[1], /split by the FC6 rule/)
