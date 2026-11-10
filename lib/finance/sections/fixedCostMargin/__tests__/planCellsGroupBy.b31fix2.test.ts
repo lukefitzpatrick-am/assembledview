@@ -84,6 +84,18 @@ test("guard fails closed on SQL it can't read", () => {
   unparsed("SELECT 1 AS one FROM t")
 })
 
+test("guard fails closed on a comment that would hide the H1 bug from a reader that skipped comments", () => {
+  // Postgres sees 16 columns and GROUP BY 15 = the SUM (42803). A reader that
+  // took the comment as a column would see 17, with 15 the constant "1 AS a".
+  const hidden = ON.replace("      SUM(sm.amount_cents)", "      -- 1 AS a,\n      SUM(sm.amount_cents)").replace(
+    GROUP_TAIL,
+    "13, 14, 15, li.fixed_cost_from\n",
+  )
+  const r = checkGroupBy(hidden)
+  assert.ok(r.problems.length > 0)
+  assert.ok(r.problems.every((p) => p.startsWith("unparsed:")), r.problems.join("; "))
+})
+
 test("guard reads through literals: commas, brackets and keywords inside quotes are text", () => {
   const r = checkGroupBy(
     "SELECT t.a AS a, COALESCE(t.b, 'x, ) FROM GROUP BY') AS b, COUNT(*) AS n FROM t GROUP BY 1, 2",
