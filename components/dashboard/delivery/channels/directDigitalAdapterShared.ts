@@ -1,6 +1,9 @@
 import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
-import { deliverySourceLookupKey, lookupActiveDeliverySource } from "@/lib/delivery/deliverySourceMap"
+import {
+  directDigitalPartnerFileLineIds,
+  PARTNER_FILE_VIDEO_CHANNEL,
+} from "@/lib/delivery/directDigitalPartnerFile"
 import { mergedDailyFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { packageHasNoUnitTarget, type PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
@@ -88,8 +91,6 @@ const SECTION_LABELS = {
     countsOnly: "delivery counts only",
   },
 } as const
-/** HF1: app channel of a Channel Factory row (`VW_PACING_PARTNER_FILE` emits 'Programmatic - Video'). */
-const PARTNER_FILE_VIDEO_CHANNEL = "programmatic-video"
 const CHANNEL_FACTORY_CONNECTION = "Channel Factory (partner file)"
 /** B30: the section spend card when assumed lines sit beside delivered lines. */
 const ASSUMED_MIXED_SPEND_LABEL = "Spend"
@@ -414,24 +415,11 @@ function markEstimatedCostTiles(tiles: KpiTileProps[], estimated: boolean): KpiT
 }
 
 /**
- * HF1: Digital Video lines booked with Channel Factory (`delivery_source_map`
- * `partner_file`) read their own partner-file rows as well as CM360. Every
- * other container and publisher reads CM360 `ad-serving` rows only.
+ * HF1: the Channel Factory Digital Video line test. B32 moved it to
+ * `lib/delivery/directDigitalPartnerFile.ts` so the pacing ad-serving
+ * composer uses the same test; re-exported here for existing importers.
  */
-export function directDigitalPartnerFileLineIds(
-  key: ChannelKey,
-  items: ReadonlyArray<{ line_item_id?: string; publisher?: unknown; platform?: unknown }>,
-): Set<string> {
-  const ids = new Set<string>()
-  if (key !== "digital-video") return ids
-  for (const item of items) {
-    const id = cleanId(item.line_item_id)
-    if (!id) continue
-    const row = lookupActiveDeliverySource(deliverySourceLookupKey(item.publisher, item.platform))
-    if (row?.delivery_source === "partner_file" && row.publisher_key === "channel factory") ids.add(id)
-  }
-  return ids
-}
+export { directDigitalPartnerFileLineIds }
 
 /**
  * B30 H1: assumed-spend lines in a section that has delivery. A line qualifies
