@@ -39,6 +39,7 @@ import {
   bossPreDateSpend,
   bossSpend,
 } from "./fixtures/bossFc9.js"
+import { seededInts } from "./fixtures/prng.js"
 
 function bossLines(opts: { from?: string; pre?: Map<string, number> | null } = {}): FixedCostMarginLine[] {
   return composeFixedCostMargin({
@@ -125,16 +126,14 @@ test("unsplit when the day view can't be read; whole months keep their leg", () 
   assert.equal(lineLegTotals([{ ...m, legs: { kind: "unsplit" } }]), null)
 })
 
-test("random integer-cent months: legs add to the month exactly", () => {
-  let seed = 31
-  const rnd = (n: number) => {
-    seed = (seed * 1103515245 + 12345) % 2147483648
-    return (seed % (2 * n + 1)) - n
-  }
+test("random integer-cent months: legs add to the month exactly", (t) => {
+  // B31fix2 M1: a seeded mulberry32 (fixtures/prng.ts), not the rounded LCG.
+  const r = seededInts(31)
+  const seen = { negativeBilled: 0, negativeActual: 0, negativePre: 0, floored: 0, capped: 0, nullMargin: 0 }
   for (let i = 0; i < 2000; i += 1) {
-    const billed = rnd(500000)
-    const actual = rnd(500000)
-    const pre = i % 3 === 0 ? rnd(500000) : Math.abs(rnd(500000))
+    const billed = r.signed(500000)
+    const actual = r.signed(500000)
+    const pre = i % 3 === 0 ? r.signed(500000) : Math.abs(r.signed(500000))
     const margin = i % 7 === 0 ? null : billed - actual
     const s = splitDateMonth({ billedCents: billed, actualCents: actual, marginCents: margin }, pre)
     assert.deepEqual(sum(s.before, s.from), { billedCents: billed, actualCents: actual, marginCents: margin })
@@ -142,7 +141,16 @@ test("random integer-cent months: legs add to the month exactly", () => {
     for (const v of [s.before.billedCents, s.from.billedCents, s.before.actualCents, s.from.actualCents]) {
       assert.ok(Number.isInteger(v))
     }
+    if (billed < 0) seen.negativeBilled += 1
+    if (actual < 0) seen.negativeActual += 1
+    if (pre < 0) seen.negativePre += 1
+    if (billed > 0 && s.from.billedCents === 0) seen.floored += 1
+    if (pre > actual) seen.capped += 1
+    if (margin == null) seen.nullMargin += 1
   }
+  t.diagnostic(JSON.stringify(seen))
+  // Coverage guard: every branch of the split is drawn many times.
+  for (const [k, v] of Object.entries(seen)) assert.ok(v >= 100, `${k}: ${v}`)
 })
 
 // ---------------------------------------------------------------------------
@@ -481,35 +489,87 @@ test("totals pin with the FC6 floor: cost before the date over billing; month fi
   assertLegsAddUp(on)
 })
 
-test("totals pin on 300 random dated plans: on equals off for every line, month and report total", () => {
-  let seed = 9
-  const rnd = (n: number) => {
-    seed = (seed * 1103515245 + 12345) % 2147483648
-    return seed % n
-  }
+test("totals pin on 300 random dated plans: on equals off for every line, month and report total, C-185 off and on", (t) => {
+  // B31fix2 M1: B31's generator built 1 plan cell and split 0 months here.
+  // mulberry32 (fixtures/prng.ts), and a coverage guard below.
+  const r = seededInts(9)
   const months = ["2026-08", "2026-09", "2026-10", "2026-11"]
+  const dayCount: Record<string, number> = { "09": 30, "10": 31, "11": 30 }
+  const stats = { planCells: 0, datedLines: 0, linesWithLegs: 0, split: 0, unsplit: 0, preAboveMonthCost: 0, credits: 0, tagged: 0 }
   for (let run = 0; run < 300; run += 1) {
-    const from = `2026-${["09", "10", "11"][rnd(3)]}-${String(1 + rnd(28)).padStart(2, "0")}`
+    const fromMonth = ["09", "10", "11"][r.int(3)]!
+    const from = `2026-${fromMonth}-${String(1 + r.int(dayCount[fromMonth]!)).padStart(2, "0")}`
     const plan: FixedCostPlanCell[] = []
     const spend: Array<{ lineItemId: string; month: string; source: string; spendCents: number; impressions: number; rowCount: number }> = []
     const pre = new Map<string, number>()
-    for (let l = 0; l < 3; l += 1) {
+    const lineCount = 1 + r.int(4)
+    for (let l = 0; l < lineCount; l += 1) {
       const id = `RND${run}PD${l}`
+      const dated = !r.chance(1 / 6)
       for (const month of months) {
-        if (rnd(4)) plan.push({ ...bossPlan()[0]!, mbaNumber: `RND${run}`, lineItemId: id, month, amountCents: rnd(300000) - 20000, fixedCostFrom: from })
-        if (rnd(3)) spend.push({ lineItemId: id.toLowerCase(), month, source: l === 1 ? "DV360" : "Taboola", spendCents: rnd(400000), impressions: 1, rowCount: 1 + rnd(3) })
+        if (r.chance(0.85)) {
+          const cell: FixedCostPlanCell = { ...bossPlan()[0]!, mbaNumber: `RND${run}`, lineItemId: id, month, amountCents: r.int(300000) - 20000 }
+          plan.push(dated ? { ...cell, fixedCostFrom: from } : cell)
+        }
+        if (r.chance(0.75)) {
+          const roll = r.int(40)
+          const spendCents = roll < 5 ? 0 : roll < 7 ? -r.int(20000) : r.int(400000)
+          spend.push({ lineItemId: id.toLowerCase(), month, source: l % 2 === 1 ? "DV360" : "Taboola", spendCents, impressions: 1, rowCount: 1 + r.int(3) })
+        }
       }
-      if (rnd(5)) pre.set(id.toLowerCase(), rnd(450000))
+      if (r.chance(0.8)) pre.set(id.toLowerCase(), r.chance(0.1) ? -r.int(5000) : r.int(450000))
     }
-    const on = composeFixedCostMargin({ plan, spend, invoiced: new Set(), ...BOSS_RANGE, preDateSpendCents: pre })
-    const off = composeFixedCostMargin({
-      plan: plan.map(({ fixedCostFrom: _d, ...c }) => c),
-      spend,
-      invoiced: new Set(),
-      ...BOSS_RANGE,
-    })
-    assert.deepEqual(withoutFc9(on), withoutFc9(off), `run ${run}`)
-    assert.deepEqual(summariseFixedCostMargin(on), summariseFixedCostMargin(off), `run ${run}`)
-    assertLegsAddUp(on)
+    // One run in eight: the day view can't be read, so the date's month is unsplit.
+    const preDateSpendCents = r.chance(1 / 8) ? null : pre
+    for (const noSpendYet of [undefined, { currentMonth: "2026-10" }]) {
+      const c185 = noSpendYet ? { noSpendYet } : {}
+      const on = composeFixedCostMargin({ plan, spend, invoiced: new Set(), ...BOSS_RANGE, preDateSpendCents, ...c185 })
+      const off = composeFixedCostMargin({
+        plan: plan.map(({ fixedCostFrom: _d, ...c }) => c),
+        spend,
+        invoiced: new Set(),
+        ...BOSS_RANGE,
+        ...c185,
+      })
+      assert.deepEqual(withoutFc9(on), withoutFc9(off), `run ${run}`)
+      assert.deepEqual(summariseFixedCostMargin(on), summariseFixedCostMargin(off), `run ${run}`)
+      assertLegsAddUp(on)
+      if (noSpendYet) {
+        for (const line of on) for (const m of line.months) if (m.noSpendYet) stats.tagged += 1
+        continue
+      }
+      stats.planCells += plan.length
+      for (const line of on) {
+        if (line.fixedCostFrom) stats.datedLines += 1
+        if (line.fixedCostLegs) stats.linesWithLegs += 1
+        for (const m of line.months) {
+          if (m.billedCents < 0) stats.credits += 1
+          if (m.legs?.kind === "split") {
+            stats.split += 1
+            if ((pre.get(line.lineItemId.toLowerCase()) ?? 0) > m.actualCents) stats.preAboveMonthCost += 1
+          }
+          if (m.legs?.kind === "unsplit") stats.unsplit += 1
+        }
+      }
+    }
+  }
+  t.diagnostic(JSON.stringify(stats))
+  // Coverage guard: the run must really build plans and split months.
+  assert.ok(stats.planCells >= 2000, `plan cells: ${stats.planCells}`)
+  assert.ok(stats.linesWithLegs >= 300, `lines with legs: ${stats.linesWithLegs}`)
+  assert.ok(stats.split >= 300, `split months: ${stats.split}`)
+  assert.ok(stats.unsplit >= 20, `unsplit months: ${stats.unsplit}`)
+  assert.ok(stats.preAboveMonthCost >= 50, `split months with the day cost above the month cost: ${stats.preAboveMonthCost}`)
+  assert.ok(stats.credits >= 30, `credit months: ${stats.credits}`)
+  assert.ok(stats.tagged >= 100, `C-185 tagged months: ${stats.tagged}`)
+})
+
+test("the seeded generator is spread (B31's rounded LCG gave 0 for n = 4 about 99.5% of the time)", () => {
+  const r = seededInts(9)
+  for (const n of [2, 3, 4, 28]) {
+    const counts = new Array<number>(n).fill(0)
+    const draws = 1000 * n
+    for (let i = 0; i < draws; i += 1) counts[r.int(n)]! += 1
+    for (const c of counts) assert.ok(c > 850 && c < 1150, `n ${n}: ${counts.join(",")}`)
   }
 })
