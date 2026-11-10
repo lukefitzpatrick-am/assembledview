@@ -191,13 +191,20 @@ function LegSubRow({ label, leg }: { label: string; leg: FixedCostLegAmounts }) 
   )
 }
 
-/** FC9: a dated line's two legs, under its flags. */
+/** FC9: a dated line's two legs (billed, cost and margin), under its flags. */
 function LineLegsSummary({ line }: { line: FixedCostMarginLine }) {
   if (!line.fixedCostLegs) return null
   const { before, from } = line.fixedCostLegs
+  const leg = (label: string, a: FixedCostLegAmounts) => (
+    <span className="block">
+      {label}: billed {money(a.billedCents)} · cost {money(a.actualCents)} · margin{" "}
+      <span className={marginClass(a.marginCents)}>{money(a.marginCents)}</span>
+    </span>
+  )
   return (
     <span className="mt-1 block text-xs text-muted-foreground">
-      Before fixed cost: margin {money(before.marginCents)} · Fixed cost: margin {money(from.marginCents)}
+      {leg("Before fixed cost", before)}
+      {leg("Fixed cost", from)}
     </span>
   )
 }
