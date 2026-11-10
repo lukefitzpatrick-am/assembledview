@@ -12,6 +12,7 @@ import test from "node:test"
 import { composeFixedCostMargin, summariseFixedCostMargin, type FixedCostMarginLine } from "../compose.js"
 import { preDateCostCap, splitDateMonth, type FixedCostLegAmounts } from "../fromDate.js"
 import { BOSS_FROM, BOSS_RANGE, bossPlan, bossPreDateSpend, bossSpend } from "./fixtures/bossFc9.js"
+import { seededInts } from "./fixtures/prng.js"
 
 const sum = (a: FixedCostLegAmounts, b: FixedCostLegAmounts) => ({
   billedCents: a.billedCents + b.billedCents,
@@ -55,16 +56,19 @@ test("day cost above both the month's billing and its cost (FC6 floor and the ca
   assert.deepEqual(s.from, { billedCents: 0, actualCents: 0, marginCents: 0 })
 })
 
-test("random months: the fixed cost leg's cost is never below 0 and legs add to the month", () => {
-  let seed = 185
-  const rnd = (n: number) => {
-    seed = (seed * 1103515245 + 12345) % 2147483648
-    return (seed % (2 * n + 1)) - n
-  }
+test("random months: the fixed cost leg's cost is never below 0 and legs add to the month", (t) => {
+  // B31fix2 M1: a seeded mulberry32 (fixtures/prng.ts), not the rounded LCG.
+  const r = seededInts(185)
+  let capped = 0
+  let floored = 0
+  let underCap = 0
   for (let i = 0; i < 3000; i += 1) {
-    const billed = rnd(500000)
-    const actual = Math.abs(rnd(500000))
-    const pre = i % 4 === 0 ? actual + Math.abs(rnd(5000)) : Math.abs(rnd(600000))
+    const billed = r.signed(500000)
+    const actual = Math.abs(r.signed(500000))
+    const pre = i % 4 === 0 ? actual + Math.abs(r.signed(5000)) : Math.abs(r.signed(600000))
+    if (pre > actual) capped += 1
+    else underCap += 1
+    if (billed > 0 && billed <= Math.min(pre, actual)) floored += 1
     const margin = i % 9 === 0 ? null : billed - actual
     const s = splitDateMonth({ billedCents: billed, actualCents: actual, marginCents: margin }, pre)
     assert.ok(s.from.actualCents >= 0, `run ${i}: ${s.from.actualCents}`)
@@ -75,6 +79,11 @@ test("random months: the fixed cost leg's cost is never below 0 and legs add to 
       assert.ok(Number.isInteger(v))
     }
   }
+  t.diagnostic(JSON.stringify({ capped, underCap, floored }))
+  // Coverage guard: the cap, the uncapped case and the FC6 floor are each drawn many times.
+  assert.ok(capped >= 500, `capped: ${capped}`)
+  assert.ok(underCap >= 500, `under the cap: ${underCap}`)
+  assert.ok(floored >= 100, `floored: ${floored}`)
 })
 
 test("BOSS, day cost above October's cost on every line: totals unchanged, no negative fixed cost leg cost", () => {

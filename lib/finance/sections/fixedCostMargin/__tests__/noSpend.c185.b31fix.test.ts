@@ -32,6 +32,7 @@ import { buildFixedCostMarginWorkbookBytes } from "../excel.js"
 import { NO_SPEND_FUTURE_LABEL, NO_SPEND_RECORDED_LABEL, NO_SPEND_YET_NOTE, noSpendYetFor } from "../noSpend.js"
 import { readFixedCostMarginNoSpendYet } from "../noSpend.server.js"
 import { BOSS_FROM, BOSS_RANGE, bossPlan, bossPreDateSpend, bossSpend } from "./fixtures/bossFc9.js"
+import { seededInts } from "./fixtures/prng.js"
 
 const RANGE = { from: "2026-07", to: "2026-11" } as const
 const NOW = { currentMonth: "2026-11" }
@@ -250,13 +251,14 @@ test("on: BOSS fixture (spend in every billed month) is unchanged", () => {
 // With FC9 (the from date): the legs still add up and FC9 still moves no total
 // ---------------------------------------------------------------------------
 
-test("with FC9: a tagged month's legs carry no margin; FC9 on equals FC9 off with C-185 on (random plans)", () => {
-  let seed = 1185
-  // High bits: the low bits of this generator repeat with a short period.
-  const rnd = (n: number) => {
-    seed = (seed * 1103515245 + 12345) % 2147483648
-    return Math.floor(seed / 65536) % n
-  }
+test("with FC9: a tagged month's legs carry no margin; FC9 on equals FC9 off with C-185 on (random plans)", (t) => {
+  // B31fix2 M1: a seeded mulberry32 (fixtures/prng.ts). The old LCG's high
+  // bits were spread here, but its doubles rounded; one generator for all.
+  const r = seededInts(1185)
+  const rnd = (n: number) => r.int(n)
+  let split = 0
+  let taggedSplit = 0
+  let planCells = 0
   const strip = (lines: readonly FixedCostMarginLine[]) =>
     JSON.parse(JSON.stringify(lines, (k, v) => (k === "fixedCostFrom" || k === "legs" || k === "fixedCostLegs" ? undefined : v)))
   const months = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]
@@ -274,6 +276,7 @@ test("with FC9: a tagged month's legs carry no margin; FC9 on equals FC9 off wit
       }
       if (rnd(5)) pre.set(id.toLowerCase(), rnd(450000))
     }
+    planCells += plan.length
     const range = { from: "2026-08", to: "2026-12" }
     const noSpendYet = { currentMonth: "2026-10" }
     const on = composeFixedCostMargin({ plan, spend, invoiced: new Set(), ...range, preDateSpendCents: pre, noSpendYet })
@@ -282,8 +285,10 @@ test("with FC9: a tagged month's legs carry no margin; FC9 on equals FC9 off wit
     assert.deepEqual(summariseFixedCostMargin(on), summariseFixedCostMargin(off), `run ${run}`)
     for (const line of on) {
       for (const m of line.months) {
+        if (m.legs?.kind === "split") split += 1
         if (!m.noSpendYet) continue
         tagged += 1
+        if (m.legs?.kind === "split") taggedSplit += 1
         assert.equal(m.marginCents, null)
         if (m.legs?.kind === "split") {
           assert.equal(m.legs.before.marginCents, null)
@@ -296,7 +301,12 @@ test("with FC9: a tagged month's legs carry no margin; FC9 on equals FC9 off wit
       }
     }
   }
+  t.diagnostic(JSON.stringify({ planCells, split, tagged, taggedSplit }))
   assert.ok(tagged > 50, `tagged months exercised: ${tagged}`)
+  // Coverage guard (B31fix2 M1): plans are built, date months split, and some split months are tagged.
+  assert.ok(planCells >= 1500, `plan cells: ${planCells}`)
+  assert.ok(split >= 150, `split months: ${split}`)
+  assert.ok(taggedSplit >= 10, `tagged split months: ${taggedSplit}`)
 })
 
 test("with FC9 on BOSS: C-185 on and FC9 on keeps every B31 total", () => {
