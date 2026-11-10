@@ -8,6 +8,7 @@ import type ExcelJS from "exceljs"
 import { BRAND, hexToArgb } from "@/lib/brand"
 import { excelFont, paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 import {
+  BILLS_NOT_SPLIT_LEG_LABEL,
   lineFlagLabels,
   type Dv360CheckRow,
   type FixedCostBillLineView,
@@ -24,6 +25,9 @@ const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const MONEY_FMT = '"$"#,##0.00;[Red]-"$"#,##0.00'
 const PCT_FMT = "0.0%;[Red]-0.0%"
 const ARGB_NEGATIVE = hexToArgb(BRAND.functional.coralText)
+
+/** Last row of the Fixed cost legs sheet: every month row of every dated line. */
+export const LEGS_SHEET_TOTAL_LABEL = "Total, dated lines"
 
 export function fixedCostMarginFileStem(range: { from: string; to: string }): string {
   return `Fixed_cost_margin_${range.from}_${range.to}`
@@ -266,15 +270,26 @@ function writeBillLinesSheet(wb: ExcelJS.Workbook, bills: FixedCostMarginWorkboo
 }
 
 /**
- * FC9 (C2): one row per leg per month of each dated platform line, then the
- * line's two leg totals. Written only when a line has legs, so an undated
- * report has the same sheets as before.
+ * FC9 (C2): one row per leg per month of each dated line, then the line's two
+ * leg totals. A dated bill-cost line has no legs: its months are listed whole
+ * as "Not split (bills)", with a line total (L6). A last row totals every
+ * month row, so the sheet ties to the dated lines' totals in the report.
+ * Written only when a line has a date, so an undated report has the same
+ * sheets as before.
  */
 function writeLegsSheet(wb: ExcelJS.Workbook, lines: readonly FixedCostMarginLine[]): void {
-  const dated = lines.filter((l) => l.fixedCostFrom && l.months.some((m) => m.legs))
+  const dated = lines.filter(
+    (l) => l.fixedCostFrom && (l.costBasis === "xero_bill" ? l.months.length > 0 : l.months.some((m) => m.legs)),
+  )
   if (!dated.length) return
   const ws = wb.addWorksheet("Fixed cost legs")
   writeHeader(ws, ["Client", "MBA", "Line ID", "Publisher", "Fixed cost from", "Month", "Leg", "Billed", "Actual cost", "Margin $"])
+  const all: FixedCostLegAmounts = { billedCents: 0, actualCents: 0, marginCents: null }
+  const addTo = (t: FixedCostLegAmounts, a: FixedCostLegAmounts) => {
+    t.billedCents += a.billedCents
+    t.actualCents += a.actualCents
+    if (a.marginCents != null) t.marginCents = (t.marginCents ?? 0) + a.marginCents
+  }
   const add = (line: FixedCostMarginLine, month: string, leg: string, a: FixedCostLegAmounts, bold = false) => {
     const row = ws.addRow([
       line.clientName,
@@ -291,18 +306,33 @@ function writeLegsSheet(wb: ExcelJS.Workbook, lines: readonly FixedCostMarginLin
     if (bold) row.font = excelFont({ bold: true })
     paintNegative(row.getCell(10), money(a.marginCents), bold)
   }
+  /** A month row: counted once in the sheet total. */
+  const addMonthRow = (line: FixedCostMarginLine, month: string, leg: string, a: FixedCostLegAmounts) => {
+    add(line, month, leg, a)
+    addTo(all, a)
+  }
   for (const line of dated) {
     const from = line.fixedCostFrom ?? ""
     const day = formatFixedCostFromLabel(from)
+    if (line.costBasis === "xero_bill") {
+      const lineTotal: FixedCostLegAmounts = { billedCents: 0, actualCents: 0, marginCents: null }
+      for (const m of line.months) {
+        const whole = { billedCents: m.billedCents, actualCents: m.actualCents, marginCents: m.marginCents }
+        addMonthRow(line, m.month, BILLS_NOT_SPLIT_LEG_LABEL, whole)
+        addTo(lineTotal, whole)
+      }
+      add(line, "Total", BILLS_NOT_SPLIT_LEG_LABEL, lineTotal, true)
+      continue
+    }
     for (const m of line.months) {
       const legs = m.legs
       if (!legs) continue
       const whole = { billedCents: m.billedCents, actualCents: m.actualCents, marginCents: m.marginCents }
       if (legs.kind === "split") {
-        add(line, m.month, `Before ${day} (actual)`, legs.before)
-        add(line, m.month, `Fixed cost from ${day}`, legs.from)
+        addMonthRow(line, m.month, `Before ${day} (actual)`, legs.before)
+        addMonthRow(line, m.month, `Fixed cost from ${day}`, legs.from)
       } else {
-        add(line, m.month, monthLegLabel(legs, from, formatFixedCostFromLabel), whole)
+        addMonthRow(line, m.month, monthLegLabel(legs, from, formatFixedCostFromLabel), whole)
       }
     }
     if (line.fixedCostLegs) {
@@ -310,6 +340,20 @@ function writeLegsSheet(wb: ExcelJS.Workbook, lines: readonly FixedCostMarginLin
       add(line, "Total", "Fixed cost", line.fixedCostLegs.from, true)
     }
   }
+  const totalRow = ws.addRow([
+    LEGS_SHEET_TOTAL_LABEL,
+    "",
+    "",
+    "",
+    "",
+    "Total",
+    "All legs",
+    money(all.billedCents),
+    money(all.actualCents),
+    money(all.marginCents),
+  ])
+  totalRow.font = excelFont({ bold: true })
+  paintNegative(totalRow.getCell(10), money(all.marginCents), true)
   formatColumns(ws, [8, 9, 10], [])
   const widths = [24, 12, 16, 20, 16, 10, 26, 14, 14, 14]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))

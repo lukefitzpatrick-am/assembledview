@@ -393,6 +393,22 @@ export function fixedCostFromFlagLabel(ymd: string): string {
   return `Fixed cost from ${formatFixedCostFromLabel(ymd)}`
 }
 
+/** FC9: marks a dated bill-cost line, whose months are not split into legs (L6). */
+export const BILLS_NOT_SPLIT_SUFFIX = " (bills, not split)"
+/** FC9: the Excel legs sheet's leg for a dated bill-cost line's month. */
+export const BILLS_NOT_SPLIT_LEG_LABEL = "Not split (bills)"
+
+/**
+ * FC9: the line's date label. A bill-cost line (Channel Factory, AA, direct
+ * publishers) adds " (bills, not split)": bills have no day grain, so its
+ * months are not split into legs.
+ */
+export function fixedCostFromLineLabel(line: Pick<FixedCostMarginLine, "fixedCostFrom" | "costBasis">): string | null {
+  if (!line.fixedCostFrom) return null
+  const label = fixedCostFromFlagLabel(line.fixedCostFrom)
+  return line.costBasis === "xero_bill" ? `${label}${BILLS_NOT_SPLIT_SUFFIX}` : label
+}
+
 /**
  * Page and Excel Notes lines, added only when a line in the report has a
  * fixed cost from date (FC9). Nothing is added otherwise.
@@ -400,7 +416,7 @@ export function fixedCostFromFlagLabel(ymd: string): string {
 export const FIXED_COST_FROM_NOTES = [
   "Fixed cost from [date]: the line became fixed cost on that day (decision FC2). Billed is still the billing schedule and cost is still what the platform or supplier charged, so the date never changes a line's billed, cost or margin. Billing, true-up, accruals and Xero never read the date (FC3).",
   "Legs (FC9): a dated line's months before the date's month are Before fixed cost (billed less actual platform cost). Months after it are Fixed cost. The date's month is split by the FC6 rule, as client dashboards report it: the days before the date carry their platform cost as billed (margin 0, unless that cost is more than the month's billing), and the Fixed cost leg is the rest of the month's billing against the cost from the date. The legs add to the month, so no line, month or report total changes.",
-  "Lines costed from Xero bills (Channel Factory, Advertising Associates, direct publishers) show the date only. Bills have no day grain, so their months are not split into legs.",
+  "Lines costed from Xero bills (Channel Factory, Advertising Associates, direct publishers) show the date only, marked \"(bills, not split)\". Bills have no day grain, so their months are not split into legs. The Excel Fixed cost legs sheet lists their months whole as \"Not split (bills)\", and its last row totals every dated line.",
 ] as const
 
 /** Added when a dated line's date month can't be split (no day view). */
@@ -911,7 +927,8 @@ export function filterFixedCostMarginLines(
 /** Short flag labels for a line, for the table and the export. */
 export function lineFlagLabels(line: FixedCostMarginLine): string[] {
   const out: string[] = []
-  if (line.fixedCostFrom) out.push(fixedCostFromFlagLabel(line.fixedCostFrom))
+  const fromLabel = fixedCostFromLineLabel(line)
+  if (fromLabel) out.push(fromLabel)
   if (line.flags.noPlatformData) out.push(NO_PLATFORM_DATA_LABEL)
   if (line.flags.noCostInFeed) out.push(NO_COST_IN_FEED_LABEL)
   if (line.flags.noBillYet) out.push(NO_BILL_YET_LABEL)

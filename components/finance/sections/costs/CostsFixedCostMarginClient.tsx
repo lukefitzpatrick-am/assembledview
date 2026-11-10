@@ -29,7 +29,7 @@ import {
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import {
   filterFixedCostMarginLines,
-  fixedCostFromFlagLabel,
+  fixedCostFromLineLabel,
   marginPctOf,
   NO_BILL_YET_LABEL,
   NO_COST_IN_FEED_LABEL,
@@ -121,7 +121,7 @@ function LineFlags({ line }: { line: FixedCostMarginLine }) {
     <span className="flex flex-wrap gap-1">
       {line.fixedCostFrom ? (
         <Badge variant="info" size="sm">
-          {fixedCostFromFlagLabel(line.fixedCostFrom)}
+          {fixedCostFromLineLabel(line)}
         </Badge>
       ) : null}
       {line.flags.noPlatformData ? (
