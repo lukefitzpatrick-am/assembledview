@@ -10,8 +10,9 @@ export const maxDuration = 60;
 /**
  * GET /api/pacing/ad-serving-campaigns
  *
- * CM360 ad-serving verification rows for live digital line items.
- * Delivery counts only. Estimated spend for direct digital is applied later
+ * Ad-serving delivery-count rows for live digital line items: CM360
+ * verification, plus partner-reported counts for a Channel Factory Digital
+ * Video line, marked `deliverySource` (B32). Delivery counts only. Estimated spend for direct digital is applied later
  * by `estimateDirectDigitalSpend` in campaign delivery and the portfolio
  * assembler. This route does not pace on dollars.
  *

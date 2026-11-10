@@ -33,7 +33,8 @@ export type FetchAdServingPacingCampaignRowsArgs = GetLiveAdServingLineItemsArgs
  *
  * Counts are CM360 verification rows. B32: a Channel Factory Digital Video
  * line also reads its own partner-file rows (one extra query, only when such
- * a line is live) and is marked `deliverySource` (`composeAdServingPacingRows`).
+ * a line is live, run beside the CM360 query) and is marked `deliverySource`
+ * (`composeAdServingPacingRows`). Either query failing fails the fetch.
  * Campaigns with no matched rows are omitted.
  */
 export async function fetchAdServingPacingCampaignRows(
@@ -57,20 +58,24 @@ export async function fetchAdServingPacingCampaignRows(
   let facts: PacingFactRow[] = [];
   let partnerFacts: PacingFactRow[] = [];
   try {
-    facts = await queryPacingFact({
-      channel: "ad-serving",
-      lineItemIds,
-      startDate: lineTotalStart,
-      endDate: countTo,
-    });
-    if (partnerLineItemIds.length > 0) {
-      partnerFacts = await queryPacingFact({
-        channel: PARTNER_FILE_VIDEO_CHANNEL,
-        lineItemIds: partnerLineItemIds,
+    // B33: the partner query runs beside the CM360 query, not after it.
+    // Either rejecting fails the fetch, as before.
+    [facts, partnerFacts] = await Promise.all([
+      queryPacingFact({
+        channel: "ad-serving",
+        lineItemIds,
         startDate: lineTotalStart,
         endDate: countTo,
-      });
-    }
+      }),
+      partnerLineItemIds.length > 0
+        ? queryPacingFact({
+            channel: PARTNER_FILE_VIDEO_CHANNEL,
+            lineItemIds: partnerLineItemIds,
+            startDate: lineTotalStart,
+            endDate: countTo,
+          })
+        : Promise.resolve<PacingFactRow[]>([]),
+    ]);
   } catch (err) {
     console.error("[fetchAdServingPacingCampaignRows] Snowflake query failed", {
       lineItemCount: lineItemIds.length,
