@@ -1,11 +1,24 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import test, { type TestContext } from "node:test"
 
 import { ganttLabelFits, ganttLabelWidthPx, burstDayX, thinnedWeekLabels } from "@/components/charts/system/domain-charts"
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
 import { getMediaLabel } from "@/lib/charts/registry"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+
+/**
+ * Melbourne 14 Oct 2026 (02:00 UTC = 13:00 AEDT), the day the flighting
+ * delivery tests were written. Those tests place "today" inside one burst, so
+ * they pin the clock instead of reading the real date (B34fix: from 1 Nov the
+ * Nov burst held today and "contains today" failed).
+ */
+const PINNED_NOW = Date.parse("2026-10-14T02:00:00.000Z")
+
+function pinClock(t: TestContext): void {
+  t.mock.timers.enable({ apis: ["Date"], now: PINNED_NOW })
+  assert.equal(getMelbourneTodayISO(), "2026-10-14")
+}
 
 function item(overrides: Partial<NormalisedLineItem> = {}): NormalisedLineItem {
   return {
@@ -164,7 +177,8 @@ test("monthly view uses the same delivered / planned label", () => {
   assert.equal(burst?.fillRatio, 0.25)
 })
 
-test("flighting stamps line delivery once, on the burst that contains today", () => {
+test("flighting stamps line delivery once, on the burst that contains today", (t) => {
+  pinClock(t)
   const delivered = 10671
   const bursts = [
     { startDate: "2026-06-01", endDate: "2026-06-14", deliverables: 4000, deliverablesAmount: 4000, budget: 1 },
@@ -205,7 +219,8 @@ test("flighting stamps line delivery once, on the burst that contains today", ()
   assert.equal(tips.slice(4).some((tip) => tip.includes("Line delivered")), false)
 })
 
-test("flighting puts delivery on the latest started burst when none contains today", () => {
+test("flighting puts delivery on the latest started burst when none contains today", (t) => {
+  pinClock(t)
   const gantt = reshapeLineItemsToMediaGantt(
     {
       search: [
