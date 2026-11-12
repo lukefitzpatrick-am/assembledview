@@ -29,6 +29,15 @@ import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
 import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
 import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
 import { CodexSearchDialog } from "@/components/tasks/CodexSearchDialog"
+import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
+import {
+  filtersFromQueryString,
+  parseSavedViewParam,
+  savedViewMatches,
+  savedViewToolbarState,
+  withSavedViewParam,
+  type CodexSavedView,
+} from "@/lib/codex/savedViews"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   AlertDialog,
@@ -585,6 +594,20 @@ export function TasksPageClient({
   const [dueFrom, setDueFrom] = useState(urlFilters.dueFrom ?? "")
   const [dueTo, setDueTo] = useState(urlFilters.dueTo ?? "")
   const [sources, setSources] = useState<string[]>(urlFilters.sources)
+  /**
+   * Saved views (F8, switch codex_saved_views). `?view=<id>` opens a view;
+   * `view=list` and `view=board` stay the layout. Hidden until the API says
+   * views are available (migration 0117), so the page loads as before.
+   */
+  const savedViewsOn = clientFeatureOn("codex_saved_views")
+  const [savedViews, setSavedViews] = useState<CodexSavedView[]>([])
+  const [savedViewsAvailable, setSavedViewsAvailable] = useState(false)
+  const [savedViewsLoaded, setSavedViewsLoaded] = useState(false)
+  const [activeViewId, setActiveViewId] = useState<number | null>(() =>
+    savedViewsOn ? parseSavedViewParam(seededSearchParams.get("view")) : null
+  )
+  /** A view id came in on the URL: apply it once the views load. */
+  const pendingViewApply = useRef(activeViewId != null)
   const [mbaPlans, setMbaPlans] = useState<MbaPlanRow[]>([])
 
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -660,22 +683,39 @@ export function TasksPageClient({
     }
   }, [searchParams, router])
 
-  const skipFilterWrite = useRef(true)
-  useEffect(() => {
-    if (skipFilterWrite.current) {
-      skipFilterWrite.current = false
-      return
-    }
-    const qs = serializeTasksFilterParams({
-      mbaNumber: mbaFilter || null,
-      clientId: clientId || null,
+  /** The toolbar state as the /tasks query string (layout included, no saved view id). */
+  const currentFilterQs = useMemo(
+    () =>
+      serializeTasksFilterParams({
+        mbaNumber: mbaFilter || null,
+        clientId: clientId || null,
+        search,
+        assigneeEmail,
+        category: categoryFilter || null,
+        statuses: statusFilter,
+        mine,
+        myWeek,
+        view: tasksLayout,
+        sort,
+        priorities,
+        overdue,
+        unassigned,
+        noClient,
+        createdByEmail,
+        dueFrom,
+        dueTo,
+        sources,
+      }),
+    [
+      mbaFilter,
+      clientId,
       search,
       assigneeEmail,
-      category: categoryFilter || null,
-      statuses: statusFilter,
+      categoryFilter,
+      statusFilter,
       mine,
       myWeek,
-      view: tasksLayout,
+      tasksLayout,
       sort,
       priorities,
       overdue,
@@ -685,32 +725,34 @@ export function TasksPageClient({
       dueFrom,
       dueTo,
       sources,
+    ]
+  )
+  const activeView =
+    activeViewId == null ? null : savedViews.find((v) => v.id === activeViewId) ?? null
+  /** The toolbar no longer shows exactly the active view. */
+  const activeViewEdited =
+    activeView != null &&
+    !savedViewMatches(activeView, {
+      filters: filtersFromQueryString(currentFilterQs),
+      layout: tasksLayout,
     })
+  /** `view=<id>` stays on the URL while the view is loading or shown unedited. */
+  const urlViewId =
+    activeViewId != null && (!savedViewsLoaded || (activeView != null && !activeViewEdited))
+      ? activeViewId
+      : null
+
+  const skipFilterWrite = useRef(true)
+  useEffect(() => {
+    if (skipFilterWrite.current) {
+      skipFilterWrite.current = false
+      return
+    }
+    const qs = withSavedViewParam(currentFilterQs, urlViewId)
     const path = pathname || "/tasks"
     const next = qs ? `${path}?${qs}` : path
     router.replace(next, { scroll: false })
-  }, [
-    mbaFilter,
-    clientId,
-    search,
-    assigneeEmail,
-    categoryFilter,
-    statusFilter,
-    mine,
-    myWeek,
-    tasksLayout,
-    sort,
-    priorities,
-    overdue,
-    unassigned,
-    noClient,
-    createdByEmail,
-    dueFrom,
-    dueTo,
-    sources,
-    pathname,
-    router,
-  ])
+  }, [currentFilterQs, urlViewId, pathname, router])
 
   useEffect(() => {
     const id = Number(clientId)
@@ -1645,6 +1687,142 @@ export function TasksPageClient({
     setSources([])
     setPage(1)
   }, [])
+
+  /** Show a saved view: its filters, sort and layout replace the toolbar's. */
+  const applySavedView = (view: CodexSavedView) => {
+    const next = savedViewToolbarState(view)
+    commitFilters(next.filters)
+    setSort(next.sort)
+    if (next.layout) setTasksLayout(next.layout)
+    setPage(1)
+    setActiveViewId(view.id)
+  }
+  const applySavedViewRef = useRef(applySavedView)
+  applySavedViewRef.current = applySavedView
+
+  useEffect(() => {
+    if (!savedViewsOn) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/codex/saved-views?screen=tasks")
+        const body = (await res.json().catch(() => null)) as
+          | { available?: boolean; items?: CodexSavedView[] }
+          | null
+        if (cancelled) return
+        const available = res.ok && body?.available === true
+        setSavedViewsAvailable(available)
+        setSavedViews(available && Array.isArray(body?.items) ? body.items : [])
+      } catch {
+        if (cancelled) return
+        // Fail soft: the menu stays hidden and the list works as before.
+        setSavedViewsAvailable(false)
+        setSavedViews([])
+      } finally {
+        if (!cancelled) setSavedViewsLoaded(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [savedViewsOn])
+
+  // A `?view=<id>` link: apply the view once, after the views load.
+  useEffect(() => {
+    if (!savedViewsLoaded || !pendingViewApply.current) return
+    pendingViewApply.current = false
+    const view = savedViews.find((v) => v.id === activeViewId)
+    if (view) {
+      applySavedViewRef.current(view)
+      return
+    }
+    setActiveViewId(null)
+    if (savedViewsAvailable) {
+      toast({
+        title: "That saved view is not available",
+        description: "It may have been deleted or is not shared with you.",
+      })
+    }
+  }, [savedViewsLoaded, savedViews, savedViewsAvailable, activeViewId, toast])
+
+  const savedViewRequest = async (
+    url: string,
+    init: RequestInit,
+    failTitle: string
+  ): Promise<CodexSavedView | { ok: true } | null> => {
+    try {
+      const res = await fetch(url, {
+        ...init,
+        headers: { "content-type": "application/json" },
+      })
+      const body = (await res.json().catch(() => null)) as
+        | (CodexSavedView & { message?: string; ok?: boolean })
+        | null
+      if (!res.ok || !body) {
+        toast({
+          variant: "destructive",
+          title: failTitle,
+          description: body?.message || "Try again.",
+        })
+        return null
+      }
+      return body
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: failTitle,
+        description: error instanceof Error ? error.message : "Try again.",
+      })
+      return null
+    }
+  }
+
+  const saveCurrentView = async (input: { name: string; shared: boolean }) => {
+    const created = await savedViewRequest(
+      "/api/codex/saved-views",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: input.name,
+          shared: input.shared,
+          screen: "tasks",
+          lens: "plan",
+          layout: tasksLayout,
+          group_by: tasksLayout === "board" ? "status" : null,
+          filters: filtersFromQueryString(currentFilterQs),
+        }),
+      },
+      "Could not save the view"
+    )
+    if (!created || !("id" in created)) return false
+    setSavedViews((prev) => [created, ...prev.filter((v) => v.id !== created.id)])
+    setActiveViewId(created.id)
+    toast({ title: `Saved “${created.name}”` })
+    return true
+  }
+
+  const patchSavedView = async (view: CodexSavedView, patch: { name?: string; shared?: boolean }) => {
+    const updated = await savedViewRequest(
+      `/api/codex/saved-views/${view.id}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+      "Could not change the view"
+    )
+    if (!updated || !("id" in updated)) return false
+    setSavedViews((prev) => prev.map((v) => (v.id === updated.id ? updated : v)))
+    return true
+  }
+
+  const deleteView = async (view: CodexSavedView) => {
+    const done = await savedViewRequest(
+      `/api/codex/saved-views/${view.id}`,
+      { method: "DELETE" },
+      "Could not delete the view"
+    )
+    if (!done) return false
+    setSavedViews((prev) => prev.filter((v) => v.id !== view.id))
+    if (activeViewId === view.id) setActiveViewId(null)
+    return true
+  }
 
   const applyMyWeek = (on: boolean) => {
     if (!on) {
@@ -2770,6 +2948,21 @@ export function TasksPageClient({
             clientsUnavailable={Boolean(clientsError)}
             onCreate={quickCreateTask}
           />
+
+          {savedViewsOn && savedViewsAvailable ? (
+            <div className="flex justify-end">
+              <SavedViewsMenu
+                views={savedViews}
+                activeViewId={activeView ? activeView.id : null}
+                activeViewEdited={activeViewEdited}
+                onPick={applySavedView}
+                onSave={saveCurrentView}
+                onRename={(view, name) => patchSavedView(view, { name })}
+                onSetShared={(view, shared) => patchSavedView(view, { shared })}
+                onDelete={deleteView}
+              />
+            </div>
+          ) : null}
 
           <TasksFilterBar
             search={search}

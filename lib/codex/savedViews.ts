@@ -10,6 +10,8 @@
 import {
   parseTasksFilterParams,
   serializeTasksFilterParams,
+  type TaskSortKey,
+  type TasksFilterState,
   type TasksFilterView,
 } from "@/lib/codex/queryHelpers"
 
@@ -229,4 +231,39 @@ export function parseSavedViewPatch(body: unknown): Result<SavedViewPatch> {
     return { ok: false, error: "nothing_to_change", message: "Send a name or shared" }
   }
   return { ok: true, value: patch }
+}
+
+/**
+ * The toolbar state a view shows: filters (as commitFilters takes them),
+ * sort, and the layout when the view has one. My week keeps My tasks on, as
+ * the page does when it opens with `week=1`.
+ */
+export function savedViewToolbarState(view: Pick<CodexSavedView, "filters" | "layout">): {
+  filters: TasksFilterState
+  sort: TaskSortKey
+  layout: TasksFilterView | null
+} {
+  const parsed = parseTasksFilterParams(getter(sanitiseSavedViewFilters(view.filters)))
+  return {
+    filters: {
+      clientId: parsed.clientId ?? "",
+      mbaNumber: parsed.mbaNumber ?? "",
+      search: parsed.search ?? "",
+      assigneeEmail: parsed.assigneeEmail ?? "",
+      category: parsed.category ?? "",
+      statuses: parsed.statuses ?? [],
+      mine: parsed.myWeek ? true : parsed.mine,
+      myWeek: parsed.myWeek,
+      priorities: parsed.priorities,
+      overdue: parsed.overdue,
+      unassigned: parsed.unassigned,
+      noClient: parsed.noClient,
+      createdByEmail: parsed.createdByEmail ?? "",
+      dueFrom: parsed.dueFrom ?? "",
+      dueTo: parsed.dueTo ?? "",
+      sources: parsed.sources,
+    },
+    sort: parsed.sort,
+    layout: view.layout,
+  }
 }

@@ -58,6 +58,8 @@ export default defineConfig({
       "components/pacing/scenario/__tests__/ScenarioPlannerPanel.test.tsx",
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
+      "components/tasks/__tests__/SavedViewsMenu.render.test.tsx",
+      "components/tasks/__tests__/CodexSearchDialog.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/__tests__/clientHeroExpected.test.tsx",
       "components/dashboard/__tests__/HomeStatTile.platformDelivery.test.tsx",

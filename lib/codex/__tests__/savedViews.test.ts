@@ -18,6 +18,7 @@ import {
   sanitiseSavedViewFilters,
   savedViewHref,
   savedViewMatches,
+  savedViewToolbarState,
   withSavedViewParam,
 } from "../savedViews.js"
 import {
@@ -103,6 +104,23 @@ test("patch body: name and or shared; something to change", () => {
   assert.equal(parseSavedViewPatch({}).ok, false)
   assert.equal(parseSavedViewPatch({ shared: 1 }).ok, false)
   assert.equal(parseSavedViewPatch({ name: "" }).ok, false)
+})
+
+test("a saved view round-trips: toolbar state -> filters -> toolbar state shows the same query", () => {
+  const cases = [
+    { statuses: ["todo", "waiting"], mine: false, clientId: "12", sort: "priority_desc", search: "seo" },
+    { myWeek: true, mine: true, category: "reporting" },
+    { unassigned: true, mine: false, noClient: true, overdue: true, sources: ["ava"], priorities: ["high"] },
+    { mine: false, assigneeEmail: "alex@x.au", createdByEmail: "luke@x.au", dueFrom: "2026-11-01", dueTo: "2026-11-30", mbaNumber: "KRUS015" },
+  ]
+  for (const c of cases) {
+    const qs = serializeTasksFilterParams({ ...c, view: "list" })
+    const view = { filters: filtersFromQueryString(qs), layout: "list" as const }
+    const state = savedViewToolbarState(view)
+    const again = serializeTasksFilterParams({ ...state.filters, sort: state.sort, view: state.layout })
+    assert.equal(again, qs, JSON.stringify(c))
+    assert.equal(savedViewMatches(view, { filters: filtersFromQueryString(again), layout: "list" }), true)
+  }
 })
 
 // ---------- store ----------
