@@ -432,6 +432,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_v2"],
   },
   {
+    key: "codex_projects",
+    label: "Tasks: projects and sections",
+    description:
+      "Codex S1 foundation (B38): the projects and sections API under /api/codex/projects (create, rename, set status, private projects with members, sections with a status category, reorder, delete when empty, move a task into a section, complete into the first done section). No screens yet: the board, task detail, comments and My Work batches build on it. Needs migration 0118 (codex_s1_projects); before it runs every projects route answers 503 migration_not_applied. Before real use: tasks in private projects still show in the Tasks list, board counts and search for all staff (C-211). Needs Tasks (Codex) on. Off: every /api/codex/projects route is 404 and nothing reads the new tables or columns.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_v2"],
+  },
+  {
     key: "unmapped_delivery",
     label: "Unmapped delivery",
     description:

@@ -87,7 +87,7 @@ const {
 } = schema
 
 /** Root `db` or a `db.transaction` callback handle — both share the query API. */
-type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
+export type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
 
 /** Canonical sorts, plus the three values the tasks API accepted before `sort` was a URL param. */
 export type TaskSort =
@@ -1030,6 +1030,21 @@ async function updateLiveTask(
 
     return after
   }
+}
+
+/**
+ * A status change inside the caller's transaction, through the same path as
+ * PATCH (activity row, help parent complete and re-wait). Used by the
+ * project section rule (`lib/codex/projectsRepo.ts`). Null when the task is
+ * missing or soft-deleted.
+ */
+export async function updateTaskStatusInTx(
+  tx: DbExecutor,
+  id: number,
+  status: TaskStatus,
+  actorEmail: string | null
+): Promise<CodexTask | null> {
+  return updateLiveTask(tx, id, { status }, actorEmail)
 }
 
 export async function updateTask(

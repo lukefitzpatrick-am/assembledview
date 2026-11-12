@@ -148,10 +148,13 @@ test("planSectionMove: takes the section's category as status; joins from no pro
   assert.equal(!other.ok && other.reason, "other_project")
 })
 
-test("planCompleteInProject: moves to the first done section; none is refused", () => {
+test("planCompleteInProject: moves to the first done section; stays in a done section; none is refused", () => {
   const plan = planCompleteInProject({ project_id: 1, section_id: 10, status: "in_progress" }, SECTIONS)
   assert.equal(plan.ok && plan.section_id, 12)
   assert.equal(plan.ok && plan.status, "done")
+  const already = planCompleteInProject({ project_id: 1, section_id: 11, status: "done" }, SECTIONS)
+  assert.equal(already.ok && already.section_id, 11, "a task in a done section stays put")
+  assert.equal(already.ok && already.statusChanges, false)
   const none = planCompleteInProject({ project_id: 1, section_id: 10, status: "todo" }, [SECTIONS[1]])
   assert.equal(!none.ok && none.reason, "no_done_section")
 })

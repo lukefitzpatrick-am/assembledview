@@ -31,3 +31,13 @@ export async function isCodexSavedViewsEnabled(): Promise<boolean> {
   const [codex, views] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_saved_views")])
   return codex && views
 }
+
+/**
+ * Codex projects and sections (S1, B38): codex_projects, which also needs
+ * codex_v2. Off: /api/codex/projects/** is 404 and nothing reads the 0118
+ * tables or columns.
+ */
+export async function isCodexProjectsEnabled(): Promise<boolean> {
+  const [codex, projects] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_projects")])
+  return codex && projects
+}

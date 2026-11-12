@@ -261,11 +261,17 @@ export type CompletePlan =
   | SectionMovePlan
   | { ok: false; reason: "no_done_section"; message: string }
 
-/** Completing a task in a project moves it to the project's first done section. */
+/**
+ * Completing a task in a project moves it to the project's first done
+ * section. A task already in a done section stays there (completing twice
+ * changes nothing).
+ */
 export function planCompleteInProject(
   task: TaskPlacement,
   sections: readonly Pick<CodexSection, "id" | "project_id" | "sort_order" | "status_category">[]
 ): CompletePlan {
+  const current = sections.find((s) => s.id === task.section_id)
+  if (current && current.status_category === "done") return planSectionMove(task, current)
   const done = firstDoneSection(sections)
   if (!done) {
     return { ok: false, reason: "no_done_section", message: "This project has no done section." }
