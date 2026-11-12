@@ -69,7 +69,7 @@ Masters (`readPlanMasters({ readLimits: true })` in the live line-item resolvers
 
 ## Consumed by
 
-AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacingDigest` + banding; with `pacing_digest_data_checks` a Data checks section counts `VW_PACING_FACT_CM360_DRIFT` rows in and out of the refresh window and duplicate active label map keys, each failing soft to "check not available", `lib/ops/digest/dataChecks.ts`, `npm run test:pacing-digest-checks`), ops health checks, campaign dashboard delivery UI (adapters), client dashboard delivered totals, performance reports. Note circular-ish: `lib/snowflake/pacing-fact` imports back from `lib/pacing/social-channels`.
+AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacingDigest` + banding; with `pacing_digest_data_checks` a Data checks section counts `VW_PACING_FACT_CM360_DRIFT` rows in and out of the refresh window and duplicate active label map keys, each failing soft to "check not available", all inside one 45 s deadline (`DATA_CHECKS_DEADLINE_MS`; a switch read still running then counts as off), `lib/ops/digest/dataChecks.ts`, `npm run test:pacing-digest-checks`), ops health checks, campaign dashboard delivery UI (adapters), client dashboard delivered totals, performance reports. Note circular-ish: `lib/snowflake/pacing-fact` imports back from `lib/pacing/social-channels`.
 
 ## Gotchas (verified)
 

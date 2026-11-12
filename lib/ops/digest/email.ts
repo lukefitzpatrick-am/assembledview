@@ -112,7 +112,12 @@ function plural(n: number, one: string, many: string): string {
 }
 
 function unavailableLine(label: string, check: DataCheckUnavailable, missingHint: string): string {
-  const why = check.reason === "missing_view" ? missingHint : "the query failed; see the cron log"
+  const why =
+    check.reason === "missing_view"
+      ? missingHint
+      : check.reason === "deadline"
+        ? "the checks ran out of time; see the cron log"
+        : "the query failed; see the cron log"
   return `<p style="${MUTED_P_STYLE}">${escapeHtml(label)}: check not available (${escapeHtml(why)}).</p>`
 }
 
