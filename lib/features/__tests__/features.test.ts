@@ -128,6 +128,8 @@ test("codex_v2 (F1): a row wins over CODEX_V2 both ways; no row reads the env; w
   assert.deepEqual(resolveFeature(def, new Map([["codex_v2", row("codex_v2", true)]]), {}), { enabled: true, source: "switch" })
   assert.deepEqual(resolveFeature(def, new Map(), { CODEX_V2: "on" }), { enabled: true, source: "env" })
   assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+  // A failed switch read gives no rows: CODEX_V2 is read again (L5, until the fallback goes).
+  assert.deepEqual(resolveFeature(def, null, { CODEX_V2: "on" }), { enabled: true, source: "env" })
   const unsaved = unsavedFeatureSwitches(new Map(), { CODEX_V2: "on" })
   assert.deepEqual(unsaved.find((u) => u.key === "codex_v2"), { key: "codex_v2", enabled: true, source: "env" })
   try {

@@ -367,7 +367,10 @@ export const FEATURE_DEFINITIONS = [
    * codex_v2 keeps its CODEX_V2 env fallback until a switch row exists in
    * production (F1, B36). The env value in production is unverified, and
    * dropping the fallback first could switch Codex off. resolveFeature
-   * already prefers the row: once the row exists, CODEX_V2 is never read.
+   * already prefers the row: once the row exists, CODEX_V2 is not read while
+   * the switch table is readable. When the read fails (database error, or
+   * the 0111 marker read fails) every switch falls back to env, codex_v2
+   * included, until the next read. Step 4 closes that.
    * Steps (Luke):
    *   1. On the production /admin/features page, Platform > Tasks (Codex)
    *      shows On or Off with source "Env var CODEX_V2": that is the live
