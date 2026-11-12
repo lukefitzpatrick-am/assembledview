@@ -83,6 +83,31 @@ test("the SQL reads the CD1 view's window column and the LM1 key", () => {
   assert.match(LABEL_MAP_DUPLICATE_ACTIVE_KEYS_SQL, /LOWER\(TRIM\(CAST\(PLATFORM_LINE_ITEM_ID AS VARCHAR\)\)\)/)
 })
 
+test("B34fix: the in and out of window counts cannot be swapped (alias pins and a row evaluation)", async () => {
+  const sql = CM360_DRIFT_COUNTS_SQL.replace(/\s+/g, " ")
+  assert.match(sql, /COUNT_IF\(IN_REFRESH_WINDOW\) AS IN_WINDOW_ROWS\b/)
+  assert.match(sql, /COUNT_IF\(NOT IN_REFRESH_WINDOW\) AS OUT_OF_WINDOW_ROWS\b/)
+  assert.match(sql, /COUNT\(\*\) AS TOTAL_ROWS\b/)
+  // Evaluate the SELECT list over view rows: 2 inside the window, 5 outside.
+  const viewRows = [true, true, false, false, false, false, false].map((w) => ({ IN_REFRESH_WINDOW: w }))
+  const counts: Record<string, number> = {}
+  const item = /(COUNT\(\*\)|COUNT_IF\((NOT )?IN_REFRESH_WINDOW\)) AS (\w+)/g
+  for (let m = item.exec(sql); m; m = item.exec(sql)) {
+    const [, expr, not, alias] = m
+    counts[alias!] =
+      expr === "COUNT(*)" ? viewRows.length : viewRows.filter((r) => (not ? !r.IN_REFRESH_WINDOW : r.IN_REFRESH_WINDOW)).length
+  }
+  assert.deepEqual(counts, { TOTAL_ROWS: 7, IN_WINDOW_ROWS: 2, OUT_OF_WINDOW_ROWS: 5 })
+  const evaluated: DataCheckQuery = async (q) => (q === CM360_DRIFT_COUNTS_SQL ? [counts] : [])
+  const checks = await runPacingDigestDataChecks(evaluated)
+  assert.ok(checks.cm360Drift.status === "ok")
+  assert.equal(checks.cm360Drift.inWindowRows, 2)
+  assert.equal(checks.cm360Drift.outOfWindowRows, 5)
+  const html = cm360DriftLines(checks.cm360Drift)
+  assert.match(html, /2 rows are inside the 14-day refresh window/)
+  assert.match(html, /5 rows are outside it and will not fix themselves/)
+})
+
 test("view missing: drift is 'check not available', duplicates still run, the email says so", async () => {
   const q = fakeQuery({ counts: MISSING })
   const checks = await quiet(() => runPacingDigestDataChecks(q))

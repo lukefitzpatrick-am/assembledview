@@ -21,6 +21,8 @@ let txLog: string[] = []
 /** Runs right after the map INSERT, inside the open transaction. */
 let afterInsert: (() => void) | null = null
 let switchOn = false
+/** The switch read throws (feature_switches unreadable). */
+let switchThrows = false
 let relabelRow: DeliveryRelabelRow | null = null
 const reverted: number[] = []
 
@@ -75,6 +77,7 @@ if (supportsMockModule()) {
     namedExports: {
       isFeatureOn: async (key: string) => {
         assert.equal(key, "relabel_map_one_active_guard")
+        if (switchThrows) throw new Error("feature_switches unreadable")
         return switchOn
       },
     },
@@ -87,6 +90,7 @@ function reset() {
   txLog = []
   afterInsert = null
   switchOn = false
+  switchThrows = false
   relabelRow = null
   reverted.length = 0
 }
@@ -257,4 +261,66 @@ test("revert: a racing write is refused as conflict with the switch on", { skip 
   })
   assert.deepEqual(txLog, ["BEGIN", "ROLLBACK"])
   assert.deepEqual(reverted, [], "the log row is not marked reverted")
+})
+
+// --- B34fix: the review's surviving mutants R7 and R8 -----------------------
+
+async function captureWarnings<T>(fn: () => Promise<T>): Promise<{ out: T; seen: string[] }> {
+  const warn = console.warn
+  const seen: string[] = []
+  console.warn = (...a: unknown[]) => void seen.push(a.map(String).join(" "))
+  try {
+    return { out: await fn(), seen }
+  } finally {
+    console.warn = warn
+  }
+}
+
+test("switch reader: a failed read is off, logged; a row on is on", { skip }, async () => {
+  reset()
+  const { readRelabelMapOneActiveGuard } = await import("../labelMapSession.js")
+  switchThrows = true
+  const { out, seen } = await captureWarnings(() => readRelabelMapOneActiveGuard())
+  assert.equal(out, false)
+  assert.ok(seen.some((s) => s.includes("relabel_map_one_active_guard read failed; treating as off")))
+  switchThrows = false
+  switchOn = true
+  assert.equal(await readRelabelMapOneActiveGuard(), true)
+  switchOn = false
+  assert.equal(await readRelabelMapOneActiveGuard(), false)
+})
+
+test("apply: a race with a failed switch read commits and logs (off), not refused", { skip }, async () => {
+  reset()
+  seed("jayco017sm4", true)
+  switchThrows = true
+  afterInsert = () => {
+    seed("jayco017sm7", true)
+  }
+  const { applyRelabel } = await import("../apply.js")
+  const { out, seen } = await captureWarnings(() => applyRelabel(preview(), OPTS))
+  assert.equal(out.relabelId, 41)
+  assert.deepEqual(txLog, ["BEGIN", "COMMIT"])
+  assert.ok(seen.some((s) => s.includes("relabel_label_map_second_active_row")))
+})
+
+test("revert: a racing write with the switch off commits, logs and marks the relabel reverted", { skip }, async () => {
+  reset()
+  seed("jayco017sm4", false)
+  seed("jayco017sm6", true)
+  relabelRow = appliedRow("jayco017sm4")
+  afterInsert = () => {
+    seed("jayco017sm9", true)
+  }
+  const { revertRelabel } = await import("../revert.js")
+  const { out, seen } = await captureWarnings(() =>
+    revertRelabel(7, "staff@example.com", new Date("2026-11-13T00:00:00Z")),
+  )
+  assert.equal(out.mapRestored, true)
+  assert.deepEqual(txLog, ["BEGIN", "COMMIT"])
+  assert.deepEqual(reverted, [7])
+  const second = seen.find((s) => s.includes("relabel_label_map_second_active_row"))
+  assert.ok(second, "the second active row is logged")
+  assert.equal(JSON.parse(second!).activeRows, 2)
+  assert.deepEqual(sim.activeFor(CH, PID).map((r) => r.lineItemId).sort(), ["jayco017sm4", "jayco017sm9"])
 })
