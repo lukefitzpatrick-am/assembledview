@@ -160,6 +160,16 @@ test("codex_search (F8): new switch, default off, no env fallback, needs codex_v
   assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
 })
 
+test("codex_saved_views (F8): new switch, default off, no env fallback, needs codex_v2, sent to the browser", () => {
+  const def = featureDefinition("codex_saved_views")!
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.deepEqual(def.requires, ["codex_v2"])
+  assert.equal(def.clientVisible, true)
+  assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("codex_saved_views"))
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+})
+
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {
   let enabled = false
   try {

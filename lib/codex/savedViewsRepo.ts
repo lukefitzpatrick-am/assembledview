@@ -1,0 +1,238 @@
+/**
+ * Codex saved views store (F8). Reads and writes codex_saved_views only once
+ * the marker 0117_codex_saved_views exists (C-76), and treats a missing table
+ * as "not available" too, so the page loads with the views menu hidden.
+ *
+ * Access (plan section 13, after the route's switch, session and staff
+ * gates): a person sees their own views and every shared view; only the
+ * owner renames, shares or deletes. Someone else's private view is reported
+ * as not found, so its existence is not confirmed.
+ */
+import "server-only"
+
+import { and, asc, count, eq, or, sql } from "drizzle-orm"
+
+import { db, schema, type Db } from "@/db"
+import {
+  sanitiseSavedViewFilters,
+  SAVED_VIEW_LAYOUTS,
+  SAVED_VIEW_LENSES,
+  type CodexSavedView,
+  type SavedViewInput,
+  type SavedViewPatch,
+} from "@/lib/codex/savedViews"
+import type { TasksFilterView } from "@/lib/codex/queryHelpers"
+
+const { codexSavedViews, migrationMarkers } = schema
+
+export const SAVED_VIEWS_MARKER = "0117_codex_saved_views"
+
+/** A person can keep this many views (own, shared or not). */
+export const SAVED_VIEWS_PER_OWNER_MAX = 50
+
+export class SavedViewsUnavailableError extends Error {
+  readonly code = "SAVED_VIEWS_UNAVAILABLE"
+  constructor() {
+    super("Saved views are not set up yet (migration 0117)")
+    this.name = "SavedViewsUnavailableError"
+  }
+}
+
+export class SavedViewsLimitError extends Error {
+  readonly code = "SAVED_VIEWS_LIMIT"
+  constructor() {
+    super(`You can keep up to ${SAVED_VIEWS_PER_OWNER_MAX} saved views. Delete one first.`)
+    this.name = "SavedViewsLimitError"
+  }
+}
+
+export type SavedViewWriteResult =
+  | { ok: true; view: CodexSavedView }
+  | { ok: false; reason: "not_found" | "not_owner" }
+
+export type SavedViewDeleteResult = { ok: true } | { ok: false; reason: "not_found" | "not_owner" }
+
+type Row = typeof codexSavedViews.$inferSelect
+
+function errorChain(err: unknown): unknown[] {
+  const out: unknown[] = []
+  let cur: unknown = err
+  for (let i = 0; cur != null && i < 5; i += 1) {
+    out.push(cur)
+    cur = (cur as { cause?: unknown }).cause
+  }
+  return out
+}
+
+/** Postgres 42P01 (undefined table) or a message naming the table as missing. */
+export function isMissingSavedViewsTable(err: unknown): boolean {
+  return errorChain(err).some((e) => {
+    if ((e as { code?: unknown })?.code === "42P01") return true
+    const message = e instanceof Error ? e.message : String(e)
+    return /codex_saved_views/i.test(message) && /does not exist|42P01/i.test(message)
+  })
+}
+
+let markerSeen = false
+
+/** Test hook: forget a marker seen earlier in this process. */
+export function resetSavedViewsMarkerCacheForTests(): void {
+  markerSeen = false
+}
+
+/** Once seen, the marker is cached for the process; until then each call reads it. */
+export async function isSavedViewsMigrationApplied(database: Db = db): Promise<boolean> {
+  if (markerSeen) return true
+  try {
+    const rows = await database
+      .select({ key: migrationMarkers.key })
+      .from(migrationMarkers)
+      .where(eq(migrationMarkers.key, SAVED_VIEWS_MARKER))
+      .limit(1)
+    markerSeen = rows.length > 0
+    return markerSeen
+  } catch (err) {
+    console.warn("[codex-saved-views] marker read failed", err)
+    return false
+  }
+}
+
+async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
+  if (!(await isSavedViewsMigrationApplied(database))) throw new SavedViewsUnavailableError()
+  try {
+    return await run()
+  } catch (err) {
+    if (isMissingSavedViewsTable(err)) throw new SavedViewsUnavailableError()
+    throw err
+  }
+}
+
+function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function ownerIs(email: string) {
+  return sql`lower(${codexSavedViews.ownerEmail}) = ${normaliseEmail(email)}`
+}
+
+export function savedViewRowToApi(row: Row, viewerEmail: string): CodexSavedView {
+  const layout = (SAVED_VIEW_LAYOUTS as readonly string[]).includes(row.layout ?? "")
+    ? (row.layout as TasksFilterView)
+    : null
+  const lens = (SAVED_VIEW_LENSES as readonly string[]).includes(row.lens) ? (row.lens as CodexSavedView["lens"]) : "plan"
+  return {
+    id: Number(row.id),
+    owner_email: row.ownerEmail,
+    name: row.name,
+    screen: "tasks",
+    lens,
+    filters: sanitiseSavedViewFilters(row.filters),
+    layout,
+    group_by: row.groupBy ?? null,
+    shared: Boolean(row.shared),
+    created_at: row.createdAt,
+    mine: normaliseEmail(row.ownerEmail) === normaliseEmail(viewerEmail),
+  }
+}
+
+/** Own views and every shared view for a screen, own first, then by name. */
+export async function listSavedViews(
+  viewerEmail: string,
+  screen = "tasks",
+  database: Db = db
+): Promise<CodexSavedView[]> {
+  return guarded(database, async () => {
+    const rows = await database
+      .select()
+      .from(codexSavedViews)
+      .where(and(eq(codexSavedViews.screen, screen), or(ownerIs(viewerEmail), eq(codexSavedViews.shared, true))))
+      .orderBy(
+        sql`case when ${ownerIs(viewerEmail)} then 0 else 1 end`,
+        asc(sql`lower(${codexSavedViews.name})`),
+        asc(codexSavedViews.id)
+      )
+    return rows.map((row) => savedViewRowToApi(row, viewerEmail))
+  })
+}
+
+export async function createSavedView(
+  ownerEmail: string,
+  input: SavedViewInput,
+  database: Db = db
+): Promise<CodexSavedView> {
+  return guarded(database, async () => {
+    const [{ n } = { n: 0 }] = await database
+      .select({ n: count() })
+      .from(codexSavedViews)
+      .where(ownerIs(ownerEmail))
+    if (Number(n) >= SAVED_VIEWS_PER_OWNER_MAX) throw new SavedViewsLimitError()
+    const [row] = await database
+      .insert(codexSavedViews)
+      .values({
+        ownerEmail: normaliseEmail(ownerEmail),
+        name: input.name,
+        screen: input.screen,
+        lens: input.lens,
+        filters: input.filters,
+        layout: input.layout,
+        groupBy: input.group_by,
+        shared: input.shared,
+      })
+      .returning()
+    return savedViewRowToApi(row, ownerEmail)
+  })
+}
+
+/** Not yours and shared: not_owner (403). Not yours and private, or no such id: not_found (404). */
+async function ownership(
+  database: Db,
+  id: number,
+  viewerEmail: string
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "not_owner" }> {
+  const [row] = await database
+    .select({ ownerEmail: codexSavedViews.ownerEmail, shared: codexSavedViews.shared })
+    .from(codexSavedViews)
+    .where(eq(codexSavedViews.id, id))
+    .limit(1)
+  if (!row) return { ok: false, reason: "not_found" }
+  if (normaliseEmail(row.ownerEmail) === normaliseEmail(viewerEmail)) return { ok: true }
+  return { ok: false, reason: row.shared ? "not_owner" : "not_found" }
+}
+
+export async function updateSavedView(
+  id: number,
+  viewerEmail: string,
+  patch: SavedViewPatch,
+  database: Db = db
+): Promise<SavedViewWriteResult> {
+  return guarded(database, async () => {
+    const access = await ownership(database, id, viewerEmail)
+    if (!access.ok) return access
+    const set: Partial<typeof codexSavedViews.$inferInsert> = {}
+    if (patch.name !== undefined) set.name = patch.name
+    if (patch.shared !== undefined) set.shared = patch.shared
+    const [row] = await database
+      .update(codexSavedViews)
+      .set(set)
+      .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
+      .returning()
+    if (!row) return { ok: false, reason: "not_found" }
+    return { ok: true, view: savedViewRowToApi(row, viewerEmail) }
+  })
+}
+
+export async function deleteSavedView(
+  id: number,
+  viewerEmail: string,
+  database: Db = db
+): Promise<SavedViewDeleteResult> {
+  return guarded(database, async () => {
+    const access = await ownership(database, id, viewerEmail)
+    if (!access.ok) return access
+    const rows = await database
+      .delete(codexSavedViews)
+      .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
+      .returning({ id: codexSavedViews.id })
+    return rows.length > 0 ? { ok: true } : { ok: false, reason: "not_found" }
+  })
+}

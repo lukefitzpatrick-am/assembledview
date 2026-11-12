@@ -420,6 +420,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_v2"],
   },
   {
+    key: "codex_saved_views",
+    label: "Tasks: saved views",
+    description:
+      "Tasks (Codex) list and board get a Views menu: save the current filters and layout as a named view, share it with staff, pick a view, rename or delete your own (F8). A view opens by link (/tasks?view=<id>); view=list and view=board still set the layout. Needs migration 0117 (codex_saved_views); before it runs the menu stays hidden and the page loads as today. Needs Tasks (Codex) on. Off: no Views menu and /api/codex/saved-views is 404.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_v2"],
+  },
+  {
     key: "unmapped_delivery",
     label: "Unmapped delivery",
     description:

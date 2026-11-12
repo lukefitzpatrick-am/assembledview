@@ -25,3 +25,9 @@ export async function isCodexSearchEnabled(): Promise<boolean> {
   const [codex, search] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_search")])
   return codex && search
 }
+
+/** Codex saved views (F8): codex_saved_views, which also needs codex_v2. */
+export async function isCodexSavedViewsEnabled(): Promise<boolean> {
+  const [codex, views] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_saved_views")])
+  return codex && views
+}

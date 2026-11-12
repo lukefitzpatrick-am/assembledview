@@ -65,6 +65,8 @@ Routes under `app/api/codex/`:
 | GET, POST | `/api/codex/team` | `listTeamMembers`, `createTeamMember` |
 | PATCH | `/api/codex/team/[id]` | `updateTeamMember` |
 | GET | `/api/codex/client_notes` | `listClientNotes` (read-only in Stage 0) |
+| GET, POST | `/api/codex/saved-views` | `listSavedViews` (own + shared, `?screen=tasks`; before 0117: 200 `{ available: false, items: [] }`), `createSavedView` (owner = session email; 50 per person, 409). Behind `codex_saved_views` |
+| PATCH, DELETE | `/api/codex/saved-views/[id]` | `updateSavedView` (`name`, `shared`), `deleteSavedView`. Owner only: someone else's shared view 403 `not_owner`, private or missing 404; 503 before 0117 |
 | GET | `/api/codex/search` | `searchCodex` (`lib/codex/searchRepo.ts`) — `?q=` (2 to 100 characters) `&limit=` (default 8, max 25 per group). Behind `codex_search` (404 before auth when off) |
 | GET, POST | `/api/codex/templates` | `listTemplates`, `createTemplate` |
 | GET, PATCH, DELETE | `/api/codex/templates/[id]` | `getTemplate`, `updateTemplate`, `deleteTemplate` |

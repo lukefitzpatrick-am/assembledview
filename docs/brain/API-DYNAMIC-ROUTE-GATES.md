@@ -36,6 +36,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `media_plans/[...path]` | POST/PUT/DELETE | catch-all | — | `requireRole(admin)`; channel writes 410 | **X2** |
 | `media-details/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
 | `codex/tasks/[id]` | PATCH | `codex/tasks` | `requireCodexInternalAccess` | same | OK |
+| `codex/saved-views/[id]` | PATCH/DELETE | `codex/saved-views` POST | `codexFlagGuard`, `codex_saved_views` 404, `requireCodexInternalAccess` | same, then owner only: someone else's shared view 403 `not_owner`, a private one or a missing id 404; 503 before marker `0117_codex_saved_views` | OK |
 | `dashboard/[slug]` | GET | client dashboard | — | session + slug / admin | OK |
 | `dashboard/[slug]/delivered` | GET | same | — | session + slug / admin | OK |
 | `dashboard/[slug]/invoices` | GET | same | — | session + slug gate + `assertClientAccess`; client-role 404 while `CLIENT_INVOICES_ENABLED` is off | OK |
