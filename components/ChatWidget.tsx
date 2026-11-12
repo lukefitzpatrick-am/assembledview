@@ -496,20 +496,26 @@ export function ChatWidget({
     setMessages(updatedMessages)
     setInput("")
 
+    // Pinned at send time: a reset while the page context loads must not
+    // send the old history under the new conversation (F14 L4).
     const sentConversationId = conversationIdRef.current
+    const sentTaintMarker = taintMarkerRef.current
     try {
       const resolvedPageContext =
         typeof getPageContext === "function" ? await getPageContext() : pageContext
 
       const currentLineItems = await collectCurrentLineItemsFromBridge()
 
+      // The chat was reset (route left /tasks) while the page context loaded: send nothing.
+      if (conversationIdRef.current !== sentConversationId) return
+
       const payload = {
         messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
         mode,
         ...(routePath ? { route: routePath } : {}),
-        conversationId: conversationIdRef.current,
-        ...(taintMarkerRef.current ? { taintMarker: taintMarkerRef.current } : {}),
+        conversationId: sentConversationId,
+        ...(sentTaintMarker ? { taintMarker: sentTaintMarker } : {}),
         ...(pendingParsedPlanRef.current
           ? {
               pendingParsedPlan: {

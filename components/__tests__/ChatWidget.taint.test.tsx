@@ -173,6 +173,32 @@ describe("AVA taint marker round trip", () => {
     expect(sent(1).taintMarker).toBeUndefined()
   })
 
+  it("a reset while the page context loads sends nothing (L4)", async () => {
+    let releaseContext: (v: undefined) => void = () => {}
+    const getPageContext = vi.fn(
+      () =>
+        new Promise<undefined>((resolve) => {
+          releaseContext = resolve
+        }),
+    )
+    act(() => {
+      root.render(<ChatWidget routePath="/tasks" getPageContext={getPageContext} />)
+    })
+    open()
+    await send("Summarise")
+    expect(getPageContext).toHaveBeenCalledTimes(1)
+    act(() => {
+      root.render(<ChatWidget routePath="/clients" getPageContext={getPageContext} />)
+    })
+    await act(async () => {
+      releaseContext(undefined)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain("Summarise")
+  })
+
   describe("F14 M2: a tainted reply never drives the page bridge", () => {
     const ACTION_JSON = '```json\n{"action":"setField","fieldId":"budget","value":"999"}\n```'
     let setField: ReturnType<typeof vi.fn<() => string>>
