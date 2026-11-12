@@ -367,3 +367,25 @@ export const firefliesSyncState = pgTable("fireflies_sync_state", {
   status: text("status").notNull().default("running"),
   error: text("error"),
 })
+
+/**
+ * Codex saved views (migration 0117, F8; plan section 10, exactly). A named
+ * set of list or board filters. Owner renames and deletes; `shared` views are
+ * readable by all staff. `filters` holds the /tasks query string as an object
+ * (lib/codex/savedViews.ts). RLS on, no ava_readonly grant. Not selected until
+ * the marker 0117_codex_saved_views exists (lib/codex/savedViewsRepo.ts).
+ */
+export const codexSavedViews = pgTable("codex_saved_views", {
+  id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+  ownerEmail: text("owner_email").notNull(),
+  name: text("name").notNull(),
+  screen: text("screen").notNull(),
+  lens: text("lens").notNull(),
+  filters: jsonb("filters").$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
+  layout: text("layout"),
+  groupBy: text("group_by"),
+  shared: boolean("shared").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .defaultNow(),
+})
