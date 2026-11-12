@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getAssistantContext, subscribeAvaChatOpen } from "@/lib/assistantBridge"
 import { coerceChatFileAttachments } from "@/lib/ava/chatFileAttachment"
+import { newConversationId } from "@/lib/ava/conversationScope"
 import {
   coerceChatInterviewQuestions,
   displayMiAnswerText,
@@ -307,6 +308,10 @@ export function ChatWidget({
   const [isSending, setIsSending] = useState(false)
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatUiMessage[]>(() => toUiMessages(initialMessages))
+  /** This conversation's id; a new chat gets a new one (F14). */
+  const conversationIdRef = useRef<string>(newConversationId())
+  /** Signed taint marker from the server once captured content entered this chat (F14). */
+  const taintMarkerRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingParsedPlan, setPendingParsedPlan] = useState<PendingParsedPlan | null>(null)
   const pendingParsedPlanRef = useRef<PendingParsedPlan | null>(null)
@@ -475,6 +480,8 @@ export function ChatWidget({
         pageContext: resolvedPageContext,
         mode,
         ...(routePath ? { route: routePath } : {}),
+        conversationId: conversationIdRef.current,
+        ...(taintMarkerRef.current ? { taintMarker: taintMarkerRef.current } : {}),
         ...(pendingParsedPlanRef.current
           ? {
               pendingParsedPlan: {
@@ -515,6 +522,9 @@ export function ChatWidget({
         throw new Error(data?.error || "Chat failed")
       }
 
+      if (typeof data?.meta?.taintMarker === "string" && data.meta.taintMarker) {
+        taintMarkerRef.current = data.meta.taintMarker
+      }
       const parsedReply = coerceModelChatReply(data)
       const nextPending = applyIngestStageMissingMeta(
         pendingIngestRef.current,

@@ -9,13 +9,17 @@ import {
   resolveTurnProfile,
   type AvaModelProfileName,
 } from "./modelConfig";
-import { avaToolDefinitionsForPage, getToolByName } from "./tools/registry";
+import { AVA_TOOL_DEFINITIONS, getToolByName } from "./tools/registry";
 import { readAvaToolFlags } from "./tools/toolFlags";
 import {
+  avaToolDefinitionsForPage,
   avaWebSearchAllowed,
   type AvaToolFlags,
   type AvaToolOfferScope,
 } from "./tools/pageToolOffer";
+import { avaToolTag, isCaptureTool, type AvaToolTagLookup } from "./tools/toolAccess";
+import { frameCaptureToolOutput } from "./taintRules";
+import type AvaTool from "./tools/types";
 import type { AvaToolContext } from "./tools/types";
 import type { PageContext } from "@/lib/ava/types";
 import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
@@ -36,6 +40,14 @@ export type AvaAgentInput = {
    */
   clientRoute?: string;
   /**
+   * Captured (untrusted) text already entered this conversation (marker or
+   * history notice, lib/ava/taintRules.ts). Write tools and web search are
+   * not offered for the whole turn.
+   */
+  tainted?: boolean;
+  /** Tests inject tools (a capture fixture). Production uses the registry. */
+  toolCatalog?: AvaToolCatalog;
+  /**
    * `report` for campaign-read generation. Chat stays `chat` until a report
    * skill is loaded into the message history, then the rest of the turn uses
    * the report profile.
@@ -43,6 +55,19 @@ export type AvaAgentInput = {
   profile?: AvaModelProfileName;
   /** Tests inject a client. Production uses {@link getAnthropicClient}. */
   client?: Anthropic;
+};
+
+/** The tools a turn can offer and run, with their access tags. */
+export type AvaToolCatalog = {
+  definitions: readonly Anthropic.Tool[];
+  getTool: (name: string) => AvaTool | undefined;
+  tagOf: AvaToolTagLookup;
+};
+
+const REGISTRY_CATALOG: AvaToolCatalog = {
+  definitions: AVA_TOOL_DEFINITIONS,
+  getTool: getToolByName,
+  tagOf: avaToolTag,
 };
 
 export type AvaAgentResult = {
@@ -62,6 +87,10 @@ export type AvaAgentResult = {
     cacheCreationInputTokens: number;
     cacheReadInputTokens: number;
   };
+  /** The conversation is tainted after this turn (it came in tainted, or a capture tool ran). */
+  tainted: boolean;
+  /** A capture tool ran in this turn. */
+  taintedThisTurn: boolean;
   /** Profile, model and effort of the call that produced the reply. */
   profile: AvaModelProfileName;
   model: string;
@@ -80,12 +109,16 @@ const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
 };
 
 function buildTools(
+  catalog: AvaToolCatalog,
   enableWebSearch: boolean,
   pageContext: PageContext | undefined,
   flags: AvaToolFlags,
   scope: AvaToolOfferScope,
 ): Anthropic.ToolUnion[] {
-  const definitions = avaToolDefinitionsForPage(pageContext, flags, scope);
+  const definitions = avaToolDefinitionsForPage(catalog.definitions, pageContext, flags, {
+    ...scope,
+    tagOf: catalog.tagOf,
+  });
   if (!enableWebSearch || !avaWebSearchAllowed(pageContext, scope)) return definitions;
   return [...definitions, WEB_SEARCH_TOOL];
 }
@@ -181,12 +214,15 @@ function captureQuestions(
   context.capturedQuestions = questions;
 }
 
+type TurnTaint = { tainted: boolean; taintedThisTurn: boolean };
+
 function finishTurn(
   replyText: string,
   context: AvaToolContext,
   toolCalls: AvaAgentResult["toolCalls"],
   usage: AvaAgentResult["usage"],
   call: { profile: AvaModelProfileName; model: string; effort: string },
+  taint: TurnTaint,
 ): AvaAgentResult {
   return {
     replyText,
@@ -201,6 +237,8 @@ function finishTurn(
     toolCalls,
     ingestStageMissing: context.ingestStageMissing === true,
     usage,
+    tainted: taint.tainted,
+    taintedThisTurn: taint.taintedThisTurn,
     profile: call.profile,
     model: call.model,
     effort: call.effort,
@@ -236,19 +274,23 @@ export async function runAvaAgent(
       model: "",
       effort: "",
     };
-    const tools = buildTools(
-      input.enableWebSearch === true,
-      input.context.pageContext,
-      await readAvaToolFlags(),
-      { clientRoute: input.clientRoute },
-    );
-    const offeredNames = new Set(
-      tools.flatMap((tool) =>
-        "name" in tool && typeof tool.name === "string" && tool.name
-          ? [tool.name]
-          : [],
-      ),
-    );
+    const catalog = input.toolCatalog ?? REGISTRY_CATALOG;
+    const flags = await readAvaToolFlags();
+    const taint: TurnTaint = { tainted: input.tainted === true, taintedThisTurn: false };
+    // Rebuilt when a capture tool taints the turn: write tools and web search go.
+    const offerTools = () =>
+      buildTools(catalog, input.enableWebSearch === true, input.context.pageContext, flags, {
+        clientRoute: input.clientRoute,
+        tainted: taint.tainted,
+      });
+    const namesOf = (list: Anthropic.ToolUnion[]) =>
+      new Set(
+        list.flatMap((tool) =>
+          "name" in tool && typeof tool.name === "string" && tool.name ? [tool.name] : [],
+        ),
+      );
+    let tools = offerTools();
+    let offeredNames = namesOf(tools);
 
     for (let iter = 0; iter < AVA_MAX_TOOL_ITERATIONS; iter++) {
       const profile = resolveTurnProfile(messages, input.profile);
@@ -271,7 +313,7 @@ export async function runAvaAgent(
       if (stopReason === "end_turn" || stopReason === "stop_sequence") {
         const replyText =
           extractFirstTextBlock(response.content) ?? FALLBACK_REPLY;
-        return finishTurn(replyText, input.context, toolCalls, usage, call);
+        return finishTurn(replyText, input.context, toolCalls, usage, call, taint);
       }
 
       // Anthropic server tools (web_search) may pause until the next request.
@@ -309,7 +351,7 @@ export async function runAvaAgent(
           // Server-only tool turn (e.g. web_search finished in-content) — continue.
           const replyText = extractAllTextBlocks(response.content);
           if (replyText) {
-            return finishTurn(replyText, input.context, toolCalls, usage, call);
+            return finishTurn(replyText, input.context, toolCalls, usage, call, taint);
           }
           continue;
         }
@@ -347,7 +389,7 @@ export async function runAvaAgent(
             continue;
           }
 
-          const tool = getToolByName(name);
+          const tool = catalog.getTool(name);
           if (!tool || !offeredNames.has(name)) {
             resultContent = formatToolFailure(
               name,
@@ -359,6 +401,17 @@ export async function runAvaAgent(
               const executed = await tool.execute(toolInput, input.context);
               resultContent = executed.content;
               resultIsError = executed.isError ?? false;
+              if (isCaptureTool(name, catalog.tagOf)) {
+                // Untrusted captured text: strip links and images, frame it,
+                // and taint the conversation before any later call (F14).
+                resultContent = frameCaptureToolOutput(name, resultContent);
+                if (!taint.tainted) {
+                  taint.tainted = true;
+                  taint.taintedThisTurn = true;
+                  tools = offerTools();
+                  offeredNames = namesOf(tools);
+                }
+              }
               if (executed.ingestStageMissing) {
                 input.context.ingestStageMissing = true;
               }
@@ -373,6 +426,13 @@ export async function runAvaAgent(
               const msg = err instanceof Error ? err.message : String(err);
               resultContent = formatToolFailure(name, msg);
               resultIsError = true;
+              if (isCaptureTool(name, catalog.tagOf) && !taint.tainted) {
+                // A failed capture read may still echo captured text: taint anyway.
+                taint.tainted = true;
+                taint.taintedThisTurn = true;
+                tools = offerTools();
+                offeredNames = namesOf(tools);
+              }
             }
           }
 
@@ -410,6 +470,7 @@ export async function runAvaAgent(
             toolCalls,
             usage,
             call,
+            taint,
           );
         }
         return finishTurn(
@@ -418,6 +479,7 @@ export async function runAvaAgent(
           toolCalls,
           usage,
           call,
+          taint,
         );
       }
 
@@ -430,10 +492,10 @@ export async function runAvaAgent(
       });
       const replyText =
         replyFromBlocks.length > 0 ? replyFromBlocks : FALLBACK_REPLY;
-      return finishTurn(replyText, input.context, toolCalls, usage, call);
+      return finishTurn(replyText, input.context, toolCalls, usage, call, taint);
     }
 
-    return finishTurn(TOOL_LIMIT_REPLY, input.context, toolCalls, usage, call);
+    return finishTurn(TOOL_LIMIT_REPLY, input.context, toolCalls, usage, call, taint);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`AVA agent loop failed: ${message}`);

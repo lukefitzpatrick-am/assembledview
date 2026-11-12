@@ -21,7 +21,9 @@ import {
 } from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import type { AvaToolContext, PendingIngest, PendingParsedPlan } from "@/lib/ava/tools/types"
-import { normaliseRoutePath } from "@/lib/ava/conversationScope"
+import { normaliseConversationId, normaliseRoutePath } from "@/lib/ava/conversationScope"
+import { finaliseTaintedReply, resolveConversationTaint } from "@/lib/ava/taintRules"
+import { signTaintMarker, verifyTaintMarker } from "@/lib/ava/taintMarker"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -102,6 +104,10 @@ type ChatRequestBody = {
   }
   /** Widget pathname. /tasks publishes no PageContext; the /tasks tool allowlist reads this (F14). */
   route?: unknown
+  /** Widget conversation id; a new chat gets a new id (F14). */
+  conversationId?: unknown
+  /** Signed taint marker from an earlier reply in this conversation (F14). */
+  taintMarker?: unknown
 }
 
 export async function POST(req: NextRequest) {
@@ -157,6 +163,7 @@ export async function POST(req: NextRequest) {
       currentLineItems,
     } = body
     const clientRoute = normaliseRoutePath(body.route)
+    const conversationId = normaliseConversationId(body.conversationId)
     const resolvedMode = resolveMode(mode)
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
@@ -167,6 +174,18 @@ export async function POST(req: NextRequest) {
     const systemPrompt = buildAvaSystemPrompt(resolvedMode, pageContext, AVA_V2_APPENDIX)
 
     const user = session.user as { sub?: string; email?: string }
+    const taintSubject = typeof user.sub === "string" && user.sub ? user.sub : String(user.email ?? "")
+    // Captured text in this conversation (F14 b): marker or history notice. Fail closed.
+    const incomingTaint = resolveConversationTaint({
+      marker: body.taintMarker,
+      conversationId,
+      sub: taintSubject,
+      messages: safeMessages,
+      checkMarker: (marker) => verifyTaintMarker(marker),
+    })
+    if (incomingTaint.reason !== "clean" && incomingTaint.reason !== "marker" && incomingTaint.reason !== "history_notice") {
+      console.warn("[AVA v2] taint marker", { reason: incomingTaint.reason, tainted: incomingTaint.tainted })
+    }
     const context: AvaToolContext = {
       pageContext,
       clientSlug,
@@ -193,10 +212,26 @@ export async function POST(req: NextRequest) {
       context,
       enableWebSearch: true,
       clientRoute,
+      tainted: incomingTaint.tainted,
     })
 
+    // A tainted reply loses its links and images. The notice rides on the turn
+    // that tainted the conversation, and on any tainted turn whose history
+    // lacks it, so the history alone carries the taint from then on.
+    const replyText = result.tainted
+      ? finaliseTaintedReply(result.replyText, {
+          addNotice: result.taintedThisTurn || incomingTaint.reason !== "history_notice",
+        })
+      : result.replyText
+    const taintMarker = result.tainted
+      ? signTaintMarker({ sub: taintSubject, conversationId })
+      : null
+    if (result.taintedThisTurn) {
+      console.warn("[AVA v2] conversation tainted by a capture tool", { markerIssued: taintMarker != null })
+    }
+
     return NextResponse.json({
-      replyText: result.replyText,
+      replyText,
       patch: result.patch,
       lineItemsLoad: result.lineItemsLoad,
       attachments: result.attachments,
@@ -207,6 +242,8 @@ export async function POST(req: NextRequest) {
         toolCalls: result.toolCalls.map((tc) => ({ name: tc.name })),
         usage: result.usage,
         ...(result.ingestStageMissing ? { ingestStageMissing: true } : {}),
+        ...(result.tainted ? { tainted: true } : {}),
+        ...(taintMarker ? { taintMarker } : {}),
       },
     })
   } catch (error) {

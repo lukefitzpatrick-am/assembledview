@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       signing: [
         { purpose: "view-as", label: "View as client", source: signingKeySource("view-as") },
         { purpose: "billing-revision-preview", label: "Billing revision and true-up previews", source: signingKeySource("billing-revision-preview") },
+        { purpose: "ava-taint", label: "Ava captured-content marker", source: signingKeySource("ava-taint") },
       ],
     })
   } catch (error) {

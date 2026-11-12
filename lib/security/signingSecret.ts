@@ -16,14 +16,19 @@
 
 export const APP_SIGNING_SECRET_MIN_LENGTH = 32
 
-export type SigningPurpose = "view-as" | "billing-revision-preview"
+export type SigningPurpose = "view-as" | "billing-revision-preview" | "ava-taint"
 
 type Env = Record<string, string | undefined>
 
-/** The feature secret each purpose honoured before APP_SIGNING_SECRET. */
-export const SIGNING_PURPOSES: Record<SigningPurpose, { legacyEnv: string; legacyMinLength: number }> = {
+/**
+ * The feature secret each purpose honoured before APP_SIGNING_SECRET.
+ * Purposes added after 30 Oct have none (legacyEnv null): APP_SIGNING_SECRET only.
+ */
+export const SIGNING_PURPOSES: Record<SigningPurpose, { legacyEnv: string | null; legacyMinLength: number }> = {
   "view-as": { legacyEnv: "VIEW_AS_SECRET", legacyMinLength: 32 },
   "billing-revision-preview": { legacyEnv: "BILLING_REVISION_TOKEN_SECRET", legacyMinLength: 16 },
+  // Ava conversation taint marker (F14, B36).
+  "ava-taint": { legacyEnv: null, legacyMinLength: 32 },
 }
 
 export function derivationMessage(purpose: SigningPurpose): string {
@@ -37,6 +42,7 @@ export function appSigningSecret(env: Env = process.env as Env): string | null {
 
 export function legacySigningSecret(purpose: SigningPurpose, env: Env = process.env as Env): string | null {
   const { legacyEnv, legacyMinLength } = SIGNING_PURPOSES[purpose]
+  if (!legacyEnv) return null
   const raw = env[legacyEnv] ?? ""
   // VIEW_AS_SECRET was never trimmed; BILLING_REVISION_TOKEN_SECRET was.
   const s = purpose === "billing-revision-preview" ? raw.trim() : raw

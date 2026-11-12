@@ -76,5 +76,5 @@ test("GET returns the groups, history and signing key status", { skip }, async (
   const body = (await res.json()) as { ready: boolean; groups: unknown[]; signing: { purpose: string }[] }
   assert.equal(body.ready, true)
   assert.ok(body.groups.length > 0)
-  assert.deepEqual(body.signing.map((s) => s.purpose), ["view-as", "billing-revision-preview"])
+  assert.deepEqual(body.signing.map((s) => s.purpose), ["view-as", "billing-revision-preview", "ava-taint"])
 })
