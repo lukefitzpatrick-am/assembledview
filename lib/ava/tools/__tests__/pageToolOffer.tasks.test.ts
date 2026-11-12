@@ -121,6 +121,16 @@ describe("F14 /tasks allowlist", () => {
     assert.deepEqual(offered, PINNED_TASKS_SET)
   })
 
+  it("an allowlisted name tagged write is not offered on /tasks (R3)", () => {
+    const tagOf: AvaToolTagLookup = (name) => (name === "get_client_details" ? { access: "write" } : avaToolTag(name))
+    const offered = names(avaToolDefinitionsForPage(REGISTRY, pc("/tasks"), ALL_ON, { tagOf }))
+    assert.equal(offered.includes("get_client_details"), false)
+    assert.deepEqual(
+      offered,
+      PINNED_TASKS_SET.filter((n) => n !== "get_client_details"),
+    )
+  })
+
   it("a route that only looks like /tasks is not /tasks", () => {
     assert.equal(isTasksPath("/tasksfoo"), false)
     assert.equal(isTasksPath("/admin/tasks"), false)
