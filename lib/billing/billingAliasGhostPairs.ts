@@ -9,11 +9,21 @@
  *
  * A pair: same month, same media key, same line number, one `old` and one
  * `current` row, both with a non-zero amount in that month (a $0 row doubles
- * nothing). Pure: no data is changed here; `removeOldAliasGhostRows` returns
- * new months for the editor's working copy only, after the planner chooses it.
+ * nothing). A no-code or old production id pairs only when the caller passes
+ * `aliasNumberCheck` and it proves the number from the loaded lines (B35,
+ * MB-40): the editor renumbers those lines from position, so a bare number
+ * could name another line, and the guard must never call a real line a ghost.
+ * The server checks (finance) pass none: `ML` and current ids only, which
+ * covers every live pair (all six versions are `ML`).
+ *
+ * Pure: no data is changed here. `removeOldAliasGhostRows` returns new months
+ * for a working copy only, after a person chooses it.
  */
 
-import { billingLineIdAlias } from "@/lib/billing/billingLineIdAlias"
+import {
+  billingLinePairingAlias,
+  type BillingAliasNumberCheck,
+} from "@/lib/billing/billingLineIdAlias"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { formatMoney } from "@/lib/format/money"
@@ -47,7 +57,8 @@ function rowAmount(row: BillingLineItem, monthYear: string): number {
 /** Every old-and-current pair in the months, in month, media key and line order. */
 export function findBillingAliasGhostPairs(
   months: readonly BillingMonth[] | null | undefined,
-  mbaNumber: string | null | undefined
+  mbaNumber: string | null | undefined,
+  aliasNumberCheck?: BillingAliasNumberCheck | null
 ): BillingAliasGhostPair[] {
   const mba = String(mbaNumber ?? "").trim()
   if (!mba || !Array.isArray(months)) return []
@@ -61,7 +72,7 @@ export function findBillingAliasGhostPairs(
       const olds: Array<{ row: BillingLineItem; n: number; amount: number }> = []
       const currents = new Map<number, Array<{ row: BillingLineItem; amount: number }>>()
       for (const row of rows) {
-        const alias = billingLineIdAlias({ id: row?.id, mediaKey, mbaNumber: mba })
+        const alias = billingLinePairingAlias({ id: row?.id, mediaKey, mbaNumber: mba }, aliasNumberCheck)
         if (!alias) continue
         const amount = rowAmount(row, monthYear)
         if (amount === 0) continue

@@ -117,3 +117,47 @@ export function billingLineIdAlias(input: BillingLineIdAliasInput): BillingLineI
 export function billingLineAliasKey(input: BillingLineIdAliasInput): string | null {
   return billingLineIdAlias(input)?.key ?? null
 }
+
+/** True for the id forms whose line number the editor keeps (current code, `ML`). */
+export function billingLineIdFormKeepsNumber(form: BillingLineIdForm): boolean {
+  return form === "current" || form === "ml"
+}
+
+/**
+ * B35 (MB-40): says whether a no-code or old production id's number is the
+ * current line's number. Built from the loaded lines
+ * (`buildBillingAliasNumberCheck`). Only asked for those two forms.
+ */
+export type BillingAliasNumberCheck = (input: {
+  mediaKey: string
+  /** Bare id as it sits in billing. */
+  id: string
+  alias: BillingLineIdAlias
+}) => boolean
+
+/**
+ * The alias to pair billing rows by (B35, MB-40). Current-code and `ML` ids
+ * pair by their number, as before. A no-code or old production id pairs only
+ * when `numberCheck` proves its number from the loaded lines: the editor
+ * renumbers those lines from their saved position, so without proof the number
+ * could point at another line. No check: no pair.
+ */
+export function billingLinePairingAlias(
+  input: BillingLineIdAliasInput,
+  numberCheck?: BillingAliasNumberCheck | null
+): BillingLineIdAlias | null {
+  const alias = billingLineIdAlias(input)
+  if (!alias) return null
+  if (billingLineIdFormKeepsNumber(alias.form)) return alias
+  if (!numberCheck) return null
+  const id = toBillingOverrideLineItemId(String(input.id ?? "").trim())
+  return numberCheck({ mediaKey: String(input.mediaKey ?? "").trim(), id, alias }) ? alias : null
+}
+
+/** `billingLinePairingAlias(...)?.key ?? null`. */
+export function billingLinePairingAliasKey(
+  input: BillingLineIdAliasInput,
+  numberCheck?: BillingAliasNumberCheck | null
+): string | null {
+  return billingLinePairingAlias(input, numberCheck)?.key ?? null
+}

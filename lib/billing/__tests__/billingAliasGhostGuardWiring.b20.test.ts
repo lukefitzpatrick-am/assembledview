@@ -25,7 +25,7 @@ test("edit reads the switch and checks the working schedule only when it is on",
   assert.match(page, /clientFeatureOn\("billing_ghost_row_guard"\)/)
   assert.match(
     page,
-    /billingGhostGuardOn \? findBillingAliasGhostPairs\(workingBillingMonths, mbaNumber\) : \[\]/,
+    /billingGhostGuardOn\s*\?\s*findBillingAliasGhostPairs\(workingBillingMonths, mbaNumber, billingAliasNumberCheck\)\s*:\s*\[\]/,
   )
 })
 

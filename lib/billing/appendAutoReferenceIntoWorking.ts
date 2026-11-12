@@ -11,8 +11,10 @@
  *
  * B20 (MB-30 fix): per media key, a template row matches a working row by
  * 1. canonical id (bare ↔ decorated),
- * 2. alias (`billingLineIdAlias`: an old `ML`, no-code or production
- *    `-vNNN-pN` id and its current id, same media key and line number), one
+ * 2. alias (`billingLinePairingAlias`: an old `ML`, no-code or production
+ *    `-vNNN-pN` id and its current id, same media key and line number; a
+ *    no-code or production id only when `aliasNumberCheck` proves the number,
+ *    B35 MB-40), one
  *    to one, only working rows no template row matched by id; the working row
  *    adopts the template id and keeps its amounts, mode, Prebill and fee
  *    months (resync rules as for a matched row),
@@ -24,7 +26,10 @@
  */
 
 import { shouldResyncBillingLineFromAuto } from "@/lib/billing/applyBillingLineMode"
-import { billingLineAliasKey } from "@/lib/billing/billingLineIdAlias"
+import {
+  billingLinePairingAliasKey,
+  type BillingAliasNumberCheck,
+} from "@/lib/billing/billingLineIdAlias"
 import {
   computeAppendNewMediaTypeBucket,
 } from "@/lib/billing/appendNewMediaTypeBucket"
@@ -56,6 +61,12 @@ export type AppendIntoWorkingOpts = {
   mbaNumber?: string | null
   /** B20: media key of the bucket (set per bucket by the month merge). */
   mediaKey?: string
+  /**
+   * B35 (MB-40): proves a no-code or old production id's number from the
+   * loaded lines (`buildBillingAliasNumberCheck`). Unset: those ids never
+   * pair by number (current-code and `ML` ids still do).
+   */
+  aliasNumberCheck?: BillingAliasNumberCheck | null
   /** MB-30 loud guard — fired when merge collapses same-canonical duplicates. */
   onCanonicalDedupe?: (
     collapses: Array<CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }>
@@ -160,7 +171,9 @@ export function appendMissingLineItemsOnly(
   const mediaKey = String(opts?.mediaKey ?? "").trim()
   const mbaNumber = String(opts?.mbaNumber ?? "").trim()
   const aliasOf = (id: unknown) =>
-    mbaNumber && mediaKey ? billingLineAliasKey({ id, mediaKey, mbaNumber }) : null
+    mbaNumber && mediaKey
+      ? billingLinePairingAliasKey({ id, mediaKey, mbaNumber }, opts?.aliasNumberCheck)
+      : null
   // Working rows some template row matches by id are never alias-claimed (one to one).
   const claimed = new Set<BillingLineItem>()
   for (const tLi of templateItems) {
@@ -396,6 +409,7 @@ export function mergeAppendIntoExistingMonth(
             resyncExistingFromTemplate: true,
             mbaNumber: opts?.mbaNumber,
             mediaKey: mk,
+            aliasNumberCheck: opts?.aliasNumberCheck,
           }
         )
         ;(base.lineItems as Record<string, BillingLineItem[]>)[mk] = list
@@ -453,6 +467,7 @@ export function mergeAppendIntoExistingMonth(
           isManualBilling: opts?.isManualBilling,
           mbaNumber: opts?.mbaNumber,
           mediaKey: mk,
+          aliasNumberCheck: opts?.aliasNumberCheck,
         })
       for (const c of collapses) {
         collapseBatch.push({ ...c, mediaKey: mk, monthYear: base.monthYear })

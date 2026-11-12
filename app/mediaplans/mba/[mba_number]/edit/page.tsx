@@ -126,6 +126,8 @@ import {
   type BillingAliasReconcileEntry,
 } from "@/lib/billing/appendAutoReferenceIntoWorking"
 import { unionGeneratedBillingLines } from "@/lib/billing/unionGeneratedBillingLines"
+import { buildBillingAliasNumberCheck } from "@/lib/billing/billingAliasNumberCheck"
+import type { BillingAliasNumberCheck } from "@/lib/billing/billingLineIdAlias"
 import {
   billingAliasGhostSaveBlockMessage,
   billingAliasGhostTotal,
@@ -1110,6 +1112,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const mbaNumberRef = useRef(mbaNumber)
   const mediaPlanVersionIdRef = useRef(mediaPlanVersionId)
   mbaNumberRef.current = mbaNumber
+  /** B35 (MB-40): proves a no-code or old production billing id's number from the loaded lines. Set after the line states below. */
+  const billingAliasNumberCheckRef = useRef<BillingAliasNumberCheck | null>(null)
   /** MB-30 (B20): alias adoptions and placeholder skips to app_notifications, via refs so no merge re-runs. */
   const reportAliasReconcileRef = useRef(
     (source: WorkingBillingAliasReconcileSource, entries: BillingAliasReconcileEntry[]) => {
@@ -1580,6 +1584,59 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [progAudioLineItems, setProgAudioLineItems] = useState<any[]>([])
   const [progOohLineItems, setProgOohLineItems] = useState<any[]>([])
   const [influencersLineItems, setInfluencersLineItems] = useState<any[]>([])
+  // B35 (MB-40): the lines as loaded, before the editor renumbers them, so an old
+  // no-code or production billing id pairs with a current id only when they prove
+  // its number. Read through a ref so the billing merges don't re-run on it.
+  const billingAliasNumberCheck = useMemo(
+    () =>
+      buildBillingAliasNumberCheck(
+        {
+          television: televisionLineItems,
+          radio: radioLineItems,
+          newspaper: newspaperLineItems,
+          magazines: magazinesLineItems,
+          ooh: oohLineItems,
+          cinema: cinemaLineItems,
+          digiDisplay: digitalDisplayLineItems,
+          digiAudio: digitalAudioLineItems,
+          digiVideo: digitalVideoLineItems,
+          bvod: bvodLineItems,
+          integration: integrationLineItems,
+          search: searchLineItems,
+          socialMedia: socialMediaLineItems,
+          progDisplay: progDisplayLineItems,
+          progVideo: progVideoLineItems,
+          progBvod: progBvodLineItems,
+          progAudio: progAudioLineItems,
+          progOoh: progOohLineItems,
+          influencers: influencersLineItems,
+        },
+        mbaNumber
+      ),
+    [
+      televisionLineItems,
+      radioLineItems,
+      newspaperLineItems,
+      magazinesLineItems,
+      oohLineItems,
+      cinemaLineItems,
+      digitalDisplayLineItems,
+      digitalAudioLineItems,
+      digitalVideoLineItems,
+      bvodLineItems,
+      integrationLineItems,
+      searchLineItems,
+      socialMediaLineItems,
+      progDisplayLineItems,
+      progVideoLineItems,
+      progBvodLineItems,
+      progAudioLineItems,
+      progOohLineItems,
+      influencersLineItems,
+      mbaNumber,
+    ]
+  )
+  billingAliasNumberCheckRef.current = billingAliasNumberCheck
 
   // State for LineItem[] arrays (for Excel generation)
   const [searchItems, setSearchItems] = useState<LineItem[]>([])
@@ -2618,6 +2675,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           isManualBilling: isManualBillingRef.current,
           resyncExistingFromTemplate: true,
           mbaNumber: mbaNumberRef.current,
+          aliasNumberCheck: billingAliasNumberCheckRef.current,
           onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
           onCanonicalDedupe: (collapses) => {
             // Read identity via refs (not deps): this callback is anomaly telemetry only;
@@ -3925,6 +3983,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         const union = unionGeneratedBillingLines(li[mediaKey], generatedList, {
           mediaKey,
           mbaNumber: mbaNumberRef.current,
+          aliasNumberCheck: billingAliasNumberCheckRef.current,
         })
         if (union.changed) li[mediaKey] = union.list
         for (const a of union.aliasAdoptions) {
@@ -4771,6 +4830,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         const union = unionGeneratedBillingLines(li[key], generatedList, {
           mediaKey: key,
           mbaNumber: mbaNumberRef.current,
+          aliasNumberCheck: billingAliasNumberCheckRef.current,
         })
         if (union.changed) li[key] = union.list
         for (const a of union.aliasAdoptions) {
@@ -5836,8 +5896,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     ]
   )
   const billingAliasGhostPairs = useMemo(
-    () => (billingGhostGuardOn ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber) : []),
-    [billingGhostGuardOn, workingBillingMonths, mbaNumber]
+    () =>
+      billingGhostGuardOn
+        ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber, billingAliasNumberCheck)
+        : [],
+    [billingGhostGuardOn, workingBillingMonths, mbaNumber, billingAliasNumberCheck]
   )
   const billingAliasGhostLines = useMemo(
     () =>
@@ -5850,7 +5913,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const billingAliasGhostDoubled = billingAliasGhostTotal(billingAliasGhostPairs)
   useEffect(() => {
     if (!billingGhostGuardOn) return
-    const pairs = findBillingAliasGhostPairs(savedBillingMonths, mbaNumber)
+    const pairs = findBillingAliasGhostPairs(savedBillingMonths, mbaNumber, billingAliasNumberCheck)
     if (pairs.length === 0) return
     void reportWorkingBillingAliasReconcile({
       versionId: mediaPlanVersionId ?? "unknown",
@@ -5859,10 +5922,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       entries: [],
       savedPairs: summariseBillingAliasGhostPairs(pairs, savedBillingMonths.map((m) => m.monthYear)),
     })
-  }, [billingGhostGuardOn, savedBillingMonths, mbaNumber, mediaPlanVersionId])
+  }, [billingGhostGuardOn, savedBillingMonths, mbaNumber, mediaPlanVersionId, billingAliasNumberCheck])
   const handleKeepCurrentBillingRows = useCallback(() => {
     const strip = (months: BillingMonth[]) =>
-      removeOldAliasGhostRows(months, findBillingAliasGhostPairs(months, mbaNumberRef.current))
+      removeOldAliasGhostRows(
+        months,
+        findBillingAliasGhostPairs(months, mbaNumberRef.current, billingAliasNumberCheckRef.current)
+      )
     const nextWorking = strip(workingBillingMonthsRef.current)
     workingBillingMonthsRef.current = nextWorking
     setWorkingBillingMonths(nextWorking)
@@ -9454,6 +9520,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               isManualBilling: isManualBillingRef.current,
               resyncExistingFromTemplate: true,
               mbaNumber: mbaNumberRef.current,
+              aliasNumberCheck: billingAliasNumberCheckRef.current,
               onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               // Identity via refs: anomaly telemetry only — deps would re-run this append merge.
               onCanonicalDedupe: (collapses) => {
@@ -9468,6 +9535,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             }
           : {
               mbaNumber: mbaNumberRef.current,
+              aliasNumberCheck: billingAliasNumberCheckRef.current,
               onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(

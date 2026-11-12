@@ -16,12 +16,13 @@ function count(re: RegExp): number {
 
 test("every append merge option set passes the MBA number and reports reconciles", () => {
   // calculateBillingSchedule resync, append effect follow-auto and non-follow branches.
-  assert.equal(count(/mbaNumber: mbaNumberRef\.current,\n\s+onReconcile: \(entries\) => reportAliasReconcileRef\.current\("merge", entries\)/g), 3)
+  // B35 (MB-40): each also passes the loaded lines' number check.
+  assert.equal(count(/mbaNumber: mbaNumberRef\.current,\n\s+aliasNumberCheck: billingAliasNumberCheckRef\.current,\n\s+onReconcile: \(entries\) => reportAliasReconcileRef\.current\("merge", entries\)/g), 3)
   assert.equal(count(/= appendAutoReferenceIntoWorkingBilling\(\n/g), 2)
 })
 
 test("both union paths go through unionGeneratedBillingLines with the MBA number", () => {
-  assert.equal(count(/unionGeneratedBillingLines\(li\[(mediaKey|key)\], generatedList, \{\n\s+mediaKey(: key)?,\n\s+mbaNumber: mbaNumberRef\.current,/g), 2)
+  assert.equal(count(/unionGeneratedBillingLines\(li\[(mediaKey|key)\], generatedList, \{\n\s+mediaKey(: key)?,\n\s+mbaNumber: mbaNumberRef\.current,\n\s+aliasNumberCheck: billingAliasNumberCheckRef\.current,/g), 2)
   assert.match(page, /reportAliasReconcileRef\.current\("modal_open", modalReconcile\)/)
   assert.match(page, /reportAliasReconcileRef\.current\("attach", attachReconcile\)/)
   // The old id-only union filter is gone.

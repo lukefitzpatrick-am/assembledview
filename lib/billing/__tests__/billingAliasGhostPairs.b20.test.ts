@@ -16,6 +16,7 @@ import {
   removeOldAliasGhostRows,
   summariseBillingAliasGhostPairs,
 } from "@/lib/billing/billingAliasGhostPairs"
+import { buildBillingAliasNumberCheck } from "@/lib/billing/billingAliasNumberCheck"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import type { BillingMonth } from "@/lib/billing/types"
 import { parseMoney } from "@/lib/money"
@@ -133,7 +134,10 @@ test("no-code social and production pairs are found too", () => {
     ["July 2025", "Social Media", "billing-socialMedia::PGAAUS0051", "$3,996.00"],
     ["July 2025", "Social Media", "billing-socialMedia::PGAAUS005SM1", "$3,996.00"],
   ])
-  assert.equal(findBillingAliasGhostPairs(months, "PGAAUS005").length, 1)
+  // B35 (MB-40): a no-code pair needs the loaded lines to prove the number.
+  assert.equal(findBillingAliasGhostPairs(months, "PGAAUS005").length, 0)
+  const socialCheck = buildBillingAliasNumberCheck({ socialMedia: [{ line_item_id: "PGAAUS005SM1", line_item: 1 }] }, "PGAAUS005")
+  assert.equal(findBillingAliasGhostPairs(months, "PGAAUS005", socialCheck).length, 1)
   const prod: BillingMonth[] = [
     {
       monthYear: "October 2025",
@@ -151,8 +155,13 @@ test("no-code social and production pairs are found too", () => {
       } as BillingMonth["lineItems"],
     },
   ]
-  assert.equal(findBillingAliasGhostPairs(prod, "pgaaus010").length, 1)
-  const fixed = removeOldAliasGhostRows(prod, findBillingAliasGhostPairs(prod, "PGAAUS010"))
+  assert.equal(findBillingAliasGhostPairs(prod, "pgaaus010").length, 0)
+  const prodCheck = buildBillingAliasNumberCheck(
+    { production: [{ line_item_id: "PGAAUS010-production-v510-p1", line_item: 1 }] },
+    "PGAAUS010",
+  )
+  assert.equal(findBillingAliasGhostPairs(prod, "pgaaus010", prodCheck).length, 1)
+  const fixed = removeOldAliasGhostRows(prod, findBillingAliasGhostPairs(prod, "PGAAUS010", prodCheck))
   assert.equal(fixed[0]!.production, "$500.00")
   assert.equal(fixed[0]!.totalAmount, "$500.00")
   assert.equal(fixed[0]!.mediaTotal, "$0.00")

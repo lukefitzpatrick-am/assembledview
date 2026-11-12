@@ -7,7 +7,8 @@
  *
  * Same match order as the lib merge (`appendMissingLineItemsOnly`):
  * 1. canonical id (bare ↔ `billing-<media>::`): the generated row is already there;
- * 2. old-id alias (`billingLineIdAlias`), one to one, existing rows no
+ * 2. old-id alias (`billingLinePairingAlias`, B35 MB-40: a no-code or
+ *    production id only with `aliasNumberCheck`), one to one, existing rows no
  *    generated row matched by id: the existing row takes the generated id
  *    and keeps its own amounts and mode (a copy; the input is not mutated);
  * 3. a placeholder `new-N` generated row is skipped when the bucket already
@@ -17,7 +18,10 @@
  */
 
 import type { BillingAliasAdoption, BillingPlaceholderSkip } from "@/lib/billing/appendAutoReferenceIntoWorking"
-import { billingLineAliasKey } from "@/lib/billing/billingLineIdAlias"
+import {
+  billingLinePairingAliasKey,
+  type BillingAliasNumberCheck,
+} from "@/lib/billing/billingLineIdAlias"
 import { isPlaceholderBillingLineId } from "@/lib/billing/rekeyManualBillingForMba"
 import type { BillingLineItem } from "@/lib/billing/types"
 import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
@@ -33,7 +37,12 @@ export type UnionGeneratedBillingLinesResult<T extends BillingLineItem> = {
 export function unionGeneratedBillingLines<T extends BillingLineItem>(
   existing: T[] | null | undefined,
   generated: T[],
-  opts: { mediaKey: string; mbaNumber?: string | null }
+  opts: {
+    mediaKey: string
+    mbaNumber?: string | null
+    /** B35 (MB-40): see `AppendIntoWorkingOpts.aliasNumberCheck`. Unset: no-code and production ids never pair. */
+    aliasNumberCheck?: BillingAliasNumberCheck | null
+  }
 ): UnionGeneratedBillingLinesResult<T> {
   if (!existing || existing.length === 0) {
     return { list: generated, changed: true, aliasAdoptions: [], placeholderSkips: [] }
@@ -41,7 +50,9 @@ export function unionGeneratedBillingLines<T extends BillingLineItem>(
   const mediaKey = String(opts.mediaKey ?? "").trim()
   const mbaNumber = String(opts.mbaNumber ?? "").trim()
   const aliasOf = (id: unknown) =>
-    mbaNumber && mediaKey ? billingLineAliasKey({ id, mediaKey, mbaNumber }) : null
+    mbaNumber && mediaKey
+      ? billingLinePairingAliasKey({ id, mediaKey, mbaNumber }, opts.aliasNumberCheck)
+      : null
 
   const list: T[] = [...existing]
   const claimed = new Set<number>()

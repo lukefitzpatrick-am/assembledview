@@ -15,6 +15,7 @@ import {
   appendMissingLineItemsOnly,
   type BillingAliasReconcileEntry,
 } from "@/lib/billing/appendAutoReferenceIntoWorking"
+import { buildBillingAliasNumberCheck } from "@/lib/billing/billingAliasNumberCheck"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 const MAY = "May 2026"
@@ -178,27 +179,83 @@ test("one to one by line number, not order: different amounts map to their own l
   assert.equal(r.didAppend, true)
 })
 
-test("no-code social and production -vNNN-pN adopt PROD<n>", () => {
+test("no-code social and production -vNNN-pN adopt PROD<n> when the loaded lines prove the number (B35, MB-40)", () => {
+  // Lines re-saved with current ids; billing kept the old ones (live: curatif002, BICAU001).
+  const socialCheck = buildBillingAliasNumberCheck(
+    { socialMedia: [{ line_item_id: "PGAAUS005SM1", line_item: 1 }, { line_item_id: "PGAAUS005SM2", line_item: 2 }] },
+    "PGAAUS005",
+  )
+  const social = appendMissingLineItemsOnly(
+    [line("PGAAUS0051", { [MAY]: 15984 }), line("PGAAUS0052", { [MAY]: 1 })],
+    [line("billing-socialMedia::PGAAUS005SM1", { [MAY]: 9 }), line("billing-socialMedia::PGAAUS005SM2", { [MAY]: 9 })],
+    [MAY],
+    { mbaNumber: "PGAAUS005", mediaKey: "socialMedia", aliasNumberCheck: socialCheck },
+  )
+  assert.deepEqual(social.list.map((x) => [x.id, x.monthlyAmounts[MAY]]), [
+    ["billing-socialMedia::PGAAUS005SM1", 15984],
+    ["billing-socialMedia::PGAAUS005SM2", 1],
+  ])
+  // The loaded production lines carry the old ids at the matching positions.
+  const prodCheck = buildBillingAliasNumberCheck(
+    {
+      production: [
+        { line_item_id: "PGAAUS010-production-v510-p1", line_item: 1 },
+        { line_item_id: "PGAAUS010-production-v510-p2", line_item: 2 },
+      ],
+    },
+    "PGAAUS010",
+  )
+  const prod = appendMissingLineItemsOnly(
+    [line("PGAAUS010-production-v510-p1", { [MAY]: 500 }), line("PGAAUS010-production-v510-p2", { [MAY]: 50 })],
+    [line("billing-production::PGAAUS010PROD1", { [MAY]: 1 }), line("billing-production::PGAAUS010PROD2", { [MAY]: 1 })],
+    [MAY],
+    { mbaNumber: "PGAAUS010", mediaKey: "production", aliasNumberCheck: prodCheck },
+  )
+  assert.deepEqual(prod.list.map((x) => [x.id, x.monthlyAmounts[MAY]]), [
+    ["billing-production::PGAAUS010PROD1", 500],
+    ["billing-production::PGAAUS010PROD2", 50],
+  ])
+})
+
+test("B35 (MB-40): without proof a no-code or production id never pairs by number", () => {
   const social = appendMissingLineItemsOnly(
     [line("PGAAUS0051", { [MAY]: 15984 }), line("PGAAUS0052", { [MAY]: 1 })],
     [line("billing-socialMedia::PGAAUS005SM1", { [MAY]: 9 }), line("billing-socialMedia::PGAAUS005SM2", { [MAY]: 9 })],
     [MAY],
     { mbaNumber: "PGAAUS005", mediaKey: "socialMedia" },
   )
-  assert.deepEqual(social.list.map((x) => [x.id, x.monthlyAmounts[MAY]]), [
-    ["billing-socialMedia::PGAAUS005SM1", 15984],
-    ["billing-socialMedia::PGAAUS005SM2", 1],
-  ])
-  const prod = appendMissingLineItemsOnly(
-    [line("PGAAUS010-production-v510-p1", { [MAY]: 500 }), line("PGAAUS010-production-v510-p2", { [MAY]: 50 })],
-    [line("billing-production::PGAAUS010PROD1", { [MAY]: 1 }), line("billing-production::PGAAUS010PROD2", { [MAY]: 1 })],
-    [MAY],
-    { mbaNumber: "PGAAUS010", mediaKey: "production" },
+  assert.equal(social.aliasAdoptions.length, 0)
+  assert.deepEqual(
+    social.list.map((x) => x.id),
+    ["PGAAUS0051", "PGAAUS0052", "billing-socialMedia::PGAAUS005SM1", "billing-socialMedia::PGAAUS005SM2"],
   )
-  assert.deepEqual(prod.list.map((x) => [x.id, x.monthlyAmounts[MAY]]), [
-    ["billing-production::PGAAUS010PROD1", 500],
-    ["billing-production::PGAAUS010PROD2", 50],
-  ])
+  // The editor renumbered no-code lines: saved PGAAUS0051 sits at position 2 (shows
+  // as SM2) and PGAAUS0052 at position 1 (shows as SM1). By number alone each billing
+  // row would take the other line's id. With the loaded lines, neither pairs.
+  const renumbered = buildBillingAliasNumberCheck(
+    { socialMedia: [{ line_item_id: "PGAAUS0052", line_item: 1 }, { line_item_id: "PGAAUS0051", line_item: 2 }] },
+    "PGAAUS005",
+  )
+  const wrong = appendMissingLineItemsOnly(
+    [line("PGAAUS0051", { [MAY]: 700 }), line("PGAAUS0052", { [MAY]: 300 })],
+    [line("PGAAUS005SM1", { [MAY]: 300 }), line("PGAAUS005SM2", { [MAY]: 700 })],
+    [MAY],
+    { mbaNumber: "PGAAUS005", mediaKey: "socialMedia", aliasNumberCheck: renumbered },
+  )
+  assert.equal(wrong.aliasAdoptions.length, 0)
+  assert.deepEqual(
+    wrong.list.filter((x) => x.id === "PGAAUS0051" || x.id === "PGAAUS0052").map((x) => x.monthlyAmounts[MAY]),
+    [700, 300],
+    "each old row keeps its own id and amount",
+  )
+  // ML ids still pair by number with no check (the editor keeps their number).
+  const ml = appendMissingLineItemsOnly(
+    [line("malay004ML1", { [MAY]: 37000 }), line("malay004ML2", { [MAY]: 1 })],
+    [line("malay004OH1", { [MAY]: 37000 }), line("malay004OH2", { [MAY]: 1 })],
+    [MAY],
+    { mbaNumber: "malay004", mediaKey: "ooh" },
+  )
+  assert.equal(ml.aliasAdoptions.length, 2)
 })
 
 test("MBA case difference (hema001 vs HEMA001) still matches", () => {
