@@ -265,3 +265,10 @@ test("GET projects passes ?status through", { skip }, async () => {
   assert.deepEqual(await res.json(), { items: [PROJECT] })
   assert.deepEqual(calls[0].args, ["luke@x.au", { status: "on_hold" }])
 })
+
+test("isCodexProjectsEnabled needs both codex_v2 and codex_projects", { skip }, async () => {
+  const { isCodexProjectsEnabled } = await import("../flag.js")
+  assert.equal(await withSwitches(true, true, () => isCodexProjectsEnabled()), true)
+  assert.equal(await withSwitches(false, true, () => isCodexProjectsEnabled()), false)
+  assert.equal(await withSwitches(true, false, () => isCodexProjectsEnabled()), false)
+})
