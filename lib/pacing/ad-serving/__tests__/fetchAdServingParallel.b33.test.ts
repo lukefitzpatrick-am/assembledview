@@ -15,6 +15,8 @@ type Call = { channel: string; lineItemIds: string[]; startDate: string; endDate
 const calls: Call[] = []
 let planRows: Array<Record<string, unknown>> = []
 let fail: string | null = null
+/** B34: every query rejects. */
+let failAll = false
 let gate: Promise<void> | null = null
 
 function plan(lineItemId: string, extra: Record<string, unknown> = {}) {
@@ -59,7 +61,7 @@ if (supportsMockModule()) {
       queryPacingFact: async (params: Call) => {
         calls.push({ ...params, lineItemIds: [...params.lineItemIds] })
         if (gate) await gate
-        if (params.channel === fail) throw new Error(`${params.channel} down`)
+        if (failAll || params.channel === fail) throw new Error(`${params.channel} down`)
         return params.lineItemIds.map((id) => ({
           CHANNEL: params.channel,
           LINE_ITEM_ID: id,
@@ -189,4 +191,34 @@ test("B33: the failure is logged once with the same fields", { skip }, async () 
   assert.equal(detail.partnerLineItemCount, 1)
   assert.equal(detail.startDate, "2026-10-20")
   assert.equal(detail.endDate, "2026-11-09")
+})
+
+test("B34: both queries failing at once fails the fetch once, logs once, leaves no unhandled rejection", { skip }, async () => {
+  const { fetchAdServingPacingCampaignRows } = await import("../fetchAdServingPacingCampaignRows.js")
+  planRows = [plan("trwico001dv2", { publisher: "Channel Factory" }), plan("a1dd1", { channelFamily: "digitalDisplay" })]
+  calls.length = 0
+  failAll = true
+  const unhandled: unknown[] = []
+  const onUnhandled = (reason: unknown) => {
+    unhandled.push(reason)
+  }
+  process.on("unhandledRejection", onUnhandled)
+  const logged: unknown[][] = []
+  const original = console.error
+  console.error = (...args: unknown[]) => {
+    logged.push(args)
+  }
+  try {
+    // Promise.all rejects with the first rejection: the CM360 query starts first.
+    await assert.rejects(fetchAdServingPacingCampaignRows(ARGS), /ad-serving down/)
+    await new Promise((resolve) => setImmediate(resolve))
+  } finally {
+    console.error = original
+    process.off("unhandledRejection", onUnhandled)
+    failAll = false
+  }
+  assert.deepEqual(calls.map((c) => c.channel), ["ad-serving", "programmatic-video"])
+  assert.equal(logged.length, 1)
+  assert.equal(logged[0]![0], "[fetchAdServingPacingCampaignRows] Snowflake query failed")
+  assert.deepEqual(unhandled, [])
 })
