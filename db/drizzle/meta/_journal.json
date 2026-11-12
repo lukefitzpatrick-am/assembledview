@@ -183,6 +183,13 @@
       "when": 1793757871936,
       "tag": "0025_clients_channel_fees",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794523181267,
+      "tag": "0026_codex_search_index",
+      "breakpoints": true
     }
   ]
 }

@@ -97,6 +97,11 @@ export const clientNotes = pgTable(
     uniqueIndex("idx_client_notes_fireflies_meeting_id").on(table.firefliesMeetingId),
     index("idx_client_notes_attributed_type").on(table.attributedType),
     index("idx_client_notes_publisher_id").on(table.publisherId),
+    /** 0116 (Codex search, F8). The exact expression lib/codex/searchRepo.ts queries. */
+    index("idx_client_notes_body_fts").using(
+      "gin",
+      sql`to_tsvector('english'::regconfig, coalesce(${table.body}, ''))`,
+    ),
   ],
 )
 

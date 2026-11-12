@@ -408,6 +408,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_v2"],
   },
   {
+    key: "codex_search",
+    label: "Tasks: search",
+    description:
+      "A Search button on Tasks (Codex) finds tasks by title, MBA, description and comments, meeting action items waiting in the Inbox, and meetings by title and summary (F8). Staff see what the lists show, internal meetings included (decision 52); Ava never reads it. Works before migration 0116; 0116 adds the meeting summary index that keeps it fast. Needs Tasks (Codex) on. Off: no Search button and GET /api/codex/search is 404.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_v2"],
+  },
+  {
     key: "unmapped_delivery",
     label: "Unmapped delivery",
     description:

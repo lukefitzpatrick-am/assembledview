@@ -28,6 +28,8 @@ import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
 import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
 import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
 import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
+import { CodexSearchDialog } from "@/components/tasks/CodexSearchDialog"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2662,22 +2664,36 @@ export function TasksPageClient({
           <p>Internal task ops for follow-ups across clients and campaigns.</p>
         }
         actions={
-          mainTab === "tasks" ? (
-            <Button type="button" onClick={openCreate}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New task
-            </Button>
-          ) : mainTab === "templates" ? (
-            <Button type="button" onClick={openCreateTemplate}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New template
-            </Button>
-          ) : mainTab === "team" ? (
-            <Button type="button" onClick={openCreateMember}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add member
-            </Button>
-          ) : null
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {/* Codex search (F8): only when codex_search is on. */}
+            {clientFeatureOn("codex_search") ? (
+              <CodexSearchDialog
+                clientName={(id) =>
+                  id == null ? null : clientNameById.get(Number(id)) ?? null
+                }
+                onOpenTask={(id) =>
+                  router.push(taskDetailHref(id, searchParams), { scroll: false })
+                }
+                onOpenInbox={() => setMainTab("inbox")}
+              />
+            ) : null}
+            {mainTab === "tasks" ? (
+              <Button type="button" onClick={openCreate}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New task
+              </Button>
+            ) : mainTab === "templates" ? (
+              <Button type="button" onClick={openCreateTemplate}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New template
+              </Button>
+            ) : mainTab === "team" ? (
+              <Button type="button" onClick={openCreateMember}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add member
+              </Button>
+            ) : null}
+          </span>
         }
       />
 

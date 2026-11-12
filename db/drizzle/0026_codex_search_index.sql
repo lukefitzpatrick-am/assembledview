@@ -1,0 +1,1 @@
+CREATE INDEX "idx_client_notes_body_fts" ON "client_notes" USING gin (to_tsvector('english'::regconfig, coalesce("body", '')));
