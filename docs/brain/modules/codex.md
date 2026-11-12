@@ -1,7 +1,23 @@
 # Module: Codex (`/tasks`)
 
-Postgres-native internal task ops for the Assembled Media team. Shadow phase: switch `codex_v2` (`lib/features/registry.ts`; with no switch row it still reads `CODEX_V2=on`, see **Switch** below), roles `CODEX_SHADOW_ROLES` (currently `admin` only).
+Postgres-native internal task ops for the Assembled Media team. Shadow phase: roles `CODEX_SHADOW_ROLES` (`admin` only; all staff are admin today). Naming: `lib/codex/**` is the Tasks domain, not AVA.
 
+**Switches** (`lib/features/registry.ts`, set on `/admin/features`, Platform). Every one is off by default and every one except `codex_v2` needs `codex_v2` on.
+
+| Switch | On does | Before turning it on |
+|---|---|---|
+| `codex_v2` | The `/tasks` module, its API and the recurring task run. Off: `/tasks` shows "Codex is not enabled" and every `/api/codex/*` route is 404 | F14 Ava patches deployed (B36). **Env fallback (F1, C-189):** with no switch row it still reads `CODEX_V2=on`; `resolveFeature` prefers the row. Production had no row on 13 Nov 2026 and the env value is unverified, so the fallback stays. Luke: (1) production `/admin/features`, Platform > Tasks (Codex), read the value and source; (2) press Save current values (writes a row at that value, no change); (3) `SELECT key, enabled FROM feature_switches WHERE key = 'codex_v2'`; (4) a later small change drops `envName` / `envParse` |
+| `codex_roster_aliases` | People resolve by email alias as well as main email (F16, C-190; see **People resolution** and **Assignee writes**) | Roster fixed on the Team tab: who keeps `samantha@`, Josh Plumridge's own address, Alex James's name |
+| `codex_search` | Search button and `GET /api/codex/search` (F8; see **Search**) | Nothing. Migration 0116 only makes meeting search fast |
+| `codex_saved_views` | Views menu and `/api/codex/saved-views` (F8; see **Saved views**) | Migration 0117 applied (until then the menu stays hidden) |
+
+**Who sees what (plan section 13).**
+
+- **Staff only.** Every `/api/codex/*` route: `codex_v2` off 404, then any feature switch of its own 404 (both before auth), no session 401, a role outside `CODEX_SHADOW_ROLES` 403, then owner checks where a row has an owner (saved views). Client users never see Codex.
+- **Internal meeting summaries are visible to all staff (decision 52).** Codex lists, search and `/admin/fireflies-unattributed` show internal meetings to staff. F0 (attendees only) was dropped.
+- **Never to Ava (F9, decision 10 A, 0114 live).** The `ava_readonly` policy `ava_read` on `client_notes` is `is_internal IS NOT TRUE AND coalesce(attributed_type, '') <> 'internal'` (checked live 13 Nov 2026). Ava reads client and publisher meeting notes, never internal ones. Codex search is not an Ava tool.
+- **Ava on `/tasks` fails closed (F14, C-188, B36).** `/tasks/*` offers only `TASKS_TOOL_ALLOWLIST` (read tools, `lib/ava/tools/toolAccess.ts`) plus capture-tagged read tools, and never server web search. Once a capture tool's output enters a conversation it is tainted for good: a signed marker (`lib/ava/taintMarker.ts`, purpose `ava-taint` from `APP_SIGNING_SECRET`) and `AVA_TAINT_NOTICE` in the history drop write tools on every page; only a new chat clears it. The widget starts a fresh conversation when the route leaves `/tasks`. Capture output is stripped of links and images and framed as untrusted. A new Codex Ava tool must be tagged in `AVA_TOOL_TAGS` and, if read only, added to the allowlist.
+- **Read-only panels outside `/tasks` (decision 3 B).** Other pages may show Codex data read only, to admins only: Campaign hours (`CampaignHoursWidget`, `/api/codex/time/summary`), Client Hub and Publisher Hub meetings (`requireAdmin`). The task detail MBA links one way to `/mediaplans/mba/[mba]/edit`. **Not yet true:** four places outside `/tasks` still write tasks (C-200): pacing Ask for help (`CampaignAskHelpDialog`), the scenario planner (`ScenarioPlannerDrawer` / `ScenarioPlannerContext`), the creative admin landing (`TaskFormDialog`) and relabel notifications (`lib/pacing/relabel/handlers.ts`, server side, `createTask`; `autoClose.ts`, `updateTask`).
 **Switch (F1, C-192).** `resolveFeature` already prefers a `feature_switches` row and reads `CODEX_V2` only when no row exists, or when the switch read fails (database error or 0111 marker read failure: every switch falls back to env until the next read). Production had no `codex_v2` row on 13 Nov 2026 and the production env value is unverified, so the fallback stays. Luke: (1) production `/admin/features`, Platform > Tasks (Codex), read the value and source (Env var CODEX_V2); (2) press Save current values there, which writes a row at that value (no behaviour change); turn Codex on only after the F14 Ava patches are live; (3) check the row (`SELECT key, enabled FROM feature_switches WHERE key = 'codex_v2'`); (4) a later small change drops `envName` / `envParse` from the entry and the Vercel var can go. Naming: `lib/codex/**` is the Tasks domain, not AVA.
 
 **Discipline:** live in Stage 0 for a fortnight; accumulate bugs in **Stage 0 observations** below; that list shapes the Stage 1 pack. Do not invent Stage 1 scope from speculation.
@@ -30,7 +46,7 @@ UI: `app/tasks/page.tsx` + `TasksPageClient.tsx` (list). `app/tasks/[id]/page.ts
 
 **Default scope:** `mine=1` → `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design (`resolveListAssigneeScope`).
 
-**Filters:** client (`client_id` / deep-link `?client=`), MBA (`mba_number` / deep-link `?mba=`), status (multi / `?status=`), assignee roster combobox (when not mine / `?assignee=`), category (`?category=`), text search on title (client-side `matchText`, `?q=`), `?all=1`, `?week=1`, `?view=list` (board is the omitted default). Last layout is `codex.tasksLayout` in localStorage. Sort: `due_date` / API sorts `due_date_asc|desc`, `created_at_desc`. List responses include `checklist_done` / `checklist_total` (aggregated from `task_checklist_items`) for board cards.
+**Filters:** client (`client_id` / deep-link `?client=`), MBA (`mba_number` / deep-link `?mba=`), status (multi / `?status=`), assignee roster combobox (when not mine / `?assignee=`), category (`?category=`), text search (`?q=`, server side: ILIKE on title, description and MBA number, `taskSearchCondition`; comments and meetings are in **Search**, not here), `?all=1`, `?week=1`, `?view=list` (board is the omitted default; `?view=<number>` is a saved view), plus `priority`, `overdue`, `unassigned`, `no_client`, `created_by`, `due_from`, `due_to`, `source`, `sort` (`lib/codex/queryHelpers.ts`). Last layout is `codex.tasksLayout` in localStorage. Sort: `due_date` / API sorts `due_date_asc|desc`, `created_at_desc`. List responses include `checklist_done` / `checklist_total` (aggregated from `task_checklist_items`) for board cards.
 
 **Pagination:** server-side `page` / `per_page` (UI uses `PER_PAGE = 100`). Soft-deleted rows excluded unless `include_deleted=1` (no Stage 0 trash UI).
 
@@ -50,6 +66,8 @@ Routes under `app/api/codex/`:
 |---|---|---|
 | GET, POST | `/api/codex/tasks` | `listTasks`, `createTask` |
 | POST | `/api/codex/tasks/[id]/dismiss-auto` | `dismissAutoCreatedTask` — auto-created meeting tasks only |
+| POST | `/api/codex/tasks/bulk` | `bulkUpdateTasks` / `bulkSoftDeleteTasks`: 1 to 200 ids; status, assignee, due, priority, category, or delete |
+| GET | `/api/codex/tasks/status-counts` | `countTasksByStatus`: board column counts for the same filters as the list (unknown statuses count as To do) |
 | GET | `/api/codex/tasks/counts` | `countTasksByMba` — `?mba=A,B` open + overdue (Sydney) per MBA |
 | GET | `/api/codex/client-mbas` | `campaignsForClientFromPlans(readPlanMasters(), client_id)` — `{ mba_numbers, campaigns }` descending; labels `<mba> — <campaign name>` |
 | GET | `/api/codex/time/summary` | `getMbaTimeSummary` — `?mba=` hours-to-date + by-member + 4-week sparkline (admin-gated; not for client roles) |
@@ -69,24 +87,25 @@ Routes under `app/api/codex/`:
 | GET | `/api/codex/client_notes` | `listClientNotes` (read-only in Stage 0) |
 | GET, POST | `/api/codex/saved-views` | `listSavedViews` (own + shared, `?screen=tasks`; before 0117: 200 `{ available: false, items: [] }`), `createSavedView` (owner = session email; 50 per person, 409). Behind `codex_saved_views` |
 | PATCH, DELETE | `/api/codex/saved-views/[id]` | `updateSavedView` (`name`, `shared`), `deleteSavedView`. Owner only: someone else's shared view 403 `not_owner`, private or missing 404; 503 before 0117 |
-| GET | `/api/codex/search` | `searchCodex` (`lib/codex/searchRepo.ts`) — `?q=` (2 to 100 characters) `&limit=` (default 8, max 25 per group). Behind `codex_search` (404 before auth when off) |
+| GET | `/api/codex/search` | `searchCodex` (`lib/codex/searchRepo.ts`): `?q=` (2 to 100 characters) `&limit=` (default 8, max 25 per group). Behind `codex_search` (404 before auth when off) |
 | GET, POST | `/api/codex/templates` | `listTemplates`, `createTemplate` |
-| GET, PATCH, DELETE | `/api/codex/templates/[id]` | `getTemplate`, `updateTemplate`, `deleteTemplate` |
+| GET, PUT, PATCH, DELETE | `/api/codex/templates/[id]` | `getTemplate`, `updateTemplate`, `deleteTemplate` |
 | GET, POST | `/api/codex/templates/[id]/items` | `listTemplateItems`, `createTemplateItem` / `reorderTemplateItems` |
 | PATCH, DELETE | `/api/codex/templates/[id]/items/[itemId]` | `updateTemplateItem`, `deleteTemplateItem` |
 | GET, POST | `/api/codex/proposals` | `listProposedInbox` (paginated by meeting; `pendingCount` is the full set), `batchAcceptForNote` |
 | POST | `/api/codex/proposals/[id]/accept` | `acceptProposal` (optional edits body) |
 | POST | `/api/codex/proposals/[id]/dismiss` | `dismissProposal` → status `rejected` |
+| POST | `/api/codex/proposals/expire-stale` | `expireStaleProposals`: `proposed` rows older than 21 days (meeting date, else created) become `expired`; never deleted |
 | POST | `/api/codex/proposals/dismiss-all` | `dismissAllProposedForNote` — one UPDATE of the note’s full proposed set |
 | GET, POST | `/api/cron/codex-recurring` | `runCodexRecurring` — `CRON_SECRET` gate (not Codex flag/auth matrix) |
 
-Every handler: `codexFlagGuard()` then `requireCodexInternalAccess()` (`app/api/codex/_shared.ts`).
+Every handler: `codexFlagGuard()`, then its own switch where it has one (`codex_search`, `codex_saved_views`), then `requireCodexInternalAccess()` (`app/api/codex/_shared.ts`). Checked 13 Nov 2026: all 33 route files, every method.
 
 **Assignee writes (F16, switch `codex_roster_aliases`, needs `codex_v2`, default off).** `POST /tasks`, `PATCH /tasks/[id]`, `POST /tasks/bulk` and `POST /tasks/[id]/help` pass a non-empty `assignee_email` through `resolveAssigneeForWrite` (`lib/codex/assigneeWrite.ts`, roster from `lib/codex/rosterRead.ts`): an address one active person holds (main or alias) stores that person's main email and display name; an address two people hold is 409 `{ error: "ambiguous_assignee", message, holders }` and nothing is written; an address no one holds saves as sent. Switch off: the address passes through untouched and the roster is not read. Quick-add @mentions count aliases under the same switch (`clientFeatureOn`).
 
 **Gate order (pinned by `lib/codex/__tests__/routes.flagAuth.test.ts`):**
 
-1. Flag off (`CODEX_V2` ≠ `on`) → **404** `{ error: "not_found" }` — module invisible; not 403.
+1. `codex_v2` off → **404** `{ error: "not_found" }`: module invisible; not 403. Then a route's own switch off → **404** (search, saved views; `routes.search.test.ts`, `routes.savedViews.test.ts`).
 2. No session → **401** `{ error: "unauthorised" }`.
 3. Session but role outside `CODEX_SHADOW_ROLES` → **403** `{ error: "forbidden" }`.
 4. Admin (shadow allowlist) → handler runs.
@@ -95,12 +114,14 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 
 ---
 
-## Twelve tables (`db/schema/codex.ts`, migration 0013)
+## Tables (`db/schema/codex.ts`; 0013 plus later migrations)
+
+Live rows 13 Nov 2026: `tasks` 502 live (0 with an estimate, 0 recurring seeds, 0 help children), `client_notes` 341 (104 internal), `team_members` 12 (11 active), `codex_activity` 2,011, `ava_task_proposals` 1,648 (126 proposed), `ava_time_entry_proposals` 265, `client_domains` 58, `publisher_domains` 1, `meeting_title_rules` 1, `fireflies_sync_state` 238; templates, checklist items, comments and assignment rules 0.
 
 | Table | Status | Notes |
 |---|---|---|
 | `tasks` | **Live** | Create / list / patch / soft-delete; `auto_created` + `ava_auto_key` (0040, partial unique `uq_tasks_ava_auto_key` when set); `estimated_minutes` integer NULL (0048; mirrored in `db/schema/codex.ts`); help-request columns `parent_task_id` / `help_requested_by_email` / `help_prior_status` (0078 applied) |
-| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` (Fireflies meetings) |
+| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` (Fireflies meetings). Ava policy excludes internal (0114). Body full-text index `idx_client_notes_body_fts` (0116, authored) |
 | `team_members` | **Live** | Roster CRUD; `email_aliases` jsonb; `auth0_user_id` / `roster_source` / `last_login_at` (0045). New aliases that another **active** row already holds are refused. `roster_source` is set only on insert (`manual` / `auth0_login` / `auth0_sync`); login and sync updates never overwrite it. |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
 | `client_domains` | **Live** (Fireflies) | Domain→client for attribution (second after title); seeded from `clients.keyemail` / `billingemail` / `website` excluding vendor domains; learned on client assign (MR-5) |
@@ -113,10 +134,12 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | `ava_task_proposals` | **Live** (Inbox tab) | Unassigned/ambiguous action items; unique-roster client items auto-create tasks instead |
 | `assignment_rules` | **Live** (training writes) | Auto-created Dismiss inserts `source=learned` `active=false`; do not auto-assign from these yet |
 | `fireflies_sync_state` | **Live** (cron cursor) | Poll cursor + run log; `GET/POST /api/cron/fireflies-sync` |
+| `ava_time_entry_proposals` | **Live** (Team tab drafts, 0032) | See **Adjacent MyHours proposal table** below |
+| `codex_saved_views` | **Authored** (0117, not applied) | Saved views (F8). Read only after marker `0117_codex_saved_views` |
 
 **Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are live; Fireflies wires `client_notes` / `client_domains` / `publisher_domains` / `meeting_title_rules` / `fireflies_sync_state` / `ava_task_proposals`.
 
-No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 tables: RLS on, **no** `ava_readonly` grants (fail closed). Exception: `client_notes` was already on the AVA allowlist — see standing decision below.
+No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 tables: RLS on, **no** `ava_readonly` grants (fail closed). Exception: `client_notes` is on the AVA allowlist, internal notes excluded — see standing decision below.
 
 **`myhours_links` integrity:** partial unique index `idx_myhours_links_kind_mba_unique` on `(kind, mba_number) WHERE mba_number IS NOT NULL` (migration 0028). One MyHours structure link per kind per MBA — not a performance hint. Separate from `UNIQUE (kind, myhours_id)`.
 
@@ -124,22 +147,22 @@ No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 ta
 
 ---
 
-## Standing decision — AVA × `client_notes` (Q22)
+## Standing decision: AVA and `client_notes` (Q22, narrowed by F9)
 
-**AVA retains SELECT on `client_notes` via the `ava_readonly` allowlist** (`db/migrations/0003_ava_readonly.sql`). This is deliberate, not an omission. When Stage 3 populates meeting notes, they become AVA-chat-queryable through `AVA_DATABASE_URL`. Do **not** revoke the grant as a tidy-up when reviewing Codex RLS. New Codex tables remain deny-by-default for AVA until explicitly allowlisted.
+**AVA keeps SELECT on `client_notes` for client and publisher meetings, never internal ones.** The grant is from `0003_ava_readonly.sql`; migration 0114 (applied 2 Nov 2026, decision 10 A) narrowed the `ava_read` policy to `is_internal IS NOT TRUE AND coalesce(attributed_type, '') <> 'internal'`. Do not revoke the grant as a tidy-up, and do not widen the policy. Staff still see internal summaries in Codex (decision 52). New Codex tables stay deny-by-default for AVA until explicitly allowlisted (`codex_saved_views` has no grant).
 
 ---
 
 ## Key files
 
-- `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks,auth0LoginUpsert,auth0RosterSync,rosterEligibility,auth0RosterStore,rosterEmailAlias,rosterAliasGuard,rosterLoginCheck,rosterResolve,clientMbas,checklistToggle,helpRoster}.ts`
+- `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks,auth0LoginUpsert,auth0RosterSync,rosterEligibility,auth0RosterStore,rosterEmailAlias,rosterAliasGuard,rosterLoginCheck,rosterResolve,rosterRead,assigneeWrite,clientMbas,checklistToggle,helpRoster,search,searchRepo,savedViews,savedViewsRepo}.ts`
 - `lib/fireflies/{client,attribution,internalDomains,sync,runSync,assign,assignTargets,learnableDomains,titleClients,rosterAliases,lookback,seedDomains,actionItems,actionItemBlocks,autoCreate,proposals,proposalRepo,timeEntryDrafts}.ts` — Fireflies GraphQL pull + attribution + unique-roster auto-create + task-proposal Inbox + time-draft generation
 - `lib/myhours/{proposalRepo,timeEntryProposals,overlap,ensureOneStructure,client}.ts` — Team-week proposal reads, Confirm/Skip decisions, overlap/structure gates, and the sole MyHours write
 - `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/api/cron/fireflies-sync/route.ts`, `app/api/cron/auth0-roster-sync/route.ts`, `app/tasks/**`
 - `app/admin/fireflies-unattributed/**`, `app/api/admin/fireflies-unattributed/route.ts`, `app/api/admin/auth0-roster-sync/route.ts`, `app/api/admin/fireflies-sync/route.ts`
-- `components/tasks/{TaskBoard,TaskBulkBar,TaskDetailClient,TaskDetailSlideOver,TaskMbaSelect,TaskChecklist,TaskAskHelpDialog,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog,Auth0RosterSyncButton}.tsx`
-- `db/schema/{codex,myhours,meetingAttribution}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`, `db/migrations/0039_fireflies_client_first.sql`, `db/migrations/0040_fireflies_auto_create.sql`, `db/migrations/0043_meeting_attribution_targets.sql`, `db/migrations/0045_team_members_auth0.sql`, `db/migrations/0048_tasks_estimated_minutes.sql`, `db/migrations/0078_tasks_help_request.sql`
-- Tests: `test:codex-flag-auth`, `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope`, `test:codex-stage1-templates`, `test:codex-seed-tasks`, `test:codex-auth0-roster`, `test:codex-task-detail-ui`, `test:fireflies`, `test:myhours`
+- `components/tasks/{CodexSearchDialog,SavedViewsMenu,TasksFilterBar,TaskBoard,TaskBulkBar,TaskDetailClient,TaskDetailSlideOver,TaskMbaSelect,TaskChecklist,TaskAskHelpDialog,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog,Auth0RosterSyncButton}.tsx`
+- `db/schema/{codex,myhours,meetingAttribution}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`, `db/migrations/0039_fireflies_client_first.sql`, `db/migrations/0040_fireflies_auto_create.sql`, `db/migrations/0043_meeting_attribution_targets.sql`, `db/migrations/0045_team_members_auth0.sql`, `db/migrations/0048_tasks_estimated_minutes.sql`, `db/migrations/0078_tasks_help_request.sql`, `db/migrations/0114_ava_client_notes_not_internal.sql`, `db/migrations/0116_codex_search_index.sql`, `db/migrations/0117_codex_saved_views.sql`
+- Tests: `test:codex-flag-auth`, `test:codex-stage0-guarantees` (DB-gated; 0 tests without a database), `test:codex-stage1-detail`, `test:codex-stage1-scope`, `test:codex-stage1-templates`, `test:codex-auth0-roster`, `test:codex-task-detail-ui`, `test:codex-search`, `test:codex-saved-views`, `test:codex-search-views-ui`, `test:ava-f14`, `test:features`, `test:fireflies`, `test:myhours`. Not in any script (run with `npx tsx --test`): `boardCounts`, `countTasksByStatus`, `repoHelpers`, `seedTasks`, `types` tests under `lib/codex/__tests__` (16 pass, 13 Nov 2026; C-201). There is no `test:codex-seed-tasks`.
 
 ## Campaign seed (`lib/codex/seedTasks.ts`)
 
@@ -165,7 +188,7 @@ Auth0 session + `getUserRoles`; `GET /api/clients` for pickers; Postgres owner c
 
 ## Consumed by
 
-Sidebar (`CODEX_SHADOW_ROLES` visibility); Creative admin landing can open `TaskFormDialog` when flag on. Nothing else should import Codex write paths without the same gates.
+Sidebar (`CODEX_SHADOW_ROLES` visibility). Read only, admins only (decision 3 B): `CampaignHoursWidget`, Client Hub and Publisher Hub meetings. Writers outside `/tasks` that decision 3 B does not allow yet (C-200): `CampaignAskHelpDialog`, the scenario planner, `CreativeAdminLanding` (`TaskFormDialog`), relabel handlers and auto-close. Nothing new should import Codex write paths outside `/tasks`.
 
 ---
 
