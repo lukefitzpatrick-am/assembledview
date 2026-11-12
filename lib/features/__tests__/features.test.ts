@@ -303,3 +303,16 @@ test("B34: relabel_map_one_active_guard and pacing_digest_data_checks are off by
     }
   }
 })
+
+test("B34fix: the digest data checks switch names the cron's real schedule and read count", () => {
+  const vercel = JSON.parse(readFileSync(path.join(ROOT, "vercel.json"), "utf8")) as {
+    crons: Array<{ path: string; schedule: string }>
+  }
+  const cron = vercel.crons.find((c) => c.path === "/api/cron/pacing-digest")
+  assert.equal(cron?.schedule, "30 22 * * 1,4", "Mon and Thu 22:30 UTC: if this changes, fix the wording below")
+  const description = featureDefinition("pacing_digest_data_checks")!.description
+  assert.match(description, /Tue and Fri 09:30 AEDT, 08:30 AEST/)
+  assert.doesNotMatch(description, /07:00|7am/)
+  assert.match(description, /two or three Snowflake reads/)
+  assert.match(description, /45 seconds/)
+})

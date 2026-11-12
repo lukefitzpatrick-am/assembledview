@@ -51,7 +51,7 @@ export async function computeRelabelDrift(): Promise<RelabelDriftReport> {
 }
 
 /**
- * Prefer the nightly snapshot; fall back to a live compare so the 7am digest
+ * Prefer the nightly snapshot; fall back to a live compare so the pacing digest (Tue and Fri 09:30 AEDT)
  * still renders before 0086 is applied.
  */
 export async function listRelabelDrift(): Promise<RelabelDriftFinding[]> {

@@ -22,7 +22,7 @@
 --
 -- Authored 2026-11-09, not applied. Deploy:
 -- migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql
--- (same text, with checks). Read by the 07:00 pacing digest data checks
+-- (same text, with checks). Read by the pacing digest data checks (Tue and Fri)
 -- (lib/ops/digest/dataChecks.ts, switch pacing_digest_data_checks, B34).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 

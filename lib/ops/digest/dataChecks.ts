@@ -7,7 +7,10 @@ import {
 } from "@/lib/pacing/relabel/labelMapActive"
 
 /**
- * Data checks in the 07:00 pacing digest (B34, Luke's Q36 option A, C-180).
+ * Data checks in the pacing digest (B34, Luke's Q36 option A, C-180). The
+ * digest cron runs Tue and Fri at 09:30 AEDT (08:30 AEST), `30 22 * * 1,4` UTC.
+ * Two or three reads: drift counts, the out-of-window sample only when there
+ * are out-of-window rows, and the duplicate key check.
  * Switch `pacing_digest_data_checks`. Each check fails soft: an error or a
  * missing view gives a "check not available" line and the digest still sends.
  * One overall deadline (`DATA_CHECKS_DEADLINE_MS`) covers the switch read and

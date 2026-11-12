@@ -61,7 +61,7 @@ two keys), and every JOIN onto that CTE matches on both channel and platform id.
   `CM_360_PACING`. A manual key and day is left out only when CM360 has no
   row for it, so a raw and manual overlap shows as drift. Deploy with
   `migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql`.
-  The 07:00 pacing digest counts it (`lib/ops/digest/dataChecks.ts`, switch
+  The pacing digest (Tue and Fri 09:30 AEDT, 08:30 AEST) counts it (`lib/ops/digest/dataChecks.ts`, switch
   `pacing_digest_data_checks`, B34) and fails soft until it exists.
 - `migrations/2026-11-09_BV7_bic_7plus_label_map_fanout_ACCOUNTADMIN.sql` records
   the BIC 7plus BVOD correction (applied by Luke on 9 Nov, 15 rows).

@@ -1,4 +1,4 @@
-/** B34: data checks in the 07:00 pacing digest (switch pacing_digest_data_checks). */
+/** B34: data checks in the pacing digest (Tue and Fri 09:30 AEDT; switch pacing_digest_data_checks). */
 import assert from "node:assert/strict"
 import { mock, test } from "node:test"
 
