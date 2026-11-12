@@ -68,6 +68,40 @@ two keys), and every JOIN onto that CTE matches on both channel and platform id.
 - In a view file with a migration copy, the views file is the source and the
   test keeps the two `CREATE` blocks equal.
 
+## Writing the label map by hand (C-180, C-188)
+
+The app has never applied a relabel (`delivery_relabels` had 0 rows on 13 Nov
+2026), so every row in `LINE_ITEM_LABEL_MAP` came from a hand-run script or
+another outside writer. Any hand-run write to the map keeps one active row per
+(`LOWER(TRIM(channel))`, `LOWER(TRIM(platform_line_item_id))`):
+
+- Deactivate the key first: `UPDATE ... SET is_active = FALSE WHERE is_active = TRUE`
+  and both keys match. Then insert one new active row. This is what the app does
+  (`lib/pacing/relabel/labelMapActive.ts`).
+- Never `MERGE ... WHEN MATCHED THEN UPDATE SET is_active = TRUE`, and never
+  `UPDATE ... SET is_active = TRUE` on history. A key can hold many inactive
+  rows, and that turns every one of them back on.
+- End the script with the duplicate-key check (same as
+  `LABEL_MAP_DUPLICATE_ACTIVE_KEYS_SQL`). It must return 0 rows. Inside a
+  scripting block, run it before `COMMIT` and roll back if it returns any:
+
+```sql
+SELECT LOWER(TRIM(channel)) AS channel_key,
+       LOWER(TRIM(CAST(platform_line_item_id AS VARCHAR))) AS platform_key,
+       COUNT(*) AS active_rows
+FROM ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP
+WHERE is_active = TRUE
+GROUP BY 1, 2
+HAVING COUNT(*) > 1;
+```
+
+`npm run test:label-map-fanout` (`labelMapWrites.b34fix.test.ts`) scans every
+`.sql` file under `sql/snowflake`, migrations included. A MERGE, UPDATE or
+INSERT that can leave an active map row must have this check after it in the
+same file, outside a comment. The applied one-offs hr1, rl90 and DG5 break the
+rule and are on a held past list. Each starts with "DO NOT RE-RUN (see
+C-188)". Do not copy their MERGE.
+
 ## App read paths
 
 - `/api/pacing/campaigns` reads `SEARCH_PACING_FACT` (search surface and overview).

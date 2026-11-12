@@ -1,3 +1,8 @@
+-- DO NOT RE-RUN (see C-188). The LINE_ITEM_LABEL_MAP MERGE below sets
+-- IS_ACTIVE = TRUE on every matched row, inactive history included, so a
+-- re-run can leave more than one active row for one key and multiply
+-- delivery (C-180). Kept as a record of what ran. For a new hand-run map
+-- write, follow "Writing the label map by hand" in sql/snowflake/mart/README.md.
 -- =============================================================================
 -- DG5: PGA Institute Meta ad sets labelled 'pgaaus0061' -> pgaaus006sm1
 -- Run as ACCOUNTADMIN in Snowsight. One transaction. Measured live 2026-10-20.

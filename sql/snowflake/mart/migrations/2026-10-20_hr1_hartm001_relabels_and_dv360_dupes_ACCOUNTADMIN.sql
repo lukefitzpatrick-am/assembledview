@@ -1,3 +1,8 @@
+-- DO NOT RE-RUN (see C-188). The LINE_ITEM_LABEL_MAP MERGE below sets
+-- IS_ACTIVE = TRUE on every matched row, inactive history included, so a
+-- re-run can leave more than one active row for one key and multiply
+-- delivery (C-180). Kept as a record of what ran. For a new hand-run map
+-- write, follow "Writing the label map by hand" in sql/snowflake/mart/README.md.
 -- =============================================================================
 -- HR1: HARTM001 (Paul Hartmann annual plan) delivery onto the right plan lines,
 --      plus stale DV360 duplicates from 1 to 20 Jan 2026 (all clients)
