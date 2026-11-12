@@ -96,11 +96,33 @@ export function resolveConversationTaint(input: {
 const LINK_REMOVED = "[link removed]"
 const IMAGE_REMOVED = "[image removed]"
 
+/** Stops a URL-like run: whitespace, angle brackets, quotes, closing brackets. */
+const URL_TAIL = String.raw`[^\s<>"')\]]`
+
+/**
+ * Bare host names: common TLDs only, so file names (brief.pdf, plan.xlsx) and
+ * versions (1.5) stay. A host followed by a path or query is caught by any
+ * letter TLD (below).
+ */
+const BARE_TLDS = [
+  "com", "net", "org", "edu", "gov", "io", "co", "au", "nz", "uk", "us", "ca", "de", "fr", "in", "ru", "cn",
+  "info", "biz", "app", "dev", "ai", "me", "xyz", "ly", "gl", "to", "sh", "site", "online", "link", "click",
+  "top", "tk", "gg", "cc", "tv", "ws", "su", "pw", "icu", "live", "shop", "store", "cloud", "page",
+].join("|")
+
+// No lookbehind: this module runs in the browser too (older Safari has none).
+const HOST = String.raw`(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+`
+const NOT_HOST_BEFORE = String.raw`(^|[^@\w.-])`
+const HOST_WITH_PATH = new RegExp(`${NOT_HOST_BEFORE}${HOST}[a-z]{2,24}[/?#]${URL_TAIL}*`, "gi")
+const BARE_HOST = new RegExp(`${NOT_HOST_BEFORE}${HOST}(?:${BARE_TLDS})(?::\\d{1,5})?(?![\\w@-])`, "gi")
+
 /**
  * Removes links and images so captured text cannot carry a URL into the
  * model's context or the chat (F14 d): markdown images and links (inline and
- * reference), autolinks, HTML img and a tags, bare http(s), www., ftp, data:,
- * javascript: and file: URLs. Link text is kept; the target is dropped.
+ * reference), autolinks, HTML img and a tags, any http(s), ftp, file,
+ * mailto, data or javascript scheme (also `http:\\host`, `http:/host`),
+ * scheme-relative `//host`, `www.` hosts and bare host names. Link text is
+ * kept; the target is dropped.
  */
 export function stripLinksAndImages(text: string): string {
   if (!text) return text
@@ -108,21 +130,24 @@ export function stripLinksAndImages(text: string): string {
   // Markdown images, inline and reference: ![alt](url "t") / ![alt][ref]
   out = out.replace(/!\[[^\]]*\]\([^)]*\)/g, IMAGE_REMOVED)
   out = out.replace(/!\[[^\]]*\]\[[^\]]*\]/g, IMAGE_REMOVED)
-  // HTML images and links.
+  // HTML images; HTML a tags go (open and close), the link text stays.
   out = out.replace(/<img\b[^>]*>/gi, IMAGE_REMOVED)
-  out = out.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1")
   out = out.replace(/<\/?a\b[^>]*>/gi, "")
   // Reference definitions: [id]: url
   out = out.replace(/^[ \t]*\[[^\]]+\]:[ \t]*\S+.*$/gm, LINK_REMOVED)
   // Markdown links, inline and reference: keep the text.
   out = out.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
   out = out.replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1")
-  // Autolinks <scheme:...>
-  out = out.replace(/<(?:https?|ftp|mailto|data|javascript|file):[^>\s]*>/gi, LINK_REMOVED)
-  // Bare URLs and URL-like schemes.
-  out = out.replace(/\b(?:https?|ftp|file):\/\/[^\s<>"')\]]+/gi, LINK_REMOVED)
-  out = out.replace(/\b(?:data|javascript):[^\s<>"')\]]+/gi, LINK_REMOVED)
+  // Autolinks <scheme:...> and <//host>
+  out = out.replace(/<(?:(?:https?|ftp|mailto|data|javascript|file):|[\\/]{2})[^>\s]*>/gi, LINK_REMOVED)
+  // Any URL scheme, with any number of slashes (browsers accept http:host, http:\\host).
+  out = out.replace(new RegExp(`\\b(?:https?|ftp|file|mailto|data|javascript):${URL_TAIL}+`, "gi"), LINK_REMOVED)
+  // Scheme-relative //host and \\host (not a // comment with a space, not a//b).
+  out = out.replace(new RegExp(`(^|[^\\w:/\\\\])[\\\\/]{2}[^\\s<>"')\\]/\\\\]${URL_TAIL}*`, "g"), `$1${LINK_REMOVED}`)
   out = out.replace(/\bwww\.[^\s<>"')\]]+/gi, LINK_REMOVED)
+  // Bare hosts: with a path or query (any letter TLD), or on their own (common TLDs).
+  out = out.replace(HOST_WITH_PATH, `$1${LINK_REMOVED}`)
+  out = out.replace(BARE_HOST, `$1${LINK_REMOVED}`)
   return out
 }
 
