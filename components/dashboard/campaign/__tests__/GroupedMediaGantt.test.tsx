@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, type ReactElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaGanttChart"
 import { prepareMediaPlanExportClone } from "@/components/dashboard/campaign/MediaPlanVizSection"
@@ -25,6 +25,7 @@ function render(node: ReactElement) {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   for (const entry of mounted) {
     act(() => entry.root.unmount())
     entry.host.remove()
@@ -292,6 +293,11 @@ describe("client flighting groups by channel", () => {
   })
 
   it("labels October 2026 weeks by Monday start", () => {
+    // The today badge only draws when today is inside the plot (5 to 31 Oct 2026),
+    // so pin Melbourne 14 Oct 2026 (B34fix: the test failed on any other date).
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-10-14T02:00:00.000Z"))
+    expect(getMelbourneTodayISO()).toBe("2026-10-14")
     const host = render(
       <MediaGanttChart
         lineItems={{
