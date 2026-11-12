@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { useMemo, useState } from "react"
 import {
   DndContext,
@@ -126,7 +127,9 @@ function TaskBoardCardFace({
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex min-w-0 items-center gap-1">
           <span className="truncate">
-            {task.assignee_name || task.assignee_email || "Unassigned"}
+            {task.assignee_name || task.assignee_email
+              ? rosterDisplayName({ name: task.assignee_name, email: task.assignee_email })
+              : "Unassigned"}
           </span>
           {teamMembers && meEmail !== undefined ? (
             <TaskAskHelpButton

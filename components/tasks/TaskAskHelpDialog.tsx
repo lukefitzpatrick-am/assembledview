@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { useMemo, useState, type MouseEvent, type PointerEvent } from "react"
 import { HandHelping } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -149,7 +150,7 @@ export function TaskAskHelpButton({
                 <SelectContent>
                   {options.map((m) => (
                     <SelectItem key={m.id} value={m.email}>
-                      {m.name}
+                      {rosterDisplayName(m)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -591,7 +592,7 @@ export function TaskFormDialog({
                         <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                         {assigneeOptions.map((m) => (
                           <SelectItem key={`${m.id}-${m.email}`} value={m.email}>
-                            {m.name}
+                            {rosterDisplayName(m)}
                           </SelectItem>
                         ))}
                       </SelectContent>

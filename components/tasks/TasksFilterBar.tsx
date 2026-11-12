@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { Columns3, LayoutList, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -122,8 +123,8 @@ function memberOptions(members: MemberOpt[], includeUnassigned: boolean) {
   const inactive = members.filter((member) => member.active === false).toSorted(byName)
   const toOption = (member: MemberOpt) => ({
     value: member.email,
-    label: member.name,
-    keywords: `${member.name} ${member.email}`,
+    label: rosterDisplayName(member),
+    keywords: `${rosterDisplayName(member)} ${member.name} ${member.email}`,
   })
   return [
     ...(includeUnassigned ? [{ value: UNASSIGNED, label: "Unassigned" }] : []),
@@ -235,8 +236,8 @@ export function TasksFilterBar({
       onClear: () => onAssignee(""),
     })
   } else if (!mine && !myWeek && assigneeEmail) {
-    const name =
-      members.find((m) => m.email === assigneeEmail)?.name ?? assigneeEmail
+    const found = members.find((m) => m.email === assigneeEmail)
+    const name = found ? rosterDisplayName(found) : assigneeEmail
     chips.push({
       key: "assignee",
       label: `Assignee: ${name}`,
@@ -244,8 +245,8 @@ export function TasksFilterBar({
     })
   }
   if (createdByEmail) {
-    const name =
-      members.find((m) => m.email === createdByEmail)?.name ?? createdByEmail
+    const found = members.find((m) => m.email === createdByEmail)
+    const name = found ? rosterDisplayName(found) : createdByEmail
     chips.push({
       key: "created-by",
       label: `Created by: ${name}`,

@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -112,7 +113,7 @@ export function TaskBulkBar({
               <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
               {active.map((m) => (
                 <SelectItem key={m.id} value={m.email}>
-                  {m.name}
+                  {rosterDisplayName(m)}
                 </SelectItem>
               ))}
             </SelectContent>

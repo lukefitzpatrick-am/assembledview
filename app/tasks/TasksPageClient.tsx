@@ -1,5 +1,6 @@
 "use client"
 
+import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
@@ -851,8 +852,8 @@ export function TasksPageClient({
         .filter((m) => m.active)
         .map((m) => ({
           value: m.email,
-          label: m.name ? `${m.name} (${m.email})` : m.email,
-          keywords: `${m.name} ${m.email}`,
+          label: `${rosterDisplayName(m)} (${m.email})`,
+          keywords: `${rosterDisplayName(m)} ${m.name} ${m.email}`,
         })),
     ]
     const email = editAssignee.trim().toLowerCase()
@@ -2291,9 +2292,12 @@ export function TasksPageClient({
             onClick={(e) => e.stopPropagation()}
           >
             <span>
-              {row.original.assignee_name ||
-                row.original.assignee_email ||
-                "—"}
+              {row.original.assignee_name || row.original.assignee_email
+                ? rosterDisplayName({
+                    name: row.original.assignee_name,
+                    email: row.original.assignee_email,
+                  })
+                : "—"}
             </span>
             <TaskAskHelpButton
               task={row.original}

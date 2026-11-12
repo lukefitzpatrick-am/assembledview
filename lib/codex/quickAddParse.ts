@@ -13,12 +13,15 @@ import {
   formatMinutesAsEstimate,
   parseEstimateToMinutes,
 } from "./estimateParse.js"
+import { resolveRosterMention, rosterDisplayName } from "./rosterResolve.js"
 
 export type QuickAddTeamMember = {
   email: string
   name: string
   /** Omitted means active. Inactive members are never an @ match. */
   active?: boolean
+  /** `team_members.email_aliases`; counted only when the parse input says so. */
+  aliases?: string[] | null
 }
 
 export type QuickAddClient = {
@@ -160,41 +163,6 @@ function nextOrSameWeekday(fromYmd: string, fromDow: number, targetDow: number):
 
 function normalizeKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "")
-}
-
-function matchTeamMember(
-  token: string,
-  team: QuickAddTeamMember[]
-): QuickAddTeamMember | null {
-  const raw = token.trim().replace(/^@/, "")
-  if (!raw) return null
-  const lower = raw.toLowerCase()
-  const key = normalizeKey(raw)
-  team = team.filter((member) => member.active !== false)
-
-  const byEmail = team.find((m) => m.email.toLowerCase() === lower)
-  if (byEmail) return byEmail
-
-  const byLocal = team.find((m) => {
-    const local = m.email.split("@")[0]?.toLowerCase() ?? ""
-    return local === lower || normalizeKey(local) === key
-  })
-  if (byLocal) return byLocal
-
-  const byNameExact = team.find((m) => m.name.toLowerCase() === lower)
-  if (byNameExact) return byNameExact
-
-  const byNameKey = team.find((m) => normalizeKey(m.name) === key)
-  if (byNameKey) return byNameKey
-
-  // Unique prefix / contains on name (only if exactly one hit).
-  const contains = team.filter(
-    (m) =>
-      normalizeKey(m.name).includes(key) ||
-      m.name.toLowerCase().includes(lower)
-  )
-  if (contains.length === 1) return contains[0]!
-  return null
 }
 
 function matchClient(
@@ -349,6 +317,8 @@ export type ParseQuickAddInput = {
   text: string
   team: QuickAddTeamMember[]
   clients: QuickAddClient[]
+  /** Count roster email aliases for @mentions (`codex_roster_aliases`, F16). Default off. */
+  aliases?: boolean
   /** Default assignee when no @token matches. This is the signed-in user, never another assignee filter. */
   defaultAssigneeEmail?: string | null
   defaultAssigneeName?: string | null
@@ -482,11 +452,15 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
     atTokens.push(atMatch[1]!)
   }
   let consumedAt: string | null = null
+  const ambiguousAt = new Map<string, number>()
   for (const tok of atTokens) {
-    const member = matchTeamMember(tok, input.team)
+    // One roster resolver (F16): never picks one of two people.
+    const match = resolveRosterMention(tok, input.team, { aliases: input.aliases === true })
+    if (match.kind === "ambiguous") ambiguousAt.set(tok, match.candidates.length)
+    const member = match.kind === "unique" ? match.member : null
     if (member) {
       assigneeEmail = member.email
-      assigneeName = member.name
+      assigneeName = rosterDisplayName(member)
       assigneeFromToken = true
       consumedAt = tok
       working = working.replace(
@@ -495,7 +469,7 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
       )
       chips.push({
         kind: "assignee",
-        label: `Assignee ${member.name}`,
+        label: `Assignee ${assigneeName}`,
         ok: true,
       })
       break
@@ -503,9 +477,12 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
   }
   for (const tok of atTokens) {
     if (tok === consumedAt) continue
+    const shared = ambiguousAt.get(tok)
     chips.push({
       kind: "warning",
-      label: `Kept in title: “${tok}” (no team match)`,
+      label: shared
+        ? `Kept in title: “${tok}” (matches ${shared} people)`
+        : `Kept in title: “${tok}” (no team match)`,
       ok: false,
     })
   }

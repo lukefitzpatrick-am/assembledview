@@ -1,3 +1,5 @@
+import { resolveRosterAddress } from "../codex/rosterResolve.js"
+
 /**
  * Team-member email alias resolver.
  * Short forms (luke@) and canonical (luke.fitzpatrick@) are the same person.
@@ -22,32 +24,31 @@ export function parseEmailAliases(value: unknown): string[] {
   return out
 }
 
-export function memberEmailSet(member: TeamMemberIdentity): Set<string> {
-  const set = new Set<string>()
-  const canonical = member.canonicalEmail.trim().toLowerCase()
-  if (canonical) set.add(canonical)
-  for (const alias of member.aliases ?? []) {
-    const e = alias.trim().toLowerCase()
-    if (e) set.add(e)
-  }
-  return set
-}
-
 export type RosterEmailResolution =
   | { kind: "unique"; member: TeamMemberIdentity }
   | { kind: "ambiguous"; members: TeamMemberIdentity[] }
   | { kind: "none" }
 
+/**
+ * Delegates to the one Codex resolver (`lib/codex/rosterResolve.ts`, F16):
+ * canonical or alias, ambiguous when two people hold the address.
+ */
 export function resolveRosterEmailResult(
   email: string,
   roster: readonly TeamMemberIdentity[]
 ): RosterEmailResolution {
-  const needle = email.trim().toLowerCase()
-  if (!needle) return { kind: "none" }
-  const hits = roster.filter((member) => memberEmailSet(member).has(needle))
-  if (hits.length === 0) return { kind: "none" }
-  if (hits.length === 1) return { kind: "unique", member: hits[0]! }
-  return { kind: "ambiguous", members: hits }
+  const people = roster.map((member) => ({
+    member,
+    email: member.canonicalEmail,
+    name: member.name,
+    aliases: member.aliases ?? [],
+  }))
+  const result = resolveRosterAddress(email, people, { aliases: true })
+  if (result.kind === "unique") return { kind: "unique", member: result.member.member }
+  if (result.kind === "ambiguous") {
+    return { kind: "ambiguous", members: result.candidates.map((c) => c.member) }
+  }
+  return { kind: "none" }
 }
 
 /** Unique match only. Multi-match returns null — never first-row wins. */
