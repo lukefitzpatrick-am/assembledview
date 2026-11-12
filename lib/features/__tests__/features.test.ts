@@ -283,3 +283,23 @@ test("every on/off switch is read through the registry: no file reads its env va
   }
   assert.deepEqual(offenders, [])
 })
+
+test("B34: relabel_map_one_active_guard and pacing_digest_data_checks are off by default, admin page switches, no env", async () => {
+  for (const key of ["relabel_map_one_active_guard", "pacing_digest_data_checks"] as const) {
+    const def = featureDefinition(key)!
+    assert.ok(def, key)
+    assert.equal(def.defaultOn, false, key)
+    assert.equal(def.envName, undefined, key)
+    assert.equal(def.source, "switch", key)
+    assert.equal(def.toggleRole, "admin", key)
+    assert.equal(def.clientVisible, false, key)
+    try {
+      setFeatureRowReaderForTests(async () => new Map())
+      assert.equal(await isFeatureOn(key, {}), false, `${key} with no row`)
+      setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+      assert.equal(await isFeatureOn(key, {}), true, `${key} with a row on`)
+    } finally {
+      setFeatureRowReaderForTests(null)
+    }
+  }
+})
