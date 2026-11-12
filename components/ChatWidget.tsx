@@ -500,6 +500,9 @@ export function ChatWidget({
     // send the old history under the new conversation (F14 L4).
     const sentConversationId = conversationIdRef.current
     const sentTaintMarker = taintMarkerRef.current
+    // A request with no route gets read tools only (F14 L1): always name one.
+    const sentRoute =
+      routePath || (typeof window !== "undefined" ? window.location.pathname : undefined)
     try {
       const resolvedPageContext =
         typeof getPageContext === "function" ? await getPageContext() : pageContext
@@ -513,7 +516,7 @@ export function ChatWidget({
         messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
         mode,
-        ...(routePath ? { route: routePath } : {}),
+        ...(sentRoute ? { route: sentRoute } : {}),
         conversationId: sentConversationId,
         ...(sentTaintMarker ? { taintMarker: sentTaintMarker } : {}),
         ...(pendingParsedPlanRef.current

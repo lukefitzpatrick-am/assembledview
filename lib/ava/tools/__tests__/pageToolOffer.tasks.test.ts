@@ -199,6 +199,46 @@ describe("F14 web search", () => {
     assert.equal(avaWebSearchAllowed(pc("/clients")), true)
     assert.equal(avaWebSearchAllowed(undefined), true)
   })
+
+  it("is off when the chat request named no route (L1)", () => {
+    assert.equal(avaWebSearchAllowed(pc("/clients"), { routeUnknown: true }), false)
+    assert.equal(avaWebSearchAllowed(undefined, { routeUnknown: true }), false)
+  })
+})
+
+describe("F14 L1: a chat request with no route gets read tools only", () => {
+  const readOnly = (list: string[]) => list.filter((n) => isReadTool(n))
+
+  it("no route and no PageContext: read tools only, no capture tool", () => {
+    const offered = names(
+      avaToolDefinitionsForPage(REGISTRY_PLUS_FIXTURE, undefined, ALL_ON, { routeUnknown: true, tagOf: withFixture }),
+    )
+    assert.ok(offered.length > 0)
+    for (const name of offered) assert.equal(isReadTool(name, withFixture), true, name)
+    assert.equal(offered.includes(CAPTURE_FIXTURE), false)
+    assert.equal(offered.includes("apply_form_patch"), false)
+    assert.equal(offered.includes("save_client_brain"), false)
+  })
+
+  it("no route with a write-page PageContext: still read tools only (it may be an old /tasks chat)", () => {
+    for (const path of ["/mediaplans/create", "/mediaplans/mba/abc001/edit", "/finance", "/clients"]) {
+      const known = names(avaToolDefinitionsForPage(REGISTRY, pc(path), ALL_ON))
+      const offered = names(avaToolDefinitionsForPage(REGISTRY, pc(path), ALL_ON, { routeUnknown: true }))
+      assert.deepEqual(offered, readOnly(known), path)
+    }
+  })
+
+  it("with a route the page rules are unchanged", () => {
+    const before = names(avaToolDefinitionsForPage(REGISTRY, pc("/mediaplans/create"), ALL_ON))
+    const after = names(
+      avaToolDefinitionsForPage(REGISTRY, pc("/mediaplans/create"), ALL_ON, {
+        clientRoute: "/mediaplans/create",
+        routeUnknown: false,
+      }),
+    )
+    assert.deepEqual(after, before)
+    assert.ok(after.includes("apply_form_patch"))
+  })
 })
 
 describe("F14 tool tags", () => {

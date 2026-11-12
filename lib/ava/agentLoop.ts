@@ -45,6 +45,11 @@ export type AvaAgentInput = {
    * not offered for the whole turn.
    */
   tainted?: boolean;
+  /**
+   * The chat request named no route: read tools only, no web search (F14 L1).
+   * Set by /api/chat-v2 only.
+   */
+  routeUnknown?: boolean;
   /** Tests inject tools (a capture fixture). Production uses the registry. */
   toolCatalog?: AvaToolCatalog;
   /**
@@ -282,6 +287,7 @@ export async function runAvaAgent(
       buildTools(catalog, input.enableWebSearch === true, input.context.pageContext, flags, {
         clientRoute: input.clientRoute,
         tainted: taint.tainted,
+        routeUnknown: input.routeUnknown === true,
       });
     const namesOf = (list: Anthropic.ToolUnion[]) =>
       new Set(

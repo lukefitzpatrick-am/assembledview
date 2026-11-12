@@ -13,7 +13,7 @@ const skip = mockModuleSkip()
 const SECRET = "s".repeat(40)
 const CID = "conv-0001-aaaa"
 
-type AgentCall = { tainted?: boolean; clientRoute?: string }
+type AgentCall = { tainted?: boolean; clientRoute?: string; routeUnknown?: boolean }
 const agentCalls: AgentCall[] = []
 let agentResult: Record<string, unknown> = {}
 
@@ -51,7 +51,7 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/ava/agentLoop", {
     namedExports: {
       runAvaAgent: async (input: AgentCall) => {
-        agentCalls.push({ tainted: input.tainted, clientRoute: input.clientRoute })
+        agentCalls.push({ tainted: input.tainted, clientRoute: input.clientRoute, routeUnknown: input.routeUnknown })
         return agentResult
       },
     },
@@ -88,7 +88,7 @@ test("a clean turn: not tainted, no marker, reply unchanged, route passed throug
   agentResult = baseResult()
   const { status, json } = await post({ messages: userTurn, route: "/tasks/12?x=1", conversationId: CID })
   assert.equal(status, 200)
-  assert.deepEqual(agentCalls[0], { tainted: false, clientRoute: "/tasks/12" })
+  assert.deepEqual(agentCalls[0], { tainted: false, clientRoute: "/tasks/12", routeUnknown: false })
   assert.equal(json.meta.taintMarker, undefined)
   assert.equal(json.meta.tainted, undefined)
   assert.match(json.replyText, /evil\.example/)
@@ -139,4 +139,16 @@ test("a forged marker fails closed", { skip }, async () => {
   assert.equal(agentCalls[0]?.tainted, true)
   // Tainted by marker only, so the notice is put into the history now.
   assert.ok(json.replyText.endsWith(AVA_TAINT_NOTICE))
+})
+
+test("a request with no route, or an unusable one, is an unknown route (L1)", { skip }, async () => {
+  agentResult = baseResult()
+  for (const route of [undefined, "", "tasks", 42, "/".padEnd(600, "x")]) {
+    agentCalls.length = 0
+    const body: Record<string, unknown> = { messages: userTurn, conversationId: CID }
+    if (route !== undefined) body.route = route
+    await post(body)
+    assert.equal(agentCalls[0]?.routeUnknown, true, String(route))
+    assert.equal(agentCalls[0]?.clientRoute, undefined, String(route))
+  }
 })

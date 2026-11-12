@@ -102,6 +102,17 @@ describe("AVA taint marker round trip", () => {
     expect(second.taintMarker).toBe("t1.abc.def")
   })
 
+  it("with no routePath the widget still names the route from the address bar (L1)", async () => {
+    window.history.pushState({}, "", "/clients/acme")
+    act(() => {
+      root.render(<ChatWidget />)
+    })
+    open()
+    await send("Hello")
+    expect(sent(0).route).toBe("/clients/acme")
+    window.history.pushState({}, "", "/")
+  })
+
   it("never sends a marker in a conversation the server did not taint", async () => {
     render("/clients")
     open()

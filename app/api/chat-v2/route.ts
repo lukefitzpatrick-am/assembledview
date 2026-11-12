@@ -212,6 +212,8 @@ export async function POST(req: NextRequest) {
       context,
       enableWebSearch: true,
       clientRoute,
+      // No usable route: the server cannot tell whether this chat was on /tasks (F14 L1).
+      routeUnknown: clientRoute === undefined,
       tainted: incomingTaint.tainted,
     })
 

@@ -81,6 +81,14 @@ export function isMediaPlanCreateOrEditRoute(
 export type AvaToolOfferScope = {
   clientRoute?: string
   tainted?: boolean
+  /**
+   * The chat request named no usable `route` (an old bundle, a direct API
+   * call). The server cannot tell whether the conversation has been on
+   * /tasks, so the turn gets read tools only and no web search (F14 L1).
+   * Only /api/chat-v2 sets it; other callers (campaign-read generation) do
+   * not send a route and keep their own rules.
+   */
+  routeUnknown?: boolean
   tagOf?: AvaToolTagLookup
 }
 
@@ -97,7 +105,7 @@ export function avaWebSearchAllowed(
   pageContext: PageContext | undefined,
   scope: AvaToolOfferScope = {},
 ): boolean {
-  return !scope.tainted && !isTasksSurface(pageContext, scope.clientRoute)
+  return !scope.tainted && !scope.routeUnknown && !isTasksSurface(pageContext, scope.clientRoute)
 }
 
 /**
@@ -108,7 +116,8 @@ export function avaWebSearchAllowed(
  * `/finance/*` and the MBA detail page (never create or edit).
  * `/tasks/*` is an allowlist (TASKS_TOOL_ALLOWLIST plus capture tools); any
  * tool not on it is not offered there (F14, fail closed). Capture tools are
- * offered on `/tasks/*` only. A tainted conversation keeps read tools only.
+ * offered on `/tasks/*` only. A tainted conversation, and a chat request with
+ * no route, keep read tools only.
  */
 export function avaToolDefinitionsForPage<T extends { name: string }>(
   definitions: readonly T[],
@@ -130,7 +139,7 @@ export function avaToolDefinitionsForPage<T extends { name: string }>(
   } else {
     out = out.filter((t) => !tagOf(t.name)?.capture)
   }
-  if (scope.tainted) {
+  if (scope.tainted || scope.routeUnknown) {
     out = out.filter((t) => isReadTool(t.name, tagOf))
   }
   return out

@@ -203,3 +203,17 @@ test("the registry on /tasks: no web search, no write tools", async () => {
   for (const name of names) assert.equal(avaToolTag(name)?.access, "read", name)
   assert.equal(names.length, 22)
 })
+
+test("a chat request with no route: read tools only and no web search (L1)", async () => {
+  const { client, seen } = scriptedClient(["end"])
+  await runAvaAgent({
+    systemPrompt: "Ava",
+    messages: [{ role: "user", content: "hi" }],
+    context: context("/mediaplans/mba/abc001/edit"),
+    client,
+    enableWebSearch: true,
+    routeUnknown: true,
+    toolCatalog: catalog,
+  })
+  assert.deepEqual(offered(seen[0]), [READ])
+})
