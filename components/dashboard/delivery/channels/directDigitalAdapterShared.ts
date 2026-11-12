@@ -98,7 +98,7 @@ const PLAN_RATE_SPEND_TOOLTIP =
   "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
 /** B33 (HF2 review L-C): the mixed card names its assumed dollars too. */
 const ASSUMED_IN_SPEND_TOOLTIP =
-  "Includes assumed spend for lines with no delivery: planned media spread evenly across each burst's days, to date."
+  "Includes assumed spend for lines with no delivery: planned media spread evenly across each burst's days, up to yesterday, within the dates shown."
 const ASSUMED_IN_SPEND_SUBTITLE = "Spend card includes assumed spend"
 
 type AdServingLineItem = {

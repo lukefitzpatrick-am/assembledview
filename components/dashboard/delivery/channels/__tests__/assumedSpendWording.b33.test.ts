@@ -26,7 +26,7 @@ const BURST_END = "2026-12-23T13:00:00.000Z"
 const PLAN_RATE =
   "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
 const ASSUMED =
-  "Includes assumed spend for lines with no delivery: planned media spread evenly across each burst's days, to date."
+  "Includes assumed spend for lines with no delivery: planned media spread evenly across each burst's days, up to yesterday, within the dates shown."
 const ASSUMED_SUBTITLE = " · Spend card includes assumed spend"
 
 function line(id: string, publisher: string, budget: string, cv: number, extra: Record<string, unknown> = {}) {
