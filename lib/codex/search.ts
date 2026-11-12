@@ -64,6 +64,46 @@ export function codexSearchSnippet(
   return `${start > 0 ? "…" : ""}${body}${end < flat.length ? "…" : ""}`
 }
 
+/**
+ * The text a meeting summary is searched on. `client_notes.body` is Fireflies
+ * JSON (`{"summary": "...", "action_items": "..."}`, 341 of 341 rows on 13
+ * Nov 2026), so the raw text would index the keys ("summary" and "action
+ * items" matched every meeting) and glue a word after each `\n` escape onto
+ * an `n` ("\nFollow" indexed as "nfollow"). The regexp blanks the two keys and
+ * the `\n` `\r` `\t` escapes.
+ *
+ * This exact text is the expression of index `idx_client_notes_body_fts`
+ * (migration 0116, `db/schema/codex.ts`, snapshot 0026). Change all of them
+ * together, or Postgres stops using the index. Pinned by `test:codex-search`.
+ */
+export const CLIENT_NOTES_BODY_FTS_PATTERN = String.raw`"(summary|action_items)"\s*:|\\[nrt]`
+
+export const CLIENT_NOTES_BODY_FTS_EXPRESSION = `to_tsvector('english'::regconfig, regexp_replace(coalesce(body, ''), '${CLIENT_NOTES_BODY_FTS_PATTERN}', ' ', 'g'))`
+
+/**
+ * Plain text of a meeting body for a snippet: the summary and the action
+ * items from the Fireflies JSON (no keys, braces or escapes), bold markers
+ * dropped. A body that is not that JSON is used as it is.
+ */
+export function meetingSearchText(body: string | null | undefined): string | null {
+  if (typeof body !== "string" || !body.trim()) return null
+  let text = body
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>
+      const parts = [record.summary, record.action_items].filter(
+        (part): part is string => typeof part === "string" && part.trim() !== ""
+      )
+      if ("summary" in record || "action_items" in record) text = parts.join("\n")
+    }
+  } catch {
+    /* not JSON: plain text */
+  }
+  const plain = text.replace(/\*\*/g, "").trim()
+  return plain || null
+}
+
 export type CodexSearchMatchedIn = "title" | "mba" | "description" | "comment"
 
 export type CodexSearchTaskHit = {

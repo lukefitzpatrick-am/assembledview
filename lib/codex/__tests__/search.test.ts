@@ -3,16 +3,21 @@
  * row mapping. No database: the executor is a fake.
  */
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import { test } from "node:test"
 import { PgDialect } from "drizzle-orm/pg-core"
 import type { SQL } from "drizzle-orm"
 
 import {
+  CLIENT_NOTES_BODY_FTS_EXPRESSION,
+  CLIENT_NOTES_BODY_FTS_PATTERN,
   CODEX_SEARCH_DEFAULT_LIMIT,
   CODEX_SEARCH_MAX_LIMIT,
   codexSearchLikePattern,
   codexSearchLimit,
   codexSearchSnippet,
+  meetingSearchText,
   normaliseCodexSearchQuery,
   safeTranscriptUrl,
   takeSearchGroup,
@@ -92,10 +97,59 @@ test("Inbox SQL: only items waiting for a decision", () => {
 
 test("meeting SQL: the body arm uses exactly the 0116 index expression, title by ILIKE", () => {
   const s = flat(render(buildMeetingSearchSql("report", 5)).sql)
-  assert.match(s, /WHERE to_tsvector\('english'::regconfig, coalesce\(body, ''\)\) @@ plainto_tsquery/)
+  assert.ok(
+    s.includes(`WHERE ${CLIENT_NOTES_BODY_FTS_EXPRESSION} @@ plainto_tsquery('english'::regconfig, $`),
+    s
+  )
   assert.match(s, /UNION SELECT id FROM client_notes WHERE coalesce\(title, ''\) ILIKE/)
   // Every meeting, internal included (decision 52): no is_internal filter.
   assert.doesNotMatch(s, /is_internal\s*(IS|=)/)
+})
+
+const ROOT = path.resolve(import.meta.dirname, "../../..")
+const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8")
+
+test("meeting body expression: blanks the JSON keys and escapes, and is byte for byte the 0116 index", () => {
+  // The SQL text Postgres sees (standard_conforming_strings on).
+  assert.equal(CLIENT_NOTES_BODY_FTS_PATTERN, '"(summary|action_items)"\\s*:|\\\\[nrt]')
+  assert.equal(
+    CLIENT_NOTES_BODY_FTS_EXPRESSION,
+    `to_tsvector('english'::regconfig, regexp_replace(coalesce(body, ''), '${CLIENT_NOTES_BODY_FTS_PATTERN}', ' ', 'g'))`
+  )
+  // What the pattern does, checked with the same regexp in JS.
+  const re = new RegExp(CLIENT_NOTES_BODY_FTS_PATTERN, "g")
+  const body = JSON.stringify({ summary: "- **Budget:** cut\nFollow up", action_items: "**Sam**\nSend report" })
+  const blanked = body.replace(re, " ")
+  assert.doesNotMatch(blanked, /summary|action_items/)
+  assert.doesNotMatch(blanked, /\\[nrt]/)
+  assert.match(blanked, / Follow up/)
+  // The migration, the run file, the drizzle SQL and the latest snapshot carry the same expression.
+  const indexSql = `USING gin (${CLIENT_NOTES_BODY_FTS_EXPRESSION})`
+  assert.ok(read("db/migrations/0116_codex_search_index.sql").includes(indexSql), "migration 0116")
+  assert.ok(read("sql/supabase/2026-11-13_0116_codex_search_index_SUPABASE.sql").includes(indexSql), "run file 0116")
+  const quoted = CLIENT_NOTES_BODY_FTS_EXPRESSION.replace("coalesce(body,", 'coalesce("body",')
+  assert.ok(read("db/drizzle/0026_codex_search_index.sql").includes(`USING gin (${quoted})`), "drizzle 0026 SQL")
+  for (const snap of ["db/drizzle/meta/0026_snapshot.json", "db/drizzle/meta/0027_snapshot.json"]) {
+    const json = JSON.parse(read(snap)) as {
+      tables: Record<string, { indexes: Record<string, { columns: Array<{ expression: string }> }> }>
+    }
+    const idx = json.tables["public.client_notes"].indexes.idx_client_notes_body_fts
+    assert.equal(idx.columns[0].expression, quoted, snap)
+  }
+})
+
+test("meeting snippet text: summary and action items, no JSON keys, escapes or bold markers", () => {
+  const body = JSON.stringify({ summary: "- **Q3 Plan:** budget agreed\n- **Media:** report due", action_items: "**Sam**\nSend the report" })
+  const text = meetingSearchText(body)!
+  assert.doesNotMatch(text, /summary|action_items|[{}"]|\*\*|\\n/)
+  assert.ok(text.startsWith("- Q3 Plan: budget agreed\n- Media: report due\nSam\nSend the report"))
+  assert.equal(meetingSearchText('{"summary": "", "action_items": "Call Sam"}'), "Call Sam")
+  assert.equal(meetingSearchText("plain **notes**"), "plain notes")
+  assert.equal(meetingSearchText("[1, 2]"), "[1, 2]")
+  assert.equal(meetingSearchText("   "), null)
+  assert.equal(meetingSearchText(null), null)
+  const snippet = codexSearchSnippet(meetingSearchText(body), "report")!
+  assert.doesNotMatch(snippet, /summary|[{}"]/)
 })
 
 test("searchCodex maps rows, groups with more, picks the comment snippet for a comment hit", async () => {
@@ -105,7 +159,7 @@ test("searchCodex maps rows, groups with more, picks the comment snippet for a c
       const s = flat(render(q).sql)
       calls.push(s)
       if (s.includes("FROM client_notes n WHERE")) {
-        return [{ id: 11, title: "WIP", body: "We talked about the report", meeting_date: null, client_id: null, mba_number: null, is_internal: "t", attributed_type: "internal", transcript_url: "javascript:x", task_count: "2" }]
+        return [{ id: 11, title: "WIP", body: JSON.stringify({ summary: "- **WIP:** we talked about the report", action_items: "**Sam**\nSend it" }), meeting_date: null, client_id: null, mba_number: null, is_internal: "t", attributed_type: "internal", transcript_url: "javascript:x", task_count: "2" }]
       }
       if (s.includes("FROM tasks t WHERE")) {
         return [
@@ -134,4 +188,5 @@ test("searchCodex maps rows, groups with more, picks the comment snippet for a c
   assert.equal(out.meetings.items[0].is_internal, true)
   assert.equal(out.meetings.items[0].transcript_url, null)
   assert.equal(out.meetings.items[0].task_count, 2)
+  assert.equal(out.meetings.items[0].snippet, "- WIP: we talked about the report Sam Send it")
 })

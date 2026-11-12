@@ -97,10 +97,15 @@ export const clientNotes = pgTable(
     uniqueIndex("idx_client_notes_fireflies_meeting_id").on(table.firefliesMeetingId),
     index("idx_client_notes_attributed_type").on(table.attributedType),
     index("idx_client_notes_publisher_id").on(table.publisherId),
-    /** 0116 (Codex search, F8). The exact expression lib/codex/searchRepo.ts queries. */
+    /**
+     * 0116 (Codex search, F8; B37fix). The exact expression
+     * lib/codex/searchRepo.ts queries (`CLIENT_NOTES_BODY_FTS_EXPRESSION` in
+     * lib/codex/search.ts): JSON keys and `\n` `\r` `\t` escapes blanked.
+     * Template literal: `\\s` is `\s` and `\\\\` is `\\` in the SQL.
+     */
     index("idx_client_notes_body_fts").using(
       "gin",
-      sql`to_tsvector('english'::regconfig, coalesce(${table.body}, ''))`,
+      sql`to_tsvector('english'::regconfig, regexp_replace(coalesce(${table.body}, ''), '"(summary|action_items)"\\s*:|\\\\[nrt]', ' ', 'g'))`,
     ),
   ],
 )

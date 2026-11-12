@@ -6,9 +6,11 @@
  * - meetings: every `client_notes` row, internal included (decision 52).
  *
  * Full text uses `to_tsvector('english') @@ plainto_tsquery('english')`, the
- * repo's pattern (`lib/insights/queryCampaignInsights.ts`). Meeting bodies use
- * `idx_client_notes_body_fts` (migration 0116) when it exists; without it the
- * same query runs as a sequential scan, just slower.
+ * repo's pattern (`lib/insights/queryCampaignInsights.ts`). Meeting bodies are
+ * searched with the JSON keys and escapes blanked
+ * (`CLIENT_NOTES_BODY_FTS_EXPRESSION`), which is the expression of
+ * `idx_client_notes_body_fts` (migration 0116). Without the index the same
+ * query runs as a sequential scan, just slower.
  */
 import "server-only"
 
@@ -16,6 +18,7 @@ import { sql, type SQL } from "drizzle-orm"
 import { db, type Db } from "@/db"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
+  CLIENT_NOTES_BODY_FTS_EXPRESSION,
   codexSearchLikePattern,
   codexSearchSnippet,
   safeTranscriptUrl,
@@ -25,6 +28,7 @@ import {
   type CodexSearchProposalHit,
   type CodexSearchResults,
   type CodexSearchTaskHit,
+  meetingSearchText,
 } from "@/lib/codex/search"
 
 type ExecuteClient = { execute: (query: SQL) => Promise<unknown> }
@@ -118,8 +122,9 @@ export function buildProposalSearchSql(q: string, limit: number): SQL {
 }
 
 /**
- * Body by full text (the 0116 index expression, exactly), title by ILIKE.
- * A UNION keeps the indexed arm indexable.
+ * Body by full text on `CLIENT_NOTES_BODY_FTS_EXPRESSION` (the 0116 index
+ * expression, exactly), title by ILIKE. A UNION keeps the indexed arm
+ * indexable.
  */
 export function buildMeetingSearchSql(q: string, limit: number): SQL {
   const p = codexSearchLikePattern(q)
@@ -131,7 +136,7 @@ export function buildMeetingSearchSql(q: string, limit: number): SQL {
       FROM client_notes n
      WHERE n.id IN (
              SELECT id FROM client_notes
-              WHERE to_tsvector('english'::regconfig, coalesce(body, '')) @@ ${tsq}
+              WHERE ${sql.raw(CLIENT_NOTES_BODY_FTS_EXPRESSION)} @@ ${tsq}
              UNION
              SELECT id FROM client_notes WHERE coalesce(title, '') ILIKE ${p}
            )
@@ -182,7 +187,7 @@ function meetingHit(row: Record<string, unknown>, q: string): CodexSearchMeeting
     attributed_type: str(row.attributed_type),
     transcript_url: safeTranscriptUrl(row.transcript_url),
     task_count: num(row.task_count) ?? 0,
-    snippet: codexSearchSnippet(str(row.body), q),
+    snippet: codexSearchSnippet(meetingSearchText(str(row.body)), q),
   }
 }
 
