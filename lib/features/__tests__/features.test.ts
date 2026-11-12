@@ -338,3 +338,28 @@ test("B35: billing_ghost_row_finance_guard is off by default, a finance switch a
     setFeatureRowReaderForTests(null)
   }
 })
+
+test("B35: burst_overlap_warning is off by default, a planning switch sent to the browser, no env", async () => {
+  const key = "burst_overlap_warning" as const
+  const def = featureDefinition(key)!
+  assert.ok(def, key)
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.source, "switch")
+  assert.equal(def.toggleRole, "admin")
+  assert.equal(def.area, "planning")
+  assert.equal(def.clientVisible, true)
+  setClientFeatureSnapshot(null)
+  assert.equal(clientFeatureOn(key), false)
+  setClientFeatureSnapshot({ [key]: true })
+  assert.equal(clientFeatureOn(key), true)
+  setClientFeatureSnapshot(null)
+  try {
+    setFeatureRowReaderForTests(async () => new Map())
+    assert.equal(await isFeatureOn(key, {}), false)
+    setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), true)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})

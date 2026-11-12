@@ -249,6 +249,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "burst_overlap_warning",
+    label: "Overlapping bursts: page warning",
+    description:
+      "The media plan create and edit pages (DQ-5, Q33). On: every line with two bursts whose dates overlap (Sydney civil days, both ends inclusive) is listed in the builder issues, one warning per line naming the first overlap, and the save rail says how many lines overlap. Warn only: saving and publishing are never blocked. The card's own overlap banner under the bursts is already on for every channel and does not read this switch. Off: no page warning, as before. Nothing needs to be true first. Live 13 Nov 2026: 19 lines on 12 published plans overlap.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "partial_mba_billing_guard",
     label: "Partial MBA: billing months and the billing vs delivery check",
     description:

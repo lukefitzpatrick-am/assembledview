@@ -388,6 +388,11 @@ import {
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
+import {
+  burstOverlapBuilderIssues,
+  burstOverlapRailText,
+  findLinesWithOverlappingBursts,
+} from "@/lib/mediaplan/burstOverlapLines"
 import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 
 
@@ -1665,6 +1670,60 @@ function CreateMediaPlan() {
     productionMediaLineItems,
   ])
 
+  // B35 (DQ-5, switch burst_overlap_warning): lines with two bursts whose dates overlap,
+  // listed in the builder issues and on the save rail. Warn only, never blocks saving.
+  const burstOverlapWarningOn = clientFeatureOn("burst_overlap_warning")
+  const burstOverlapLines = useMemo(
+    () =>
+      burstOverlapWarningOn
+        ? findLinesWithOverlappingBursts({
+            television: televisionMediaLineItems,
+            radio: radioMediaLineItems,
+            newspaper: newspaperMediaLineItems,
+            magazines: magazineMediaLineItems,
+            ooh: oohMediaLineItems,
+            cinema: cinemaMediaLineItems,
+            digiDisplay: digiDisplayMediaLineItems,
+            digiAudio: digiAudioMediaLineItems,
+            digiVideo: digiVideoMediaLineItems,
+            bvod: bvodMediaLineItems,
+            integration: integrationMediaLineItems,
+            search: searchMediaLineItems,
+            socialMedia: socialMediaMediaLineItems,
+            progDisplay: progDisplayMediaLineItems,
+            progVideo: progVideoMediaLineItems,
+            progBvod: progBvodMediaLineItems,
+            progAudio: progAudioMediaLineItems,
+            progOoh: progOohMediaLineItems,
+            influencers: influencersMediaLineItems,
+            production: productionMediaLineItems,
+          })
+        : [],
+    [
+      burstOverlapWarningOn,
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazineMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digiDisplayMediaLineItems,
+      digiAudioMediaLineItems,
+      digiVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+      productionMediaLineItems,
+    ]
+  )
+
   const updateBurstBudget = useCallback(
     async ({ mediaType, burstIndex = 0, budget }: { mediaType: string; burstIndex?: number; budget: number }) => {
       const numericBudget = typeof budget === "string" ? parseFloat((budget as any).toString().replace(/[^0-9.-]/g, "")) : budget
@@ -2351,6 +2410,7 @@ function CreateMediaPlan() {
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    issues.push(...burstOverlapBuilderIssues(burstOverlapLines))
     issues.push(...publisherGuardBuilderIssues(publisherGuardBlocked, publisherGuardWarnings))
     aaPublishWarnings.forEach((message, index) => {
       issues.push({
@@ -2375,6 +2435,7 @@ function CreateMediaPlan() {
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    burstOverlapLines,
     publisherGuardBlocked,
     publisherGuardWarnings,
     aaPublishWarnings,
@@ -6612,6 +6673,8 @@ const handleSaveAll = async (opts?: {
   if (missingBurstDateLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
+  const burstOverlapRail = burstOverlapRailText(burstOverlapLines)
+  if (burstOverlapRail) extraProblemTexts.push(burstOverlapRail)
 
   const wizardStatusPanel = (
     <PlanWizardSaveMessages

@@ -144,6 +144,11 @@ import {
   describePartialMbaGuardRail,
 } from "@/lib/mediaplan/partialMbaBillingVsDelivery"
 import { clientFeatureOn } from "@/lib/features/client"
+import {
+  burstOverlapBuilderIssues,
+  burstOverlapRailText,
+  findLinesWithOverlappingBursts,
+} from "@/lib/mediaplan/burstOverlapLines"
 import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 import {
   reportWorkingBillingAliasReconcile,
@@ -2578,6 +2583,60 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     influencersMediaLineItems,
     productionMediaLineItems,
   ])
+
+  // B35 (DQ-5, switch burst_overlap_warning): lines with two bursts whose dates overlap,
+  // listed in the builder issues and on the save rail. Warn only, never blocks saving.
+  const burstOverlapWarningOn = clientFeatureOn("burst_overlap_warning")
+  const burstOverlapLines = useMemo(
+    () =>
+      burstOverlapWarningOn
+        ? findLinesWithOverlappingBursts({
+            television: televisionMediaLineItems,
+            radio: radioMediaLineItems,
+            newspaper: newspaperMediaLineItems,
+            magazines: magazinesMediaLineItems,
+            ooh: oohMediaLineItems,
+            cinema: cinemaMediaLineItems,
+            digiDisplay: digitalDisplayMediaLineItems,
+            digiAudio: digitalAudioMediaLineItems,
+            digiVideo: digitalVideoMediaLineItems,
+            bvod: bvodMediaLineItems,
+            integration: integrationMediaLineItems,
+            search: searchMediaLineItems,
+            socialMedia: socialMediaMediaLineItems,
+            progDisplay: progDisplayMediaLineItems,
+            progVideo: progVideoMediaLineItems,
+            progBvod: progBvodMediaLineItems,
+            progAudio: progAudioMediaLineItems,
+            progOoh: progOohMediaLineItems,
+            influencers: influencersMediaLineItems,
+            production: productionMediaLineItems,
+          })
+        : [],
+    [
+      burstOverlapWarningOn,
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazinesMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digitalDisplayMediaLineItems,
+      digitalAudioMediaLineItems,
+      digitalVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+      productionMediaLineItems,
+    ]
+  )
 
   useEffect(() => {
     const v = selectedVersionNumber ?? mediaPlan?.version_number
@@ -6310,6 +6369,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    issues.push(...burstOverlapBuilderIssues(burstOverlapLines))
     issues.push(...publisherGuardBuilderIssues(publisherGuardBlocked, publisherGuardWarnings))
     aaPublishWarnings.forEach((message, index) => {
       issues.push({
@@ -6337,6 +6397,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    burstOverlapLines,
     publisherGuardBlocked,
     publisherGuardWarnings,
     aaPublishWarnings,
@@ -10287,6 +10348,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   if (missingBurstDateLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
+  const burstOverlapRail = burstOverlapRailText(burstOverlapLines)
+  if (burstOverlapRail) extraProblemTexts.push(burstOverlapRail)
   if (billingAliasGhostLines.length > 0) {
     extraProblemTexts.push(
       `Billing counts ${formatMoney(billingAliasGhostDoubled)} twice: ${billingAliasGhostLines.length === 1 ? "1 line has" : `${billingAliasGhostLines.length} lines have`} an old id and its current id. Save is stopped.`
