@@ -59,6 +59,11 @@ function taskDocument(): SQL {
   return sql`to_tsvector('english'::regconfig, coalesce(t.title, '') || ' ' || coalesce(t.description, ''))`
 }
 
+/** A title hit: the literal text, or a full-text match on the title alone (a word stem). */
+function taskTitleHit(p: string, tsq: SQL): SQL {
+  return sql`(t.title ILIKE ${p} OR to_tsvector('english'::regconfig, coalesce(t.title, '')) @@ ${tsq})`
+}
+
 export function buildTaskSearchSql(q: string, limit: number): SQL {
   const p = codexSearchLikePattern(q)
   const tsq = sql`plainto_tsquery('english'::regconfig, ${q})`
@@ -66,7 +71,7 @@ export function buildTaskSearchSql(q: string, limit: number): SQL {
     SELECT t.id, t.title, t.status, t.client_id, t.mba_number, t.assignee_email,
            t.assignee_name, t.due_date, t.description,
            CASE
-             WHEN t.title ILIKE ${p} THEN 'title'
+             WHEN ${taskTitleHit(p, tsq)} THEN 'title'
              WHEN coalesce(t.mba_number, '') ILIKE ${p} THEN 'mba'
              WHEN coalesce(t.description, '') ILIKE ${p} OR ${taskDocument()} @@ ${tsq} THEN 'description'
              ELSE 'comment'
@@ -93,7 +98,7 @@ export function buildTaskSearchSql(q: string, limit: number): SQL {
                    OR to_tsvector('english'::regconfig, coalesce(c.body, '')) @@ ${tsq})
          )
        )
-     ORDER BY (t.title ILIKE ${p}) DESC,
+     ORDER BY ${taskTitleHit(p, tsq)} DESC,
               ts_rank(${taskDocument()}, ${tsq}) DESC,
               coalesce(t.updated_at, t.created_at) DESC,
               t.id DESC

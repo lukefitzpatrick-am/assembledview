@@ -152,6 +152,13 @@ test("meeting snippet text: summary and action items, no JSON keys, escapes or b
   assert.doesNotMatch(snippet, /summary|[{}"]/)
 })
 
+test("task SQL: a title hit on a word stem is labelled title and ranks with title hits", () => {
+  const s = flat(render(buildTaskSearchSql("reports", 8)).sql)
+  const titleHit = /\(t\.title ILIKE \$\d+ OR to_tsvector\('english'::regconfig, coalesce\(t\.title, ''\)\) @@ plainto_tsquery\('english'::regconfig, \$\d+\)\)/
+  assert.match(s, new RegExp(`CASE WHEN ${titleHit.source} THEN 'title' WHEN coalesce\\(t\\.mba_number`))
+  assert.match(s, new RegExp(`ORDER BY ${titleHit.source} DESC, ts_rank`))
+})
+
 test("searchCodex maps rows, groups with more, picks the comment snippet for a comment hit", async () => {
   const calls: string[] = []
   const fake = {
