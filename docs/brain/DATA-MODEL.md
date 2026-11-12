@@ -168,7 +168,7 @@ erDiagram
 | `assignment_rules` | 0 | partial unique on `COALESCE(client_id,0)` + category where active |
 | `codex_activity` | 797 | entity/action audit log |
 | `fireflies_sync_state` | 3 | run log |
-| `codex_saved_views` | 0 (0117 not applied) | Codex saved views (F8): `owner_email`, `name`, `screen` (`tasks`), `lens` (`plan`), `filters` jsonb (the `/tasks` query string as an object, canonical, minus `view`), `layout` (`list`\|`board`), `group_by` (null or `status`), `shared`, `created_at`. Owner renames, shares and deletes; shared views readable by staff. 50 per owner (app). RLS on; no `ava_readonly` grant. Not read until marker `0117_codex_saved_views` (C-76) |
+| `codex_saved_views` | 0 (0117 not applied) | Codex saved views (F8): `owner_email`, `name`, `screen` (`tasks`), `lens` (`plan`), `filters` jsonb (the `/tasks` query string as an object, canonical, minus `view`), `layout` (`list`\|`board`), `group_by` (null or `status`), `shared`, `created_at`. Owner renames, shares and deletes; shared views readable by staff. 50 per owner (app; count and insert under a per-owner advisory lock, C-203). RLS on; no `ava_readonly` grant. Not read until marker `0117_codex_saved_views` (C-76) |
 | `meeting_title_rules` | 0 | exact match on normalised title |
 | `time_entries` / `myhours_links` / `myhours_sync_runs` | 0 / 0 / 0 | MyHours mirror is pull-source-of-truth; the Confirm path is the only intentional write back |
 

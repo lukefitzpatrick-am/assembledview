@@ -10,7 +10,7 @@
  */
 import "server-only"
 
-import { and, asc, count, eq, or, sql } from "drizzle-orm"
+import { and, asc, count, eq, or, sql, type SQL } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import {
@@ -155,32 +155,52 @@ export async function listSavedViews(
   })
 }
 
+/**
+ * Advisory lock for one owner's views, taken first inside the create
+ * transaction. Two saves by the same person then run their count and insert
+ * one after the other: under READ COMMITTED the second count is a new
+ * statement after the lock, so it sees the first insert once that commits.
+ * A single INSERT ... SELECT with the count is not enough on its own: two of
+ * them read the same snapshot and both insert.
+ */
+export function savedViewsOwnerLockSql(ownerEmail: string): SQL {
+  return sql`select pg_advisory_xact_lock(hashtextextended(${`codex_saved_views:${normaliseEmail(ownerEmail)}`}, 0))`
+}
+
+/**
+ * Create a view. The per-person limit check and the insert run in one
+ * transaction under the owner's advisory lock, so concurrent saves cannot go
+ * past SAVED_VIEWS_PER_OWNER_MAX.
+ */
 export async function createSavedView(
   ownerEmail: string,
   input: SavedViewInput,
   database: Db = db
 ): Promise<CodexSavedView> {
-  return guarded(database, async () => {
-    const [{ n } = { n: 0 }] = await database
-      .select({ n: count() })
-      .from(codexSavedViews)
-      .where(ownerIs(ownerEmail))
-    if (Number(n) >= SAVED_VIEWS_PER_OWNER_MAX) throw new SavedViewsLimitError()
-    const [row] = await database
-      .insert(codexSavedViews)
-      .values({
-        ownerEmail: normaliseEmail(ownerEmail),
-        name: input.name,
-        screen: input.screen,
-        lens: input.lens,
-        filters: input.filters,
-        layout: input.layout,
-        groupBy: input.group_by,
-        shared: input.shared,
-      })
-      .returning()
-    return savedViewRowToApi(row, ownerEmail)
-  })
+  return guarded(database, () =>
+    database.transaction(async (tx) => {
+      await tx.execute(savedViewsOwnerLockSql(ownerEmail))
+      const [{ n } = { n: 0 }] = await tx
+        .select({ n: count() })
+        .from(codexSavedViews)
+        .where(ownerIs(ownerEmail))
+      if (Number(n) >= SAVED_VIEWS_PER_OWNER_MAX) throw new SavedViewsLimitError()
+      const [row] = await tx
+        .insert(codexSavedViews)
+        .values({
+          ownerEmail: normaliseEmail(ownerEmail),
+          name: input.name,
+          screen: input.screen,
+          lens: input.lens,
+          filters: input.filters,
+          layout: input.layout,
+          groupBy: input.group_by,
+          shared: input.shared,
+        })
+        .returning()
+      return savedViewRowToApi(row, ownerEmail)
+    })
+  )
 }
 
 /** Not yours and shared: not_owner (403). Not yours and private, or no such id: not_found (404). */

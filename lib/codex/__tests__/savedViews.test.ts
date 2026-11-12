@@ -127,6 +127,12 @@ test("a saved view round-trips: toolbar state -> filters -> toolbar state shows 
 
 type Captured = { sql: string; params: unknown[] }
 
+/** A builder's SQL (`toSQL`), or a raw `execute` query's (`getQuery`). */
+function queryOf(obj: object): Captured {
+  const q = obj as { toSQL?: () => Captured; getQuery?: () => Captured }
+  return typeof q.toSQL === "function" ? q.toSQL() : q.getQuery!()
+}
+
 /** Each awaited query takes the next entry: rows, or an Error to throw. */
 function scriptedDb(script: Array<unknown[] | Error>): { db: Db; captured: Captured[] } {
   const base = drizzle.mock({ schema })
@@ -137,7 +143,7 @@ function scriptedDb(script: Array<unknown[] | Error>): { db: Db; captured: Captu
         if (prop === "then") {
           return (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
             try {
-              const built = (obj as { toSQL: () => Captured }).toSQL()
+              const built = queryOf(obj)
               captured.push({ sql: built.sql, params: [...built.params] })
               const next = script.shift()
               if (next instanceof Error) reject(next)
@@ -145,6 +151,12 @@ function scriptedDb(script: Array<unknown[] | Error>): { db: Db; captured: Captu
             } catch (error) {
               reject(error)
             }
+          }
+        }
+        if (prop === "transaction") {
+          return async (fn: (tx: unknown) => Promise<unknown>) => {
+            captured.push({ sql: "begin", params: [] })
+            return fn(wrap(obj))
           }
         }
         const value = Reflect.get(obj, prop, receiver)
@@ -156,6 +168,87 @@ function scriptedDb(script: Array<unknown[] | Error>): { db: Db; captured: Captu
       },
     })
   return { db: wrap(base) as Db, captured }
+}
+
+/**
+ * A small Postgres stand-in for concurrent creates: READ COMMITTED (a count
+ * sees committed rows only), inserts commit when the transaction ends, and
+ * pg_advisory_xact_lock blocks until the holder's transaction ends. Every
+ * statement yields, so two creates interleave. Only the marker read may run
+ * outside the transaction.
+ */
+function concurrentDb(committed: Array<{ ownerEmail: string }>) {
+  const base = drizzle.mock({ schema })
+  const locks = new Map<string, Promise<void>>()
+  const statements: string[] = []
+  const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
+  const makeTx = (staged: Array<{ ownerEmail: string }>, held: Array<() => void>, inTx: boolean) => {
+    const wrap = (target: object): unknown =>
+      new Proxy(target, {
+        get(obj, prop, receiver) {
+          if (prop === "then") {
+            return async (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
+              try {
+                const { sql: text, params } = queryOf(obj)
+                statements.push(text)
+                await tick()
+                if (/from "migration_markers"/.test(text)) return resolve(MARKER)
+                if (!inTx) return reject(new Error(`outside the create transaction: ${text}`))
+                if (/pg_advisory_xact_lock/.test(text)) {
+                  const key = String(params[0])
+                  while (locks.has(key)) await locks.get(key)
+                  let release!: () => void
+                  locks.set(key, new Promise<void>((r) => (release = r)))
+                  held.push(() => {
+                    locks.delete(key)
+                    release()
+                  })
+                  return resolve([{}])
+                }
+                if (/^select count\(\*\)/.test(text)) {
+                  const owner = String(params[0])
+                  return resolve([{ n: committed.filter((r) => r.ownerEmail.toLowerCase() === owner).length }])
+                }
+                if (/^insert into "codex_saved_views"/.test(text)) {
+                  const owner = String(params.find((p) => typeof p === "string" && p.includes("@")))
+                  staged.push({ ownerEmail: owner })
+                  return resolve([row({ ownerEmail: owner })])
+                }
+                reject(new Error(`unexpected SQL: ${text}`))
+              } catch (error) {
+                reject(error)
+              }
+            }
+          }
+          const value = Reflect.get(obj, prop, receiver)
+          if (typeof value !== "function") return value
+          return (...args: unknown[]) => {
+            const out = value.apply(obj, args)
+            return out && typeof out === "object" ? wrap(out) : out
+          }
+        },
+      })
+    return wrap(base)
+  }
+  const db = new Proxy(makeTx([], [], false) as object, {
+    get(obj, prop, receiver) {
+      if (prop === "transaction") {
+        return async (fn: (tx: unknown) => Promise<unknown>) => {
+          const staged: Array<{ ownerEmail: string }> = []
+          const held: Array<() => void> = []
+          try {
+            const out = await fn(makeTx(staged, held, true))
+            committed.push(...staged)
+            return out
+          } finally {
+            for (const release of held) release()
+          }
+        }
+      }
+      return Reflect.get(obj, prop, receiver)
+    },
+  }) as Db
+  return { db, statements }
 }
 
 const MARKER = [{ key: "0117_codex_saved_views" }]
@@ -213,15 +306,44 @@ test("marker is cached once seen", async () => {
 test("create: lower-cases the owner; refuses at the per-person limit", async () => {
   resetSavedViewsMarkerCacheForTests()
   const input = { name: "A", screen: "tasks" as const, lens: "plan" as const, filters: {}, layout: null, group_by: null, shared: true }
-  const okDb = scriptedDb([MARKER, [{ n: 2 }], [row({ ownerEmail: "luke@x.au", shared: true })]])
+  const okDb = scriptedDb([MARKER, [{}], [{ n: 2 }], [row({ ownerEmail: "luke@x.au", shared: true })]])
   const view = await createSavedView("Luke@X.au", input, okDb.db)
   assert.equal(view.mine, true)
-  const insert = okDb.captured[2]
+  // Marker, then one transaction: the owner's lock, the owner's count, the insert.
+  assert.deepEqual(
+    okDb.captured.map((c) => c.sql.split(" ").slice(0, 2).join(" ")),
+    ["select \"key\"", "begin", "select pg_advisory_xact_lock(hashtextextended($1,", "select count(*)", "insert into"]
+  )
+  assert.deepEqual(okDb.captured[2].params, ["codex_saved_views:luke@x.au"])
+  assert.match(okDb.captured[3].sql, /from "codex_saved_views" where lower\("codex_saved_views"\."owner_email"\) = \$1$/)
+  assert.deepEqual(okDb.captured[3].params, ["luke@x.au"])
+  const insert = okDb.captured[4]
   assert.match(insert.sql, /^insert into "codex_saved_views"/)
   assert.ok(insert.params.includes("luke@x.au"))
-  const fullDb = scriptedDb([[{ n: SAVED_VIEWS_PER_OWNER_MAX }]])
+  const fullDb = scriptedDb([[{}], [{ n: SAVED_VIEWS_PER_OWNER_MAX }]])
   await assert.rejects(createSavedView("luke@x.au", input, fullDb.db), SavedViewsLimitError)
-  assert.equal(fullDb.captured.length, 1, "no insert at the limit")
+  assert.equal(fullDb.captured.filter((c) => /^insert/.test(c.sql)).length, 0, "no insert at the limit")
+})
+
+test("create: two saves at 49 views at the same time keep the limit (one 409, never 51)", async () => {
+  resetSavedViewsMarkerCacheForTests()
+  const input = { name: "A", screen: "tasks" as const, lens: "plan" as const, filters: {}, layout: null, group_by: null, shared: false }
+  const committed = Array.from({ length: SAVED_VIEWS_PER_OWNER_MAX - 1 }, () => ({ ownerEmail: "luke@x.au" }))
+  committed.push({ ownerEmail: "sam@x.au" })
+  const { db, statements } = concurrentDb(committed)
+  const results = await Promise.allSettled([
+    createSavedView("luke@x.au", input, db),
+    createSavedView("Luke@X.au", input, db),
+  ])
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1)
+  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected")
+  assert.equal(rejected.length, 1)
+  assert.ok(rejected[0].reason instanceof SavedViewsLimitError)
+  assert.equal(committed.filter((r) => r.ownerEmail === "luke@x.au").length, SAVED_VIEWS_PER_OWNER_MAX)
+  assert.equal(statements.filter((s) => /pg_advisory_xact_lock/.test(s)).length, 2)
+  // Another person's save is not held up by the limit or the lock.
+  await createSavedView("sam@x.au", input, db)
+  assert.equal(committed.filter((r) => r.ownerEmail === "sam@x.au").length, 2)
 })
 
 test("update and delete: owner only; someone else's shared view is not_owner, private is not_found", async () => {
