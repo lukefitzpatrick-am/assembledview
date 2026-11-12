@@ -32,7 +32,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 6 | [Trafficking & creative](#6-trafficking--creative) | `/creative`, `/mediaplans/mba/[mba]/trafficking` | `components/creative/`, `components/trafficking/` | `lib/naming/`, `lib/creative/` | `/api/creative-assets`, `/api/naming` | `creative_asset` |
 | 7 | [Publishers & specs](#7-publishers-specs--ingest) | `/publishers` | `components/specs/`, `components/ingest/` | `lib/publisher/`, `lib/specs/` | `/api/publishers`, `/api/admin/ingest` | `publishers`, `publisher_profiles`, `publisher_value_synonyms`, `publisher_specs`, `ingest_*`, `line_item_panels` |
 | 8 | [Clients](#8-clients) | `/client` | `components/client-hub/`, `components/client-dashboard/` | `lib/clients/` | `/api/clients`, `/api/clients/[id]/platform-accounts`, `/api/platform-accounts/advertisers` | `clients`, `client_domains`, `client_platform_accounts` |
-| 9 | [Codex](#9-codex-tasks-time-meetings) | `/tasks` | `components/tasks/` | `lib/codex/`, `lib/fireflies/`, `lib/myhours/` | `/api/codex` | `tasks`, `client_notes`, `team_members`, `ava_*_proposals`, `time_entries`, `codex_saved_views` |
+| 9 | [Codex](#9-codex-tasks-time-meetings) | `/tasks` | `components/tasks/` | `lib/codex/`, `lib/fireflies/`, `lib/myhours/` | `/api/codex` | `tasks`, `client_notes`, `team_members`, `ava_*_proposals`, `time_entries`, `codex_saved_views`, `codex_projects`, `codex_sections` (0118) |
 | 10 | [Scopes of work](#10-scopes-of-work) | `/scopes-of-work` | (page-local) | `lib/scopes/` | `/api/scopes-of-work` | `scope_of_work` |
 | 11 | [Planning tools](#11-planning--insights) | `/tools/behavioural-planner`, `/insights` | `components/planning/`, `components/insights/` | `lib/planning/`, `lib/insights/` | `/api/planning`, `/api/insights` | `planning_audiences`, `planning_audience_uploads`, `planning_uploaded_audiences`, `campaign_insights` |
 | 12 | [Knowledge hub](#12-knowledge-hub) | `/knowledge` | `components/learning/` | `src/lib/learning/`, `src/data/learning/` | — | none (file-driven) |
@@ -162,7 +162,7 @@ Flow: Fireflies meeting → `client_notes` (attributed to client / publisher / i
 
 Identity here is **email**, not a numeric user id.
 
-Switches: `codex_v2` (the module), `codex_roster_aliases`, `codex_search`, `codex_saved_views`. Staff only; outside `/tasks` Codex data is read-only and admin-only (decision 3 B; C-200 lists the exceptions still writing). Internal meeting summaries: staff yes (decision 52), Ava no (F9).
+Switches: `codex_v2` (the module), `codex_roster_aliases`, `codex_search`, `codex_saved_views`, `codex_projects` (S1 projects and sections API, migration 0118). Staff only; outside `/tasks` Codex data is read-only and admin-only (decision 3 B; C-200 lists the exceptions still writing). Internal meeting summaries: staff yes (decision 52), Ava no (F9).
 
 → `modules/codex.md`
 
