@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { CodexHelpError } from "@/lib/codex/helpRoster"
 import { HELP_ON_DONE_MESSAGE, requestHelp } from "@/lib/codex/repo"
@@ -81,9 +82,13 @@ export async function POST(request: Request, context: RouteContext) {
       )
     }
 
+    // The helper by alias (F16, switch): the main email, or 409 for a shared address.
+    const helper = await resolveAssigneeForWrite(assigneeEmail, null)
+    if (!helper.ok) return NextResponse.json(helper.body, { status: helper.status })
+
     const result = await requestHelp(
       id,
-      { assigneeEmail, ask },
+      { assigneeEmail: helper.email, ask },
       {
         email: actorEmail,
         name:

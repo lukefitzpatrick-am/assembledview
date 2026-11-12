@@ -165,3 +165,44 @@ export function resolveRosterMention<T extends RosterPerson>(
   })
   return partial.length === 1 ? { kind: "unique", member: partial[0]!, via: "name" } : { kind: "none" }
 }
+
+export type AssigneeWriteDecision =
+  | { kind: "ok"; email: string; name: string | null; resolved: boolean }
+  | { kind: "ambiguous"; address: string; holders: Array<{ email: string; name: string }> }
+
+/**
+ * What a task assignee write stores (`codex_roster_aliases` on). An address
+ * that resolves to one person stores that person's primary email and display
+ * name. A shared address is refused. An address no one holds is stored as
+ * sent, as before.
+ */
+export function decideAssigneeWrite<T extends RosterPerson>(
+  email: string,
+  name: string | null | undefined,
+  roster: readonly T[],
+): AssigneeWriteDecision {
+  const match = resolveRosterAddress(email, roster, { aliases: true })
+  if (match.kind === "unique") {
+    return {
+      kind: "ok",
+      email: normaliseEmail(match.member.email),
+      name: rosterDisplayName(match.member),
+      resolved: true,
+    }
+  }
+  if (match.kind === "ambiguous") {
+    return {
+      kind: "ambiguous",
+      address: normaliseEmail(email),
+      holders: match.candidates.map((m) => ({ email: normaliseEmail(m.email), name: rosterDisplayName(m) })),
+    }
+  }
+  return { kind: "ok", email, name: name ?? null, resolved: false }
+}
+
+/** 409 body for a shared address. */
+export function ambiguousAssigneeMessage(decision: Extract<AssigneeWriteDecision, { kind: "ambiguous" }>): string {
+  const names = decision.holders.map((h) => h.name)
+  const who = names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+  return `${decision.address} belongs to ${who}. Choose the person, not the shared address.`
+}

@@ -75,6 +75,8 @@ Routes under `app/api/codex/`:
 
 Every handler: `codexFlagGuard()` then `requireCodexInternalAccess()` (`app/api/codex/_shared.ts`).
 
+**Assignee writes (F16, switch `codex_roster_aliases`, needs `codex_v2`, default off).** `POST /tasks`, `PATCH /tasks/[id]`, `POST /tasks/bulk` and `POST /tasks/[id]/help` pass a non-empty `assignee_email` through `resolveAssigneeForWrite` (`lib/codex/assigneeWrite.ts`, roster from `lib/codex/rosterRead.ts`): an address one active person holds (main or alias) stores that person's main email and display name; an address two people hold is 409 `{ error: "ambiguous_assignee", message, holders }` and nothing is written; an address no one holds saves as sent. Switch off: the address passes through untouched and the roster is not read. Quick-add @mentions count aliases under the same switch (`clientFeatureOn`).
+
 **Gate order (pinned by `lib/codex/__tests__/routes.flagAuth.test.ts`):**
 
 1. Flag off (`CODEX_V2` ≠ `on`) → **404** `{ error: "not_found" }` — module invisible; not 403.

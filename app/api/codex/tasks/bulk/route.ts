@@ -7,6 +7,7 @@ import {
   type UpdateTaskInput,
 } from "@/lib/codex/repo"
 import { validateTaskInput } from "@/lib/codex/types"
+import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -160,7 +161,15 @@ export async function POST(request: Request) {
 
     const parsed = parseBulkPatch(raw.patch)
     if (!parsed.ok) return parsed.error
-    const tasks = await bulkUpdateTasks(ids, parsed.patch, actor)
+    const patch = parsed.patch
+    // Alias to the person's main email; a shared address is refused (F16, switch).
+    if (typeof patch.assigneeEmail === "string" && patch.assigneeEmail.trim()) {
+      const assignee = await resolveAssigneeForWrite(patch.assigneeEmail, patch.assigneeName)
+      if (!assignee.ok) return NextResponse.json(assignee.body, { status: assignee.status })
+      patch.assigneeEmail = assignee.email
+      if (assignee.resolved) patch.assigneeName = assignee.name
+    }
+    const tasks = await bulkUpdateTasks(ids, patch, actor)
     return NextResponse.json({ tasks })
   } catch (error) {
     if (error instanceof CodexBulkError) {

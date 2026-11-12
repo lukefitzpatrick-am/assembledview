@@ -10,3 +10,12 @@ import { isFeatureOn } from "@/lib/features/server"
 export async function isCodexV2Enabled(): Promise<boolean> {
   return isFeatureOn("codex_v2")
 }
+
+/**
+ * Codex people resolve by email alias (F16): codex_roster_aliases, which
+ * also needs codex_v2.
+ */
+export async function isCodexRosterAliasesEnabled(): Promise<boolean> {
+  const [codex, aliases] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_roster_aliases")])
+  return codex && aliases
+}

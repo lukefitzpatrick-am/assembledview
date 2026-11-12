@@ -10,6 +10,7 @@ import {
   type QuickAddClient,
   type QuickAddTeamMember,
 } from "@/lib/codex/quickAddParse"
+import { clientFeatureOn } from "@/lib/features/client"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -57,6 +58,8 @@ export function TaskQuickAdd({
       parseQuickAdd({
         text,
         team,
+        // @mentions match email aliases when codex_roster_aliases is on (F16).
+        aliases: clientFeatureOn("codex_roster_aliases"),
         clients,
         defaultAssigneeEmail,
         defaultAssigneeName,

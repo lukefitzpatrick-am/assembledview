@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
+import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
 import {
@@ -237,6 +238,14 @@ export async function PATCH(request: Request, context: RouteContext) {
           break
         }
       }
+    }
+
+    // Alias to the person's main email; a shared address is refused (F16, switch).
+    if (typeof patch.assigneeEmail === "string" && patch.assigneeEmail.trim()) {
+      const assignee = await resolveAssigneeForWrite(patch.assigneeEmail, patch.assigneeName)
+      if (!assignee.ok) return NextResponse.json(assignee.body, { status: assignee.status })
+      patch.assigneeEmail = assignee.email
+      if (assignee.resolved) patch.assigneeName = assignee.name
     }
 
     const currentUser = await getCurrentUser(request)

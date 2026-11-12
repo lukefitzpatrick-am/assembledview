@@ -13,6 +13,7 @@ import {
 } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
 import { readEstimatedMinutes, validateTaskInput } from "@/lib/codex/types"
+import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -255,6 +256,18 @@ export async function POST(request: Request) {
       )
     }
 
+    // Alias to the person's main email; a shared address is refused (F16, switch).
+    let assigneeEmail =
+      "assignee_email" in raw ? (raw.assignee_email as string | null) : null
+    let assigneeName =
+      typeof raw.assignee_name === "string" ? raw.assignee_name : null
+    if (typeof assigneeEmail === "string" && assigneeEmail.trim()) {
+      const assignee = await resolveAssigneeForWrite(assigneeEmail, assigneeName)
+      if (!assignee.ok) return NextResponse.json(assignee.body, { status: assignee.status })
+      assigneeEmail = assignee.email
+      assigneeName = assignee.name ?? null
+    }
+
     let task
     try {
       task = await createTask(
@@ -266,12 +279,8 @@ export async function POST(request: Request) {
           status: "status" in raw ? (raw.status as string) : null,
           priority:
             "priority" in raw ? (raw.priority as string | null) : null,
-          assigneeEmail:
-            "assignee_email" in raw
-              ? (raw.assignee_email as string | null)
-              : null,
-          assigneeName:
-            typeof raw.assignee_name === "string" ? raw.assignee_name : null,
+          assigneeEmail,
+          assigneeName,
           dueDate: "due_date" in raw ? (raw.due_date as string | null) : null,
           estimatedMinutes:
             "estimated_minutes" in raw

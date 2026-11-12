@@ -2731,7 +2731,11 @@ export function TasksPageClient({
           <TaskQuickAdd
             team={teamMembers
               .filter((member) => member.active)
-              .map((member) => ({ email: member.email, name: member.name }))}
+              .map((member) => ({
+                email: member.email,
+                name: member.name,
+                aliases: member.email_aliases ?? [],
+              }))}
             clients={clients.map((c) => ({
               id: c.id,
               label: getClientDisplayName(c) || String(c.id),

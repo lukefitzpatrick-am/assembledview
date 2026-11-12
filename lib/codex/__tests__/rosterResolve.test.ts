@@ -8,6 +8,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
+  ambiguousAssigneeMessage,
+  decideAssigneeWrite,
   displayNameFromEmail,
   looksLikeEmail,
   resolveRosterAddress,
@@ -131,4 +133,28 @@ test("quick-add: @mention through the resolver, display name on the chip, shared
   assert.equal(off.assigneeFromToken, false, "alias addresses need the switch")
   const on = parseQuickAdd({ text: `Brief @alex@${D}`, team, clients: [], aliases: true, now })
   assert.equal(on.assigneeEmail, alex.email)
+})
+
+test("assignee write decision: alias to main email and display name; shared refused; unknown as sent", () => {
+  assert.deepEqual(decideAssigneeWrite(`Alex@${D}`, "whatever", roster), {
+    kind: "ok",
+    email: `alex.james@${D}`,
+    name: "Alex James",
+    resolved: true,
+  })
+  assert.deepEqual(decideAssigneeWrite("Someone@Client.example", "S", roster), {
+    kind: "ok",
+    email: "Someone@Client.example",
+    name: "S",
+    resolved: false,
+  })
+  const shared = decideAssigneeWrite(`samantha@${D}`, null, roster)
+  assert.equal(shared.kind, "ambiguous")
+  if (shared.kind === "ambiguous") {
+    assert.equal(
+      ambiguousAssigneeMessage(shared),
+      `samantha@${D} belongs to Samantha Keah and Samantha Murphy. Choose the person, not the shared address.`,
+    )
+  }
+  assert.equal(decideAssigneeWrite(`old@${D}`, null, roster).kind, "ok", "inactive holder: saved as sent")
 })

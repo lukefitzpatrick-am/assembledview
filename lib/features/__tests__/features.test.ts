@@ -138,6 +138,16 @@ test("codex_v2 (F1): a row wins over CODEX_V2 both ways; no row reads the env; w
   }
 })
 
+test("codex_roster_aliases (F16): new switch, default off, no env fallback, needs codex_v2, sent to the browser", () => {
+  const def = featureDefinition("codex_roster_aliases")!
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.deepEqual(def.requires, ["codex_v2"])
+  assert.equal(def.clientVisible, true)
+  assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("codex_roster_aliases"))
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+})
+
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {
   let enabled = false
   try {
