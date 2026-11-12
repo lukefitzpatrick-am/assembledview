@@ -1,6 +1,7 @@
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 import type { DigestBand, DigestCampaignRow } from "./banding"
 import type { PacingDigestPayload } from "./buildPacingDigest"
+import type { Cm360DriftCheck, DataCheckUnavailable, LabelMapDuplicateCheck } from "./dataChecks"
 
 const BAND_LABEL: Record<DigestBand, string> = {
   "at-risk": "At risk (behind / under-pacing)",
@@ -102,6 +103,74 @@ function renderRelabelSection(payload: PacingDigestPayload): string {
   <tr><td style="padding:4px 24px 12px;">${driftRows}</td></tr>`
 }
 
+const P_STYLE = `font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};margin:8px 0;`
+const MUTED_P_STYLE = `font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.muted};margin:8px 0;`
+const LIST_STYLE = `font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};margin:4px 0 8px;padding-left:18px;`
+
+function plural(n: number, one: string, many: string): string {
+  return `${n.toLocaleString("en-AU")} ${n === 1 ? one : many}`
+}
+
+function unavailableLine(label: string, check: DataCheckUnavailable, missingHint: string): string {
+  const why = check.reason === "missing_view" ? missingHint : "the query failed; see the cron log"
+  return `<p style="${MUTED_P_STYLE}">${escapeHtml(label)}: check not available (${escapeHtml(why)}).</p>`
+}
+
+/** B34 copy, exported for tests. */
+export function cm360DriftLines(check: Cm360DriftCheck): string {
+  const label = "CM360 drift (PACING_FACT vs CM360)"
+  if (check.status === "unavailable") {
+    return unavailableLine(label, check, "MART.VW_PACING_FACT_CM360_DRIFT does not exist yet; run the CD1 migration")
+  }
+  if (check.totalRows === 0) {
+    return `<p style="${P_STYLE}">${label}: none. PACING_FACT matches CM360 on every placement and day.</p>`
+  }
+  const head = `<p style="${P_STYLE}"><strong>${label}: ${plural(check.totalRows, "row", "rows")}.</strong> ${plural(check.inWindowRows, "row is", "rows are")} inside the 14-day refresh window (the 06:30 refresh rewrites them). ${plural(check.outOfWindowRows, "row is", "rows are")} outside it and will not fix themselves.</p>`
+  if (check.outOfWindowRows === 0) return head
+  const items = check.outOfWindowSample
+    .map((r) => {
+      const ratio = r.impressionsRatio == null ? "" : ` · impressions ratio ${r.impressionsRatio}`
+      return `<li>${escapeHtml(r.dateDay)} · ${escapeHtml(r.lineItemId ?? "no line")} · ${escapeHtml(r.entityKey)} · ${escapeHtml(r.driftKind)}${escapeHtml(ratio)}</li>`
+    })
+    .join("")
+  const more =
+    check.outOfWindowRows > check.outOfWindowSample.length
+      ? `<p style="${MUTED_P_STYLE}">Showing the latest ${check.outOfWindowSample.length} of ${check.outOfWindowRows.toLocaleString("en-AU")} outside the window.</p>`
+      : ""
+  return `${head}<ul style="${LIST_STYLE}">${items}</ul>${more}`
+}
+
+/** B34 copy, exported for tests. */
+export function labelMapDuplicateLines(check: LabelMapDuplicateCheck): string {
+  const label = "Label map duplicates"
+  if (check.status === "unavailable") {
+    return unavailableLine(label, check, "MART.LINE_ITEM_LABEL_MAP could not be read")
+  }
+  if (check.duplicateKeys === 0) {
+    return `<p style="${P_STYLE}">${label}: none. Every channel and platform id has at most one active LINE_ITEM_LABEL_MAP row.</p>`
+  }
+  const items = check.sample
+    .map(
+      (k) =>
+        `<li>${escapeHtml(k.channelKey)} · ${escapeHtml(k.platformKey)} · ${k.activeRows} active rows</li>`,
+    )
+    .join("")
+  const more =
+    check.duplicateKeys > check.sample.length
+      ? `<p style="${MUTED_P_STYLE}">Showing ${check.sample.length} of ${check.duplicateKeys.toLocaleString("en-AU")}.</p>`
+      : ""
+  return `<p style="${P_STYLE}"><strong>${label}: ${plural(check.duplicateKeys, "key has", "keys have")} more than one active LINE_ITEM_LABEL_MAP row.</strong> The nightly refresh counts that delivery once per row (C-180).</p><ul style="${LIST_STYLE}">${items}</ul>${more}`
+}
+
+function renderDataChecksSection(payload: PacingDigestPayload): string {
+  const checks = payload.dataChecks
+  if (!checks) return ""
+  return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
+    <div style="font-size:15px;font-weight:700;color:${BRAND.colour.ink};">Data checks</div>
+  </td></tr>
+  <tr><td style="padding:4px 24px 12px;">${cm360DriftLines(checks.cm360Drift)}${labelMapDuplicateLines(checks.labelMapDuplicates)}</td></tr>`
+}
+
 function section(band: DigestBand, rows: DigestCampaignRow[]): string {
   const colour = BAND_COLOUR[band]
   return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
@@ -148,6 +217,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("ahead", groups.ahead)}
         ${section("no-data", groups["no-data"])}
         ${renderRelabelSection(payload)}
+        ${renderDataChecksSection(payload)}
         <tr><td style="padding:0 24px 8px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};">
           Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
         </td></tr>

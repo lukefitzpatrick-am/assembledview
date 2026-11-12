@@ -15,6 +15,22 @@ export const maxDuration = 300
 export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 
+/** B34: one-line summary of the data checks for the job log (null when the switch is off). */
+function dataChecksLog(payload: Awaited<ReturnType<typeof buildPacingDigest>>) {
+  const checks = payload.dataChecks
+  if (!checks) return null
+  return {
+    cm360Drift:
+      checks.cm360Drift.status === "ok"
+        ? { total: checks.cm360Drift.totalRows, outOfWindow: checks.cm360Drift.outOfWindowRows }
+        : checks.cm360Drift.reason,
+    labelMapDuplicateKeys:
+      checks.labelMapDuplicates.status === "ok"
+        ? checks.labelMapDuplicates.duplicateKeys
+        : checks.labelMapDuplicates.reason,
+  }
+}
+
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
     return NextResponse.json(
@@ -70,6 +86,7 @@ export async function GET(request: Request) {
         cacheNote: payload.cacheNote,
         closedRelabelTasks,
         relabelEvents: payload.relabels?.events.length ?? 0,
+        dataChecks: dataChecksLog(payload),
       }),
     )
 

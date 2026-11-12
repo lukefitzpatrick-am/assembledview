@@ -54,6 +54,9 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/relabel/repo", {
     namedExports: { listRelabelLogForDay: async () => [] },
   })
+  await mock.module!("@/lib/ops/digest/loadDataChecks", {
+    namedExports: { loadDigestDataChecks: async () => null },
+  })
 }
 
 test("a snapshot built before P1 is skipped; the caches are read with the count-to day", { skip }, async () => {

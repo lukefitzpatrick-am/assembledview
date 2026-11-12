@@ -22,7 +22,8 @@
 --
 -- Authored 2026-11-09, not applied. Deploy:
 -- migrations/2026-11-09_CD1_pacing_fact_cm360_drift_view_ACCOUNTADMIN.sql
--- (same text, with checks). Not read by any cron or page yet.
+-- (same text, with checks). Read by the 07:00 pacing digest data checks
+-- (lib/ops/digest/dataChecks.ts, switch pacing_digest_data_checks, B34).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.VW_PACING_FACT_CM360_DRIFT COPY GRANTS (

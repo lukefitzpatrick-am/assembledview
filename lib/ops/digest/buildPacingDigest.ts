@@ -17,6 +17,8 @@ import {
 } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
+import type { PacingDigestDataChecks } from "@/lib/ops/digest/dataChecks"
+import { loadDigestDataChecks } from "@/lib/ops/digest/loadDataChecks"
 import {
   buildAdServingDigestCampaignRows,
   buildDigestCampaignRows,
@@ -88,6 +90,11 @@ export type PacingDigestPayload = {
     events: DeliveryRelabelLogRow[]
     drift: RelabelDriftFinding[]
   }
+  /**
+   * B34: CM360 drift and duplicate label map keys. Present only with
+   * `pacing_digest_data_checks` on; each check can be "unavailable".
+   */
+  dataChecks?: PacingDigestDataChecks
 }
 
 function logDigestStage(
@@ -200,6 +207,20 @@ async function finishDigest(
     drift: relabelDrift.length,
   })
 
+  const checksStarted = Date.now()
+  let dataChecks: PacingDigestDataChecks | null = null
+  try {
+    dataChecks = await loadDigestDataChecks()
+  } catch (err) {
+    // loadDigestDataChecks fails soft per check; this is a last guard so the digest still sends.
+    console.error("[pacing-digest] data checks failed", err)
+  }
+  logDigestStage("data_checks", checksStarted, {
+    on: dataChecks != null,
+    cm360Drift: dataChecks?.cm360Drift.status ?? null,
+    labelMapDuplicates: dataChecks?.labelMapDuplicates.status ?? null,
+  })
+
   return {
     asOfDate,
     countToDate,
@@ -221,5 +242,6 @@ async function finishDigest(
       events: relabelEvents,
       drift: relabelDrift,
     },
+    ...(dataChecks ? { dataChecks } : {}),
   }
 }
