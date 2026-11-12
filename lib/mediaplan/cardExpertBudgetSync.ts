@@ -136,10 +136,29 @@ function placeFirstWeekQtyIfUndated(
  */
 export function projectLumpSumCardBudgetsOntoExpertRows<
   T extends LumpSumProjectableExpertRow,
->(rows: T[], weekKeys: readonly string[]): T[] {
+>(
+  rows: T[],
+  weekKeys: readonly string[],
+  options?: {
+    /**
+     * B35 (C-168 (d)): a `package` row with no quantity keeps 0. No rate or
+     * quantity is projected from the card budget, so the grid never invents a
+     * quantity; Apply then generates no bursts for it and keeps the card's
+     * (`preservePreviousBurstsIfApplyWouldZeroBudget`). Press and programmatic grids.
+     */
+    keepZeroPackageQty?: boolean
+  }
+): T[] {
   for (const row of rows) {
     const cardGross = parseBurstMoney(row.grossCost)
     if (!(cardGross > 0)) continue
+    if (
+      options?.keepZeroPackageQty &&
+      String(row.buyType || "").trim().toLowerCase() === "package" &&
+      !(expertRowQuantitySum(row, weekKeys) > 0)
+    ) {
+      continue
+    }
 
     const raw = expertRowGrossCost(row, weekKeys)
     // Already reflects money (allow 1¢ float).

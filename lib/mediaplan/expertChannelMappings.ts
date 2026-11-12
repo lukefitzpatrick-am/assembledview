@@ -6724,9 +6724,10 @@ export function mapStandardNewspaperLineItemsToExpertRows(
           ? cellQtyRaw
           : parseNum(cellQtyRaw)
       if (!Number.isFinite(cellQty)) cellQty = 0
+      // B35 (C-168 (d)): a package quantity of 0 stays 0; only fixed cost and
+      // package inclusions open as 1 (C-168 (c) is still open).
       if (
         buyTypeLower === "fixed_cost" ||
-        buyTypeLower === "package" ||
         buyTypeLower === "package_inclusions"
       ) {
         cellQty = cellQty > 0 ? cellQty : 1
@@ -6822,7 +6823,9 @@ export function mapStandardNewspaperLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -7081,9 +7084,10 @@ export function mapStandardMagazineLineItemsToExpertRows(
           ? cellQtyRaw
           : parseNum(cellQtyRaw)
       if (!Number.isFinite(cellQty)) cellQty = 0
+      // B35 (C-168 (d)): a package quantity of 0 stays 0; only fixed cost and
+      // package inclusions open as 1 (C-168 (c) is still open).
       if (
         buyTypeLower === "fixed_cost" ||
-        buyTypeLower === "package" ||
         buyTypeLower === "package_inclusions"
       ) {
         cellQty = cellQty > 0 ? cellQty : 1
@@ -7178,7 +7182,9 @@ export function mapStandardMagazineLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -7407,9 +7413,10 @@ function progAccumulateWeeklyFromBursts(
         ? cellQtyRaw
         : parseNum(cellQtyRaw)
     if (!Number.isFinite(cellQty)) cellQty = 0
+    // B35 (C-168 (d)): a package quantity of 0 stays 0; only fixed cost and
+    // package inclusions open as 1 (C-168 (c) is still open).
     if (
       buyTypeLower === "fixed_cost" ||
-      buyTypeLower === "package" ||
       buyTypeLower === "package_inclusions"
     ) {
       cellQty = cellQty > 0 ? cellQty : 1
@@ -7656,7 +7663,9 @@ export function mapStandardProgAudioLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -7849,7 +7858,9 @@ export function mapStandardProgBvodLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -8054,7 +8065,9 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -8253,7 +8266,9 @@ export function mapStandardProgVideoLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
 
@@ -8449,6 +8464,8 @@ export function mapStandardProgOohLineItemsToExpertRows(
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
     __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+    weekColumns.map((c) => c.weekKey),
+    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+    { keepZeroPackageQty: true }
   )
 }
