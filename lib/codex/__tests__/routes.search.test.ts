@@ -73,6 +73,17 @@ test("codex_search off: 404 before auth, repo not called", { skip }, async () =>
   assert.equal(searchCalls.length, 0)
 })
 
+test("codex_search off comes before auth: 404 with no session and with a client role", { skip }, async () => {
+  searchCalls.length = 0
+  for (const who of [null, { user: { email: "c@client.com", roles: ["client"] } }]) {
+    session = who
+    const res = await call({ codex: true, search: false }, URL_OK)
+    assert.equal(res.status, 404, `session ${JSON.stringify(who)}`)
+    assert.deepEqual(await res.json(), { error: "not_found" })
+  }
+  assert.equal(searchCalls.length, 0)
+})
+
 test("no session: 401", { skip }, async () => {
   session = null
   const res = await call({ codex: true, search: true }, URL_OK)

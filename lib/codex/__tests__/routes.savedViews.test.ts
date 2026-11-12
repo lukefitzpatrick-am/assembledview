@@ -109,6 +109,20 @@ test("gate order on every method: codex_v2 off 404, saved views off 404, no sess
   assert.equal(calls.length, 0, "the store is never reached")
 })
 
+test("codex_saved_views off comes before auth on every method: 404 with no session and with a client role", { skip }, async () => {
+  calls.length = 0
+  for (const who of [null, { user: { email: "c@client.com", roles: ["client"] } }, { user: { roles: ["admin"] } }]) {
+    session = who
+    const results = await withSwitches(true, false, allMethods)
+    assert.equal(results.length, 4)
+    for (const res of results) {
+      assert.equal(res.status, 404, `session ${JSON.stringify(who)}`)
+      assert.deepEqual(await res.json(), { error: "not_found" })
+    }
+  }
+  assert.equal(calls.length, 0, "the store is never reached")
+})
+
 test("staff: list, create, rename, delete reach the store with the lower-case email", { skip }, async () => {
   calls.length = 0
   mode = "ok"
