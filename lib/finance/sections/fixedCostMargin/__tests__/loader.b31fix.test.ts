@@ -296,6 +296,20 @@ test("C-185 on: the current month is the Melbourne month, not the server's UTC m
   assert.equal("noSpendYet" in month(q, "boss010pd2", "2026-11"), false)
 })
 
+test("B34: the \"(to date)\" month (scope.currentMonth) is the Melbourne month, switch on or off", { skip }, async () => {
+  // 31 Oct 2026 14:00 UTC is 1 Nov 01:00 AEDT.
+  for (const noSpend of [false, true]) {
+    const p = await load({ fc9: false, noSpend, now: new Date("2026-10-31T14:00:00Z") })
+    assert.equal(p.scope.currentMonth, "2026-11", `noSpend ${noSpend}`)
+    const q = await load({ fc9: false, noSpend, now: new Date("2026-10-31T12:59:59Z") })
+    assert.equal(q.scope.currentMonth, "2026-10", `noSpend ${noSpend}`)
+  }
+  // The label and the C-185 rule read one month: October is "past" when November is "(to date)".
+  const r = await load({ fc9: false, noSpend: true, dropSpend: new Set(["boss010pd2|2026-10"]), now: new Date("2026-10-31T14:00:00Z") })
+  assert.equal(r.scope.currentMonth, "2026-11")
+  assert.equal(month(r, "boss010pd2", "2026-10").noSpendYet, "past")
+})
+
 test("C-185 on, no month without spend: the payload equals the switch off", { skip }, async () => {
   const now = new Date("2026-11-10T01:00:00Z")
   const off = await load({ fc9: true, now })

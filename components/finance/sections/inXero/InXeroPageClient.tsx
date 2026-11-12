@@ -18,6 +18,7 @@ import {
   useFinanceScopeApplied,
   useFinanceScopeVersion,
 } from "@/lib/finance/sections/useFinanceScope"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import type { ViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
 
@@ -82,7 +83,7 @@ export function InXeroPageClient() {
     if (!payload) return
     setExporting(true)
     try {
-      const stamp = new Date().toISOString().slice(0, 10)
+      const stamp = getMelbourneTodayISO()
       await exportDraftMatchExcel(payload, `xero-draft-match-${stamp}.xlsx`)
     } finally {
       setExporting(false)

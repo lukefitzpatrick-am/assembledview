@@ -150,3 +150,10 @@ test("difference pill only when a Xero figure exists", () => {
   assert.equal(gap?.tone, "attention")
   assert.ok(gap?.text.startsWith("+"))
 })
+
+test("B34: the pressed chip uses the Melbourne month at the UTC boundary", () => {
+  // 31 Oct 2026 14:00 UTC is 1 Nov 01:00 AEDT: November is the current month.
+  const at = new Date("2026-10-31T14:00:00Z")
+  assert.equal(pressedBillingMonth({ from: "2026-07", to: "2026-11" }, 2026, at), "2026-11")
+  assert.equal(pressedBillingMonth({ from: "2026-07", to: "2026-10" }, 2026, at), null)
+})

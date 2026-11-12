@@ -15,6 +15,18 @@ export function getMelbourneTodayISO(reference: Date = new Date()): string {
 }
 
 /**
+ * Returns the current Melbourne calendar month as `YYYY-MM`.
+ *
+ * The one rule for "current month" and "(to date)" in display and range
+ * labels (B34, Q20). A UTC or host-local month is wrong for up to 11 hours
+ * at each month boundary: 31 Oct 14:00 UTC is already 1 Nov 01:00 AEDT.
+ * Billing months and money calculations keep their own month source.
+ */
+export function getMelbourneMonthISO(reference: Date = new Date()): string {
+  return getMelbourneTodayISO(reference).slice(0, 7)
+}
+
+/**
  * Returns yesterday's date in Australia/Melbourne as `YYYY-MM-DD`.
  *
  * This is computed in Melbourne calendar terms (not “now minus 24h”),

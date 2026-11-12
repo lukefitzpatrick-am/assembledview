@@ -9,9 +9,9 @@ import type { BillingState } from "@/lib/finance/billingLifecycle"
 import { formatAUD } from "@/lib/format/money"
 import {
   billingMonthsInAustralianFinancialYear,
-  getCurrentBillingMonth,
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 import { toCents } from "@/lib/money"
 
 export type BillingStatCardRecord = {
@@ -80,7 +80,7 @@ export function billingMonthChipLabel(yyyyMm: string): string {
 }
 
 /**
- * Pressed chip: the applied single month, otherwise the current month when it
+ * Pressed chip: the applied single month, otherwise the current Melbourne month when it
  * sits inside the applied range and the selected FY. A range that excludes
  * today presses nothing.
  */
@@ -91,7 +91,8 @@ export function pressedBillingMonth(
 ): string | null {
   const months = fyBillingMonthChips(fy)
   if (range.from === range.to && months.includes(range.from)) return range.from
-  const current = getCurrentBillingMonth(today)
+  // B34: display only (which chip looks pressed), on the Melbourne month.
+  const current = getMelbourneMonthISO(today)
   if (months.includes(current) && current >= range.from && current <= range.to) return current
   return null
 }
