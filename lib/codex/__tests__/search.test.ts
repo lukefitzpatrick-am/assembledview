@@ -78,7 +78,7 @@ test("task SQL: live tasks only; title, MBA, description and comments; full text
   assert.match(s, /t\.title ILIKE \$\d+/)
   assert.match(s, /coalesce\(t\.mba_number, ''\) ILIKE/)
   assert.match(s, /coalesce\(t\.description, ''\) ILIKE/)
-  assert.match(s, /EXISTS \( SELECT 1 FROM task_comments c WHERE c\.task_id = t\.id/)
+  assert.match(s, /OR EXISTS \( SELECT 1 FROM task_comments c WHERE c\.task_id = t\.id/)
   assert.match(s, /to_tsvector\('english'::regconfig, coalesce\(t\.title, ''\) \|\| ' ' \|\| coalesce\(t\.description, ''\)\) @@ plainto_tsquery\('english'::regconfig, \$\d+\)/)
   assert.ok(params.includes("%brand report%"))
   assert.ok(params.includes("brand report"))
