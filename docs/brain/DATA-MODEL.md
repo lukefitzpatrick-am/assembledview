@@ -156,10 +156,19 @@ erDiagram
     task_templates ||--o{ task_template_items : "template_id (cascade)"
     task_templates ||--o{ tasks : "template_id (set null)"
     publishers ||--o{ client_notes : "publisher_id"
+    codex_projects ||--o{ codex_sections : "project_id (cascade)"
+    codex_projects ||--o{ codex_project_members : "project_id (cascade)"
+    codex_projects ||--o{ codex_custom_fields : "project_id (cascade)"
+    codex_projects ||--o{ tasks : "project_id (0118)"
+    codex_sections ||--o{ tasks : "section_id (set null, 0118)"
+    tasks ||--o{ task_followers : "task_id (cascade)"
+    tasks ||--o{ task_attachments : "task_id (cascade)"
+    tasks ||--o{ codex_notifications : "task_id (cascade)"
 ```
 
 | Table | Rows | Notes |
 |---|---|---|
+| `client_notes` | 131 | Fireflies meetings. `fireflies_meeting_id` UNIQUE. `attributed_type` = client\|publisher\|internal\|new_business; **NULL is the unattributed queue**. `matched_by` records how attribution happened. GIN full-text index `idx_client_notes_body_fts` on `body` (0116 authored, not applied; Codex search) |
 | `client_notes` | 341 (13 Nov 2026 SELECT: 104 internal, 79 unattributed) | Fireflies meetings. `fireflies_meeting_id` UNIQUE. `attributed_type` = client\|publisher\|internal\|new_business; **NULL is the unattributed queue**. `matched_by` records how attribution happened. GIN full-text index `idx_client_notes_body_fts` on `body` with the JSON keys and escapes blanked (`CLIENT_NOTES_BODY_FTS_EXPRESSION`; 0116 authored, not applied; Codex search, C-202). `body` is Fireflies JSON `{"summary", "action_items"}` (both strings) |
 | `tasks` | 46 | `client_id` has **no FK** to `clients` (deliberate, from the ETL era). `auto_created` + `ava_auto_key` for unique-roster auto-create. Soft delete via `deleted_at`. Help children: `parent_task_id` bigint → `tasks(id)` ON DELETE SET NULL, plus `help_requested_by_email` / `help_prior_status` (0078 applied) |
 | `team_members` | 11 | `email` UNIQUE and `auth0_user_id` UNIQUE — identity is email, never a numeric id. `email_aliases`, `default_client_ids` array. Synced by `auth0-roster-sync` |
@@ -169,6 +178,16 @@ erDiagram
 | `codex_activity` | 797 | entity/action audit log |
 | `fireflies_sync_state` | 3 | run log |
 | `codex_saved_views` | 0 (0117 not applied) | Codex saved views (F8): `owner_email`, `name`, `screen` (`tasks`), `lens` (`plan`), `filters` jsonb (the `/tasks` query string as an object, canonical, minus `view`), `layout` (`list`\|`board`), `group_by` (null or `status`), `shared`, `created_at`. Owner renames, shares and deletes; shared views readable by staff. 50 per owner (app; count and insert under a per-owner advisory lock, C-203). RLS on; no `ava_readonly` grant. Not read until marker `0117_codex_saved_views` (C-76) |
+| `codex_projects` | 0 (0118 not applied) | Codex S1 projects: `kind` (campaign\|retainer\|onboarding\|pitch\|internal\|ops), `client_id` (no FK, DI-12), `mba_number` (unique among live projects, `uq_codex_projects_mba`; Sinch is MBA `sinch001`, decision 42 A), `name`, `owner_email`, `is_private`, `progress_field_id` → `codex_custom_fields` (set null), `status` (active\|on_hold\|closed), `start_on`, `due_on`, `teams_channel_id`, `created_by_email`, soft delete `deleted_at`. A private project is visible to its owner, creator and members only (app, `lib/codex/projects.ts`). RLS on, no `ava_readonly` grant. Not read until marker `0118_codex_s1_projects` |
+| `codex_project_members` | 0 (0118) | PK (`project_id`, `email`), lower-case emails (app). Index on `email` |
+| `codex_sections` | 0 (0118) | Board columns per project: `name`, `sort_order`, `collapsed_default`, `status_category` (todo\|in_progress\|waiting\|done). Moving a task in sets `tasks.status`; a project keeps at least one done section; delete only with no live tasks (app) |
+| `codex_custom_fields` | 0 (0118) | Per-project field definitions: `field_type` single_select\|multi_select\|text\|date, `options` jsonb, `done_option` (progress rule, S4). Values live in `tasks.custom_values` |
+| `task_followers` | 0 (0118) | PK (`task_id`, `email`), `reason`. Index on `email` (My Work Following) |
+| `task_attachments` | 0 (0118) | `kind` blob (needs `blob_pathname`) or link (needs `url`), `name`, `size_bytes`, `uploaded_by_email` |
+| `codex_board_configs` | 0 (0118) | `scope`, `owner_email`, `group_by`, `swimlane_by`, `card_fields`, `hide_completed` (default true), `wip_limits` |
+| `codex_notifications` | 0 (0118) | Bell rows: `recipient_email`, `kind`, `task_id`, `actor_email`, `read_at`, `teams_sent_at`, `email_digest_at`. Index (`recipient_email`, `read_at`) |
+| `codex_notification_prefs` | 0 (0118) | Per email: `prefs` jsonb, quiet hours 18:00 to 08:00 |
+| `codex_user_prefs` | 0 (0118) | Per email: `default_lens` plan\|flow, `calendar_feed_token_hash` (ICS, hash only) |
 | `meeting_title_rules` | 0 | exact match on normalised title |
 | `time_entries` / `myhours_links` / `myhours_sync_runs` | 0 / 0 / 0 | MyHours mirror is pull-source-of-truth; the Confirm path is the only intentional write back |
 

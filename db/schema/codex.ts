@@ -7,13 +7,16 @@ import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
+  date,
   foreignKey,
   index,
   integer,
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
+  time,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
@@ -391,6 +394,197 @@ export const codexSavedViews = pgTable("codex_saved_views", {
   groupBy: text("group_by"),
   shared: boolean("shared").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .defaultNow(),
+})
+
+/*
+ * Codex S1 (migration 0118, B38; plan section 10 S1). Ten new tables, all
+ * RLS on with no policies and no ava_readonly grant, no FK to clients (DI-12).
+ * Read only once the marker 0118_codex_s1_projects exists
+ * (lib/codex/projectsRepo.ts), so these mirrors deploy in any order.
+ *
+ * NOT mirrored here yet (C-210): the ten new tasks columns (project_id,
+ * section_id, task_type, assigned_by_email, start_on, due_on, sort_order,
+ * completed_at, custom_values, created_by_automation) and
+ * task_comments.mentions. Drizzle lists every mirrored column in
+ * db.select().from(tasks) and in inserts, so adding them before 0118 runs
+ * would 500 every Codex read (C-76). The repo reads and writes them with raw
+ * SQL behind the marker. Mirror them after 0118 is applied.
+ */
+export type CodexProjectKind = "campaign" | "retainer" | "onboarding" | "pitch" | "internal" | "ops"
+export type CodexProjectStatus = "active" | "on_hold" | "closed"
+export type CodexSectionStatusCategory = "todo" | "in_progress" | "waiting" | "done"
+export type CodexTaskType = "task" | "subtask" | "help" | "milestone" | "approval"
+export type CodexCustomFieldType = "single_select" | "multi_select" | "text" | "date"
+
+export const codexProjects = pgTable(
+  "codex_projects",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    kind: text("kind").$type<CodexProjectKind>().notNull(),
+    clientId: bigint("client_id", { mode: "number" }),
+    mbaNumber: text("mba_number"),
+    name: text("name").notNull(),
+    ownerEmail: text("owner_email"),
+    isPrivate: boolean("is_private").notNull().default(false),
+    /** The SEO-style linked progress field (codex_custom_fields, set null on delete). */
+    progressFieldId: bigint("progress_field_id", { mode: "number" }),
+    status: text("status").$type<CodexProjectStatus>().notNull().default("active"),
+    startOn: date("start_on", { mode: "string" }),
+    dueOn: date("due_on", { mode: "string" }),
+    teamsChannelId: text("teams_channel_id"),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    uniqueIndex("uq_codex_projects_mba")
+      .on(table.mbaNumber)
+      .where(sql`${table.mbaNumber} IS NOT NULL AND ${table.deletedAt} IS NULL`),
+    foreignKey({
+      columns: [table.progressFieldId],
+      foreignColumns: [codexCustomFields.id],
+      name: "codex_projects_progress_field_id_fkey",
+    }).onDelete("set null"),
+  ],
+)
+
+export const codexProjectMembers = pgTable(
+  "codex_project_members",
+  {
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => codexProjects.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.email] }),
+    index("idx_codex_project_members_email").on(table.email),
+  ],
+)
+
+export const codexSections = pgTable(
+  "codex_sections",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => codexProjects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    collapsedDefault: boolean("collapsed_default").notNull().default(false),
+    statusCategory: text("status_category").$type<CodexSectionStatusCategory>().notNull().default("todo"),
+  },
+  (table) => [index("idx_codex_sections_project_sort").on(table.projectId, table.sortOrder)],
+)
+
+export const codexCustomFields = pgTable(
+  "codex_custom_fields",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    projectId: bigint("project_id", { mode: "number" }).references(() => codexProjects.id, {
+      onDelete: "cascade",
+    }),
+    name: text("name").notNull(),
+    fieldType: text("field_type").$type<CodexCustomFieldType>().notNull(),
+    options: jsonb("options"),
+    doneOption: text("done_option"),
+  },
+  (table) => [index("idx_codex_custom_fields_project").on(table.projectId)],
+)
+
+export const taskFollowers = pgTable(
+  "task_followers",
+  {
+    taskId: bigint("task_id", { mode: "number" })
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    reason: text("reason"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.email] }),
+    index("idx_task_followers_email").on(table.email),
+  ],
+)
+
+export const taskAttachments = pgTable(
+  "task_attachments",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    taskId: bigint("task_id", { mode: "number" })
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"blob" | "link">().notNull(),
+    name: text("name").notNull(),
+    blobPathname: text("blob_pathname"),
+    url: text("url"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    uploadedByEmail: text("uploaded_by_email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("idx_task_attachments_task_id").on(table.taskId)],
+)
+
+export const codexBoardConfigs = pgTable(
+  "codex_board_configs",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    scope: text("scope").notNull(),
+    ownerEmail: text("owner_email"),
+    groupBy: text("group_by").notNull(),
+    swimlaneBy: text("swimlane_by"),
+    cardFields: jsonb("card_fields").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    hideCompleted: boolean("hide_completed").notNull().default(true),
+    wipLimits: jsonb("wip_limits").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("idx_codex_board_configs_scope_owner").on(table.scope, table.ownerEmail)],
+)
+
+export const codexNotifications = pgTable(
+  "codex_notifications",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    recipientEmail: text("recipient_email").notNull(),
+    kind: text("kind").notNull(),
+    taskId: bigint("task_id", { mode: "number" }).references(() => tasks.id, { onDelete: "cascade" }),
+    actorEmail: text("actor_email"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "string" }),
+    teamsSentAt: timestamp("teams_sent_at", { withTimezone: true, mode: "string" }),
+    emailDigestAt: timestamp("email_digest_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("idx_codex_notifications_recipient_read").on(table.recipientEmail, table.readAt),
+    index("idx_codex_notifications_task_id").on(table.taskId),
+  ],
+)
+
+export const codexNotificationPrefs = pgTable("codex_notification_prefs", {
+  email: text("email").primaryKey(),
+  prefs: jsonb("prefs").notNull().default(sql`'{}'::jsonb`),
+  quietStart: time("quiet_start").default("18:00"),
+  quietEnd: time("quiet_end").default("08:00"),
+})
+
+export const codexUserPrefs = pgTable("codex_user_prefs", {
+  email: text("email").primaryKey(),
+  defaultLens: text("default_lens").$type<"plan" | "flow">().notNull().default("plan"),
+  calendarFeedTokenHash: text("calendar_feed_token_hash"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),
 })
