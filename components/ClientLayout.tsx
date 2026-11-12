@@ -212,6 +212,6 @@ function AssistantMount({ isShellVisible }: { isShellVisible: boolean }) {
   }, [pathname])
 
   if (!showAssistant) return null
-  return <ChatWidget getPageContext={getPageContext} mode={mode} />
+  return <ChatWidget getPageContext={getPageContext} mode={mode} routePath={pathname ?? undefined} />
 }
 

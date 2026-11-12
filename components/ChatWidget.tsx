@@ -182,6 +182,11 @@ type ChatWidgetProps = {
   mode?: ChatMode
   initialMessages?: ChatApiMessage[]
   className?: string
+  /**
+   * Current pathname (ClientLayout). Sent as `route` so the server applies the
+   * /tasks tool allowlist on pages with no assistant bridge (F14).
+   */
+  routePath?: string
 }
 
 const STARTER_CHIPS: Record<ChatMode, string[]> = {
@@ -295,6 +300,7 @@ export function ChatWidget({
   mode = "general",
   initialMessages = [],
   className,
+  routePath,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -468,6 +474,7 @@ export function ChatWidget({
         messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
         mode,
+        ...(routePath ? { route: routePath } : {}),
         ...(pendingParsedPlanRef.current
           ? {
               pendingParsedPlan: {

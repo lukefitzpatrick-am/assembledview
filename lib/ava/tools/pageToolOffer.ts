@@ -4,6 +4,14 @@ import {
   CAMPAIGN_READ_GENERATE_SURFACE,
   CAMPAIGN_READ_GENERATE_TOOLS,
 } from "@/lib/campaign-read/generateTools"
+import { isTasksPath } from "@/lib/ava/conversationScope"
+import {
+  TASKS_TOOL_ALLOWLIST,
+  avaToolTag,
+  isCaptureTool,
+  isReadTool,
+  type AvaToolTagLookup,
+} from "./toolAccess"
 
 const MEDIA_PLAN_CREATE = /^\/mediaplans\/create\/?$/
 const MEDIA_PLAN_EDIT = /^\/mediaplans\/mba\/[^/]+\/edit\/?$/
@@ -61,16 +69,52 @@ export function isMediaPlanCreateOrEditRoute(
 }
 
 /**
+ * Where the turn runs and what the conversation has seen (F14, B36).
+ * - `clientRoute`: the pathname the widget sends. Pages with no assistant
+ *   bridge (Codex /tasks) publish no PageContext, so this is how the server
+ *   knows the turn is on /tasks. Only the /tasks allowlist and capture tools
+ *   read it; every other rule reads the PageContext route as before.
+ * - `tainted`: captured (untrusted) text has entered this conversation.
+ *   Every tool that is not a read tool is dropped, on any page.
+ * - `tagOf`: tool tags (tests pass a fixture lookup).
+ */
+export type AvaToolOfferScope = {
+  clientRoute?: string
+  tainted?: boolean
+  tagOf?: AvaToolTagLookup
+}
+
+/** True when either the PageContext route or the widget's route is /tasks or under it. */
+export function isTasksSurface(pageContext: PageContext | undefined, clientRoute: string | undefined): boolean {
+  return isTasksPath(pageContextRoutePathname(pageContext)) || isTasksPath(clientRoute)
+}
+
+/**
+ * Anthropic server web search: never on /tasks and never in a tainted
+ * conversation, because a search query is a way out for injected text.
+ */
+export function avaWebSearchAllowed(
+  pageContext: PageContext | undefined,
+  scope: AvaToolOfferScope = {},
+): boolean {
+  return !scope.tainted && !isTasksSurface(pageContext, scope.clientRoute)
+}
+
+/**
  * Surface-aware tool offer. Create/edit mega-pages and unknown/absent routes
  * omit `accept_ingest_proposal` (fail closed). Hub and other known routes keep it.
  * `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
  * Billing revision tools (BILLING_REVISIONS) and query_true_up (TRUE_UP) are offered only on
  * `/finance/*` and the MBA detail page (never create or edit).
+ * `/tasks/*` is an allowlist (TASKS_TOOL_ALLOWLIST plus capture tools); any
+ * tool not on it is not offered there (F14, fail closed). Capture tools are
+ * offered on `/tasks/*` only. A tainted conversation keeps read tools only.
  */
 export function avaToolDefinitionsForPage<T extends { name: string }>(
   definitions: readonly T[],
   pageContext?: PageContext,
   flags: AvaToolFlags = envToolFlags(),
+  scope: AvaToolOfferScope = {},
 ): T[] {
   const pathname = pageContextRoutePathname(pageContext)
   const revisionsOk = billingRevisionToolsOk(pathname, flags.billingRevisions)
@@ -78,7 +122,18 @@ export function avaToolDefinitionsForPage<T extends { name: string }>(
   const offered = definitions.filter(
     (t) => (revisionsOk || !BILLING_REVISION_TOOLS.has(t.name)) && (trueUpOk || !TRUE_UP_TOOLS.has(t.name)),
   )
-  return offerForSurface(offered, pageContext)
+  const tagOf = scope.tagOf ?? avaToolTag
+  let out = offerForSurface(offered, pageContext)
+  if (isTasksSurface(pageContext, scope.clientRoute)) {
+    const allowed = new Set<string>(TASKS_TOOL_ALLOWLIST)
+    out = out.filter((t) => (allowed.has(t.name) && isReadTool(t.name, tagOf)) || isCaptureTool(t.name, tagOf))
+  } else {
+    out = out.filter((t) => !tagOf(t.name)?.capture)
+  }
+  if (scope.tainted) {
+    out = out.filter((t) => isReadTool(t.name, tagOf))
+  }
+  return out
 }
 
 function offerForSurface<T extends { name: string }>(

@@ -11,7 +11,11 @@ import {
 } from "./modelConfig";
 import { avaToolDefinitionsForPage, getToolByName } from "./tools/registry";
 import { readAvaToolFlags } from "./tools/toolFlags";
-import type { AvaToolFlags } from "./tools/pageToolOffer";
+import {
+  avaWebSearchAllowed,
+  type AvaToolFlags,
+  type AvaToolOfferScope,
+} from "./tools/pageToolOffer";
 import type { AvaToolContext } from "./tools/types";
 import type { PageContext } from "@/lib/ava/types";
 import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
@@ -24,8 +28,13 @@ export type AvaAgentInput = {
    * Runtime tool state; `pageContext` is a {@link PageContext} snapshot when present.
    */
   context: AvaToolContext;
-  /** Append Anthropic server `web_search` (admin AVA chats). */
+  /** Append Anthropic server `web_search` (admin AVA chats). Never on /tasks (F14). */
   enableWebSearch?: boolean;
+  /**
+   * Pathname the chat widget sent. Pages with no assistant bridge (/tasks)
+   * publish no PageContext; the /tasks allowlist reads this (F14).
+   */
+  clientRoute?: string;
   /**
    * `report` for campaign-read generation. Chat stays `chat` until a report
    * skill is loaded into the message history, then the rest of the turn uses
@@ -74,9 +83,10 @@ function buildTools(
   enableWebSearch: boolean,
   pageContext: PageContext | undefined,
   flags: AvaToolFlags,
+  scope: AvaToolOfferScope,
 ): Anthropic.ToolUnion[] {
-  const definitions = avaToolDefinitionsForPage(pageContext, flags);
-  if (!enableWebSearch) return definitions;
+  const definitions = avaToolDefinitionsForPage(pageContext, flags, scope);
+  if (!enableWebSearch || !avaWebSearchAllowed(pageContext, scope)) return definitions;
   return [...definitions, WEB_SEARCH_TOOL];
 }
 
@@ -230,6 +240,7 @@ export async function runAvaAgent(
       input.enableWebSearch === true,
       input.context.pageContext,
       await readAvaToolFlags(),
+      { clientRoute: input.clientRoute },
     );
     const offeredNames = new Set(
       tools.flatMap((tool) =>

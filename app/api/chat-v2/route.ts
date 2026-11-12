@@ -21,6 +21,7 @@ import {
 } from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import type { AvaToolContext, PendingIngest, PendingParsedPlan } from "@/lib/ava/tools/types"
+import { normaliseRoutePath } from "@/lib/ava/conversationScope"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -99,6 +100,8 @@ type ChatRequestBody = {
     radio?: unknown
     ooh?: unknown
   }
+  /** Widget pathname. /tasks publishes no PageContext; the /tasks tool allowlist reads this (F14). */
+  route?: unknown
 }
 
 export async function POST(req: NextRequest) {
@@ -153,6 +156,7 @@ export async function POST(req: NextRequest) {
       pendingIngest,
       currentLineItems,
     } = body
+    const clientRoute = normaliseRoutePath(body.route)
     const resolvedMode = resolveMode(mode)
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
@@ -188,6 +192,7 @@ export async function POST(req: NextRequest) {
       messages: anthropicMessages,
       context,
       enableWebSearch: true,
+      clientRoute,
     })
 
     return NextResponse.json({
