@@ -121,6 +121,23 @@ test("isFeatureOn: a row beats env; no table (0111 not run) falls back to env", 
   }
 })
 
+test("codex_v2 (F1): a row wins over CODEX_V2 both ways; no row reads the env; with no row it is listed for Save current values", async () => {
+  const def = featureDefinition("codex_v2")!
+  assert.equal(def.envName, "CODEX_V2", "the env fallback stays until production has a row (F1)")
+  assert.deepEqual(resolveFeature(def, new Map([["codex_v2", row("codex_v2", false)]]), { CODEX_V2: "on" }), { enabled: false, source: "switch" })
+  assert.deepEqual(resolveFeature(def, new Map([["codex_v2", row("codex_v2", true)]]), {}), { enabled: true, source: "switch" })
+  assert.deepEqual(resolveFeature(def, new Map(), { CODEX_V2: "on" }), { enabled: true, source: "env" })
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+  const unsaved = unsavedFeatureSwitches(new Map(), { CODEX_V2: "on" })
+  assert.deepEqual(unsaved.find((u) => u.key === "codex_v2"), { key: "codex_v2", enabled: true, source: "env" })
+  try {
+    setFeatureRowReaderForTests(async () => new Map([["codex_v2", row("codex_v2", false)]]))
+    assert.equal(await isFeatureOn("codex_v2", { CODEX_V2: "on" }), false)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})
+
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {
   let enabled = false
   try {

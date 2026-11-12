@@ -1,6 +1,8 @@
 # Module: Codex (`/tasks`)
 
-Postgres-native internal task ops for the Assembled Media team. Shadow phase: flag `CODEX_V2=on`, roles `CODEX_SHADOW_ROLES` (currently `admin` only). Naming: `lib/codex/**` is the Tasks domain, not AVA.
+Postgres-native internal task ops for the Assembled Media team. Shadow phase: switch `codex_v2` (`lib/features/registry.ts`; with no switch row it still reads `CODEX_V2=on`, see **Switch** below), roles `CODEX_SHADOW_ROLES` (currently `admin` only).
+
+**Switch (F1, C-192).** `resolveFeature` already prefers a `feature_switches` row and reads `CODEX_V2` only when no row exists. Production had no `codex_v2` row on 13 Nov 2026 and the production env value is unverified, so the fallback stays. Luke: (1) production `/admin/features`, Platform > Tasks (Codex), read the value and source (Env var CODEX_V2); (2) press Save current values there, which writes a row at that value (no behaviour change); turn Codex on only after the F14 Ava patches are live; (3) check the row (`SELECT key, enabled FROM feature_switches WHERE key = 'codex_v2'`); (4) a later small change drops `envName` / `envParse` from the entry and the Vercel var can go. Naming: `lib/codex/**` is the Tasks domain, not AVA.
 
 **Discipline:** live in Stage 0 for a fortnight; accumulate bugs in **Stage 0 observations** below; that list shapes the Stage 1 pack. Do not invent Stage 1 scope from speculation.
 

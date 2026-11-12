@@ -363,10 +363,27 @@ export const FEATURE_DEFINITIONS = [
     toggleRole: "admin",
     source: "switch",
   },
+  /*
+   * codex_v2 keeps its CODEX_V2 env fallback until a switch row exists in
+   * production (F1, B36). The env value in production is unverified, and
+   * dropping the fallback first could switch Codex off. resolveFeature
+   * already prefers the row: once the row exists, CODEX_V2 is never read.
+   * Steps (Luke):
+   *   1. On the production /admin/features page, Platform > Tasks (Codex)
+   *      shows On or Off with source "Env var CODEX_V2": that is the live
+   *      env value. (Or Vercel > avmediaplan > Environment Variables.)
+   *   2. Press "Save current values" there. It writes a row at the value
+   *      shown, so nothing changes for anyone, and the source becomes Switch.
+   *      Turn Codex on only after the F14 Ava patches are deployed.
+   *   3. Check: SELECT key, enabled FROM feature_switches WHERE key = 'codex_v2'.
+   *   4. A later small change removes envName and envParse below (and the
+   *      CODEX_V2 env var can then be deleted in Vercel).
+   */
   {
     key: "codex_v2",
     label: "Tasks (Codex)",
-    description: "The Postgres Codex task module at /tasks, its API and the recurring task run.",
+    description:
+      "The Postgres Codex task module at /tasks, its API and the recurring task run. Until this switch is saved it reads the CODEX_V2 env var: press Save current values on production to keep today's value as a switch.",
     area: "platform",
     defaultOn: false,
     envName: "CODEX_V2",
