@@ -365,6 +365,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "relabel_map_one_active_guard",
+    label: "Relabels refuse a second active label map row",
+    description:
+      "Pacing > Relabels apply and revert (C-180). Every apply and revert already keeps one active LINE_ITEM_LABEL_MAP row per channel and platform id: apply deactivates the key's rows before it inserts, and revert restores the prior row as one new row only when nothing else is active for the key. Both then count the key's active rows in the same transaction. More than one means another change landed at the same moment. On: the apply or revert rolls back and says so (409, \"Reload and try again\"); nothing is written. Off: the count is logged (relabel_label_map_second_active_row) and the write commits, as before. Nothing needs to be true first.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "view_as",
     label: "View as client",
     description: "Admins can view the app as a client (read only, audited). Also needs a signing secret.",

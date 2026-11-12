@@ -4,7 +4,7 @@ import type { RelabelActiveMap, RelabelBeforeState, RelabelDeletedRow, RelabelPr
 
 export class RelabelApplyError extends Error {
   constructor(
-    public code: "blocked" | "needs_ack" | "invalid" | "no_change",
+    public code: "blocked" | "needs_ack" | "invalid" | "no_change" | "conflict",
     message: string,
   ) {
     super(message)

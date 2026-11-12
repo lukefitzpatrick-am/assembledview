@@ -261,7 +261,8 @@ export async function runRelabelApply(
     const soft = unavailable(err)
     if (soft) return soft
     if (err instanceof RelabelApplyError) {
-      const status = err.code === "blocked" || err.code === "no_change" ? 409 : 400
+      const status =
+        err.code === "blocked" || err.code === "no_change" || err.code === "conflict" ? 409 : 400
       return NextResponse.json({ error: err.code, message: err.message }, { status })
     }
     console.error("[api/pacing/relabels] POST apply failed", err)

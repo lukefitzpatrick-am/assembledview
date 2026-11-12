@@ -105,7 +105,7 @@ function baseDeps(store: {
       if (!row) throw new RelabelRevertError("not_found", "missing")
       row.status = "reverted"
       store.logs.push({ relabelId: id, action: "revert", actorEmail, payload: {} })
-      return { relabelId: id, restoredRanges: 1, reinsertedRows: 0 }
+      return { relabelId: id, restoredRanges: 1, reinsertedRows: 0, mapRestored: true }
     },
     listRelabels: async () => [],
     getRelabel: async (id) => {
@@ -342,4 +342,36 @@ test("applied relabel tasks auto-close after 7 untouched days; blocked stay open
     ),
     false,
   )
+})
+
+test("B34: an apply or revert refused for a second active map row returns 409 with the message", async () => {
+  const store = { relabels: [] as Array<Record<string, unknown>>, logs: [] as Array<Record<string, unknown>>, tasks: [] as Array<Record<string, unknown>>, emails: [] as unknown[] }
+  const deps = baseDeps(store)
+  deps.applyRelabel = async () => {
+    throw new RelabelApplyError("conflict", "Another label map change landed. Reload and try again.")
+  }
+  const res = await runRelabelApply(
+    {
+      channel: "Social - Meta",
+      platformEntityId: "120256089860390550",
+      lineItemId: "bicau002sm2",
+      reason: "fix attribution",
+    },
+    STAFF,
+    deps,
+  )
+  assert.equal(res.status, 409)
+  const body = (await res.json()) as { error?: string; message?: string }
+  assert.equal(body.error, "conflict")
+  assert.match(body.message ?? "", /Reload and try again/)
+  assert.equal(store.emails.length, 0, "no applied email for a refused write")
+
+  store.relabels.push({ id: 7, status: "applied", createdAt: "2026-09-20T00:00:00.000Z" })
+  deps.revertRelabel = async () => {
+    throw new RelabelRevertError("conflict", "Another label map change landed. Reload and try again.")
+  }
+  const rev = await runRelabelRevert(7, STAFF, deps, new Date("2026-09-21T00:00:00.000Z"))
+  assert.equal(rev.status, 409)
+  assert.equal(((await rev.json()) as { error?: string }).error, "conflict")
+  assert.equal(store.emails.length, 0)
 })

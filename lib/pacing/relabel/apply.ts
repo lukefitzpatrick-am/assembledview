@@ -8,6 +8,8 @@ import {
 } from "@/lib/snowflake/snowflakeSession"
 import { RelabelApplyError, assertApplyAllowed, buildApplyLogPayload } from "./applyGuard"
 import { asIsoDate, factRouteForChannel, isCm360Channel, normalizeLineItemId } from "./shared/channels"
+import { LabelMapSecondActiveRowError, replaceActiveLabelMapRow } from "./labelMapActive"
+import { labelMapSqlForSession, readRelabelMapOneActiveGuard } from "./labelMapSession"
 import { assertRelabelTablesAvailable, insertRelabelApply } from "./repo"
 import type { RelabelActiveMap, RelabelApplyResult, RelabelDeletedRow, RelabelPreview } from "./shared/types"
 import { LINE_ITEM_LABEL_MAP } from "./shared/types"
@@ -37,6 +39,8 @@ export type ApplyRelabelOpts = {
   actorEmail: string
   acknowledgeWarnings?: boolean
   now?: Date
+  /** Tests: skip the switch read (`relabel_map_one_active_guard`). */
+  refuseSecondActive?: boolean
 }
 
 export async function applyRelabel(
@@ -61,6 +65,9 @@ export async function applyRelabel(
     preview.mbaNumber ??
     parseMbaNumberFromLineItemId(lineItemId)?.toLowerCase() ??
     ""
+
+  const refuseSecondActive =
+    opts.refuseSecondActive ?? (await readRelabelMapOneActiveGuard())
 
   const snowflake = await withSnowflakeSession(async (session) => {
     await sessionExecuteVoid(session, "BEGIN")
@@ -93,26 +100,17 @@ export async function applyRelabel(
           }
         : preview.activeMap
 
-      await sessionExecuteVoid(
-        session,
-        `
-        UPDATE ${LINE_ITEM_LABEL_MAP}
-        SET IS_ACTIVE = FALSE
-        WHERE LOWER(TRIM(CHANNEL)) = LOWER(TRIM(?))
-          AND LOWER(TRIM(CAST(PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(?))
-          AND IS_ACTIVE = TRUE
-        `,
-        [channel, platformEntityId],
-      )
-
-      await sessionExecuteVoid(
-        session,
-        `
-        INSERT INTO ${LINE_ITEM_LABEL_MAP}
-          (CHANNEL, PLATFORM_LINE_ITEM_ID, LINE_ITEM_ID, LINE_ITEM_NAME, MBA_NUMBER, NOTES, IS_ACTIVE)
-        VALUES (?, ?, ?, ?, ?, ?, TRUE)
-        `,
-        [channel, platformEntityId, lineItemId, preview.entityName, mbaNumber, notes],
+      await replaceActiveLabelMapRow(
+        labelMapSqlForSession(session),
+        {
+          channel,
+          platformEntityId,
+          lineItemId,
+          lineItemName: preview.entityName,
+          mbaNumber,
+          notes,
+        },
+        { refuseSecondActive },
       )
 
       const dateBinds: unknown[] = []
@@ -208,6 +206,9 @@ export async function applyRelabel(
       }
     } catch (err) {
       await sessionExecuteVoid(session, "ROLLBACK").catch(() => {})
+      if (err instanceof LabelMapSecondActiveRowError) {
+        throw new RelabelApplyError("conflict", err.message)
+      }
       throw err
     }
   })

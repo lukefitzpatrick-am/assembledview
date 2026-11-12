@@ -8,13 +8,14 @@ import { factRouteForChannel, normalizeLineItemId } from "./shared/channels"
 import { canRevertRelabel } from "./shared/relabelPageUrl"
 import { getRelabel, markRelabelReverted } from "./repo"
 import { revertPlanFromPayload } from "./revertPlan"
-import { LINE_ITEM_LABEL_MAP } from "./shared/types"
+import { LabelMapSecondActiveRowError, restorePriorLabelMapRow } from "./labelMapActive"
+import { labelMapSqlForSession, readRelabelMapOneActiveGuard } from "./labelMapSession"
 
 export { revertPlanFromPayload }
 
 export class RelabelRevertError extends Error {
   constructor(
-    public code: "not_found" | "already_reverted" | "invalid" | "expired",
+    public code: "not_found" | "already_reverted" | "invalid" | "expired" | "conflict",
     message: string,
   ) {
     super(message)
@@ -39,11 +40,23 @@ function entityMatchSql(hasFallback: boolean): string {
   return `LOWER(TRIM(CAST(PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(?))`
 }
 
+export type RevertRelabelResult = {
+  relabelId: number
+  restoredRanges: number
+  reinsertedRows: number
+  /**
+   * The prior label map row is active again. False when there was none, or
+   * when another row is already active for the key (a later relabel keeps it).
+   */
+  mapRestored: boolean
+}
+
 export async function revertRelabel(
   relabelId: number,
   actorEmail: string,
   now: Date = new Date(),
-): Promise<{ relabelId: number; restoredRanges: number; reinsertedRows: number }> {
+  opts: { refuseSecondActive?: boolean } = {},
+): Promise<RevertRelabelResult> {
   const email = String(actorEmail ?? "").trim()
   if (!email) throw new RelabelRevertError("invalid", "actorEmail is required.")
 
@@ -66,7 +79,9 @@ export async function revertRelabel(
     ? [row.platformEntityId, row.platformEntityId]
     : [row.platformEntityId]
 
-  await withSnowflakeSession(async (session) => {
+  const refuseSecondActive = opts.refuseSecondActive ?? (await readRelabelMapOneActiveGuard())
+
+  const map = await withSnowflakeSession(async (session) => {
     await sessionExecuteVoid(session, "BEGIN")
     try {
       for (const range of plan.restoreRanges) {
@@ -114,40 +129,43 @@ export async function revertRelabel(
         )
       }
 
-      await sessionExecuteVoid(
-        session,
-        `
-        UPDATE ${LINE_ITEM_LABEL_MAP}
-        SET IS_ACTIVE = FALSE
-        WHERE LOWER(TRIM(CHANNEL)) = LOWER(TRIM(?))
-          AND LOWER(TRIM(CAST(PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(?))
-          AND LOWER(TRIM(CAST(LINE_ITEM_ID AS VARCHAR))) = ?
-          AND IS_ACTIVE = TRUE
-        `,
-        [plan.deactivateMap.channel, plan.deactivateMap.platformEntityId, plan.deactivateMap.lineItemId],
+      const reactivate = plan.reactivateMap
+      const mapResult = await restorePriorLabelMapRow(
+        labelMapSqlForSession(session),
+        {
+          deactivate: plan.deactivateMap,
+          prior: reactivate
+            ? {
+                channel: reactivate.channel,
+                platformEntityId: reactivate.platformLineItemId,
+                lineItemId: normalizeLineItemId(reactivate.lineItemId),
+                lineItemName: reactivate.lineItemName,
+                mbaNumber: reactivate.mbaNumber,
+                notes: `${reactivate.notes ? `${reactivate.notes} | ` : ""}restored by revert of relabel ${relabelId} | ${email} | ${now.toISOString()}`,
+              }
+            : null,
+        },
+        { refuseSecondActive },
       )
-
-      if (plan.reactivateMap) {
-        await sessionExecuteVoid(
-          session,
-          `
-          UPDATE ${LINE_ITEM_LABEL_MAP}
-          SET IS_ACTIVE = TRUE
-          WHERE LOWER(TRIM(CHANNEL)) = LOWER(TRIM(?))
-            AND LOWER(TRIM(CAST(PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(?))
-            AND LOWER(TRIM(CAST(LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(?))
-          `,
-          [
-            plan.reactivateMap.channel,
-            plan.reactivateMap.platformLineItemId,
-            plan.reactivateMap.lineItemId,
-          ],
+      if (mapResult.skipped === "another_active_row") {
+        console.warn(
+          JSON.stringify({
+            event: "relabel_revert_map_kept",
+            relabelId,
+            channel: plan.deactivateMap.channel,
+            platformEntityId: plan.deactivateMap.platformEntityId,
+            activeRows: mapResult.activeRows,
+          }),
         )
       }
 
       await sessionExecuteVoid(session, "COMMIT")
+      return mapResult
     } catch (err) {
       await sessionExecuteVoid(session, "ROLLBACK").catch(() => {})
+      if (err instanceof LabelMapSecondActiveRowError) {
+        throw new RelabelRevertError("conflict", err.message)
+      }
       throw err
     }
   })
@@ -158,5 +176,6 @@ export async function revertRelabel(
     relabelId,
     restoredRanges: plan.restoreRanges.length,
     reinsertedRows: plan.reinsertDeletedRows.length,
+    mapRestored: map.restored,
   }
 }
