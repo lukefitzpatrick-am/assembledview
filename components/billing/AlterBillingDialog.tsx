@@ -31,6 +31,17 @@ import {
   setLineBalancingMonth,
 } from "@/lib/billing/rebalanceLineOnSchedule"
 import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
+import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
+import {
+  billingAliasGhostFinanceMessage,
+  keepCurrentRowsForAlterBilling,
+} from "@/lib/billing/billingAliasGhostFinanceGuard"
+import {
+  billingAliasGhostTotal,
+  findBillingAliasGhostPairs,
+  summariseBillingAliasGhostPairs,
+} from "@/lib/billing/billingAliasGhostPairs"
+import { clientFeatureOn } from "@/lib/features/client"
 import type { DialogStackingLayer } from "@/lib/ui/stackingLayers"
 import type { BillingMonth, BillingLineItem as BillingLineItemType } from "@/lib/billing/types"
 
@@ -103,6 +114,26 @@ export function AlterBillingDialog({
     setValidationError(null)
   }, [open, initialMonths])
 
+  // B35 (MB-37, switch billing_ghost_row_finance_guard): an old line id and its current
+  // id with money in one month count that line twice. Name them, stop Save until
+  // "Keep the current rows". The server refuses the same schedule too.
+  const ghostGuardOn = clientFeatureOn("billing_ghost_row_finance_guard")
+  const ghostPairs = useMemo(
+    () => (ghostGuardOn ? findBillingAliasGhostPairs(months, mbaNumber) : []),
+    [ghostGuardOn, months, mbaNumber]
+  )
+  const ghostLines = useMemo(
+    () => summariseBillingAliasGhostPairs(ghostPairs, months.map((m) => m.monthYear)),
+    [ghostPairs, months]
+  )
+  const ghostTotal = billingAliasGhostTotal(ghostPairs)
+  const handleKeepCurrentRows = () => {
+    const kept = keepCurrentRowsForAlterBilling(months, mbaNumber, originalGrandTotal)
+    setMonths(kept.months)
+    setOriginalGrandTotal(kept.originalGrandTotal)
+    setValidationError(null)
+  }
+
   const mediaKeys = useMemo(() => collectMediaKeys(months), [months])
   const currentGrandTotal = useMemo(() => computeGrandTotal(months), [months])
   const grandTotalDelta = currentGrandTotal - originalGrandTotal
@@ -155,6 +186,11 @@ export function AlterBillingDialog({
   }
 
   const handleSaveClick = async () => {
+    const ghostMessage = billingAliasGhostFinanceMessage(ghostLines, ghostTotal)
+    if (ghostMessage) {
+      setValidationError(ghostMessage)
+      return
+    }
     if (!isWithinTolerance) {
       setValidationError(
         `Grand total must match the original within ${formatBillingCurrency(
@@ -197,6 +233,15 @@ export function AlterBillingDialog({
             </DialogDescription>
           </div>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
+            {ghostLines.length > 0 ? (
+              <BillingAliasDuplicateNotice
+                lines={ghostLines}
+                total={ghostTotal}
+                variant="modal"
+                onKeepCurrentRows={isSaving ? undefined : handleKeepCurrentRows}
+                keepHint={`Removes the old-id rows from this edit and moves the original total down by ${formatBillingCurrency(ghostTotal)}. Nothing is saved until you choose Save Billing Changes.`}
+              />
+            ) : null}
             <Accordion type="multiple" className="w-full">
               {mediaKeys
                 .filter((k) => k !== "production")
@@ -470,7 +515,7 @@ export function AlterBillingDialog({
                   type="button"
                   variant="action"
                   onClick={handleSaveClick}
-                  disabled={isSaving || !isWithinTolerance}
+                  disabled={isSaving || !isWithinTolerance || ghostLines.length > 0}
                 >
                   {isSaving ? "Saving…" : "Save Billing Changes"}
                 </Button>

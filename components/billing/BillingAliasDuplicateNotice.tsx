@@ -16,6 +16,8 @@ type Props = {
   onKeepCurrentRows?: () => void
   /** `rail`: the save-status card. `modal`: the MBA billing window, one row per pair with a chip. */
   variant?: "rail" | "modal"
+  /** B35: text under "Keep the current rows". Default: the editor's (the save writes from the plan lines). */
+  keepHint?: string
   className?: string
 }
 
@@ -29,6 +31,7 @@ export function BillingAliasDuplicateNotice({
   total,
   onKeepCurrentRows,
   variant = "rail",
+  keepHint,
   className,
 }: Props) {
   if (lines.length === 0) return null
@@ -79,8 +82,8 @@ export function BillingAliasDuplicateNotice({
                 Keep the current rows
               </Button>
               <p className="text-xs opacity-90">
-                Removes the old-id rows from this edit only. Saved billing doesn&apos;t change until you save; the save
-                writes the schedule from the plan lines.
+                {keepHint ??
+                  "Removes the old-id rows from this edit only. Saved billing doesn't change until you save; the save writes the schedule from the plan lines."}
               </p>
             </div>
           ) : null}

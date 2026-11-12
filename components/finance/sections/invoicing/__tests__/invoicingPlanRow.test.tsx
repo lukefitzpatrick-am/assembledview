@@ -114,6 +114,33 @@ describe("InvoicingPlanRow primary action", () => {
     expect(primaryLabel(container)).toBe("Approve")
   })
 
+  it("B35 (MB-37): flags lines the draft counts twice and keeps every row; no flag without them", () => {
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({
+            state: "ready",
+            billing_alias_duplicates: [
+              { mediaKey: "ooh", oldId: "malay004ML1", currentId: "malay004OH1", oldAmount: 37000, currentAmount: 37000 },
+            ],
+          })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    const flag = container.querySelector("[data-invoicing-alias-duplicates]")
+    expect(flag?.textContent).toBe(
+      "Counted twice: malay004ML1 duplicates malay004OH1 ($37,000.00 too much on this invoice). Fix the plan's billing before raising it.",
+    )
+    expect(primaryLabel(container)).toBe("Approve")
+    act(() => {
+      root.render(<InvoicingPlanRow record={rec({ state: "ready" })} mp={mp} kind="media" refetch={() => undefined} />)
+    })
+    expect(container.querySelector("[data-invoicing-alias-duplicates]")).toBeNull()
+  })
+
   it("does not render Mark sent on an Approved row", () => {
     act(() => {
       root.render(

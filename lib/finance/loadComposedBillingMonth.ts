@@ -19,6 +19,7 @@ import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevant
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import { readScopeOfWork } from "@/lib/data/readFinance"
+import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
 export type LoadComposedBillingMonthOk = { ok: true; records: BillingRecord[] }
@@ -103,6 +104,7 @@ export async function loadComposedBillingRecordsForMonth(input: {
   const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
   const scopes = wantSow ? await fetchScopesOrNull() : null
   const persistedStatusRows = await fetchPersistedFinanceStatusForMonth(input.monthStr)
+  const flagBillingAliasDuplicates = await readBillingGhostFinanceGuard("finance-api")
 
   const records = composeBillingRecordsForMonth({
     monthStr: input.monthStr,
@@ -112,6 +114,7 @@ export async function loadComposedBillingRecordsForMonth(input: {
     scopes,
     persistedStatusRows,
     includeNonBooked,
+    flagBillingAliasDuplicates,
     ...filters,
   })
 

@@ -238,6 +238,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "billing_ghost_row_finance_guard",
+    label: "Duplicate old-id billing rows: stop finance saves and flag invoices",
+    description:
+      "The finance side of the duplicate billing row check (MB-37, decision Q16; the editor side is billing_ghost_row_guard). A schedule that holds an old line id (pre-May ML code) and the current id of the same line, both with money in the same month, counts that line twice. On: the billing schedule update (Alter Billing and inline invoice amount edits, PATCH /api/mediaplans/versions/[id]/billing-schedule) is refused with a message naming each line, month and both amounts, and nothing is written; Alter Billing names the pairs and offers \"Keep the current rows\", which removes the old-id rows from that edit (and moves its original total down by the same amount) before Save; and the Invoicing page flags each invoice draft that holds a doubled line, naming it, without dropping any row. Saved data is never changed by the check itself. No-code and old production ids are not checked here (the loaded lines are needed to prove them; the editor check does that). Off: as before. Nothing needs to be true first.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "partial_mba_billing_guard",
     label: "Partial MBA: billing months and the billing vs delivery check",
     description:

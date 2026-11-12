@@ -141,6 +141,18 @@ export interface BillingRecord {
   /** True when the matched Xero subtotal differs from expected by more than $1. */
   needs_attention?: boolean
   /**
+   * B35 (MB-37, switch `billing_ghost_row_finance_guard`): lines this invoice
+   * draft counts twice, an old id beside its current id with money in the
+   * month. Flagged only; no row is dropped. Absent when none or the switch is off.
+   */
+  billing_alias_duplicates?: Array<{
+    mediaKey: string
+    oldId: string
+    currentId: string
+    oldAmount: number
+    currentAmount: number
+  }>
+  /**
    * Xero ex-GST dollars when a caller already put them on the row.
    * The invoicing overlay does not load this.
    */

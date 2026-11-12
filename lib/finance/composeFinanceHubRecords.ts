@@ -90,6 +90,8 @@ export type ComposeBillingMonthInputs = {
   /** Persisted status rows; may be all-months — month scoping happens here. */
   persistedStatusRows: PersistedFinanceStatusRow[]
   includeNonBooked: boolean
+  /** B35 (MB-37): switch `billing_ghost_row_finance_guard`; flags doubled lines on media records. */
+  flagBillingAliasDuplicates?: boolean
 } & HubQueryFilterParams
 
 /** One calendar month of receivable records — the billing route's original pipeline verbatim. */
@@ -102,6 +104,7 @@ export function composeBillingRecordsForMonth(inputs: ComposeBillingMonthInputs)
     scopes,
     persistedStatusRows,
     includeNonBooked,
+    flagBillingAliasDuplicates,
     types,
     clientsIdParam,
     searchParam,
@@ -137,6 +140,7 @@ export function composeBillingRecordsForMonth(inputs: ComposeBillingMonthInputs)
       mbaIdentifiers,
       {
         includeNonBookedCampaigns: includeNonBooked,
+        flagBillingAliasDuplicates: flagBillingAliasDuplicates === true,
         // G./D. production split: same resolver as the hub Excel and AA plan.
         billsViaAdvertisingAssociates: createBillsViaAdvertisingAssociates(
           publishers as unknown as PublisherIdentityRow[],

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { billingScheduleAliasGhostRefusal } from "@/lib/billing/billingAliasGhostFinanceGuard"
+import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
 import {
   BillingScheduleWriteError,
@@ -18,6 +20,12 @@ import { requireFinanceAdmin } from "@/lib/requireRole"
 /**
  * PATCH /api/mediaplans/versions/[id]/billing-schedule
  * Postgres legacy_schedules + billing schedule_months (X3).
+ *
+ * B35 (MB-37): with `billing_ghost_row_finance_guard` on, a sent schedule
+ * that holds an old line id and the current id of the same line, both with
+ * money in one month, is refused (409 `BILLING_ALIAS_GHOST_ROWS`, naming each
+ * line and month). Nothing is written. A schedule built here from the line
+ * items is never checked: it holds current ids only.
  */
 export async function PATCH(
   request: NextRequest,
@@ -86,6 +94,19 @@ export async function PATCH(
           { error: "Request body must include billingSchedule (or lineItems to regenerate)" },
           { status: 400 }
         )
+      }
+    }
+
+    if (clientSentSchedule && clientBillingSchedule != null && (await readBillingGhostFinanceGuard("billing-schedule-patch"))) {
+      const refusal = billingScheduleAliasGhostRefusal(clientBillingSchedule, versionPg.mbaNumber)
+      if (refusal) {
+        console.warn("[billing-schedule-patch] refused: duplicate old-id billing rows", {
+          versionId,
+          mba: versionPg.mbaNumber,
+          lines: refusal.body.lines.length,
+          doubledTotal: refusal.body.doubledTotal,
+        })
+        return NextResponse.json(refusal.body, { status: refusal.status })
       }
     }
 

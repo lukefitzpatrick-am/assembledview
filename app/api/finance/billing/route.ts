@@ -24,6 +24,7 @@ import {
 } from "@/lib/finance/loadComposedBillingMonth"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 
 export const maxDuration = 60
 
@@ -203,6 +204,7 @@ async function handleMultiMonth(
   await hydrateVersionsFinanceScheduleSource(uniqueVersions)
 
   const filterParams = hubFilterParams(incoming, types)
+  const flagBillingAliasDuplicates = await readBillingGhostFinanceGuard("finance-api")
   const records: BillingRecord[] = []
   const failedMonths: Array<{ month: string; error: string }> = []
 
@@ -219,6 +221,7 @@ async function handleMultiMonth(
           scopes,
           persistedStatusRows,
           includeNonBooked,
+          flagBillingAliasDuplicates,
           ...filterParams,
         })
       )

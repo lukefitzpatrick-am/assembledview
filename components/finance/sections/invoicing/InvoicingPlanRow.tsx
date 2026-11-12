@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RowActionLine } from "@/components/finance/RowActionLine"
 import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
+import { describeInvoiceDraftAliasDuplicates } from "@/lib/billing/billingAliasGhostFinanceGuard"
 import type { RowActionMenuItem } from "@/components/finance/RowActionMenu"
 import { useMediaPlanActions } from "@/components/finance/MediaPlanActionBar"
 import { UnapproveBillingButton } from "@/components/finance/sections/invoicing/UnapproveBillingButton"
@@ -142,6 +143,9 @@ export function InvoicingPlanRow({
   })
   const blockerReasons = invoicingBlockerReasons(blockers)
   const blocked = blockerReasons.length > 0
+  // B35 (MB-37, switch billing_ghost_row_finance_guard, set by the server): lines this
+  // draft counts twice. Flagged, never dropped.
+  const aliasDuplicates = record.billing_alias_duplicates ?? []
   const rollups = useMemo(() => buildMediaTypeRollups([record]), [record])
   const caption = formatMediaTypeCaption(rollups)
   const typeLabel = receivableRecordSectionLabel(record.billing_type)
@@ -338,6 +342,11 @@ export function InvoicingPlanRow({
       {blocked ? (
         <p data-invoicing-blockers="" className="text-[11px] text-status-critical-fg">
           {blockerReasons.join(" · ")}
+        </p>
+      ) : null}
+      {aliasDuplicates.length > 0 ? (
+        <p data-invoicing-alias-duplicates="" role="status" className="text-[11px] text-status-attention-fg">
+          {describeInvoiceDraftAliasDuplicates(aliasDuplicates)}
         </p>
       ) : null}
       <RowActionLine

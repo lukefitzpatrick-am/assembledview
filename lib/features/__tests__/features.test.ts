@@ -316,3 +316,25 @@ test("B34fix: the digest data checks switch names the cron's real schedule and r
   assert.match(description, /two or three Snowflake reads/)
   assert.match(description, /45 seconds/)
 })
+
+test("B35: billing_ghost_row_finance_guard is off by default, a finance switch admins toggle, sent to the browser, no env", async () => {
+  const key = "billing_ghost_row_finance_guard" as const
+  const def = featureDefinition(key)!
+  assert.ok(def, key)
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.source, "switch")
+  assert.equal(def.toggleRole, "admin")
+  assert.equal(def.area, "finance")
+  assert.equal(def.clientVisible, true)
+  setClientFeatureSnapshot(null)
+  assert.equal(clientFeatureOn(key), false, "no snapshot: the default")
+  try {
+    setFeatureRowReaderForTests(async () => new Map())
+    assert.equal(await isFeatureOn(key, {}), false, "no row")
+    setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), true, "a row on")
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})

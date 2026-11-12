@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
+import { invoiceDraftAliasDuplicates } from "@/lib/billing/billingAliasGhostFinanceGuard"
 import { extractReportLinesFromBillingSchedule } from "@/lib/finance/extractReportLinesFromBillingSchedule"
 import { monthExGstFromScheduleEntry } from "@/lib/finance/computeBillableAlignedMbaTotal"
 import {
@@ -136,6 +137,12 @@ export function derivePlanReceivableBillingRecordsForMonth(
      * name, alias, publisherid). Default: the trimmed name in `publisherMap`.
      */
     billsViaAdvertisingAssociates?: (publisher: string) => boolean
+    /**
+     * B35 (MB-37, switch `billing_ghost_row_finance_guard`): name the lines the
+     * month counts twice (an old id beside its current id) on the record.
+     * Nothing is dropped. Off or unset: no field, as before.
+     */
+    flagBillingAliasDuplicates?: boolean
   }
 ): BillingRecord[] {
   console.log("[finance-derive] mbaIdentifiers triage", {
@@ -302,6 +309,15 @@ export function derivePlanReceivableBillingRecordsForMonth(
         has_pending_edits: false,
         source_billing_schedule_id: null,
         ...(reportLines.length > 0 ? { report_lines: reportLines } : {}),
+      }
+      if (options.flagBillingAliasDuplicates) {
+        const duplicates = invoiceDraftAliasDuplicates(coreBillingMonth, mba)
+        if (duplicates.length > 0) {
+          record.billing_alias_duplicates = duplicates
+          console.warn(
+            `[finance-derive] ${mba || "?"} ${billingMonthKey}: ${duplicates.length} line(s) counted twice (old id beside current id)`
+          )
+        }
       }
       out.push(record)
     }
