@@ -17,6 +17,22 @@
  * nothing here can make a tainted conversation clean.
  */
 
+/**
+ * Does the server keep its own taint record per conversation and owner? (M1, C-195)
+ *
+ * No. Ava conversations are not stored server-side (no table, no Blob): the
+ * history, the marker and the notice all come from the client. A client that
+ * drops both the marker and the notice line gets a clean turn. That is
+ * acceptable only while no tool reads captured text, so no registry tool may
+ * carry a `capture` tag until both are true:
+ *   1. the server records taint against the conversation id and owner, and
+ *      the route trusts that record over anything the client sends (then this
+ *      becomes true and the marker and notice are belt and braces);
+ *   2. APP_SIGNING_SECRET is confirmed set in production.
+ * Pinned by lib/ava/__tests__/taintPreconditions.test.ts.
+ */
+export const AVA_SERVER_TAINT_RECORD = false as boolean
+
 /** Appended to the reply of the turn that tainted the conversation. Detected verbatim in history. */
 export const AVA_TAINT_NOTICE =
   "Ava read captured content in this chat, so changes are off for the rest of it. Start a new chat to make changes."
