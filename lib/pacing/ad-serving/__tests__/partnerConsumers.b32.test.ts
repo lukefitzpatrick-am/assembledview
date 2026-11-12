@@ -211,3 +211,10 @@ test("B32: a Channel Factory line with zero partner counts reads connecting, not
   const before = await run([unstamped as AdServingPacingCampaignRow])
   assert.equal(before.portfolio[0]!.channels[0]!.sourceState, "no_source")
 })
+
+test("B34: the Ad Serving tab subtitle names partner delivery, not CM360 only", async () => {
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync("app/pacing/(shell)/ad-serving/AdServingCampaignsClient.tsx", "utf8")
+  assert.match(src, /Ad serving and partner delivery — delivery counts, no spend data/)
+  assert.doesNotMatch(src, /Ad server verification \(CM360\)/)
+})

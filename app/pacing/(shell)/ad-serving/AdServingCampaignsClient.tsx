@@ -129,7 +129,7 @@ export function AdServingCampaignsClient({
   return (
     <div className="space-y-4 p-4">
       <div className="text-sm text-muted-foreground">
-        Ad server verification (CM360) — delivery counts, no spend data
+        Ad serving and partner delivery — delivery counts, no spend data
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
