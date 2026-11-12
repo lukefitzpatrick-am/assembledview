@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * F14 (B36): the widget sends its route and conversation id, and sends the
- * server's taint marker back on every later turn of the same conversation.
+ * F14 (B36): the widget sends its route and conversation id, sends the
+ * server's taint marker back on every later turn of the same conversation,
+ * and starts a fresh conversation when the route leaves /tasks.
  */
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
@@ -112,5 +113,61 @@ describe("AVA taint marker round trip", () => {
     expect(sent(0).taintMarker).toBeUndefined()
     expect(sent(1).taintMarker).toBeUndefined()
     expect(sent(1).route).toBe("/clients")
+  })
+
+  it("leaving /tasks starts a fresh conversation: no history, new id, no marker", async () => {
+    replies.push({ replyText: "Captured summary here.", meta: { tainted: true, taintMarker: "t1.abc.def" } })
+    render("/tasks")
+    open()
+    await send("Summarise the email")
+    expect(container.textContent).toContain("Captured summary here.")
+    const first = sent(0)
+
+    render("/tasks/42")
+    expect(container.textContent).toContain("Captured summary here.")
+
+    render("/mediaplans/mba/abc001/edit")
+    expect(container.textContent).not.toContain("Captured summary here.")
+    expect(container.textContent).toContain(CHIP)
+
+    await send("Change the budget")
+    const after = sent(1)
+    expect(after.conversationId).not.toBe(first.conversationId)
+    expect(after.taintMarker).toBeUndefined()
+    expect(after.messages).toEqual([{ role: "user", content: "Change the budget" }])
+    expect(after.route).toBe("/mediaplans/mba/abc001/edit")
+  })
+
+  it("entering /tasks keeps the conversation", async () => {
+    render("/clients")
+    open()
+    await send("Hello")
+    render("/tasks")
+    expect(container.textContent).toContain("Hello")
+    await send("Again")
+    expect(sent(1).conversationId).toBe(sent(0).conversationId)
+    expect(sent(1).messages.length).toBe(3)
+  })
+
+  it("a reply that lands after the reset is dropped", async () => {
+    let release: (v: unknown) => void = () => {}
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    )
+    render("/tasks")
+    open()
+    await send("Slow question")
+    render("/clients")
+    await act(async () => {
+      release({ ok: true, status: 200, json: async () => ({ replyText: "Late captured reply", meta: { taintMarker: "t1.x.y" } }) })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.textContent).not.toContain("Late captured reply")
+    await send("Fresh")
+    expect(sent(1).taintMarker).toBeUndefined()
   })
 })

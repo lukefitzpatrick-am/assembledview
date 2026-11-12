@@ -21,7 +21,7 @@ import {
   isReadTool,
   type AvaToolTagLookup,
 } from "../toolAccess.js"
-import { isTasksPath, normaliseRoutePath } from "../../conversationScope.js"
+import { isTasksPath, normaliseRoutePath, shouldResetConversationOnRouteChange } from "../../conversationScope.js"
 
 const ALL_ON: AvaToolFlags = { billingRevisions: true, trueUp: true }
 const REGISTRY = AVA_TOOL_NAMES.map((name) => ({ name }))
@@ -208,5 +208,17 @@ describe("F14 tool tags", () => {
     assert.equal(avaToolTag("not_a_tool"), undefined)
     assert.equal(avaToolTag("constructor"), undefined)
     assert.equal(isReadTool("not_a_tool"), false)
+  })
+})
+
+describe("F14 (c) conversation reset rule", () => {
+  it("resets only when the route leaves /tasks", () => {
+    assert.equal(shouldResetConversationOnRouteChange("/tasks", "/clients"), true)
+    assert.equal(shouldResetConversationOnRouteChange("/tasks/4", "/mediaplans/mba/x/edit"), true)
+    assert.equal(shouldResetConversationOnRouteChange("/tasks", undefined), true)
+    assert.equal(shouldResetConversationOnRouteChange("/tasks", "/tasks/4"), false)
+    assert.equal(shouldResetConversationOnRouteChange("/clients", "/tasks"), false)
+    assert.equal(shouldResetConversationOnRouteChange("/clients", "/pacing"), false)
+    assert.equal(shouldResetConversationOnRouteChange(undefined, "/clients"), false)
   })
 })

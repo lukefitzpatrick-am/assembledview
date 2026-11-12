@@ -22,6 +22,18 @@ export function isTasksPath(raw: unknown): boolean {
   return path === "/tasks" || path.startsWith("/tasks/")
 }
 
+/**
+ * The widget starts a fresh conversation when the route leaves /tasks, so a
+ * conversation that read captured text on /tasks never continues on a page
+ * with write tools (F14 c). Moving within /tasks, or into /tasks, keeps it.
+ */
+export function shouldResetConversationOnRouteChange(
+  previousPath: string | null | undefined,
+  nextPath: string | null | undefined,
+): boolean {
+  return isTasksPath(previousPath) && !isTasksPath(nextPath)
+}
+
 /** Conversation ids the server accepts: 8 to 64 of [A-Za-z0-9-]. Anything else → "". */
 export function normaliseConversationId(raw: unknown): string {
   if (typeof raw !== "string") return ""

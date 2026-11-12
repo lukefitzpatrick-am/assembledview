@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getAssistantContext, subscribeAvaChatOpen } from "@/lib/assistantBridge"
 import { coerceChatFileAttachments } from "@/lib/ava/chatFileAttachment"
-import { newConversationId } from "@/lib/ava/conversationScope"
+import { newConversationId, shouldResetConversationOnRouteChange } from "@/lib/ava/conversationScope"
 import {
   coerceChatInterviewQuestions,
   displayMiAnswerText,
@@ -312,6 +312,7 @@ export function ChatWidget({
   const conversationIdRef = useRef<string>(newConversationId())
   /** Signed taint marker from the server once captured content entered this chat (F14). */
   const taintMarkerRef = useRef<string | null>(null)
+  const previousRouteRef = useRef<string | undefined>(routePath)
   const [error, setError] = useState<string | null>(null)
   const [pendingParsedPlan, setPendingParsedPlan] = useState<PendingParsedPlan | null>(null)
   const pendingParsedPlanRef = useRef<PendingParsedPlan | null>(null)
@@ -340,6 +341,24 @@ export function ChatWidget({
       setMessages((prev) => [...prev, { role: "assistant", content, createdAt: Date.now() }]),
     []
   )
+
+  // Leaving /tasks starts a fresh conversation (F14 c): nothing read on /tasks,
+  // including captured text, carries to a page with write tools.
+  useEffect(() => {
+    const previous = previousRouteRef.current
+    previousRouteRef.current = routePath
+    if (!shouldResetConversationOnRouteChange(previous, routePath)) return
+    conversationIdRef.current = newConversationId()
+    taintMarkerRef.current = null
+    pendingParsedPlanRef.current = null
+    pendingIngestRef.current = null
+    setMessages([])
+    setInput("")
+    setError(null)
+    setPendingParsedPlan(null)
+    setPendingIngest(null)
+    setIngestUploadProposal(null)
+  }, [routePath])
 
   const toggle = useCallback(() => setIsOpen((v) => !v), [])
 
@@ -469,6 +488,7 @@ export function ChatWidget({
     setMessages(updatedMessages)
     setInput("")
 
+    const sentConversationId = conversationIdRef.current
     try {
       const resolvedPageContext =
         typeof getPageContext === "function" ? await getPageContext() : pageContext
@@ -515,6 +535,8 @@ export function ChatWidget({
       } catch {
         throw new Error("Sorry — I couldn’t understand that response. Please try again.")
       }
+      // The chat was reset (route left /tasks) while this turn ran: drop it.
+      if (conversationIdRef.current !== sentConversationId) return
       if (!response.ok) {
         if (response.status === 403) {
           throw new Error(data?.error || "AVA is available to Admin users only.")
@@ -566,6 +588,7 @@ export function ChatWidget({
         await maybeHandleAssistantActionObject(data, appendAssistantNote)
       }
     } catch (err) {
+      if (conversationIdRef.current !== sentConversationId) return
       const message = err instanceof Error ? err.message : "Failed to send message"
       setError(message)
       setMessages((prev) => [
