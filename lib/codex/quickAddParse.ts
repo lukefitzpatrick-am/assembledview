@@ -165,6 +165,46 @@ function normalizeKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "")
 }
 
+/**
+ * The @mention match Codex had before F16, kept byte for byte for when
+ * `codex_roster_aliases` is off: primary email, local part, name, first row
+ * wins, no aliases. The switch on goes through resolveRosterMention instead.
+ */
+function legacyMatchTeamMember(
+  token: string,
+  team: QuickAddTeamMember[]
+): QuickAddTeamMember | null {
+  const raw = token.trim().replace(/^@/, "")
+  if (!raw) return null
+  const lower = raw.toLowerCase()
+  const key = normalizeKey(raw)
+  team = team.filter((member) => member.active !== false)
+
+  const byEmail = team.find((m) => m.email.toLowerCase() === lower)
+  if (byEmail) return byEmail
+
+  const byLocal = team.find((m) => {
+    const local = m.email.split("@")[0]?.toLowerCase() ?? ""
+    return local === lower || normalizeKey(local) === key
+  })
+  if (byLocal) return byLocal
+
+  const byNameExact = team.find((m) => m.name.toLowerCase() === lower)
+  if (byNameExact) return byNameExact
+
+  const byNameKey = team.find((m) => normalizeKey(m.name) === key)
+  if (byNameKey) return byNameKey
+
+  // Unique prefix / contains on name (only if exactly one hit).
+  const contains = team.filter(
+    (m) =>
+      normalizeKey(m.name).includes(key) ||
+      m.name.toLowerCase().includes(lower)
+  )
+  if (contains.length === 1) return contains[0]!
+  return null
+}
+
 function matchClient(
   token: string,
   clients: QuickAddClient[]
@@ -317,7 +357,11 @@ export type ParseQuickAddInput = {
   text: string
   team: QuickAddTeamMember[]
   clients: QuickAddClient[]
-  /** Count roster email aliases for @mentions (`codex_roster_aliases`, F16). Default off. */
+  /**
+   * `codex_roster_aliases` (F16). On: @mentions go through resolveRosterMention
+   * (aliases count; a shared address or exact name is refused). Off (default):
+   * the matching from before F16, unchanged.
+   */
   aliases?: boolean
   /** Default assignee when no @token matches. This is the signed-in user, never another assignee filter. */
   defaultAssigneeEmail?: string | null
@@ -454,10 +498,17 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
   let consumedAt: string | null = null
   const ambiguousAt = new Map<string, number>()
   for (const tok of atTokens) {
-    // One roster resolver (F16): never picks one of two people.
-    const match = resolveRosterMention(tok, input.team, { aliases: input.aliases === true })
-    if (match.kind === "ambiguous") ambiguousAt.set(tok, match.candidates.length)
-    const member = match.kind === "unique" ? match.member : null
+    let member: QuickAddTeamMember | null
+    if (input.aliases === true) {
+      // codex_roster_aliases on (F16): one roster resolver, aliases count,
+      // never picks one of two people.
+      const match = resolveRosterMention(tok, input.team, { aliases: true })
+      if (match.kind === "ambiguous") ambiguousAt.set(tok, match.candidates.length)
+      member = match.kind === "unique" ? match.member : null
+    } else {
+      // Switch off: matching as before F16 (B36fix L6).
+      member = legacyMatchTeamMember(tok, input.team)
+    }
     if (member) {
       assigneeEmail = member.email
       assigneeName = rosterDisplayName(member)

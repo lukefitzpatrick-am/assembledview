@@ -135,6 +135,28 @@ test("quick-add: @mention through the resolver, display name on the chip, shared
   assert.equal(on.assigneeEmail, alex.email)
 })
 
+test("quick-add with codex_roster_aliases off matches as before F16: first row wins, no refusal (L6)", () => {
+  const now = new Date("2025-08-06T04:00:00.000Z")
+  const twins = [
+    { email: `chris.a@${D}`, name: "Chris Smith" },
+    { email: `chris.b@${D}`, name: "Chris Smith" },
+  ]
+  const off = parseQuickAdd({ text: "Call @chris.smith", team: twins, clients: [], now })
+  assert.equal(off.assigneeEmail, `chris.a@${D}`, "switch off: the first row, as before")
+  assert.equal(off.assigneeFromToken, true)
+  assert.equal(off.chips.some((c) => /matches \d+ people/.test(c.label)), false)
+
+  const on = parseQuickAdd({ text: "Call @chris.smith", team: twins, clients: [], aliases: true, now })
+  assert.equal(on.assigneeFromToken, false, "switch on: a shared exact name is refused")
+  assert.ok(on.chips.some((c) => !c.ok && /matches 2 people/.test(c.label)))
+
+  // Several partial hits stay "no team match" either way.
+  const team = roster.map((p) => ({ email: p.email, name: p.name, aliases: p.aliases ? [...p.aliases] : [], active: p.active }))
+  const sam = parseQuickAdd({ text: "Brief @samantha", team, clients: [], now })
+  assert.equal(sam.assigneeFromToken, false)
+  assert.ok(sam.chips.some((c) => !c.ok && /no team match/.test(c.label)))
+})
+
 test("assignee write decision: alias to main email and display name; shared refused; unknown as sent", () => {
   assert.deepEqual(decideAssigneeWrite(`Alex@${D}`, "whatever", roster), {
     kind: "ok",
