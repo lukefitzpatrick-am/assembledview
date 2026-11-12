@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { getAssistantContext, subscribeAvaChatOpen } from "@/lib/assistantBridge"
 import { coerceChatFileAttachments } from "@/lib/ava/chatFileAttachment"
 import { newConversationId, shouldResetConversationOnRouteChange } from "@/lib/ava/conversationScope"
+import { historyHasTaintNotice } from "@/lib/ava/taintRules"
 import {
   coerceChatInterviewQuestions,
   displayMiAnswerText,
@@ -312,6 +313,12 @@ export function ChatWidget({
   const conversationIdRef = useRef<string>(newConversationId())
   /** Signed taint marker from the server once captured content entered this chat (F14). */
   const taintMarkerRef = useRef<string | null>(null)
+  /**
+   * The server said captured content entered this chat (meta.tainted, a
+   * marker, or the notice in the history). No reply may drive the page
+   * bridge from then on (F14 M2). Cleared only by a new conversation.
+   */
+  const conversationTaintedRef = useRef<boolean>(historyHasTaintNotice(initialMessages))
   const previousRouteRef = useRef<string | undefined>(routePath)
   const [error, setError] = useState<string | null>(null)
   const [pendingParsedPlan, setPendingParsedPlan] = useState<PendingParsedPlan | null>(null)
@@ -350,6 +357,7 @@ export function ChatWidget({
     if (!shouldResetConversationOnRouteChange(previous, routePath)) return
     conversationIdRef.current = newConversationId()
     taintMarkerRef.current = null
+    conversationTaintedRef.current = false
     pendingParsedPlanRef.current = null
     pendingIngestRef.current = null
     setMessages([])
@@ -547,6 +555,15 @@ export function ChatWidget({
       if (typeof data?.meta?.taintMarker === "string" && data.meta.taintMarker) {
         taintMarkerRef.current = data.meta.taintMarker
       }
+      if (
+        data?.meta?.tainted === true ||
+        taintMarkerRef.current ||
+        historyHasTaintNotice([{ role: "assistant", content: data?.replyText }])
+      ) {
+        conversationTaintedRef.current = true
+      }
+      // Captured text in this chat: the reply never drives the page (F14 M2).
+      const bridgeWritesAllowed = !conversationTaintedRef.current
       const parsedReply = coerceModelChatReply(data)
       const nextPending = applyIngestStageMissingMeta(
         pendingIngestRef.current,
@@ -566,14 +583,14 @@ export function ChatWidget({
       }
       setMessages((prev) => [...prev, assistantMessage])
 
-      const didApplyPatch = await maybeApplyPatch({
+      const didApplyPatch = bridgeWritesAllowed && await maybeApplyPatch({
         patch: parsedReply.patch,
         pageContext: resolvedPageContext,
         saveSelectorProp: saveSelector,
         appendAssistantNote,
       })
 
-      const didApplyLines = await maybeApplyLineItemsLoad({
+      const didApplyLines = bridgeWritesAllowed && await maybeApplyLineItemsLoad({
         load: parsedReply.lineItemsLoad ?? null,
         appendAssistantNote,
       })
@@ -583,7 +600,8 @@ export function ChatWidget({
       }
 
       // Legacy fallback (secondary): action JSON embedded in replyText, or response includes { action: ... }.
-      if (!didApplyPatch && !didApplyLines) {
+      // Never in a tainted conversation: the reply text is built from captured text.
+      if (bridgeWritesAllowed && !didApplyPatch && !didApplyLines) {
         await maybeHandleAssistantAction(parsedReply.replyText, appendAssistantNote)
         await maybeHandleAssistantActionObject(data, appendAssistantNote)
       }

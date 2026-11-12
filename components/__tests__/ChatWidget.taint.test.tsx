@@ -10,6 +10,8 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChatWidget } from "@/components/ChatWidget"
+import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridge"
+import { AVA_TAINT_NOTICE } from "@/lib/ava/taintRules"
 
 const CHIP = "How is pacing looking for this client?"
 
@@ -169,5 +171,89 @@ describe("AVA taint marker round trip", () => {
     expect(container.textContent).not.toContain("Late captured reply")
     await send("Fresh")
     expect(sent(1).taintMarker).toBeUndefined()
+  })
+
+  describe("F14 M2: a tainted reply never drives the page bridge", () => {
+    const ACTION_JSON = '```json\n{"action":"setField","fieldId":"budget","value":"999"}\n```'
+    let setField: ReturnType<typeof vi.fn<() => string>>
+    let click: ReturnType<typeof vi.fn<() => string>>
+    let setLineItems: ReturnType<typeof vi.fn<() => string>>
+
+    beforeEach(() => {
+      setField = vi.fn<() => string>(() => "set")
+      click = vi.fn<() => string>(() => "clicked")
+      setLineItems = vi.fn<() => string>(() => "loaded")
+      setAssistantContext({ actions: { setField, click, setLineItems } })
+    })
+
+    afterEach(() => {
+      clearAssistantContext()
+    })
+
+    it("a clean reply still runs the legacy action JSON (control)", async () => {
+      replies.push({ replyText: ACTION_JSON })
+      render("/mediaplans/mba/abc001/edit")
+      open()
+      await send("Set the budget")
+      expect(setField).toHaveBeenCalledTimes(1)
+    })
+
+    it("a tainted reply's action JSON, action object and line items load do nothing", async () => {
+      replies.push({
+        replyText: ACTION_JSON,
+        action: "click",
+        selector: "#save",
+        lineItemsLoad: { channel: "radio", items: [{ network: "x" }] },
+        meta: { tainted: true },
+      })
+      render("/mediaplans/mba/abc001/edit")
+      open()
+      await send("Set the budget")
+      expect(setField).not.toHaveBeenCalled()
+      expect(click).not.toHaveBeenCalled()
+      expect(setLineItems).not.toHaveBeenCalled()
+    })
+
+    it("after a tainted turn, a later reply without meta.tainted still cannot drive the page", async () => {
+      replies.push({ replyText: "Read the thread.", meta: { tainted: true, taintMarker: "t1.abc.def" } })
+      replies.push({ replyText: ACTION_JSON, action: "click", selector: "#save" })
+      render("/tasks")
+      open()
+      await send("Summarise the email")
+      await send("Now set it")
+      expect(setField).not.toHaveBeenCalled()
+      expect(click).not.toHaveBeenCalled()
+    })
+
+    it("a marker alone taints the chat", async () => {
+      replies.push({ replyText: "Read the thread.", meta: { taintMarker: "t1.abc.def" } })
+      replies.push({ replyText: ACTION_JSON })
+      render("/tasks")
+      open()
+      await send("Summarise")
+      await send("Set it")
+      expect(setField).not.toHaveBeenCalled()
+    })
+
+    it("a reply carrying the taint notice taints the chat even with no meta", async () => {
+      replies.push({ replyText: `Summary.\n\n${AVA_TAINT_NOTICE}` })
+      replies.push({ replyText: ACTION_JSON })
+      render("/tasks")
+      open()
+      await send("Summarise")
+      await send("Set it")
+      expect(setField).not.toHaveBeenCalled()
+    })
+
+    it("a new conversation after leaving /tasks drives the page again", async () => {
+      replies.push({ replyText: "Read the thread.", meta: { tainted: true, taintMarker: "t1.abc.def" } })
+      replies.push({ replyText: ACTION_JSON })
+      render("/tasks")
+      open()
+      await send("Summarise the email")
+      render("/mediaplans/mba/abc001/edit")
+      await send("Set the budget")
+      expect(setField).toHaveBeenCalledTimes(1)
+    })
   })
 })
