@@ -211,26 +211,35 @@ export async function createSavedView(
 async function ownership(
   database: Db,
   id: number,
-  viewerEmail: string
+  viewerEmail: string,
+  canUseScreen?: ScreenCheck
 ): Promise<{ ok: true } | { ok: false; reason: "not_found" | "not_owner" }> {
   const [row] = await database
-    .select({ ownerEmail: codexSavedViews.ownerEmail, shared: codexSavedViews.shared })
+    .select({ ownerEmail: codexSavedViews.ownerEmail, shared: codexSavedViews.shared, screen: codexSavedViews.screen })
     .from(codexSavedViews)
     .where(eq(codexSavedViews.id, id))
     .limit(1)
   if (!row) return { ok: false, reason: "not_found" }
+  // B42 (C-211): a view of a screen the viewer may not use (a private
+  // project not theirs, or any project screen with codex_projects off) is
+  // answered as missing, even to its owner.
+  if (canUseScreen && !(await canUseScreen(row.screen))) return { ok: false, reason: "not_found" }
   if (normaliseEmail(row.ownerEmail) === normaliseEmail(viewerEmail)) return { ok: true }
   return { ok: false, reason: row.shared ? "not_owner" : "not_found" }
 }
+
+/** B42: may this person use views of this screen (route supplied: switch and project visibility)? */
+export type ScreenCheck = (screen: string) => Promise<boolean>
 
 export async function updateSavedView(
   id: number,
   viewerEmail: string,
   patch: SavedViewPatch,
-  database: Db = db
+  database: Db = db,
+  canUseScreen?: ScreenCheck
 ): Promise<SavedViewWriteResult> {
   return guarded(database, async () => {
-    const access = await ownership(database, id, viewerEmail)
+    const access = await ownership(database, id, viewerEmail, canUseScreen)
     if (!access.ok) return access
     const set: Partial<typeof codexSavedViews.$inferInsert> = {}
     if (patch.name !== undefined) set.name = patch.name
@@ -248,10 +257,11 @@ export async function updateSavedView(
 export async function deleteSavedView(
   id: number,
   viewerEmail: string,
-  database: Db = db
+  database: Db = db,
+  canUseScreen?: ScreenCheck
 ): Promise<SavedViewDeleteResult> {
   return guarded(database, async () => {
-    const access = await ownership(database, id, viewerEmail)
+    const access = await ownership(database, id, viewerEmail, canUseScreen)
     if (!access.ok) return access
     const rows = await database
       .delete(codexSavedViews)

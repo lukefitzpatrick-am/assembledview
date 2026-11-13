@@ -5,6 +5,7 @@ import {
   jsonError,
   requireCodexInternalAccess,
   sessionEmail,
+  hiddenTaskGuard,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -22,6 +23,8 @@ export async function POST(request: Request, context: Ctx) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   const email = sessionEmail(auth.session)
   if (!email) return jsonError(400, "email_required")

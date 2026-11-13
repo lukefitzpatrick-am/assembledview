@@ -30,6 +30,7 @@ import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
 import { normaliseEmail } from "@/lib/codex/projects"
 import { guarded } from "@/lib/codex/projectsRepo"
 import { displayNameFromEmail, looksLikeEmail } from "@/lib/codex/rosterResolve"
+import { taskVisibleSql } from "@/lib/codex/taskVisibility"
 
 const { codexNotificationPrefs } = schema
 
@@ -54,12 +55,12 @@ export type BellItem = {
 
 export type BellPayload = { items: BellItem[]; unread: number; email_digest: boolean }
 
-/** SQL: notification `n` on live task `t` (with project `p` left-joined) that `recipient` may see. */
+/**
+ * SQL: notification `n` on live task `t` that `recipient` may see. The
+ * private-project rule is the shared one (`taskVisibleSql`, B42).
+ */
 function visibleToRecipient(recipient: SQL): SQL {
-  return sql`t.deleted_at IS NULL AND (
-    p.id IS NULL OR p.is_private = false
-    OR lower(p.owner_email) = ${recipient} OR lower(p.created_by_email) = ${recipient}
-    OR EXISTS (SELECT 1 FROM public.codex_project_members m WHERE m.project_id = p.id AND lower(m.email) = ${recipient}))`
+  return sql`t.deleted_at IS NULL AND ${taskVisibleSql(sql`t.project_id`, recipient)}`
 }
 
 function actorName(email: unknown, rosterName: unknown): string | null {
@@ -97,7 +98,6 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
                n.created_at::text AS created_at, n.read_at::text AS read_at
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
-          LEFT JOIN public.codex_projects p ON p.id = t.project_id
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
          WHERE n.recipient_email = ${viewer} AND ${visibleToRecipient(sql`${viewer}`)}
          ORDER BY n.created_at DESC, n.id DESC
@@ -109,7 +109,6 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
         SELECT count(*)::int AS n
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
-          LEFT JOIN public.codex_projects p ON p.id = t.project_id
          WHERE n.recipient_email = ${viewer} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`)}
       `)
     )
@@ -232,7 +231,6 @@ export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ d
                n.created_at::text AS created_at
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
-          LEFT JOIN public.codex_projects p ON p.id = t.project_id
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
          WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
            AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz

@@ -3,6 +3,7 @@ import { getTeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
+  sessionEmail,
 } from "../../_shared"
 
 export const runtime = "nodejs"
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error
 
   try {
-    const summary = await getTeamWeekTimeSummary()
+    const summary = await getTeamWeekTimeSummary(undefined, undefined, sessionEmail(auth.session))
     return NextResponse.json(summary)
   } catch (error) {
     console.error("Failed to load team-week time summary:", error)

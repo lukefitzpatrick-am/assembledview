@@ -8,6 +8,7 @@ import {
   codexFlagGuard,
   requireCodexInternalAccess,
   sessionEmail,
+  hiddenTaskGuard,
 } from "../../../../_shared"
 
 export const runtime = "nodejs"
@@ -26,6 +27,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   try {
     const { id: idRaw, itemId: itemRaw } = await context.params
@@ -105,6 +108,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   try {
     const { id: idRaw, itemId: itemRaw } = await context.params

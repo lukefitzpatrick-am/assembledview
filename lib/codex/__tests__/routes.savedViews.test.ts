@@ -30,6 +30,11 @@ if (supportsMockModule()) {
     if (mode === "not_owner" || mode === "not_found") return { ok: false, reason: mode }
     return null
   }
+  // B42 (C-234): a project screen needs the project visible; every project is visible here
+  // (the hidden case is pinned in routes.privateTasks.test.ts).
+  await mock.module!("@/lib/codex/projectsRepo", {
+    namedExports: { getProject: async (id: number) => ({ ok: true, project: { id }, sections: [] }) },
+  })
   await mock.module!("@/lib/codex/savedViewsRepo", {
     namedExports: {
       SavedViewsUnavailableError,

@@ -9,6 +9,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-
 import { getDb, schema } from "@/db"
 import { createTask, softDeleteTask } from "@/lib/codex/repo"
 import { clampPage, clampPerPage } from "@/lib/codex/queryHelpers"
+import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { inboxPageEnvelope } from "@/lib/fireflies/inboxPage"
 import {
   isPossibleDuplicate,
@@ -318,7 +319,7 @@ export type InboxMeetingGroup = {
 
 export async function listProposedInbox(
   database: Db = getDb(),
-  opts: { page?: number; perPage?: number } = {}
+  opts: { page?: number; perPage?: number; viewerEmail?: string | null } = {}
 ) {
   const page = clampPage(opts.page)
   const perPage = clampPerPage(opts.perPage)
@@ -431,7 +432,10 @@ export async function listProposedInbox(
         and(
           isNull(schema.tasks.deletedAt),
           ne(schema.tasks.status, "done"),
-          isNotNull(schema.tasks.mbaNumber)
+          isNotNull(schema.tasks.mbaNumber),
+          // B42 (C-211): a private project's task never flags a duplicate to
+          // someone who cannot see it.
+          await taskVisibilityCondition(database, opts.viewerEmail)
         )
       )
     for (const t of openRows) {

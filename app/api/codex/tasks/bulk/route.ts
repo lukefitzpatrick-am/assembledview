@@ -13,6 +13,7 @@ import {
   codexFlagGuard,
   requireCodexInternalAccess,
   sessionEmail,
+  firstHiddenTaskId,
 } from "../../_shared"
 
 export const runtime = "nodejs"
@@ -154,6 +155,16 @@ export async function POST(request: Request) {
 
     const currentUser = await getCurrentUser(request)
     const actor = sessionEmail(auth.session, currentUser?.email)
+
+    // B42 (C-211): a task in a private project the viewer cannot see is
+    // answered exactly as a missing one (the whole batch is refused).
+    const hiddenId = await firstHiddenTaskId(ids, auth.session)
+    if (hiddenId != null) {
+      return NextResponse.json(
+        { error: "conflict", message: `Task ${hiddenId} was not found.`, id: hiddenId },
+        { status: 409 }
+      )
+    }
 
     if (isDelete) {
       const deleted = await bulkSoftDeleteTasks(ids, actor)

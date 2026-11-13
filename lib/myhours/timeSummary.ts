@@ -6,6 +6,7 @@ import { and, eq, gte, isNotNull, isNull, lt, lte, ne, sql, sum } from "drizzle-
 import { getDb, schema, type Db } from "@/db"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { sumOpenEstimatedMinutesByAssignee } from "@/lib/codex/estimatedMinutesColumn"
+import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { minutesToHours } from "@/lib/myhours/hoursMath"
 import {
   sydneyLastNWeekStarts,
@@ -142,10 +143,14 @@ function mondayOfYmd(ymd: string): string {
  */
 export async function getTeamWeekTimeSummary(
   database: Db = db(),
-  now: Date = new Date()
+  now: Date = new Date(),
+  viewerEmail?: string | null
 ): Promise<TeamWeekTimeSummary> {
   const { startYmd, endYmd } = sydneyWeekRange(now)
   const sydneyToday = sydneyCivilParts(now).ymd
+  // B42 (C-211): open, overdue and estimate counts leave out tasks in a
+  // private project the viewer cannot see (unset viewer: public only).
+  const visible = await taskVisibilityCondition(database, viewerEmail)
 
   const members = await database
     .select({
@@ -185,7 +190,8 @@ export async function getTeamWeekTimeSummary(
       and(
         isNull(schema.tasks.deletedAt),
         ne(schema.tasks.status, "done"),
-        isNotNull(schema.tasks.assigneeEmail)
+        isNotNull(schema.tasks.assigneeEmail),
+        visible
       )
     )
     .groupBy(schema.tasks.assigneeEmail)
@@ -202,7 +208,8 @@ export async function getTeamWeekTimeSummary(
         ne(schema.tasks.status, "done"),
         isNotNull(schema.tasks.assigneeEmail),
         isNotNull(schema.tasks.dueDate),
-        lt(schema.tasks.dueDate, sydneyToday)
+        lt(schema.tasks.dueDate, sydneyToday),
+        visible
       )
     )
     .groupBy(schema.tasks.assigneeEmail)
@@ -216,7 +223,7 @@ export async function getTeamWeekTimeSummary(
     if (r.email) overdueBy.set(r.email.toLowerCase(), Number(r.overdue ?? 0))
   }
 
-  const estimateBy = await sumOpenEstimatedMinutesByAssignee(database)
+  const estimateBy = await sumOpenEstimatedMinutesByAssignee(database, visible)
 
   const [unmappedRow] = await database
     .select({

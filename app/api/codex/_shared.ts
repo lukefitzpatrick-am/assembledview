@@ -70,3 +70,40 @@ export function jsonError(
     { status }
   )
 }
+
+/**
+ * B42 (C-211): a task in a private project the viewer cannot see is
+ * answered as missing (404 `not_found`, existence not confirmed) on every
+ * single-task route. Call right after the staff gate. An id that is not a
+ * positive whole number passes through (the route answers its own 400).
+ * Before 0118 nothing is read (no private project can exist).
+ */
+export async function hiddenTaskGuard(
+  context: { params: Promise<{ id: string }> },
+  session: CodexAuthOk["session"]
+): Promise<NextResponse | null> {
+  const id = Number((await context.params).id)
+  if (!Number.isSafeInteger(id) || id < 1) return null
+  try {
+    const { isTaskHiddenFrom } = await import("@/lib/codex/taskVisibility")
+    const { db } = await import("@/db")
+    if (await isTaskHiddenFrom(db, id, sessionEmail(session))) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 })
+    }
+    return null
+  } catch (error) {
+    console.error("[codex] task visibility check failed", error)
+    return NextResponse.json({ error: "task_visibility_failed" }, { status: 500 })
+  }
+}
+
+/** B42 (C-211): the first of `ids` in a private project the viewer cannot see, or null. */
+export async function firstHiddenTaskId(
+  ids: readonly number[],
+  session: CodexAuthOk["session"]
+): Promise<number | null> {
+  const { hiddenTaskIds } = await import("@/lib/codex/taskVisibility")
+  const { db } = await import("@/db")
+  const hidden = await hiddenTaskIds(db, ids, sessionEmail(session))
+  return ids.find((id) => hidden.has(id)) ?? null
+}

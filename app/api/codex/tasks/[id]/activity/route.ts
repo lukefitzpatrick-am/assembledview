@@ -3,6 +3,7 @@ import { getTask, listTaskActivity } from "@/lib/codex/repo"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
+  hiddenTaskGuard,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -15,6 +16,8 @@ export async function GET(request: Request, context: RouteContext) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   try {
     const { id: idRaw } = await context.params

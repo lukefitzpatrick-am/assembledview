@@ -112,7 +112,9 @@ export async function writeTaskEstimatedMinutes(
 }
 
 export async function sumOpenEstimatedMinutesByAssignee(
-  database: ExecuteClient
+  database: ExecuteClient,
+  /** B42: an extra condition over "tasks" (the private-project rule). */
+  visible?: SQL
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   if (!(await tasksHasEstimatedMinutesColumn(database))) return map
@@ -123,6 +125,7 @@ export async function sumOpenEstimatedMinutesByAssignee(
     WHERE deleted_at IS NULL
       AND status <> 'done'
       AND assignee_email IS NOT NULL
+      ${visible ? sql`AND ${visible}` : sql``}
     GROUP BY lower(assignee_email)
   `)
   for (const row of executeRows(result)) {

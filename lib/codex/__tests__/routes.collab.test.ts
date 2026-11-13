@@ -53,6 +53,10 @@ if (supportsMockModule()) {
   }
   await mock.module!("@/lib/codex/projectsRepo", { namedExports: { ProjectsUnavailableError } })
   await mock.module!("@/lib/codex/projectsMarker", { namedExports: { isProjectsMigrationApplied: async () => markerApplied } })
+  // B42: the hidden-task guard (C-211) is pinned in routes.privateTasks.test.ts; here no task is hidden.
+  await mock.module!("@/lib/codex/taskVisibility", {
+    namedExports: { isTaskHiddenFrom: async () => false, hiddenTaskIds: async () => new Set<number>() },
+  })
   await mock.module!("@/lib/codex/collabRepo", {
     namedExports: {
       listFollowers: fn("listFollowers", () => outcome(FOLLOWERS)),

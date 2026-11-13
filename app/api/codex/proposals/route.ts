@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const perPage = clampPerPage(Number(url.searchParams.get("per_page") ?? 20))
 
   try {
-    const inbox = await listProposedInbox(undefined, { page, perPage })
+    const inbox = await listProposedInbox(undefined, { page, perPage, viewerEmail: sessionEmail(auth.session) })
     return NextResponse.json(inbox)
   } catch (error) {
     console.error("Failed to list proposals:", error)

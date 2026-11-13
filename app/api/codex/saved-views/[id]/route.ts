@@ -3,7 +3,7 @@ import { parseSavedViewPatch } from "@/lib/codex/savedViews"
 import { deleteSavedView, updateSavedView } from "@/lib/codex/savedViewsRepo"
 import { isCodexSavedViewsEnabled } from "@/lib/codex/flag"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../_shared"
-import { savedViewId, savedViewsErrorResponse } from "../_gate"
+import { canUseSavedViewScreen, savedViewId, savedViewsErrorResponse } from "../_gate"
 
 export const runtime = "nodejs"
 
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const parsed = parseSavedViewPatch(await request.json().catch(() => null))
   if (!parsed.ok) return jsonError(400, parsed.error, parsed.message)
   try {
-    const result = await updateSavedView(id, email, parsed.value)
+    const result = await updateSavedView(id, email, parsed.value, undefined, (screen) => canUseSavedViewScreen(screen, email))
     if (!result.ok) return refused(result.reason)
     return NextResponse.json(result.view)
   } catch (error) {
@@ -49,7 +49,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const id = savedViewId((await context.params).id)
   if (id == null) return jsonError(404, "not_found")
   try {
-    const result = await deleteSavedView(id, email)
+    const result = await deleteSavedView(id, email, undefined, (screen) => canUseSavedViewScreen(screen, email))
     if (!result.ok) return refused(result.reason)
     return NextResponse.json({ ok: true })
   } catch (error) {

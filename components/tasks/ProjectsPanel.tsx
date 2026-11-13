@@ -353,7 +353,7 @@ export function ProjectsPanel({
                 Private: only the owner, you and members see the project
               </label>
               {draft.is_private ? (
-                <p className="text-xs text-muted-foreground">Its tasks still show in the Tasks list and search for now (C-211).</p>
+                <p className="text-xs text-muted-foreground">Its tasks show only to the owner, you and members, everywhere in Tasks.</p>
               ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>

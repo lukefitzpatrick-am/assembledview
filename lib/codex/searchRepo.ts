@@ -17,6 +17,8 @@ import "server-only"
 import { sql, type SQL } from "drizzle-orm"
 import { db, type Db } from "@/db"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
+import type { DbExecutor } from "@/lib/codex/repo"
+import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import {
   CLIENT_NOTES_BODY_FTS_EXPRESSION,
   codexSearchLikePattern,
@@ -64,7 +66,8 @@ function taskTitleHit(p: string, tsq: SQL): SQL {
   return sql`(t.title ILIKE ${p} OR to_tsvector('english'::regconfig, coalesce(t.title, '')) @@ ${tsq})`
 }
 
-export function buildTaskSearchSql(q: string, limit: number): SQL {
+/** `visible` (B42, C-211): the private-project rule over `t.project_id`, after 0118. */
+export function buildTaskSearchSql(q: string, limit: number, visible?: SQL): SQL {
   const p = codexSearchLikePattern(q)
   const tsq = sql`plainto_tsquery('english'::regconfig, ${q})`
   return sql`
@@ -86,6 +89,7 @@ export function buildTaskSearchSql(q: string, limit: number): SQL {
            ) AS comment_body
       FROM tasks t
      WHERE t.deleted_at IS NULL
+       ${visible ? sql`AND ${visible}` : sql``}
        AND (
          t.title ILIKE ${p}
          OR coalesce(t.mba_number, '') ILIKE ${p}
@@ -131,13 +135,13 @@ export function buildProposalSearchSql(q: string, limit: number): SQL {
  * expression, exactly), title by ILIKE. A UNION keeps the indexed arm
  * indexable.
  */
-export function buildMeetingSearchSql(q: string, limit: number): SQL {
+export function buildMeetingSearchSql(q: string, limit: number, visible?: SQL): SQL {
   const p = codexSearchLikePattern(q)
   const tsq = sql`plainto_tsquery('english'::regconfig, ${q})`
   return sql`
     SELECT n.id, n.title, n.body, n.meeting_date, n.client_id, n.mba_number,
            n.is_internal, n.attributed_type, n.transcript_url,
-           (SELECT count(*) FROM tasks t WHERE t.source_note_id = n.id AND t.deleted_at IS NULL) AS task_count
+           (SELECT count(*) FROM tasks t WHERE t.source_note_id = n.id AND t.deleted_at IS NULL${visible ? sql` AND ${visible}` : sql``}) AS task_count
       FROM client_notes n
      WHERE n.id IN (
              SELECT id FROM client_notes
@@ -200,12 +204,18 @@ function meetingHit(row: Record<string, unknown>, q: string): CodexSearchMeeting
 export async function searchCodex(
   q: string,
   limit: number,
-  database: ExecuteClient = db as Db
+  database: ExecuteClient = db as Db,
+  viewerEmail?: string | null
 ): Promise<CodexSearchResults> {
+  // B42 (C-211): tasks in a private project the viewer cannot see are not
+  // found and not counted on a meeting. The marker is read on a real
+  // database; a bare execute client (tests) asks the app database.
+  const markerDb = typeof (database as Partial<DbExecutor>).select === "function" ? (database as DbExecutor) : (db as DbExecutor)
+  const visible = await taskVisibilityCondition(markerDb, viewerEmail, sql`t.project_id`)
   const [taskRows, proposalRows, meetingRows] = await Promise.all([
-    database.execute(buildTaskSearchSql(q, limit)),
+    database.execute(buildTaskSearchSql(q, limit, visible)),
     database.execute(buildProposalSearchSql(q, limit)),
-    database.execute(buildMeetingSearchSql(q, limit)),
+    database.execute(buildMeetingSearchSql(q, limit, visible)),
   ])
   return {
     q,

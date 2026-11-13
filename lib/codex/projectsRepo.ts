@@ -927,9 +927,9 @@ function idList(ids: readonly number[]): SQL {
 }
 
 /** Board cards: the list fields plus project placement, live subtasks and comments. */
-async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Promise<CodexTask[]> {
+async function loadBoardCards(database: DbExecutor, ids: readonly number[], viewerEmail: string | null): Promise<CodexTask[]> {
   if (ids.length === 0) return []
-  const base = await loadListTasksByIds(database, ids)
+  const base = await loadListTasksByIds(database, ids, viewerEmail)
   const placement = executeRows(
     await database.execute(sql`
       SELECT t.id, t.project_id, t.section_id, t.sort_order, t.task_type, t.start_on::text AS start_on,
@@ -1112,7 +1112,7 @@ export async function loadProjectBoard(
         ORDER BY section_id NULLS LAST, rn
       `)
     )
-    const cards = await loadBoardCards(database, pickRows.map((r) => Number(r.id)))
+    const cards = await loadBoardCards(database, pickRows.map((r) => Number(r.id)), viewerEmail)
     const known = new Set(sections.map((s) => s.id))
     const columns: Record<string, BoardColumnPage> = {}
     for (const s of sections) columns[String(s.id)] = { items: [], total: 0, completed: 0 }
@@ -1168,7 +1168,7 @@ export async function listSectionTasks(
          LIMIT ${limit} OFFSET ${offset}
       `)
     )
-    return { ok: true as const, items: await loadBoardCards(database, rows.map((r) => Number(r.id))), total: Number(countRow?.n ?? 0) || 0 }
+    return { ok: true as const, items: await loadBoardCards(database, rows.map((r) => Number(r.id)), viewerEmail), total: Number(countRow?.n ?? 0) || 0 }
   })
 }
 
@@ -1211,7 +1211,7 @@ export async function createTasksInSection(
         `)
       )
       const ids = inserted.map((r) => Number(r.id))
-      const created = await loadBoardCards(tx, ids)
+      const created = await loadBoardCards(tx, ids, viewerEmail)
       if (created.length > 0) {
         await tx.insert(codexActivity).values(
           created.map((t) => ({
@@ -1395,7 +1395,7 @@ async function writeTaskInTx(
     if (!updated) return { ok: true, task: null }
   }
   if (plan) await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "", isPrivate)
-  const [fresh] = await loadBoardCards(tx, [id])
+  const [fresh] = await loadBoardCards(tx, [id], actorEmail)
   return { ok: true, task: fresh ?? updated }
 }
 

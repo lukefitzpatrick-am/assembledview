@@ -4,6 +4,7 @@ import { parseMbaNumbersQuery } from "@/lib/codex/queryHelpers"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
+  sessionEmail,
 } from "../../_shared"
 
 export const runtime = "nodejs"
@@ -32,7 +33,8 @@ export async function GET(request: Request) {
       )
     }
 
-    const items = await countTasksByMba(mbaNumbers)
+    // B42 (C-211): a private project's tasks count only for people who can see it.
+    const items = await countTasksByMba(mbaNumbers, undefined, undefined, sessionEmail(auth.session))
     return NextResponse.json({ items })
   } catch (error) {
     console.error("Failed to count tasks by MBA:", error)

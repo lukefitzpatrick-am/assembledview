@@ -7,6 +7,7 @@ import {
   codexFlagGuard,
   requireCodexInternalAccess,
   sessionEmail,
+  hiddenTaskGuard,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -25,6 +26,8 @@ export async function GET(request: Request, context: RouteContext) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   try {
     const { id: idRaw } = await context.params
@@ -71,6 +74,8 @@ export async function POST(request: Request, context: RouteContext) {
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
 
   try {
     const { id: idRaw } = await context.params

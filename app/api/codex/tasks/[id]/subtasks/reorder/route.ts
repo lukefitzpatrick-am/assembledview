@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { parseId, parseReorderInput } from "@/lib/codex/projects"
 import { reorderSubtasks } from "@/lib/codex/taskDetailRepo"
-import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../../_shared"
+import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail, hiddenTaskGuard } from "../../../../_shared"
 import { projectFailureResponse, projectsErrorResponse } from "../../../../projects/_gate"
 
 export const runtime = "nodejs"
@@ -17,6 +17,8 @@ export async function POST(request: Request, context: RouteContext) {
   if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
+  const hidden = await hiddenTaskGuard(context, auth.session)
+  if (hidden) return hidden
   const email = sessionEmail(auth.session)
   if (!email) return jsonError(401, "unauthorised")
   const id = parseId((await context.params).id)

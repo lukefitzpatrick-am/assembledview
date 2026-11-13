@@ -7,7 +7,7 @@ import {
 } from "@/lib/codex/savedViewsRepo"
 import { isCodexProjectsEnabled, isCodexSavedViewsEnabled } from "@/lib/codex/flag"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
-import { savedViewsErrorResponse } from "./_gate"
+import { canUseSavedViewScreen, savedViewsErrorResponse } from "./_gate"
 
 export const runtime = "nodejs"
 
@@ -30,6 +30,8 @@ export async function GET(request: Request) {
   if (!screen || (isProjectSavedViewScreen(screen) && !(await isCodexProjectsEnabled()))) {
     return jsonError(400, "invalid_screen", "Unknown screen")
   }
+  // B42 (C-234): a private project's views only for people who can see it.
+  if (!(await canUseSavedViewScreen(screen, email))) return NextResponse.json({ available: true, items: [] })
   try {
     const items = await listSavedViews(email, screen)
     return NextResponse.json({ available: true, items })
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
   if (isProjectSavedViewScreen(parsed.value.screen) && !(await isCodexProjectsEnabled())) {
     return jsonError(400, "invalid_screen", "Unknown screen")
   }
+  if (!(await canUseSavedViewScreen(parsed.value.screen, email))) return jsonError(404, "not_found")
   try {
     const view = await createSavedView(email, parsed.value)
     return NextResponse.json(view, { status: 201 })

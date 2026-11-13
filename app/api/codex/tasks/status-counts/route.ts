@@ -3,6 +3,7 @@ import { countTasksByStatus } from "@/lib/codex/repo"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
+  sessionEmail,
 } from "../../_shared"
 import { parseTaskListFilters } from "../route"
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const parsed = await parseTaskListFilters(request)
     if (!parsed.ok) return parsed.error
 
-    const counts = await countTasksByStatus(parsed.filters)
+    const counts = await countTasksByStatus({ ...parsed.filters, viewerEmail: sessionEmail(auth.session) })
     return NextResponse.json(counts)
   } catch (error) {
     console.error("Failed to count tasks by status:", error)

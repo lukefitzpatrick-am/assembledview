@@ -1,8 +1,9 @@
 import "server-only"
 
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { listCampaignInsights } from "@/lib/insights/queryCampaignInsights"
 import type { CampaignDetailNote } from "./types"
 
@@ -39,7 +40,9 @@ async function listMbaTaskComments(mbaNumber: string): Promise<CampaignDetailNot
     })
     .from(schema.taskComments)
     .innerJoin(schema.tasks, eq(schema.tasks.id, schema.taskComments.taskId))
-    .where(eq(schema.tasks.mbaNumber, mbaNumber))
+    // B42 (C-211): a read-only panel outside /tasks never shows a private
+    // project's task comments (no viewer: public projects and no project only).
+    .where(and(eq(schema.tasks.mbaNumber, mbaNumber), await taskVisibilityCondition(db, null)))
     .orderBy(desc(schema.taskComments.createdAt))
     .limit(10)
   return rows.map((row) => ({

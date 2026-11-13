@@ -49,6 +49,7 @@ import {
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
+import { hiddenTaskIds, taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
   ChecklistItem,
@@ -186,6 +187,12 @@ export type ListTasksFilters = {
   sort?: TaskSort
   page?: number
   perPage?: number
+  /**
+   * B42 (C-211): the person reading. After 0118 tasks in a private project
+   * they cannot see are left out. Unset counts as nobody (public projects
+   * only), so a caller that forgets it hides too much, never too little.
+   */
+  viewerEmail?: string | null
 }
 
 export type CreateTaskInput = {
@@ -412,13 +419,24 @@ async function listHelpChildren(
 
 async function attachHelpGraph(
   database: DbExecutor,
-  api: CodexTask
+  api: CodexTask,
+  viewerEmail: string | null | undefined
 ): Promise<CodexTask> {
   const id = Number(api.id)
-  const children = await listHelpChildren(database, id)
+  const allChildren = await listHelpChildren(database, id)
+  // B42 (C-211): a help child or parent in a private project the viewer
+  // cannot see is not shown (no title, no snapshot of its description).
+  const hidden = await hiddenTaskIds(
+    database,
+    [...allChildren.map((c) => c.id), ...(api.parent_task_id != null ? [api.parent_task_id] : [])],
+    viewerEmail
+  )
+  const children = allChildren.filter((c) => !hidden.has(c.id))
   let parent: HelpParentSummary | null = null
   let parentTitle: string | null = api.parent_title ?? null
-  if (api.parent_task_id != null && !(await isSubtaskRow(database, id))) {
+  if (api.parent_task_id != null && hidden.has(api.parent_task_id)) {
+    parentTitle = null
+  } else if (api.parent_task_id != null && !(await isSubtaskRow(database, id))) {
     const [row] = await database
       .select()
       .from(tasks)
@@ -439,7 +457,8 @@ async function attachHelpGraph(
 
 async function attachParentTitles(
   database: DbExecutor,
-  items: CodexTask[]
+  items: CodexTask[],
+  viewerEmail: string | null | undefined
 ): Promise<CodexTask[]> {
   const parentIds = [
     ...new Set(
@@ -453,7 +472,9 @@ async function attachParentTitles(
     .select({ id: tasks.id, title: tasks.title })
     .from(tasks)
     .where(inArray(tasks.id, parentIds))
-  const titleById = new Map(rows.map((r) => [Number(r.id), r.title]))
+  // B42: a parent in a private project the viewer cannot see lends no title.
+  const hidden = await hiddenTaskIds(database, parentIds, viewerEmail)
+  const titleById = new Map(rows.filter((r) => !hidden.has(Number(r.id))).map((r) => [Number(r.id), r.title]))
   const subtasks = await subtaskIdsAmong(
     database,
     items.filter((t) => t.parent_task_id != null && t.task_type == null).map((t) => Number(t.id))
@@ -693,6 +714,11 @@ function taskListWhere(filters: ListTasksFilters): SQL | undefined {
   return conds.length > 0 ? and(...conds) : undefined
 }
 
+/** `taskListWhere` plus the private-project rule (B42) once 0118 exists. */
+async function taskListWhereVisible(database: DbExecutor, filters: ListTasksFilters): Promise<SQL | undefined> {
+  return and(taskListWhere(filters), await taskVisibilityCondition(database, filters.viewerEmail))
+}
+
 export async function listTasks(
   filters: ListTasksFilters = {},
   database: Db = db
@@ -700,7 +726,7 @@ export async function listTasks(
   const page = clampPage(filters.page)
   const perPage = clampPerPage(filters.perPage)
   const offset = (page - 1) * perPage
-  const where = taskListWhere(filters)
+  const where = await taskListWhereVisible(database, filters)
 
   const [totalRow] = await database
     .select({ c: count() })
@@ -717,7 +743,7 @@ export async function listTasks(
     .offset(offset)
 
   const apiTasks = rows.map(taskRowToApi)
-  return pagedEnvelope(await enrichListTasks(database, apiTasks), itemsTotal, page, perPage)
+  return pagedEnvelope(await enrichListTasks(database, apiTasks, filters.viewerEmail), itemsTotal, page, perPage)
 }
 
 /**
@@ -727,7 +753,8 @@ export async function listTasks(
  */
 export async function loadListTasksByIds(
   database: DbExecutor,
-  ids: readonly number[]
+  ids: readonly number[],
+  viewerEmail?: string | null
 ): Promise<CodexTask[]> {
   if (ids.length === 0) return []
   const rows = await database
@@ -736,13 +763,14 @@ export async function loadListTasksByIds(
     .where(and(inArray(tasks.id, [...ids]), isNull(tasks.deletedAt)))
   const byId = new Map(rows.map((r) => [Number(r.id), taskRowToApi(r)]))
   const ordered = ids.map((id) => byId.get(id)).filter((t): t is CodexTask => t != null)
-  return enrichListTasks(database, ordered)
+  return enrichListTasks(database, ordered, viewerEmail)
 }
 
 /** Checklist progress, estimates and help parent titles for list rows and board cards. */
 async function enrichListTasks(
   database: DbExecutor,
-  apiTasks: CodexTask[]
+  apiTasks: CodexTask[],
+  viewerEmail: string | null | undefined
 ): Promise<CodexTask[]> {
   const ids = apiTasks.map((t) => Number(t.id)).filter((id) => Number.isFinite(id) && id > 0)
   if (ids.length === 0) return apiTasks
@@ -775,7 +803,7 @@ async function enrichListTasks(
   })
 
   const withEstimates = await applyEstimatedMinutes(database, withProgress)
-  return attachParentTitles(database, withEstimates)
+  return attachParentTitles(database, withEstimates, viewerEmail)
 }
 
 export type TaskStatusCounts = Record<TaskStatus, number>
@@ -795,7 +823,7 @@ export async function countTasksByStatus(
   filters: ListTasksFilters = {},
   database: Db = db
 ): Promise<TaskStatusCounts> {
-  const where = taskListWhere(filters)
+  const where = await taskListWhereVisible(database, filters)
   // Group by the raw column and fold unknown statuses into `todo` here.
   // A parameterised CASE in both SELECT and GROUP BY fails in Postgres (42803):
   // the two copies get different $n placeholders, so they are not the same expression.
@@ -833,7 +861,8 @@ export type MbaTaskCounts = {
 export async function countTasksByMba(
   mbaNumbers: string[],
   database: Db = db,
-  now: Date = new Date()
+  now: Date = new Date(),
+  viewerEmail?: string | null
 ): Promise<MbaTaskCounts[]> {
   const unique: string[] = []
   const seen = new Set<string>()
@@ -846,6 +875,8 @@ export async function countTasksByMba(
   if (unique.length === 0) return []
 
   const sydneyToday = sydneyCivilParts(now).ymd
+  // B42: tasks in a private project the viewer cannot see are not counted.
+  const visible = await taskVisibilityCondition(database, viewerEmail)
 
   const rows = await database
     .select({
@@ -857,7 +888,8 @@ export async function countTasksByMba(
       and(
         isNull(tasks.deletedAt),
         inArray(tasks.mbaNumber, unique),
-        ne(tasks.status, "done")
+        ne(tasks.status, "done"),
+        visible
       )
     )
     .groupBy(tasks.mbaNumber)
@@ -874,7 +906,8 @@ export async function countTasksByMba(
         inArray(tasks.mbaNumber, unique),
         ne(tasks.status, "done"),
         isNotNull(tasks.dueDate),
-        lt(tasks.dueDate, sydneyToday)
+        lt(tasks.dueDate, sydneyToday),
+        visible
       )
     )
     .groupBy(tasks.mbaNumber)
@@ -897,13 +930,14 @@ export async function countTasksByMba(
 
 export async function getTask(
   id: number,
-  database: Db = db
+  database: Db = db,
+  viewerEmail?: string | null
 ): Promise<CodexTask | null> {
   const [row] = await database.select().from(tasks).where(eq(tasks.id, id)).limit(1)
   if (!row || row.deletedAt) return null
   const [api] = await applyEstimatedMinutes(database, [taskRowToApi(row)])
   if (!api) return null
-  return attachHelpGraph(database, api)
+  return attachHelpGraph(database, api, viewerEmail)
 }
 
 /**
@@ -1316,8 +1350,8 @@ export async function requestHelp(
 
     const parentApi = taskRowToApi(updatedParent ?? parent)
     return {
-      parent: await attachHelpGraph(tx, parentApi),
-      child: await attachHelpGraph(tx, childApi),
+      parent: await attachHelpGraph(tx, parentApi, actorEmail),
+      child: await attachHelpGraph(tx, childApi, actorEmail),
     }
   })
 }

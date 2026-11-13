@@ -7,6 +7,7 @@ import "server-only"
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import {
   selectClientMeetings,
   type ClientMeeting,
@@ -48,6 +49,8 @@ export async function listClientMeetings(
           inArray(schema.tasks.sourceNoteId, noteIds),
           eq(schema.tasks.autoCreated, true),
           isNull(schema.tasks.deletedAt),
+          // B42 (C-211): panels outside /tasks never count a private project's tasks.
+          await taskVisibilityCondition(database, null),
         ),
       )
     for (const t of tasks) {
