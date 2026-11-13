@@ -52,6 +52,17 @@ import {
   type UpdateSectionInput,
 } from "@/lib/codex/projects"
 import { projectBoardScope } from "@/lib/codex/projectBoard"
+import {
+  applyCustomValuesPatch,
+  readCardFields,
+  readStoredOptions,
+  readStoredValues,
+  isBuiltFieldType,
+  type CardFieldSetting,
+  type CodexCustomField,
+  type CustomValues,
+} from "@/lib/codex/customFields"
+import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
   bulkFailure,
@@ -65,7 +76,7 @@ import {
 } from "@/lib/codex/repo"
 import type { CodexTask } from "@/lib/codex/types"
 
-const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs } = schema
+const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs, codexCustomFields } = schema
 
 export {
   PROJECTS_MARKER,
@@ -98,6 +109,20 @@ export type ProjectFailureReason =
   | "no_section_for_status"
   | "anchor_not_in_section"
   | "task_changed"
+  // B40
+  | "subtask_not_on_board"
+  | "start_after_due"
+  | "task_type_fixed"
+  | "not_in_project"
+  | "unknown_field"
+  | "invalid_value"
+  | "nested_subtask"
+  | "too_many_subtasks"
+  | "option_in_use"
+  | "field_has_values"
+  | "unknown_option"
+  | "invalid_done_option"
+  | "too_many_fields"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -153,7 +178,7 @@ function isMissingColumnOnly(err: unknown): boolean {
  * place it is a real bug (a column typo), so the error is thrown as it is
  * (500) and the marker stays cached.
  */
-async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
+export async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
   if (!(await isProjectsMigrationApplied(database))) throw new ProjectsUnavailableError()
   try {
     return await run()
@@ -209,14 +234,14 @@ async function loadMembers(database: DbExecutor, projectId: number): Promise<str
   return rows.map((r) => normaliseEmail(r.email))
 }
 
-type VisibleProject = { row: ProjectRow; members: string[] }
+export type VisibleProject = { row: ProjectRow; members: string[] }
 
 /**
  * A live project the viewer may see, or null (missing, deleted, or private
  * and not theirs). `lock` takes the project row FOR UPDATE, which serialises
  * section and membership changes per project.
  */
-async function loadVisibleProject(
+export async function loadVisibleProject(
   database: DbExecutor,
   id: number,
   viewerEmail: string,
@@ -248,7 +273,7 @@ function ownerFacts(p: VisibleProject) {
   }
 }
 
-async function loadSections(database: DbExecutor, projectId: number): Promise<CodexSection[]> {
+export async function loadSections(database: DbExecutor, projectId: number): Promise<CodexSection[]> {
   const rows = await database
     .select()
     .from(codexSections)
@@ -257,7 +282,7 @@ async function loadSections(database: DbExecutor, projectId: number): Promise<Co
   return rows.map(sectionRowToApi)
 }
 
-async function appendActivity(
+export async function appendActivity(
   database: DbExecutor,
   args: { entityType: string; entityId: number; actorEmail: string; action: string; before?: unknown; after?: unknown }
 ): Promise<void> {
@@ -629,12 +654,17 @@ type TaskPlacementRow = {
   project_id: number | null
   section_id: number | null
   sort_order: number | null
+  task_type: string
+  start_on: string | null
+  due_on: string | null
+  custom_values: CustomValues
 }
 
 async function lockLiveTask(database: DbExecutor, taskId: number): Promise<TaskPlacementRow | null> {
   const rows = executeRows(
     await database.execute(sql`
-      SELECT id, status, project_id, section_id, sort_order
+      SELECT id, status, project_id, section_id, sort_order, task_type,
+             start_on::text AS start_on, due_on::text AS due_on, custom_values
         FROM public.tasks
        WHERE id = ${taskId} AND deleted_at IS NULL
        FOR UPDATE
@@ -649,7 +679,17 @@ async function lockLiveTask(database: DbExecutor, taskId: number): Promise<TaskP
     project_id: num(r.project_id),
     section_id: num(r.section_id),
     sort_order: num(r.sort_order),
+    task_type: typeof r.task_type === "string" ? r.task_type : "task",
+    start_on: r.start_on == null ? null : String(r.start_on),
+    due_on: r.due_on == null ? null : String(r.due_on),
+    custom_values: readStoredValues(r.custom_values),
   }
+}
+
+const SUBTASK_NOT_ON_BOARD: ProjectFailure = {
+  ok: false,
+  reason: "subtask_not_on_board",
+  message: "A subtask stays with its parent task and is not a card on the board.",
 }
 
 async function nextSortOrderInSection(database: DbExecutor, sectionId: number, taskId: number): Promise<number> {
@@ -768,6 +808,13 @@ async function placeTask(
            updated_at = now()
      WHERE id = ${task.id} AND deleted_at IS NULL
   `)
+  if (task.project_id !== plan.project_id) {
+    // B40: a subtask lives in its parent's project.
+    await tx.execute(sql`
+      UPDATE public.tasks SET project_id = ${plan.project_id}
+       WHERE parent_task_id = ${task.id} AND task_type = 'subtask' AND deleted_at IS NULL
+    `)
+  }
   const sectionName = (id: number | null) => sections.find((s) => s.id === id)?.name ?? null
   const side = (projectId: number | null, sectionId: number | null) =>
     isPrivate ? { project_id: projectId, section_id: sectionId } : { project_id: projectId, section: sectionName(sectionId), section_id: sectionId }
@@ -808,6 +855,7 @@ export async function moveTaskToSection(
       if (!section) return SECTION_NOT_FOUND
       const task = await lockLiveTask(tx, input.task_id)
       if (!task) return TASK_NOT_FOUND
+      if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
       const plan = planSectionMove(task, section)
       if (!plan.ok) return plan
       return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail, Boolean(p.row.isPrivate))
@@ -828,6 +876,7 @@ export async function completeProjectTask(
       if (!p) return NOT_FOUND
       const task = await lockLiveTask(tx, taskId)
       if (!task || task.project_id !== projectId) return TASK_NOT_FOUND
+      if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
       const sections = await loadSections(tx, projectId)
       const plan = planCompleteInProject(task, sections)
       if (!plan.ok) return plan
@@ -856,6 +905,9 @@ export type ProjectBoard = {
   unsectioned: BoardColumnPage
   hide_completed: boolean
   hide_completed_source: "request" | "stored" | "default"
+  /** B40: the project's custom fields and which show as chips on cards. */
+  fields: CodexCustomField[]
+  card_fields: CardFieldSetting[]
 }
 
 function idList(ids: readonly number[]): SQL {
@@ -871,7 +923,8 @@ async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Pro
   const base = await loadListTasksByIds(database, ids)
   const placement = executeRows(
     await database.execute(sql`
-      SELECT t.id, t.project_id, t.section_id, t.sort_order,
+      SELECT t.id, t.project_id, t.section_id, t.sort_order, t.task_type, t.start_on::text AS start_on,
+             t.due_on::text AS due_on, t.assigned_by_email, t.custom_values,
              (SELECT count(*)::int FROM public.tasks c
                WHERE c.parent_task_id = t.id AND c.deleted_at IS NULL AND c.task_type = 'subtask') AS subtask_count,
              (SELECT count(*)::int FROM public.task_comments m WHERE m.task_id = t.id) AS comment_count
@@ -890,8 +943,90 @@ async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Pro
       sort_order: num(r?.sort_order),
       subtask_count: Number(r?.subtask_count ?? 0) || 0,
       comment_count: Number(r?.comment_count ?? 0) || 0,
+      ...s1FieldsFromRow(r),
     }
   })
+}
+
+/** B40 card and list fields from a raw tasks row. */
+function s1FieldsFromRow(r: Record<string, unknown> | undefined) {
+  return {
+    task_type: typeof r?.task_type === "string" ? r.task_type : "task",
+    start_on: r?.start_on == null ? null : String(r.start_on),
+    due_on: r?.due_on == null ? null : String(r.due_on),
+    assigned_by_email: r?.assigned_by_email == null ? null : String(r.assigned_by_email),
+    custom_values: readStoredValues(r?.custom_values),
+  }
+}
+
+/**
+ * B40: the S1 fields (project, section, order, type, dates, assigned by,
+ * values) for tasks read through the Drizzle mirror, which does not carry
+ * them yet (C-210). Tasks list rows with codex_projects on. Empty before 0118.
+ */
+export async function attachTaskS1Fields(items: CodexTask[], database: Db = db): Promise<CodexTask[]> {
+  const ids = items.map((t) => Number(t.id)).filter((id) => Number.isSafeInteger(id) && id > 0)
+  if (ids.length === 0 || !(await isProjectsMigrationApplied(database))) return items
+  try {
+    const rows = executeRows(
+      await database.execute(sql`
+        SELECT id, project_id, section_id, sort_order, task_type, start_on::text AS start_on, due_on::text AS due_on,
+               assigned_by_email, custom_values
+          FROM public.tasks WHERE id IN (${idList(ids)})
+      `)
+    )
+    const byId = new Map(rows.map((r) => [Number(r.id), r]))
+    const num = (v: unknown) => (v == null ? null : Number(v))
+    return items.map((t) => {
+      const r = byId.get(Number(t.id))
+      if (!r) return t
+      return { ...t, project_id: num(r.project_id), section_id: num(r.section_id), sort_order: num(r.sort_order), ...s1FieldsFromRow(r) }
+    })
+  } catch (err) {
+    if (isMissingProjectsSchema(err)) {
+      forgetProjectsMarker()
+      return items
+    }
+    throw err
+  }
+}
+
+function fieldRowToApi(row: typeof codexCustomFields.$inferSelect): CodexCustomField | null {
+  if (!isBuiltFieldType(row.fieldType)) return null
+  return {
+    id: Number(row.id),
+    project_id: Number(row.projectId),
+    name: row.name,
+    field_type: row.fieldType,
+    options: readStoredOptions(row.options),
+    done_option: row.doneOption ?? null,
+  }
+}
+
+/** B40: a project's custom fields (built types only), oldest first. */
+export async function loadProjectFields(database: DbExecutor, projectId: number): Promise<CodexCustomField[]> {
+  const rows = await database
+    .select()
+    .from(codexCustomFields)
+    .where(eq(codexCustomFields.projectId, projectId))
+    .orderBy(asc(codexCustomFields.id))
+  return rows.map(fieldRowToApi).filter((f): f is CodexCustomField => f != null)
+}
+
+/** The project-wide board row (no owner) that holds the card chip settings. */
+export function projectCardFieldsWhere(projectId: number): SQL {
+  return and(eq(codexBoardConfigs.scope, projectBoardScope(projectId)), isNull(codexBoardConfigs.ownerEmail)) as SQL
+}
+
+/** B40: which field chips show on cards for this project (none listed: all show). */
+export async function loadProjectCardFields(database: DbExecutor, projectId: number): Promise<CardFieldSetting[]> {
+  const [row] = await database
+    .select({ cardFields: codexBoardConfigs.cardFields })
+    .from(codexBoardConfigs)
+    .where(projectCardFieldsWhere(projectId))
+    .orderBy(sql`${codexBoardConfigs.id} desc`)
+    .limit(1)
+  return row ? readCardFields(row.cardFields) : []
 }
 
 async function storedHideCompleted(database: DbExecutor, projectId: number, viewerEmail: string): Promise<boolean | null> {
@@ -939,7 +1074,7 @@ export async function loadProjectBoard(
                count(*) FILTER (WHERE status <> 'done')::int AS open,
                count(*) FILTER (WHERE status = 'done')::int AS done
           FROM public.tasks
-         WHERE project_id = ${projectId} AND deleted_at IS NULL
+         WHERE project_id = ${projectId} AND deleted_at IS NULL AND task_type <> 'subtask'
          GROUP BY section_id
       `)
     )
@@ -949,7 +1084,7 @@ export async function loadProjectBoard(
           SELECT id, section_id,
                  row_number() OVER (PARTITION BY section_id ORDER BY sort_order ASC NULLS LAST, id ASC) AS rn
             FROM public.tasks
-           WHERE project_id = ${projectId} AND deleted_at IS NULL
+           WHERE project_id = ${projectId} AND deleted_at IS NULL AND task_type <> 'subtask'
              AND (${hide} = false OR status <> 'done')
         ) ranked
         WHERE rn <= ${per}
@@ -981,6 +1116,8 @@ export async function loadProjectBoard(
       unsectioned,
       hide_completed: hide,
       hide_completed_source: source,
+      fields: await loadProjectFields(database, projectId),
+      card_fields: await loadProjectCardFields(database, projectId),
     }
   })
 }
@@ -1110,18 +1247,76 @@ export async function setBoardHideCompleted(
 
 type StatusChangeOutcome = { ok: true; task: CodexTask | null } | ProjectFailure
 
+const NOT_IN_PROJECT: ProjectFailure = {
+  ok: false,
+  reason: "not_in_project",
+  message: "Custom fields belong to a project. Move the task into a project first.",
+}
+
+/** Keys of a Drizzle-side update other than the assigned-by flag. */
+function hasBaseChanges(patch: UpdateTaskInput): boolean {
+  return Object.entries(patch).some(([k, v]) => k !== "trackAssignedBy" && v !== undefined)
+}
+
+function hasDetails(details: TaskDetailPatch): boolean {
+  return Object.values(details).some((v) => v !== undefined)
+}
+
+/** Write the B40 columns sent (raw SQL until C-210) and record them as one activity row. */
+async function writeTaskDetails(
+  tx: DbExecutor,
+  task: TaskPlacementRow,
+  details: TaskDetailPatch,
+  values: CustomValues | null,
+  actorEmail: string | null
+): Promise<void> {
+  const sets: SQL[] = []
+  const before: Record<string, unknown> = {}
+  const after: Record<string, unknown> = {}
+  if (details.start_on !== undefined) {
+    sets.push(sql`start_on = ${details.start_on}::date`)
+    before.start_on = task.start_on
+    after.start_on = details.start_on
+  }
+  if (details.due_on !== undefined) {
+    // One due column per write: the 0118 trigger sets due_date from it (stack review L4).
+    sets.push(sql`due_on = ${details.due_on}::date`)
+    before.due_on = task.due_on
+    after.due_on = details.due_on
+  }
+  if (details.task_type !== undefined) {
+    sets.push(sql`task_type = ${details.task_type}`)
+    before.task_type = task.task_type
+    after.task_type = details.task_type
+  }
+  if (values != null) {
+    sets.push(sql`custom_values = ${JSON.stringify(values)}::jsonb`)
+    before.custom_values = task.custom_values
+    after.custom_values = values
+  }
+  if (sets.length === 0) return
+  sets.push(sql`updated_at = now()`)
+  await tx.execute(sql`UPDATE public.tasks SET ${sql.join(sets, sql`, `)} WHERE id = ${task.id} AND deleted_at IS NULL`)
+  await appendActivity(tx, { entityType: "task", entityId: task.id, actorEmail: actorEmail ?? "", action: "update", before, after })
+}
+
 /**
- * One task's PATCH-shaped update with a status in it, inside the caller's
- * transaction. A task in no project updates as before. A task in a project
- * moves to the section the status names (planStatusChangeInProject) or is
- * refused with nothing changed. Locks the project row, then the task, the
- * same order as moveTaskToSection.
+ * One task's PATCH-shaped update inside the caller's transaction, with the
+ * B40 detail columns. Locks the project row, then the task (the order every
+ * projects write uses). Checks before any write, so a refusal changes
+ * nothing:
+ * - type: task and milestone switch, a subtask stays one (B40);
+ * - dates: start on or before due, against what is stored for the one not sent;
+ * - custom values: the task's project (visible to the viewer) and its fields' options;
+ * - status (B39): a task in a project moves to the section the status names,
+ *   or is refused. A subtask has no section: its status changes alone.
  */
-async function statusChangeInTx(
+async function writeTaskInTx(
   tx: DbExecutor,
   id: number,
-  patch: UpdateTaskInput & { status: string },
-  actorEmail: string | null
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  details: TaskDetailPatch
 ): Promise<StatusChangeOutcome> {
   const peek = executeRows(
     await tx.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${id} AND deleted_at IS NULL`)
@@ -1141,18 +1336,44 @@ async function statusChangeInTx(
   if (task.project_id !== projectId) {
     return { ok: false, reason: "task_changed", message: "The task moved project while saving. Reload and try again." }
   }
-  if (task.project_id == null) return { ok: true, task: await updateTaskInTx(tx, id, patch, actorEmail) }
-  const sections = await loadSections(tx, task.project_id)
-  const plan = planStatusChangeInProject(task, sections, patch.status)
-  if (!plan.ok) return plan
-  if (!plan.inProject) return { ok: true, task: await updateTaskInTx(tx, id, patch, actorEmail) }
-  const updated = await updateTaskInTx(tx, id, patch, actorEmail)
-  if (!updated) return { ok: true, task: null }
-  const placed = await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "", isPrivate)
-  return {
-    ok: true,
-    task: { ...updated, project_id: placed.task.project_id, section_id: placed.task.section_id, sort_order: placed.task.sort_order },
+
+  if (details.task_type !== undefined) {
+    const typeRule = checkTaskTypeChange(task.task_type, details.task_type)
+    if (!typeRule.ok) return typeRule
   }
+  if (details.start_on !== undefined || details.due_on !== undefined || patch.dueDate !== undefined) {
+    const start = details.start_on !== undefined ? details.start_on : task.start_on
+    const due =
+      details.due_on !== undefined ? details.due_on : patch.dueDate !== undefined ? (patch.dueDate?.slice(0, 10) ?? null) : task.due_on
+    const dates = checkTaskDates(start, due)
+    if (!dates.ok) return dates
+  }
+  let values: CustomValues | null = null
+  if (details.custom_values !== undefined) {
+    if (task.project_id == null) return NOT_IN_PROJECT
+    if (!(await loadVisibleProject(tx, task.project_id, actorEmail ?? ""))) return NOT_FOUND
+    const applied = applyCustomValuesPatch(task.custom_values, details.custom_values, await loadProjectFields(tx, task.project_id))
+    if (!applied.ok) return applied
+    values = applied.values
+  }
+  let plan: Extract<ReturnType<typeof planStatusChangeInProject>, { inProject: true }> | null = null
+  let sections: CodexSection[] = []
+  if (hasStatus(patch) && task.project_id != null && task.task_type !== "subtask") {
+    sections = await loadSections(tx, task.project_id)
+    const planned = planStatusChangeInProject(task, sections, patch.status)
+    if (!planned.ok) return planned
+    if (planned.inProject) plan = planned
+  }
+
+  await writeTaskDetails(tx, task, details, values, actorEmail)
+  let updated: CodexTask | null = null
+  if (hasBaseChanges(patch)) {
+    updated = await updateTaskInTx(tx, id, patch, actorEmail)
+    if (!updated) return { ok: true, task: null }
+  }
+  if (plan) await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "", isPrivate)
+  const [fresh] = await loadBoardCards(tx, [id])
+  return { ok: true, task: fresh ?? updated }
 }
 
 function hasStatus(patch: UpdateTaskInput): patch is UpdateTaskInput & { status: string } {
@@ -1160,20 +1381,29 @@ function hasStatus(patch: UpdateTaskInput): patch is UpdateTaskInput & { status:
 }
 
 /**
- * PATCH /api/codex/tasks/[id] with codex_projects on. Without a status, or
- * before 0118, this is the plain update. A refused move is a failure (409);
- * a missing task is `task: null` (404).
+ * PATCH /api/codex/tasks/[id] with codex_projects on. Without a status,
+ * due date, detail columns or asap, or before 0118 without detail columns
+ * or asap, this is the plain update. Detail columns or asap before 0118: ProjectsUnavailableError
+ * (503). A refusal is a failure (409 or 400); a missing task is `task: null`.
  */
 export async function updateTaskThroughSections(
   id: number,
   patch: UpdateTaskInput,
   actorEmail: string | null,
-  database: Db = db
+  database: Db = db,
+  details: TaskDetailPatch = {}
 ): Promise<StatusChangeOutcome> {
-  if (!hasStatus(patch) || !(await isProjectsMigrationApplied(database))) {
+  const withDetails = hasDetails(details)
+  const asap = patch.priority === "asap"
+  // A due date change is checked against the stored start date (B40).
+  if (!hasStatus(patch) && !withDetails && !asap && patch.dueDate === undefined) {
     return { ok: true, task: await updateTask(id, patch, actorEmail, database) }
   }
-  return database.transaction((tx) => statusChangeInTx(tx, id, patch, actorEmail))
+  if (!(await isProjectsMigrationApplied(database))) {
+    if (withDetails || asap) throw new ProjectsUnavailableError()
+    return { ok: true, task: await updateTask(id, patch, actorEmail, database) }
+  }
+  return guarded(database, () => database.transaction((tx) => writeTaskInTx(tx, id, patch, actorEmail, details)))
 }
 
 /**
@@ -1204,7 +1434,7 @@ export async function bulkUpdateTasksThroughSections(
     for (const id of ids) {
       let outcome: StatusChangeOutcome
       try {
-        outcome = await statusChangeInTx(tx, id, patch, actorEmail)
+        outcome = await writeTaskInTx(tx, id, patch, actorEmail, {})
       } catch (error) {
         // As the plain bulk path: a failure that is not a refusal is 400 naming the task.
         throw bulkFailure(id, error)

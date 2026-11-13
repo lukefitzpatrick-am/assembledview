@@ -33,6 +33,20 @@ const FAILURE_STATUS: Record<ProjectFailure["reason"], number> = {
   no_section_for_status: 409,
   anchor_not_in_section: 409,
   task_changed: 409,
+  // B40
+  subtask_not_on_board: 409,
+  start_after_due: 409,
+  task_type_fixed: 409,
+  not_in_project: 409,
+  unknown_field: 400,
+  invalid_value: 400,
+  nested_subtask: 409,
+  too_many_subtasks: 409,
+  option_in_use: 409,
+  field_has_values: 409,
+  unknown_option: 409,
+  invalid_done_option: 400,
+  too_many_fields: 409,
 }
 
 export function projectFailureResponse(failure: ProjectFailure): NextResponse {

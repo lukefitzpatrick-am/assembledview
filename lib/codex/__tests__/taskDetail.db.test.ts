@@ -20,8 +20,24 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
-import { getTask, softDeleteTask, updateTask } from "../repo.js"
-import { createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { createTask, getTask, softDeleteTask, updateTask } from "../repo.js"
+import {
+  completeProjectTask,
+  createProject,
+  createTasksInSection,
+  loadProjectBoard,
+  moveTaskToSection,
+  resetProjectsMarkerCacheForTests,
+  updateTaskThroughSections,
+} from "../projectsRepo.js"
+import {
+  createCustomField,
+  deleteCustomField,
+  listProjectFields,
+  setProjectCardFields,
+  updateCustomField,
+} from "../customFieldsRepo.js"
+import { createSubtask, getTaskProjectDetail, reorderSubtasks } from "../taskDetailRepo.js"
 
 const RAW_URL = process.env.CODEX_PROJECTS_TEST_DATABASE_URL?.trim() ?? ""
 
@@ -173,6 +189,243 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       assert.equal(subDetail?.parent ?? null, null)
       const helpDetail = await getTask(help, database)
       assert.equal(helpDetail?.parent?.id, parent)
+    })
+  })
+
+  describe("subtasks (B40-03)", () => {
+    let parentId = 0
+    it("made under a parent: its project, no section, last, to do, assigned by when someone else gets it", async () => {
+      const made = await createTasksInSection(projectId, sec["Inbound"], OWNER, ["Book OOH"], database)
+      assert.ok(made.ok)
+      parentId = Number(made.tasks[0].id)
+      const a = await createSubtask(parentId, OWNER, { title: "Brief", assignee_email: MIA, start_on: null, due_on: "2026-11-20" }, database)
+      assert.ok(a.ok)
+      const b = await createSubtask(parentId, OWNER, { title: "Proofs", assignee_email: OWNER, start_on: null, due_on: null }, database)
+      assert.ok(b.ok)
+      const ra = await taskRow(a.subtask.id)
+      assert.equal(ra.task_type, "subtask")
+      assert.equal(ra.parent_task_id, parentId)
+      assert.equal(ra.project_id, projectId)
+      assert.equal(ra.section_id, null)
+      assert.equal(ra.status, "todo")
+      assert.equal(ra.assigned_by_email, OWNER)
+      assert.equal(ra.due_on, "2026-11-20")
+      assert.ok(ra.due_date, "the 0118 trigger fills due_date")
+      assert.equal((await taskRow(b.subtask.id)).assigned_by_email, null, "self-assigned: no assigned by")
+      assert.deepEqual([a.subtask.sort_order, b.subtask.sort_order], [0, 1])
+    })
+
+    it("one level only; another person's private project is not found", async () => {
+      const detail = await getTaskProjectDetail(parentId, OWNER, database)
+      assert.ok(detail.ok)
+      const sub = detail.subtasks[0].id
+      const nested = await createSubtask(sub, OWNER, { title: "x", assignee_email: null, start_on: null, due_on: null }, database)
+      assert.equal(!nested.ok && nested.reason, "nested_subtask")
+      const priv = await createProject(OWNER, {
+        name: "Secret", kind: "internal", client_id: null, mba_number: null, owner_email: null, is_private: true,
+        start_on: null, due_on: null, members: [], sections: undefined,
+      }, database)
+      assert.ok(priv.ok)
+      const t = await createTasksInSection(priv.project.id, priv.sections[0].id, OWNER, ["Hidden"], database)
+      assert.ok(t.ok)
+      const other = await createSubtask(Number(t.tasks[0].id), MIA, { title: "x", assignee_email: null, start_on: null, due_on: null }, database)
+      assert.equal(!other.ok && other.reason, "task_not_found")
+      const hidden = await getTaskProjectDetail(Number(t.tasks[0].id), MIA, database)
+      assert.ok(hidden.ok)
+      assert.equal(hidden.project, null)
+      assert.equal(hidden.project_hidden, true)
+      assert.deepEqual(hidden.fields, [])
+      const values = await updateTaskThroughSections(Number(t.tasks[0].id), {}, MIA, database, { custom_values: { "1": "o1" } })
+      assert.equal(!values.ok && values.reason, "not_found", "values on a project you cannot see")
+    })
+
+    it("never a card: the board skips subtasks and counts them on the parent; move and complete refuse a subtask", async () => {
+      const board = await loadProjectBoard(projectId, OWNER, { hideCompleted: false }, database)
+      assert.ok(board.ok)
+      const inbound = board.columns[String(sec["Inbound"])]
+      assert.deepEqual(inbound.items.map((t) => t.title), ["Book OOH"])
+      assert.equal(inbound.items[0].subtask_count, 2)
+      assert.equal(board.unsectioned.total, 0, "subtasks are not 'without a section'")
+      assert.deepEqual(board.unsectioned.items, [], "and are never loaded as cards")
+      const detail = await getTaskProjectDetail(parentId, OWNER, database)
+      assert.ok(detail.ok)
+      const sub = detail.subtasks[0].id
+      const move = await moveTaskToSection(projectId, sec["This week"], OWNER, { task_id: sub, sort_order: null }, database)
+      assert.equal(!move.ok && move.reason, "subtask_not_on_board")
+      const done = await completeProjectTask(projectId, sub, OWNER, database)
+      assert.equal(!done.ok && done.reason, "subtask_not_on_board")
+    })
+
+    it("a subtask's status changes alone (no section), and the parent's status stays", async () => {
+      const detail = await getTaskProjectDetail(parentId, OWNER, database)
+      assert.ok(detail.ok)
+      const sub = detail.subtasks[0].id
+      const r = await updateTaskThroughSections(sub, { status: "done" }, OWNER, database)
+      assert.ok(r.ok)
+      const row = await taskRow(sub)
+      assert.equal(row.status, "done")
+      assert.equal(row.section_id, null)
+      assert.equal((await taskRow(parentId)).status, "todo")
+    })
+
+    it("reorder names every live subtask once; the detail lists them in that order with the parent on each", async () => {
+      const detail = await getTaskProjectDetail(parentId, OWNER, database)
+      assert.ok(detail.ok)
+      const ids = detail.subtasks.map((s) => s.id)
+      const bad = await reorderSubtasks(parentId, OWNER, [ids[0]], database)
+      assert.equal(!bad.ok && bad.reason, "invalid_order")
+      const r = await reorderSubtasks(parentId, OWNER, [...ids].reverse(), database)
+      assert.ok(r.ok)
+      assert.deepEqual(r.subtasks.map((s) => s.title), ["Proofs", "Brief"])
+      const subDetail = await getTaskProjectDetail(ids[0], OWNER, database)
+      assert.ok(subDetail.ok)
+      assert.deepEqual(subDetail.parent, { id: parentId, title: "Book OOH" })
+      assert.equal(subDetail.task.task_type, "subtask")
+    })
+
+    it("subtasks follow a task that joins a project, and go when the parent is deleted", async () => {
+      const loose = await newTask("Loose")
+      const s1 = await newTask("Loose sub", { parent: loose, type: "subtask" })
+      const moved = await moveTaskToSection(projectId, sec["Inbound"], OWNER, { task_id: loose, sort_order: null }, database)
+      assert.ok(moved.ok)
+      assert.equal((await taskRow(s1)).project_id, projectId)
+      assert.equal(await softDeleteTask(loose, OWNER, database), true)
+      assert.ok((await taskRow(s1)).deleted_at, "the subtask is deleted with its parent")
+    })
+  })
+
+  describe("details through PATCH (B40-03)", () => {
+    let taskId = 0
+    let progressId = 0
+    let tagsId = 0
+    before(async () => {
+      const made = await createTasksInSection(projectId, sec["Inbound"], OWNER, ["Detail task"], database)
+      assert.ok(made.ok)
+      taskId = Number(made.tasks[0].id)
+    })
+
+    it("dates: start and due saved; due_on fills due_date; a start after the stored due is refused", async () => {
+      const r = await updateTaskThroughSections(taskId, {}, OWNER, database, { start_on: "2026-11-16", due_on: "2026-11-20" })
+      assert.ok(r.ok)
+      assert.equal(r.task?.start_on, "2026-11-16")
+      assert.equal(r.task?.due_on, "2026-11-20")
+      const row = await taskRow(taskId)
+      assert.equal(new Date(row.due_date).toISOString(), "2026-11-20T00:00:00.000Z")
+      const late = await updateTaskThroughSections(taskId, {}, OWNER, database, { start_on: "2026-11-21" })
+      assert.equal(!late.ok && late.reason, "start_after_due")
+      const viaDueDate = await updateTaskThroughSections(taskId, { dueDate: "2026-11-10" }, OWNER, database, {})
+      assert.equal(!viaDueDate.ok && viaDueDate.reason, "start_after_due", "a due_date alone is checked too")
+      const early = await updateTaskThroughSections(taskId, { status: "todo", dueDate: "2026-11-01" }, OWNER, database, {})
+      assert.equal(!early.ok && early.reason, "start_after_due", "a due_date before the stored start is refused too")
+      assert.equal((await taskRow(taskId)).start_on, "2026-11-16", "nothing changed")
+    })
+
+    it("type: task to milestone and back; a subtask stays a subtask", async () => {
+      const r = await updateTaskThroughSections(taskId, {}, OWNER, database, { task_type: "milestone" })
+      assert.ok(r.ok)
+      assert.equal((await taskRow(taskId)).task_type, "milestone")
+      const sub = await createSubtask(taskId, OWNER, { title: "s", assignee_email: null, start_on: null, due_on: null }, database)
+      assert.ok(sub.ok)
+      const fixed = await updateTaskThroughSections(sub.subtask.id, {}, OWNER, database, { task_type: "task" })
+      assert.equal(!fixed.ok && fixed.reason, "task_type_fixed")
+      await updateTaskThroughSections(taskId, {}, OWNER, database, { task_type: "task" })
+      assert.equal((await taskRow(taskId)).task_type, "task")
+    })
+
+    it("asap is saved once 0118 exists; status still moves by section with details in the same change", async () => {
+      const r = await updateTaskThroughSections(taskId, { priority: "asap", status: "in_progress" }, OWNER, database, { due_on: "2026-11-25" })
+      assert.ok(r.ok)
+      const row = await taskRow(taskId)
+      assert.equal(row.section_id, sec["This week"])
+      assert.equal(row.due_on, "2026-11-25")
+      const [p] = await client`SELECT priority FROM public.tasks WHERE id = ${taskId}`
+      assert.equal(p.priority, "asap")
+    })
+
+    it("custom fields: create, values checked against the options, rename keeps values, used option and valued field refused", async () => {
+      const progress = await createCustomField(projectId, OWNER, {
+        name: "Progress", field_type: "single_select",
+        options: [{ id: "o1", label: "Not started" }, { id: "o2", label: "In progress" }, { id: "o3", label: "Done" }], done_option: "o3",
+      }, database)
+      assert.ok(progress.ok)
+      progressId = progress.field.id
+      const tags = await createCustomField(projectId, OWNER, {
+        name: "Tags", field_type: "multi_select", options: [{ id: "o1", label: "Meta" }, { id: "o2", label: "Search" }], done_option: null,
+      }, database)
+      assert.ok(tags.ok)
+      tagsId = tags.field.id
+      const set = await updateTaskThroughSections(taskId, {}, OWNER, database, {
+        custom_values: { [String(progressId)]: "o2", [String(tagsId)]: ["o2", "o1"] },
+      })
+      assert.ok(set.ok)
+      assert.deepEqual((await taskRow(taskId)).custom_values, { [String(progressId)]: "o2", [String(tagsId)]: ["o2", "o1"] })
+      const bad = await updateTaskThroughSections(taskId, {}, OWNER, database, { custom_values: { [String(progressId)]: "o9" } })
+      assert.equal(!bad.ok && bad.reason, "invalid_value")
+      const stranger = await updateTaskThroughSections(taskId, {}, OWNER, database, { custom_values: { "999999": "o1" } })
+      assert.equal(!stranger.ok && stranger.reason, "unknown_field")
+      const loose = await newTask("No project")
+      const outside = await updateTaskThroughSections(loose, {}, OWNER, database, { custom_values: { [String(progressId)]: "o1" } })
+      assert.equal(!outside.ok && outside.reason, "not_in_project")
+
+      const renamed = await updateCustomField(projectId, progressId, OWNER, {
+        options: [{ id: "o3", label: "Complete" }, { id: "o2", label: "Doing" }, { id: "o1", label: "Not started" }],
+      }, database)
+      assert.ok(renamed.ok)
+      assert.deepEqual((await taskRow(taskId)).custom_values[String(progressId)], "o2", "the value keeps its option id")
+      const inUse = await updateCustomField(projectId, progressId, OWNER, { options: [{ id: "o1", label: "Not started" }, { id: "o3", label: "Complete" }] }, database)
+      assert.equal(!inUse.ok && inUse.reason, "option_in_use")
+      const tagInUse = await updateCustomField(projectId, tagsId, OWNER, { options: [{ id: "o2", label: "Search" }] }, database)
+      assert.equal(!tagInUse.ok && tagInUse.reason, "option_in_use", "a multi-select value counts too")
+      const unused = await updateCustomField(projectId, progressId, OWNER, { options: [{ id: "o2", label: "Doing" }, { id: "o1", label: "Not started" }] }, database)
+      assert.ok(unused.ok)
+      assert.equal(unused.field.done_option, null, "removing the done option clears it")
+      const del = await deleteCustomField(projectId, tagsId, OWNER, database)
+      assert.equal(!del.ok && del.reason, "field_has_values")
+      await updateTaskThroughSections(taskId, {}, OWNER, database, { custom_values: { [String(tagsId)]: [] } })
+      const del2 = await deleteCustomField(projectId, tagsId, OWNER, database)
+      assert.ok(del2.ok)
+    })
+
+    it("card chips: project-wide setting, unknown fields dropped; the board carries fields and settings", async () => {
+      const r = await setProjectCardFields(projectId, OWNER, [{ key: `field:${progressId}`, show: false }, { key: "field:999999", show: true }], database)
+      assert.ok(r.ok)
+      assert.deepEqual(r.card_fields, [{ key: `field:${progressId}`, show: false }])
+      const again = await setProjectCardFields(projectId, MIA, [{ key: `field:${progressId}`, show: true }], database)
+      assert.ok(again.ok)
+      const [{ n }] = await client`SELECT count(*)::int AS n FROM public.codex_board_configs WHERE owner_email IS NULL`
+      assert.equal(n, 1, "one project row, updated in place")
+      const listed = await listProjectFields(projectId, OWNER, database)
+      assert.ok(listed.ok)
+      assert.deepEqual(listed.card_fields, [{ key: `field:${progressId}`, show: true }])
+      const board = await loadProjectBoard(projectId, OWNER, { hideCompleted: null }, database)
+      assert.ok(board.ok)
+      assert.deepEqual(board.fields.map((f) => f.name), ["Progress"])
+      assert.equal(board.hide_completed_source, "default", "the project row is not anyone's hide completed setting")
+      const card = Object.values(board.columns).flatMap((c) => c.items).find((t) => Number(t.id) === taskId)
+      assert.deepEqual(card?.custom_values, { [String(progressId)]: "o2" })
+      assert.equal(card?.priority, "asap")
+    })
+  })
+
+  describe("assigned by (B40-03)", () => {
+    it("PATCH: someone else gets it, assigned by the saver; self clears; unchanged assignee leaves it", async () => {
+      const id = await newTask("Assign me")
+      await updateTask(id, { assigneeEmail: MIA, trackAssignedBy: true }, OWNER, database)
+      assert.equal((await taskRow(id)).assigned_by_email, OWNER)
+      await updateTask(id, { title: "Renamed", assigneeEmail: MIA, trackAssignedBy: true }, "x@assembledmedia.com.au", database)
+      assert.equal((await taskRow(id)).assigned_by_email, OWNER, "same assignee: unchanged")
+      await updateTask(id, { assigneeEmail: OWNER, trackAssignedBy: true }, OWNER, database)
+      assert.equal((await taskRow(id)).assigned_by_email, null)
+      await updateTask(id, { assigneeEmail: MIA }, OWNER, database)
+      assert.equal((await taskRow(id)).assigned_by_email, null, "switch off: nothing written")
+    })
+
+    it("create: assigned by the creator only for someone else", async () => {
+      const a = await createTask({ title: "For Mia", clientId: 42, assigneeEmail: MIA, createdByEmail: OWNER, trackAssignedBy: true }, OWNER, database)
+      assert.equal((await taskRow(Number(a.id))).assigned_by_email, OWNER)
+      assert.equal(a.assigned_by_email, OWNER)
+      const b = await createTask({ title: "Mine", clientId: 42, assigneeEmail: OWNER, createdByEmail: OWNER, trackAssignedBy: true }, OWNER, database)
+      assert.equal((await taskRow(Number(b.id))).assigned_by_email, null)
     })
   })
 

@@ -49,6 +49,7 @@ import {
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
+import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
   ChecklistItem,
   CodexActivity,
@@ -112,6 +113,19 @@ async function isSubtaskRow(database: DbExecutor, id: number): Promise<boolean> 
   if (!(await isProjectsMigrationApplied(database))) return false
   const rows = executeRows(await database.execute(sql`SELECT task_type FROM public.tasks WHERE id = ${id}`))
   return rows[0]?.task_type === "subtask"
+}
+
+/** B40: assigned by after an assignee write. Null when 0118 is missing (nothing written). */
+async function writeAssignedBy(
+  database: DbExecutor,
+  id: number,
+  assignee: string | null | undefined,
+  actorEmail: string | null
+): Promise<string | null | undefined> {
+  if (!(await isProjectsMigrationApplied(database))) return undefined
+  const assignedBy = assignedByAfterAssign(assignee, actorEmail)
+  await database.execute(sql`UPDATE public.tasks SET assigned_by_email = ${assignedBy} WHERE id = ${id}`)
+  return assignedBy
 }
 
 /** Canonical sorts, plus the three values the tasks API accepted before `sort` was a URL param. */
@@ -199,6 +213,8 @@ export type CreateTaskInput = {
   autoCreated?: boolean
   avaAutoKey?: string | null
   createdByEmail: string
+  /** B40, codex_projects on: assigned by the creator when the task goes to someone else (after 0118). */
+  trackAssignedBy?: boolean
 }
 
 export type UpdateTaskInput = {
@@ -217,6 +233,12 @@ export type UpdateTaskInput = {
   clientId?: number
   templateId?: number | null
   recurringRule?: string | null
+  /**
+   * B40, codex_projects on: when the assignee changes, set
+   * `assigned_by_email` (the saver when someone else gets the task, else
+   * null). Written only once 0118 exists; never from the client.
+   */
+  trackAssignedBy?: boolean
 }
 
 export const TEMPLATE_LABEL_MAX = 200
@@ -955,6 +977,10 @@ export async function createTask(
     }
 
     const api = taskRowToApi(row)
+    if (input.trackAssignedBy && row.assigneeEmail) {
+      const by = await writeAssignedBy(tx, row.id, row.assigneeEmail, actorEmail)
+      if (by !== undefined) api.assigned_by_email = by
+    }
     if (
       input.estimatedMinutes != null &&
       Number.isFinite(input.estimatedMinutes)
@@ -1045,6 +1071,10 @@ async function updateLiveTask(
     if (!row) return null
 
     const after = taskRowToApi(row)
+    if (patch.trackAssignedBy && patch.assigneeEmail !== undefined && assigneeChanged(before.assigneeEmail, row.assigneeEmail)) {
+      const by = await writeAssignedBy(tx, id, row.assigneeEmail, actorEmail)
+      if (by !== undefined) after.assigned_by_email = by
+    }
     if (patch.estimatedMinutes !== undefined) {
       const minutes =
         patch.estimatedMinutes == null || !Number.isFinite(patch.estimatedMinutes)
@@ -1418,7 +1448,34 @@ async function softDeleteLiveTask(
         onlyWhenParentWaiting: true,
       })
     }
+    await softDeleteSubtasksOf(tx, id, deletedAt, actorEmail)
     return true
+}
+
+/** B40: a task's live subtasks go with it (after 0118; before it there are none). */
+async function softDeleteSubtasksOf(
+  tx: DbExecutor,
+  parentId: number,
+  deletedAt: string,
+  actorEmail: string | null
+): Promise<void> {
+  if (!(await isProjectsMigrationApplied(tx))) return
+  const rows = executeRows(
+    await tx.execute(sql`
+      UPDATE public.tasks SET deleted_at = ${deletedAt}, updated_at = ${deletedAt}
+       WHERE parent_task_id = ${parentId} AND task_type = 'subtask' AND deleted_at IS NULL
+       RETURNING id
+    `)
+  )
+  for (const r of rows) {
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: Number(r.id),
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "soft_delete",
+      after: { deleted_at: deletedAt, with_parent: parentId },
+    })
+  }
 }
 
 export async function softDeleteTask(

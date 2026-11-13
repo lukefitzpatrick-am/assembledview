@@ -542,7 +542,7 @@ export const codexBoardConfigs = pgTable(
     ownerEmail: text("owner_email"),
     groupBy: text("group_by").notNull(),
     swimlaneBy: text("swimlane_by"),
-    cardFields: jsonb("card_fields").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    cardFields: jsonb("card_fields").$type<Array<{ key: string; show: boolean }>>().notNull().default(sql`'[]'::jsonb`),
     hideCompleted: boolean("hide_completed").notNull().default(true),
     wipLimits: jsonb("wip_limits").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
