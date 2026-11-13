@@ -31,6 +31,7 @@ import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
 import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
 import { CodexSearchDialog } from "@/components/tasks/CodexSearchDialog"
 import { NotificationBell } from "@/components/tasks/NotificationBell"
+import { MyWorkTabs } from "@/components/tasks/MyWorkTabs"
 import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
 import {
   filtersFromQueryString,
@@ -107,6 +108,7 @@ import {
   taskDetailHref,
   taskListHref,
   writeStoredTasksLayout,
+  type MyWorkTab,
   type TaskSortKey,
   type TasksFilterState,
 } from "@/lib/codex/queryHelpers"
@@ -350,6 +352,8 @@ function quickAddVisibleInFilters(
     dueFrom: string
     dueTo: string
     sources: string[]
+    /** B42 My Work tab. */
+    myWork?: MyWorkTab | null
   },
   now = new Date()
 ): boolean {
@@ -395,6 +399,13 @@ function quickAddVisibleInFilters(
 
   const createdBy = filters.createdByEmail.trim().toLowerCase()
   if (createdBy && createdBy !== creator) return false
+
+  if (filters.myWork) {
+    // A task you add: you created it (so you follow it); assigned by you when it is someone else's.
+    if (filters.myWork === "assigned") return assignee != null && assignee === creator
+    if (filters.myWork === "assigned_by") return assignee != null && assignee !== creator
+    return true
+  }
 
   if (filters.myWeek) {
     if (!task.dueDate || task.dueDate > myWeekDueBefore(now)) return false
@@ -585,6 +596,9 @@ export function TasksPageClient({
   )
   const [mine, setMine] = useState(urlFilters.myWeek ? true : urlFilters.mine)
   const [myWeek, setMyWeek] = useState(urlFilters.myWeek)
+  /** B42 My Work tab (switch codex_my_work); `?mywork=`. Off: never set from the URL. */
+  const myWorkOn = clientFeatureOn("codex_my_work")
+  const [myWork, setMyWork] = useState<MyWorkTab | null>(myWorkOn ? urlFilters.myWork : null)
   const [search, setSearch] = useState(urlFilters.search ?? "")
   const [taskQuery, setTaskQuery] = useState(() =>
     (urlFilters.search ?? "").trim().slice(0, 100)
@@ -712,8 +726,10 @@ export function TasksPageClient({
         dueFrom,
         dueTo,
         sources,
+        myWork,
       }),
     [
+      myWork,
       mbaFilter,
       clientId,
       search,
@@ -1149,6 +1165,7 @@ export function TasksPageClient({
         dueFrom,
         dueTo,
         sources,
+        myWork,
       })
 
       const response = await fetch(`/api/codex/tasks?${params.toString()}`, {
@@ -1199,7 +1216,7 @@ export function TasksPageClient({
     } finally {
       if (!controller.signal.aborted) setIsLoading(false)
     }
-  }, [page, sort, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, taskQuery, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
+  }, [page, sort, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, taskQuery, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources, myWork])
 
   useEffect(() => {
     if (sessionLoading) return
@@ -1231,6 +1248,7 @@ export function TasksPageClient({
       dueFrom,
       dueTo,
       sources,
+      myWork,
     })
     params.delete("page")
     params.delete("per_page")
@@ -1253,6 +1271,7 @@ export function TasksPageClient({
     dueFrom,
     dueTo,
     sources,
+    myWork,
   ])
 
   const boardStatuses = useMemo(
@@ -1628,11 +1647,11 @@ export function TasksPageClient({
 
   useEffect(() => {
     setPage(1)
-  }, [clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, sort, myWeek, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
+  }, [clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, sort, myWeek, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources, myWork])
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [page, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, search, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
+  }, [page, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, search, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources, myWork])
 
   const filterState = (): TasksFilterState => ({
     clientId,
@@ -1651,6 +1670,7 @@ export function TasksPageClient({
     dueFrom,
     dueTo,
     sources,
+    myWork,
   })
 
   const commitFilters = (next: TasksFilterState) => {
@@ -1670,6 +1690,7 @@ export function TasksPageClient({
     setDueFrom(next.dueFrom ?? "")
     setDueTo(next.dueTo ?? "")
     setSources(next.sources ?? [])
+    setMyWork(myWorkOn ? next.myWork ?? null : null)
   }
 
   const exitMyWeek = () => {
@@ -1693,6 +1714,7 @@ export function TasksPageClient({
     setDueFrom("")
     setDueTo("")
     setSources([])
+    setMyWork(null)
     setPage(1)
   }, [])
 
@@ -2186,6 +2208,7 @@ export function TasksPageClient({
         dueFrom,
         dueTo,
         sources,
+        myWork,
       }
     )
     if (visible) {
@@ -2980,6 +3003,18 @@ export function TasksPageClient({
                 onDelete={deleteView}
               />
             </div>
+          ) : null}
+
+          {myWorkOn ? (
+            <MyWorkTabs
+              value={myWork}
+              projectsReady={tasksLayout !== "list" || projectsReady}
+              onChange={(tab) => {
+                // A tab replaces My tasks, My week, the assignee and Unassigned.
+                commitFilters({ ...filterState(), myWork: tab, myWeek: false, mine: true, assigneeEmail: "", unassigned: false })
+                setPage(1)
+              }}
+            />
           ) : null}
 
           <TasksFilterBar

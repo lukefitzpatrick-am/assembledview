@@ -35,6 +35,7 @@ import {
   parseTaskPriorityFilter,
   parseTaskSort,
   parseTaskSourceFilter,
+  type MyWorkTab,
   type TaskSortKey,
 } from "@/lib/codex/queryHelpers"
 import { sydneyTodayYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
@@ -194,6 +195,15 @@ export type ListTasksFilters = {
    * only), so a caller that forgets it hides too much, never too little.
    */
   viewerEmail?: string | null
+  /**
+   * B42 My Work tab (switch `codex_my_work`, the route sets it): assigned to
+   * `myWorkEmail`, assigned by them (`assigned_by_email`), or followed by
+   * them (B41's rule: a follow row that is not `unfollowed`, or creator or
+   * assignee without an `unfollowed` row). The last two read 0118 columns:
+   * before 0118 they match nothing. `myWorkEmail` is the primary email.
+   */
+  myWork?: MyWorkTab
+  myWorkEmail?: string
 }
 
 export type CreateTaskInput = {
@@ -715,9 +725,28 @@ function taskListWhere(filters: ListTasksFilters): SQL | undefined {
   return conds.length > 0 ? and(...conds) : undefined
 }
 
-/** `taskListWhere` plus the private-project rule (B42) once 0118 exists. */
+/** `taskListWhere` plus the private-project rule (B42) once 0118 exists, and the My Work tab. */
 async function taskListWhereVisible(database: DbExecutor, filters: ListTasksFilters): Promise<SQL | undefined> {
-  return and(taskListWhere(filters), await taskVisibilityCondition(database, filters.viewerEmail))
+  return and(
+    taskListWhere(filters),
+    await myWorkCondition(database, filters.myWork, filters.myWorkEmail),
+    await taskVisibilityCondition(database, filters.viewerEmail)
+  )
+}
+
+/** B42: the My Work tab's condition (see ListTasksFilters.myWork). */
+async function myWorkCondition(database: DbExecutor, tab: MyWorkTab | undefined, rawEmail: string | undefined): Promise<SQL | undefined> {
+  if (!tab) return undefined
+  const me = (rawEmail ?? "").trim().toLowerCase()
+  if (!me) return sql`false`
+  if (tab === "assigned") return sql`lower(${tasks.assigneeEmail}) = ${me}`
+  if (!(await isProjectsMigrationApplied(database))) return sql`false`
+  if (tab === "assigned_by") return sql`lower("tasks"."assigned_by_email") = ${me}`
+  return sql`(
+    EXISTS (SELECT 1 FROM public.task_followers mf WHERE mf.task_id = "tasks"."id" AND lower(mf.email) = ${me} AND mf.reason <> 'unfollowed')
+    OR ((lower(${tasks.createdByEmail}) = ${me} OR lower(${tasks.assigneeEmail}) = ${me})
+        AND NOT EXISTS (SELECT 1 FROM public.task_followers mu WHERE mu.task_id = "tasks"."id" AND lower(mu.email) = ${me} AND mu.reason = 'unfollowed'))
+  )`
 }
 
 export async function listTasks(
@@ -1248,7 +1277,9 @@ export async function requestHelp(
   parentId: number,
   input: RequestHelpInput,
   actor: RequestHelpActor,
-  database: Db = db
+  database: Db = db,
+  /** B42 (C-230): with codex_projects on the helper's task records the asker as assigned by (My Work). */
+  opts: { trackAssignedBy?: boolean } = {}
 ): Promise<RequestHelpResult> {
   const actorEmail = actor.email.trim().toLowerCase()
   if (!actorEmail) {
@@ -1321,6 +1352,8 @@ export async function requestHelp(
         updatedAt: now,
       })
       .returning()
+
+    if (opts.trackAssignedBy) await writeAssignedBy(tx, child.id, assigneeEmail, actorEmail)
 
     const [comment] = await tx
       .insert(taskComments)

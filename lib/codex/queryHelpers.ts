@@ -255,6 +255,21 @@ export function writeStoredTasksLayout(view: TasksFilterView): void {
   }
 }
 
+/** B42 My Work tabs (plan 3.2, switch `codex_my_work`). URL `mywork=`, API `my_work=`. */
+export const MY_WORK_TABS = ["assigned", "assigned_by", "following"] as const
+export type MyWorkTab = (typeof MY_WORK_TABS)[number]
+
+export function parseMyWorkTab(raw: string | null | undefined): MyWorkTab | null {
+  const v = raw?.trim().toLowerCase() ?? ""
+  return (MY_WORK_TABS as readonly string[]).includes(v) ? (v as MyWorkTab) : null
+}
+
+export const MY_WORK_TAB_LABELS: Record<MyWorkTab, string> = {
+  assigned: "Assigned to me",
+  assigned_by: "Assigned by me",
+  following: "Following",
+}
+
 export type TasksFilterParams = {
   mbaNumber: string | null
   clientId: string | null
@@ -275,6 +290,8 @@ export type TasksFilterParams = {
   dueFrom: string | null
   dueTo: string | null
   sources: string[]
+  /** B42: the My Work tab, or null. A tab replaces My tasks, My week, the assignee and Unassigned. */
+  myWork: MyWorkTab | null
 }
 
 /**
@@ -303,6 +320,7 @@ export function parseTasksFilterParams(
     searchParams.get("view"),
     prefs?.storedView
   )
+  const myWork = parseMyWorkTab(searchParams.get("mywork"))
   return {
     mbaNumber: mbaRaw.length > 0 ? mbaRaw : null,
     clientId:
@@ -326,6 +344,7 @@ export function parseTasksFilterParams(
     dueFrom: parseCivilYmd(searchParams.get("due_from")),
     dueTo: parseCivilYmd(searchParams.get("due_to")),
     sources: parseTaskSourceFilter(searchParams.get("source")),
+    myWork,
   }
 }
 
@@ -386,6 +405,7 @@ export function serializeTasksFilterParams(filters: {
   dueFrom?: string | null
   dueTo?: string | null
   sources?: readonly string[] | null
+  myWork?: MyWorkTab | null
 }): string {
   const params = new URLSearchParams()
   const mba = filters.mbaNumber?.trim()
@@ -420,6 +440,8 @@ export function serializeTasksFilterParams(filters: {
   }
   const sources = parseTaskSourceFilter((filters.sources ?? []).join(","))
   if (sources.length > 0) params.set("source", sources.join(","))
+  const myWork = parseMyWorkTab(filters.myWork)
+  if (myWork) params.set("mywork", myWork)
   return params.toString()
 }
 
@@ -440,6 +462,7 @@ export type TasksFilterState = {
   dueFrom?: string
   dueTo?: string
   sources?: string[]
+  myWork?: MyWorkTab | null
 }
 
 /** Default scope: My tasks, no status filter, no pinned assignee. */
@@ -488,6 +511,7 @@ export function buildTasksFetchParams(input: {
   dueFrom?: string | null
   dueTo?: string | null
   sources?: readonly string[] | null
+  myWork?: MyWorkTab | null
 }): URLSearchParams {
   const params = new URLSearchParams()
   params.set("page", String(input.page))
@@ -510,7 +534,8 @@ export function buildTasksFetchParams(input: {
   if (sources.length > 0) params.set("source", sources.join(","))
   const createdBy = input.createdByEmail?.trim().toLowerCase()
   if (createdBy) params.set("created_by", createdBy)
-  if (input.myWeek) {
+  const myWork = parseMyWorkTab(input.myWork)
+  if (input.myWeek && !myWork) {
     params.set("mine", "1")
     params.set("status", MY_WEEK_STATUSES.join(","))
     params.set("due_before", myWeekDueBefore(input.now))
@@ -523,7 +548,9 @@ export function buildTasksFetchParams(input: {
   if (dueTo) params.set("due_before", dueTo)
   const statuses = (input.statuses ?? []).map((s) => s.trim()).filter(Boolean)
   if (statuses.length > 0) params.set("status", statuses.join(","))
-  if (input.unassigned) params.set("unassigned", "1")
+  // B42: a My Work tab replaces My tasks, the assignee and Unassigned.
+  if (myWork) params.set("my_work", myWork)
+  else if (input.unassigned) params.set("unassigned", "1")
   else if (input.mine) params.set("mine", "1")
   else if (input.assigneeEmail?.trim()) {
     params.set("assignee_email", input.assigneeEmail.trim())

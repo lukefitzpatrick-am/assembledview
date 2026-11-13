@@ -72,6 +72,7 @@ export const SAVED_VIEW_FILTER_KEYS = [
   "due_from",
   "due_to",
   "source",
+  "mywork",
 ] as const
 
 const FILTER_KEY_SET = new Set<string>(SAVED_VIEW_FILTER_KEYS)
@@ -285,6 +286,7 @@ export function savedViewToolbarState(view: Pick<CodexSavedView, "filters" | "la
       dueFrom: parsed.dueFrom ?? "",
       dueTo: parsed.dueTo ?? "",
       sources: parsed.sources,
+      myWork: parsed.myWork,
     },
     sort: parsed.sort,
     layout: view.layout,

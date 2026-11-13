@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isCodexMyWorkEnabled, isCodexProjectsEnabled, isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import {
+  parseMyWorkTab,
   parseTaskSort,
   resolveListAssigneeScope,
 } from "@/lib/codex/queryHelpers"
@@ -73,15 +74,35 @@ export async function parseTaskListFilters(
       : Number(clientIdRaw)
   const unassigned = url.searchParams.get("unassigned") === "1"
 
+  // B42 My Work (switch codex_my_work): a tab replaces mine, the assignee and
+  // Unassigned. The person is the session login as their primary email (the
+  // roster resolver, aliases with codex_roster_aliases; review N1). Off: ignored.
+  const myWorkTab = parseMyWorkTab(url.searchParams.get("my_work"))
+  let myWorkEmail: string | null = null
+  if (myWorkTab && (await isCodexMyWorkEnabled())) {
+    const login = (await getCurrentUser(request))?.email?.trim() || null
+    if (!login) {
+      return {
+        ok: false,
+        error: NextResponse.json({ error: "no_user", message: "Could not resolve session email for my_work." }, { status: 401 }),
+      }
+    }
+    const [{ primaryEmailFor }, { db }] = await Promise.all([import("@/lib/codex/collabRepo"), import("@/db")])
+    myWorkEmail = await primaryEmailFor(db, login, await isCodexRosterAliasesEnabled())
+  }
+  const myWork = myWorkEmail ? myWorkTab ?? undefined : undefined
+
   return {
     ok: true,
     filters: {
       clientId:
         clientId != null && Number.isFinite(clientId) ? clientId : undefined,
       noClient,
-      unassigned,
-      mineForEmail: unassigned ? undefined : assigneeScope.mineForEmail,
-      assigneeEmail: unassigned ? undefined : assigneeScope.assigneeEmail,
+      unassigned: myWork ? false : unassigned,
+      mineForEmail: unassigned || myWork ? undefined : assigneeScope.mineForEmail,
+      assigneeEmail: unassigned || myWork ? undefined : assigneeScope.assigneeEmail,
+      myWork,
+      myWorkEmail: myWorkEmail ?? undefined,
       createdByEmail: url.searchParams.get("created_by") || undefined,
       status: parseStatusFilter(url.searchParams.get("status")),
       mbaNumber: url.searchParams.get("mba_number") || undefined,

@@ -394,3 +394,11 @@ test("B40: screens are tasks or project:<id>; a project view keeps its screen an
   assert.deepEqual(api.filters, { due: "week" })
   assert.equal(savedViewRowToApi(row({ screen: "weird" }), "luke@x.au").screen, "tasks")
 })
+
+test("B42 My Work: a saved view keeps the tab", async () => {
+  const { savedViewToolbarState, sanitiseSavedViewFilters } = await import("../savedViews.js")
+  assert.deepEqual(sanitiseSavedViewFilters({ mywork: "following", status: "todo" }), { mywork: "following", status: "todo" })
+  const state = savedViewToolbarState({ filters: { mywork: "assigned_by" }, layout: "board" })
+  assert.equal(state.filters.myWork, "assigned_by")
+  assert.equal(savedViewToolbarState({ filters: {}, layout: null }).filters.myWork, null)
+})

@@ -20,6 +20,7 @@ const MEMBER = "mia@x.au"
 const OUT = "luke@x.au"
 let session: null | { user: { email?: string; roles: string[] } } = null
 const storeCalls: string[] = []
+const lastFilters: Array<Record<string, unknown>> = []
 const viewers: Array<{ fn: string; viewer: unknown }> = []
 let visibilityThrows = false
 /** Project ids `getProject` answers ok for. */
@@ -46,7 +47,11 @@ if (supportsMockModule()) {
   })
   const rec = (name: string, value: unknown) => async (...args: unknown[]) => {
     storeCalls.push(name)
-    if (name === "listTasks" || name === "countTasksByStatus") viewers.push({ fn: name, viewer: (args[0] as { viewerEmail?: unknown }).viewerEmail })
+    if (name === "listTasks" || name === "countTasksByStatus") {
+      const f = args[0] as { viewerEmail?: unknown; myWork?: unknown; myWorkEmail?: unknown; mineForEmail?: unknown; assigneeEmail?: unknown; unassigned?: unknown }
+      viewers.push({ fn: name, viewer: f.viewerEmail })
+      lastFilters.push(f)
+    }
     if (name === "countTasksByMba") viewers.push({ fn: name, viewer: args[3] })
     if (name === "getTask") viewers.push({ fn: name, viewer: args[2] })
     return value
@@ -121,12 +126,21 @@ if (supportsMockModule()) {
       reorderSubtasks: rec("reorderSubtasks", { ok: true, subtasks: [] }),
     },
   })
+  await mock.module!("@/lib/codex/collabRepo", {
+    namedExports: {
+      // N1: an alias login is its primary email when aliases count.
+      primaryEmailFor: async (_db: unknown, login: string, aliases: boolean) =>
+        aliases && login.toLowerCase() === "e.ward@x.au" ? "ellie@x.au" : login.toLowerCase(),
+    },
+  })
   await mock.module!("@/lib/codex/notify", {
     namedExports: { beforeTaskWrite: async () => new Map(), afterTaskWrite: async () => undefined },
   })
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
       ProjectsUnavailableError: class extends Error {},
+      attachTaskS1Fields: async (items: unknown[]) => items,
+      isProjectsMigrationApplied: async () => true,
       getProject: async (id: number) => (visibleProjects.has(id) ? { ok: true, project: { id }, sections: [] } : { ok: false, reason: "not_found" }),
     },
   })
@@ -322,4 +336,41 @@ test("saved views of a project the viewer cannot see: none listed, none saved, c
   } finally {
     visibleProjects.delete(6)
   }
+})
+
+test("My Work: my_work reaches the store with the primary email and replaces mine and the assignee; off, it is ignored", { skip }, async () => {
+  const list = await import("../../../app/api/codex/tasks/route.js")
+  const counts = await import("../../../app/api/codex/tasks/status-counts/route.js")
+  await withSwitches({ ...ON, codex_my_work: true }, async () => {
+    session = staff("Luke@X.au")
+    lastFilters.length = 0
+    assert.equal((await list.GET(req("GET", `${T}?my_work=following&mine=1&assignee_email=x@x.au`))).status, 200)
+    assert.equal((await counts.GET(req("GET", `${T}/status-counts?my_work=assigned_by&unassigned=1`))).status, 200)
+    assert.deepEqual(
+      lastFilters.map((f) => [f.myWork, f.myWorkEmail, f.mineForEmail, f.assigneeEmail, f.unassigned]),
+      [
+        ["following", "luke@x.au", undefined, undefined, false],
+        ["assigned_by", "luke@x.au", undefined, undefined, false],
+      ]
+    )
+  })
+  await withSwitches({ ...ON, codex_my_work: true, codex_roster_aliases: true }, async () => {
+    session = staff("e.ward@x.au")
+    lastFilters.length = 0
+    await list.GET(req("GET", `${T}?my_work=assigned`))
+    assert.equal(lastFilters[0].myWorkEmail, "ellie@x.au", "alias login read as the primary email (N1)")
+  })
+  await withSwitches({ ...ON, codex_my_work: false }, async () => {
+    session = staff("Luke@X.au")
+    lastFilters.length = 0
+    await list.GET(req("GET", `${T}?my_work=following&mine=1`))
+    assert.equal(lastFilters[0].myWork, undefined)
+    assert.equal(lastFilters[0].mineForEmail, "luke@x.au", "switch off: as before")
+  })
+  await withSwitches({ ...ON, codex_my_work: true }, async () => {
+    session = staff("Luke@X.au")
+    lastFilters.length = 0
+    await list.GET(req("GET", `${T}?my_work=everything`))
+    assert.equal(lastFilters[0].myWork, undefined, "an unknown tab is ignored")
+  })
 })

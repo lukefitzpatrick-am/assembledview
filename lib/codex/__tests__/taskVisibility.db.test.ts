@@ -181,6 +181,26 @@ describe("private projects stay private on every read surface (Postgres, 0118 ap
     assert.deepEqual((await searchCodex("secret", 10, database, OUT)).tasks.items, [], "a comment on a hidden task finds nothing")
   })
 
+  it("My Work tabs: assigned by me and following leave out a hidden task", async () => {
+    assert.deepEqual(await listIds(OUT, { myWork: "following", myWorkEmail: OUT }), [ids.pub, ids.help].sort((x, y) => x - y))
+    assert.deepEqual(await listIds(MEMBER, { myWork: "assigned_by", myWorkEmail: CREATOR }), [ids.none, ids.pub, ids.priv].sort((x, y) => x - y))
+    assert.deepEqual(await listIds(OUT, { myWork: "assigned_by", myWorkEmail: CREATOR }), [ids.none, ids.pub].sort((x, y) => x - y))
+  })
+
+  it("My Work: assigned to me, and following with an unfollow row (B41's follower rule)", async () => {
+    assert.deepEqual(await listIds(OUT, { myWork: "assigned", myWorkEmail: OUT }), [ids.help])
+    assert.deepEqual(await listIds(MEMBER, { myWork: "assigned", myWorkEmail: ELLIE }), [ids.none, ids.pub, ids.priv].sort((x, y) => x - y))
+    // Ellie is the assignee of three: an implicit follower until she unfollows one.
+    await client`INSERT INTO public.task_followers (task_id, email, reason) VALUES (${ids.none}, ${ELLIE}, 'unfollowed')`
+    try {
+      assert.deepEqual(await listIds(MEMBER, { myWork: "following", myWorkEmail: ELLIE }), [ids.pub, ids.priv].sort((x, y) => x - y))
+    } finally {
+      await client`DELETE FROM public.task_followers WHERE task_id = ${ids.none} AND email = ${ELLIE}`
+    }
+    assert.deepEqual(await listIds(OUT, { myWork: "assigned_by", myWorkEmail: "" }), [], "no person: nothing")
+    assert.equal((await countTasksByStatus({ viewerEmail: OUT, myWork: "following", myWorkEmail: OUT }, database)).todo, 2, "counts follow the tab")
+  })
+
   it("Team tab: open, overdue and estimate per person", async () => {
     const out = await getTeamWeekTimeSummary(database, NOW, OUT)
     const ellieOut = out.members.find((m) => m.email === ELLIE)
@@ -247,5 +267,7 @@ describe("before 0118 nothing is filtered and no 0118 column is named", { skip: 
     const [{ id }] = await client`SELECT id FROM public.tasks`
     assert.equal((await hiddenTaskIds(database, [Number(id)], OUT)).size, 0)
     assert.equal((await searchCodex("plain", 5, database, OUT)).tasks.items.length, 1)
+    assert.equal((await listTasks({ myWork: "assigned_by", myWorkEmail: CREATOR }, database)).itemsTotal, 0, "My Work before 0118: nothing, no error")
+    assert.equal((await listTasks({ myWork: "following", myWorkEmail: CREATOR }, database)).itemsTotal, 0)
   })
 })

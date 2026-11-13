@@ -113,6 +113,17 @@ describe("C-220: other status writers follow the section rule (Postgres, 0118 ap
     assert.equal((await moves(id)).length, 3)
   })
 
+  it("C-230 (B42): with trackAssignedBy the helper's task records the asker as assigned by; without, nothing", async () => {
+    const id = await task("Assigned by", seo, sec["To do"])
+    const { child } = await requestHelp(id, { assigneeEmail: HELPER, ask: "Look" }, { email: OWNER }, database, { trackAssignedBy: true })
+    const [c] = await client`SELECT assigned_by_email FROM public.tasks WHERE id = ${Number(child.id)}`
+    assert.equal(c.assigned_by_email, OWNER)
+    const id2 = await task("Not tracked", seo, sec["To do"])
+    const r2 = await requestHelp(id2, { assigneeEmail: HELPER, ask: "Look" }, { email: OWNER }, database)
+    const [c2] = await client`SELECT assigned_by_email FROM public.tasks WHERE id = ${Number(r2.child.id)}`
+    assert.equal(c2.assigned_by_email, null)
+  })
+
   it("no section with the status: the writer is not refused and the task keeps its section", async () => {
     const id = await task("No waiting lane", plain, plainTodo)
     const { child } = await requestHelp(id, { assigneeEmail: HELPER, ask: "Help" }, { email: OWNER }, database)

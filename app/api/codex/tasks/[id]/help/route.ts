@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { CodexHelpError } from "@/lib/codex/helpRoster"
 import { HELP_ON_DONE_MESSAGE, requestHelp } from "@/lib/codex/repo"
 import { ASK_HELP_MAX_CHARS } from "@/lib/codex/types"
@@ -89,6 +90,10 @@ export async function POST(request: Request, context: RouteContext) {
     const helper = await resolveAssigneeForWrite(assigneeEmail, null)
     if (!helper.ok) return NextResponse.json(helper.body, { status: helper.status })
 
+    // codex_projects (B42, C-230 and C-240): the helper's task records the
+    // asker as assigned by (My Work) and, like create, the helper follows it
+    // and (codex_notifications) is told. Off: as before.
+    const projectsOn = await isCodexProjectsEnabled()
     const result = await requestHelp(
       id,
       { assigneeEmail: helper.email, ask },
@@ -98,8 +103,14 @@ export async function POST(request: Request, context: RouteContext) {
           typeof currentUser?.name === "string" && currentUser.name.trim()
             ? currentUser.name.trim()
             : null,
-      }
+      },
+      undefined,
+      { trackAssignedBy: projectsOn }
     )
+    if (projectsOn) {
+      const { afterTaskWrite } = await import("@/lib/codex/notify")
+      await afterTaskWrite(actorEmail, new Map(), [Number(result.child.id)], { created: true })
+    }
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof CodexHelpError) {
