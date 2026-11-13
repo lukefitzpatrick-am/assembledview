@@ -1,0 +1,427 @@
+/**
+ * Codex custom fields (S1, B40, plan 4.2 and 10): pure rules. No database,
+ * no server-only, so the board, the list view and the settings panel use
+ * the same rules as the server.
+ *
+ * - A field belongs to one project (`codex_custom_fields`). Single-select
+ *   and multi-select (tags) are built; `text` and `date` exist in the 0118
+ *   check but are refused here until they are built.
+ * - Options are `[{ id, label }]` in `options` jsonb. The id is stable, so a
+ *   rename or a reorder keeps every task's value. Ids are `o1`, `o2`, ...
+ *   and never reused within a field.
+ * - A task's values live in `tasks.custom_values` keyed by field id:
+ *   `{ "12": "o3" }` (single) or `{ "13": ["o1", "o4"] }` (multi). No value
+ *   is no key.
+ * - Removing an option that a live task uses, or deleting a field that any
+ *   live task has a value for, is refused (the safe option): clear the
+ *   values first. Nothing is ever cleared silently.
+ * - `done_option` (single-select only) is stored for the SEO progress rule
+ *   (B42). Nothing acts on it yet.
+ */
+
+export const BUILT_FIELD_TYPES = ["single_select", "multi_select"] as const
+export type CustomFieldType = (typeof BUILT_FIELD_TYPES)[number]
+
+export const FIELD_NAME_MAX = 80
+export const OPTION_LABEL_MAX = 80
+export const OPTIONS_PER_FIELD_MAX = 50
+export const FIELDS_PER_PROJECT_MAX = 20
+
+export type CustomFieldOption = { id: string; label: string }
+
+export type CodexCustomField = {
+  id: number
+  project_id: number
+  name: string
+  field_type: CustomFieldType
+  options: CustomFieldOption[]
+  done_option: string | null
+}
+
+/** A task's values: field id (as text) to an option id or a list of them. */
+export type CustomValues = Record<string, string | string[]>
+
+export type FieldParse<T> = { ok: true; value: T } | { ok: false; error: string; message: string }
+
+function fail(error: string, message: string): { ok: false; error: string; message: string } {
+  return { ok: false, error, message }
+}
+
+export function isBuiltFieldType(value: unknown): value is CustomFieldType {
+  return typeof value === "string" && (BUILT_FIELD_TYPES as readonly string[]).includes(value)
+}
+
+function cleanText(raw: unknown): string {
+  return typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : ""
+}
+
+function readFieldName(raw: unknown): FieldParse<string> {
+  const name = cleanText(raw)
+  if (!name) return fail("invalid_name", "The field needs a name.")
+  if (name.length > FIELD_NAME_MAX) return fail("invalid_name", `Field names are ${FIELD_NAME_MAX} characters or fewer.`)
+  return { ok: true, value: name }
+}
+
+function readLabel(raw: unknown): FieldParse<string> {
+  const label = cleanText(raw)
+  if (!label) return fail("invalid_options", "Each option needs a label.")
+  if (label.length > OPTION_LABEL_MAX) {
+    return fail("invalid_options", `Option labels are ${OPTION_LABEL_MAX} characters or fewer.`)
+  }
+  return { ok: true, value: label }
+}
+
+function duplicateLabel(labels: readonly string[]): string | null {
+  const seen = new Set<string>()
+  for (const label of labels) {
+    const key = label.toLowerCase()
+    if (seen.has(key)) return label
+    seen.add(key)
+  }
+  return null
+}
+
+/** The next unused option id after every id in `existing` (o1, o2, ...). */
+export function nextOptionNumber(existing: readonly string[]): number {
+  let max = 0
+  for (const id of existing) {
+    const m = /^o(\d{1,9})$/.exec(id)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return max + 1
+}
+
+/** Options as stored, from whatever jsonb holds (bad entries dropped). */
+export function readStoredOptions(raw: unknown): CustomFieldOption[] {
+  if (!Array.isArray(raw)) return []
+  const out: CustomFieldOption[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const rec = item as Record<string, unknown>
+    if (typeof rec.id !== "string" || typeof rec.label !== "string" || seen.has(rec.id)) continue
+    seen.add(rec.id)
+    out.push({ id: rec.id, label: rec.label })
+  }
+  return out
+}
+
+export type CreateFieldInput = {
+  name: string
+  field_type: CustomFieldType
+  options: CustomFieldOption[]
+  done_option: string | null
+}
+
+/**
+ * `{ name, field_type, options: ["Not started", ...], done_option?: "Done" }`.
+ * Option ids are given here (o1..). `done_option` names one of the labels
+ * and is for single-select only.
+ */
+export function parseCreateFieldInput(body: unknown): FieldParse<CreateFieldInput> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return fail("invalid_body", "Send a JSON object.")
+  const b = body as Record<string, unknown>
+  const name = readFieldName(b.name)
+  if (!name.ok) return name
+  if (!isBuiltFieldType(b.field_type)) {
+    return fail("invalid_field_type", "field_type must be single_select or multi_select.")
+  }
+  if (!Array.isArray(b.options) || b.options.length === 0) {
+    return fail("invalid_options", "A field needs at least one option.")
+  }
+  if (b.options.length > OPTIONS_PER_FIELD_MAX) {
+    return fail("invalid_options", `A field can have up to ${OPTIONS_PER_FIELD_MAX} options.`)
+  }
+  const labels: string[] = []
+  for (const raw of b.options) {
+    const label = readLabel(typeof raw === "object" && raw ? (raw as Record<string, unknown>).label : raw)
+    if (!label.ok) return label
+    labels.push(label.value)
+  }
+  const dup = duplicateLabel(labels)
+  if (dup) return fail("invalid_options", `"${dup}" is listed twice.`)
+  const options = labels.map((label, i) => ({ id: `o${i + 1}`, label }))
+  let doneOption: string | null = null
+  if (b.done_option !== undefined && b.done_option !== null && b.done_option !== "") {
+    if (b.field_type !== "single_select") {
+      return fail("invalid_done_option", "Only a single-select field has a done option.")
+    }
+    const want = cleanText(b.done_option).toLowerCase()
+    const hit = options.find((o) => o.label.toLowerCase() === want)
+    if (!hit) return fail("invalid_done_option", "done_option must be one of the options.")
+    doneOption = hit.id
+  }
+  return { ok: true, value: { name: name.value, field_type: b.field_type, options, done_option: doneOption } }
+}
+
+/**
+ * PATCH: `name`, `options` (the whole list in its new order: an entry with
+ * an `id` keeps that option, renamed to its label; an entry without one is
+ * new; an id left out is removed) and `done_option` (an option id, or null).
+ * The type never changes.
+ */
+export type UpdateFieldInput = {
+  name?: string
+  options?: Array<{ id: string | null; label: string }>
+  done_option?: string | null
+}
+
+export function parseUpdateFieldInput(body: unknown): FieldParse<UpdateFieldInput> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return fail("invalid_body", "Send a JSON object.")
+  const b = body as Record<string, unknown>
+  if (b.field_type !== undefined) return fail("invalid_field_type", "A field's type cannot change. Make a new field.")
+  const out: UpdateFieldInput = {}
+  if (b.name !== undefined) {
+    const name = readFieldName(b.name)
+    if (!name.ok) return name
+    out.name = name.value
+  }
+  if (b.options !== undefined) {
+    if (!Array.isArray(b.options) || b.options.length === 0) {
+      return fail("invalid_options", "A field needs at least one option.")
+    }
+    if (b.options.length > OPTIONS_PER_FIELD_MAX) {
+      return fail("invalid_options", `A field can have up to ${OPTIONS_PER_FIELD_MAX} options.`)
+    }
+    const list: Array<{ id: string | null; label: string }> = []
+    const ids = new Set<string>()
+    for (const raw of b.options) {
+      const rec: Record<string, unknown> = typeof raw === "object" && raw ? (raw as Record<string, unknown>) : { label: raw }
+      const label = readLabel(rec.label)
+      if (!label.ok) return label
+      let id: string | null = null
+      if (rec.id !== undefined && rec.id !== null && rec.id !== "") {
+        if (typeof rec.id !== "string" || !/^o\d{1,9}$/.test(rec.id)) return fail("invalid_options", "Unknown option id.")
+        if (ids.has(rec.id)) return fail("invalid_options", "An option is listed twice.")
+        ids.add(rec.id)
+        id = rec.id
+      }
+      list.push({ id, label: label.value })
+    }
+    const dup = duplicateLabel(list.map((o) => o.label))
+    if (dup) return fail("invalid_options", `"${dup}" is listed twice.`)
+    out.options = list
+  }
+  if (b.done_option !== undefined) {
+    if (b.done_option === null || b.done_option === "") out.done_option = null
+    else if (typeof b.done_option === "string" && /^o\d{1,9}$/.test(b.done_option)) out.done_option = b.done_option
+    else return fail("invalid_done_option", "done_option must be an option id or null.")
+  }
+  if (Object.keys(out).length === 0) return fail("nothing_to_update", "Send name, options or done_option.")
+  return { ok: true, value: out }
+}
+
+export type FieldRuleFailure = {
+  ok: false
+  reason: "option_in_use" | "field_has_values" | "unknown_option" | "invalid_done_option" | "too_many_fields"
+  message: string
+}
+
+/**
+ * The field after a PATCH. `usage` counts live tasks per option id. Refuses
+ * an id that is not the field's, removing an option a live task still uses,
+ * and a done option that is not an option (or on a multi-select). A removed
+ * option that was the done option clears it.
+ */
+export function planFieldUpdate(
+  field: CodexCustomField,
+  patch: UpdateFieldInput,
+  usage: Readonly<Record<string, number>>
+): { ok: true; field: CodexCustomField } | FieldRuleFailure {
+  let options = field.options
+  if (patch.options) {
+    const known = new Set(field.options.map((o) => o.id))
+    for (const o of patch.options) {
+      if (o.id != null && !known.has(o.id)) {
+        return { ok: false, reason: "unknown_option", message: "One of the options is not on this field. Reload and try again." }
+      }
+    }
+    const kept = new Set(patch.options.map((o) => o.id).filter((id): id is string => id != null))
+    const removedInUse = field.options.filter((o) => !kept.has(o.id) && (usage[o.id] ?? 0) > 0)
+    if (removedInUse.length > 0) {
+      const o = removedInUse[0]
+      const n = usage[o.id] ?? 0
+      return {
+        ok: false,
+        reason: "option_in_use",
+        message: `${n} task${n === 1 ? " uses" : "s use"} "${o.label}". Change ${n === 1 ? "it" : "them"} first.`,
+      }
+    }
+    let next = nextOptionNumber(field.options.map((o) => o.id))
+    options = patch.options.map((o) => {
+      if (o.id != null) return { id: o.id, label: o.label }
+      const id = `o${next}`
+      next += 1
+      return { id, label: o.label }
+    })
+  }
+  let doneOption = field.done_option
+  if (doneOption != null && !options.some((o) => o.id === doneOption)) doneOption = null
+  if (patch.done_option !== undefined) {
+    if (patch.done_option != null) {
+      if (field.field_type !== "single_select") {
+        return { ok: false, reason: "invalid_done_option", message: "Only a single-select field has a done option." }
+      }
+      if (!options.some((o) => o.id === patch.done_option)) {
+        return { ok: false, reason: "invalid_done_option", message: "The done option must be one of the options." }
+      }
+    }
+    doneOption = patch.done_option
+  }
+  return { ok: true, field: { ...field, name: patch.name ?? field.name, options, done_option: doneOption } }
+}
+
+/** A field is deleted only when no live task has a value for it. */
+export function checkDeleteField(liveValues: number): { ok: true } | FieldRuleFailure {
+  if (liveValues > 0) {
+    return {
+      ok: false,
+      reason: "field_has_values",
+      message: `${liveValues} task${liveValues === 1 ? " has" : "s have"} a value for this field. Clear ${liveValues === 1 ? "it" : "them"} first.`,
+    }
+  }
+  return { ok: true }
+}
+
+export function checkFieldCount(existing: number): { ok: true } | FieldRuleFailure {
+  return existing >= FIELDS_PER_PROJECT_MAX
+    ? { ok: false, reason: "too_many_fields", message: `A project can have up to ${FIELDS_PER_PROJECT_MAX} fields.` }
+    : { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Values
+// ---------------------------------------------------------------------------
+
+/** `custom_values` in a PATCH: field id to an option id, a list of them, or null (clear). */
+export type CustomValuesPatch = Record<string, string | string[] | null>
+
+export function parseCustomValuesPatch(raw: unknown): FieldParse<CustomValuesPatch> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return fail("invalid_custom_values", "custom_values must be an object of field id to value.")
+  }
+  const out: CustomValuesPatch = {}
+  const entries = Object.entries(raw as Record<string, unknown>)
+  if (entries.length === 0) return fail("invalid_custom_values", "custom_values is empty.")
+  if (entries.length > FIELDS_PER_PROJECT_MAX) return fail("invalid_custom_values", "Too many fields in one change.")
+  for (const [key, value] of entries) {
+    if (!/^[1-9]\d{0,15}$/.test(key)) return fail("invalid_custom_values", "custom_values keys are field ids.")
+    if (value === null || value === "") out[key] = null
+    else if (typeof value === "string") out[key] = value
+    else if (Array.isArray(value) && value.every((v) => typeof v === "string")) out[key] = value as string[]
+    else return fail("invalid_custom_values", "A value is an option id, a list of option ids, or null.")
+  }
+  return { ok: true, value: out }
+}
+
+export type ValueRuleFailure = { ok: false; reason: "unknown_field" | "invalid_value"; message: string }
+
+/**
+ * Check a patch against the project's fields and apply it. Single-select
+ * takes one option id; multi-select a list of distinct option ids (order
+ * kept, an empty list clears). Every id must be an option of that field;
+ * every field must belong to the task's project.
+ */
+export function applyCustomValuesPatch(
+  current: CustomValues,
+  patch: CustomValuesPatch,
+  fields: readonly CodexCustomField[]
+): { ok: true; values: CustomValues } | ValueRuleFailure {
+  const next: CustomValues = { ...current }
+  for (const [key, value] of Object.entries(patch)) {
+    const field = fields.find((f) => String(f.id) === key)
+    if (!field) return { ok: false, reason: "unknown_field", message: "That field is not on this task's project." }
+    const ids = new Set(field.options.map((o) => o.id))
+    if (value == null || (Array.isArray(value) && value.length === 0)) {
+      delete next[key]
+      continue
+    }
+    if (field.field_type === "single_select") {
+      if (typeof value !== "string" || !ids.has(value)) {
+        return { ok: false, reason: "invalid_value", message: `Pick one of the ${field.name} options.` }
+      }
+      next[key] = value
+    } else {
+      const list = typeof value === "string" ? [value] : value
+      if (new Set(list).size !== list.length || list.some((v) => !ids.has(v))) {
+        return { ok: false, reason: "invalid_value", message: `Pick ${field.name} options from the list, each once.` }
+      }
+      next[key] = [...list]
+    }
+  }
+  return { ok: true, values: next }
+}
+
+/** Values as stored (jsonb), keeping only string or string-list entries. */
+export function readStoredValues(raw: unknown): CustomValues {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
+  const out: CustomValues = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string") out[key] = value
+    else if (Array.isArray(value) && value.every((v) => typeof v === "string")) out[key] = value as string[]
+  }
+  return out
+}
+
+/** Option ids a task holds for a field, as a list (single or multi). */
+export function valueIds(values: CustomValues | null | undefined, fieldId: number): string[] {
+  const v = values?.[String(fieldId)]
+  if (v == null) return []
+  return typeof v === "string" ? [v] : v
+}
+
+/** Labels for a task's value on a field, in option order for multi-select. */
+export function valueLabels(field: CodexCustomField, values: CustomValues | null | undefined): string[] {
+  const held = valueIds(values, field.id)
+  if (held.length === 0) return []
+  if (field.field_type === "single_select") {
+    const o = field.options.find((opt) => opt.id === held[0])
+    return o ? [o.label] : []
+  }
+  const set = new Set(held)
+  return field.options.filter((o) => set.has(o.id)).map((o) => o.label)
+}
+
+// ---------------------------------------------------------------------------
+// Card chips (codex_board_configs.card_fields, plan 5.4)
+// ---------------------------------------------------------------------------
+
+/** `card_fields`: `[{ key: "field:<id>", show: boolean }]`. A field not listed shows. */
+export type CardFieldSetting = { key: string; show: boolean }
+
+export function cardFieldKey(fieldId: number): string {
+  return `field:${fieldId}`
+}
+
+export function readCardFields(raw: unknown): CardFieldSetting[] {
+  if (!Array.isArray(raw)) return []
+  const out: CardFieldSetting[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const rec = item as Record<string, unknown>
+    if (typeof rec.key === "string" && /^field:[1-9]\d{0,15}$/.test(rec.key) && typeof rec.show === "boolean") {
+      if (!out.some((o) => o.key === rec.key)) out.push({ key: rec.key, show: rec.show })
+    }
+  }
+  return out
+}
+
+export function parseCardFieldsInput(body: unknown): FieldParse<CardFieldSetting[]> {
+  const raw = body && typeof body === "object" ? (body as Record<string, unknown>).card_fields : undefined
+  if (!Array.isArray(raw)) return fail("invalid_card_fields", "card_fields must be a list of { key, show }.")
+  if (raw.length > FIELDS_PER_PROJECT_MAX * 2) return fail("invalid_card_fields", "Too many card fields.")
+  const parsed = readCardFields(raw)
+  if (parsed.length !== raw.length) {
+    return fail("invalid_card_fields", 'Each entry is { key: "field:<id>", show: true or false }, each key once.')
+  }
+  return { ok: true, value: parsed }
+}
+
+/** The fields whose chips show on cards, in field order. */
+export function visibleCardFields(
+  fields: readonly CodexCustomField[],
+  settings: readonly CardFieldSetting[]
+): CodexCustomField[] {
+  const hidden = new Set(settings.filter((s) => !s.show).map((s) => s.key))
+  return fields.filter((f) => !hidden.has(cardFieldKey(f.id)))
+}

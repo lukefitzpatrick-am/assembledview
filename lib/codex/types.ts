@@ -117,6 +117,12 @@ export type CodexTask = {
   /** Project board cards: live subtasks (task_type subtask) and comments. */
   subtask_count?: number
   comment_count?: number
+  /** B40 (after 0118, codex_projects on): type, dates, assigned by and field values. */
+  task_type?: string | null
+  start_on?: string | null
+  due_on?: string | null
+  assigned_by_email?: string | null
+  custom_values?: Record<string, string | string[]> | null
 }
 
 export type HelpChildSummary = {
@@ -299,7 +305,8 @@ export function readEstimatedMinutes(value: unknown): number | null | undefined 
  * raw string through so the repo remains the only place that lowercases.
  */
 export function validateTaskInput(
-  partial: Partial<Record<TaskInputField, unknown>>
+  partial: Partial<Record<TaskInputField, unknown>>,
+  options: { allowAsap?: boolean } = {}
 ): TaskInputIssue | null {
   if ("title" in partial) {
     const title = partial.title
@@ -328,11 +335,16 @@ export function validateTaskInput(
     if (
       priority !== null &&
       (typeof priority !== "string" ||
-        !(TASK_PRIORITY_VALUES as readonly string[]).includes(priority))
+        !(
+          (TASK_PRIORITY_VALUES as readonly string[]).includes(priority) ||
+          (options.allowAsap === true && priority === "asap")
+        ))
     ) {
       return {
         field: "priority",
-        message: "priority must be one of: low, normal, high, or null.",
+        message: options.allowAsap
+          ? "priority must be one of: low, normal, high, asap, or null."
+          : "priority must be one of: low, normal, high, or null.",
       }
     }
   }
