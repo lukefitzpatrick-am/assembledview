@@ -123,4 +123,31 @@ describe("TaskBoard (B39 generic over the column source)", () => {
     expect(html).toContain("menu-for-Done")
     expect(html).not.toContain("add-to-Done")
   })
+
+  it("B40: a subtask on the Tasks board says Subtask of its parent; a help child says Help for", () => {
+    const html = renderToStaticMarkup(
+      <TaskBoard
+        columns={{
+          backlog: [],
+          todo: [
+            task(5, "Brief", { parent_task_id: 4, parent_title: "Book OOH", task_type: "subtask" }),
+            task(6, "Help: Book OOH", { parent_task_id: 4, parent_title: "Book OOH" }),
+          ],
+          in_progress: [],
+          waiting: [],
+          done: [],
+        }}
+        counts={{ backlog: 0, todo: 2, in_progress: 0, waiting: 0, done: 0 }}
+        onLoadMore={noop}
+        clientNameById={new Map()}
+        onOpenTask={noop}
+        onStatusChange={noop}
+        teamMembers={[]}
+        meEmail={null}
+      />
+    )
+    const text = html.replace(/<!-- -->/g, "")
+    expect(text).toContain("Subtask of Book OOH")
+    expect(text).toContain("Help for: Book OOH")
+  })
 })

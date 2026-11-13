@@ -179,6 +179,8 @@ test("PATCH B40 keys: off, ignored and asap refused (400); on, parsed and passed
   assert.equal(offDetails.status, 200)
   assert.deepEqual(calls.map((c) => c.fn), ["updateTask"])
   assert.deepEqual(calls[0].args[1], { title: "T" }, "off: no detail keys and no assigned-by tracking")
+  const offBad = await withProjects(false, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { title: "T", start_on: "someday" }), ctx))
+  assert.equal(offBad.status, 200, "off: detail keys are not even read")
   const offAsap = await withProjects(false, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { priority: "asap" }), ctx))
   assert.equal(offAsap.status, 400)
   calls.length = 0
