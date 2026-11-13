@@ -44,3 +44,17 @@ test("weeks query: 1 to 12, else 6", () => {
   assert.equal(parseWorkloadWeeks("3"), 3)
   for (const raw of [null, "", "0", "13", "2.5", "x"]) assert.equal(parseWorkloadWeeks(raw), 6, String(raw))
 })
+
+test("due today is this week's work, not overdue; yesterday is overdue (B42fix, R31)", () => {
+  const { today, weeks } = workloadWeeks(new Date("2026-11-13T01:00:00Z"), 1)
+  const [mia] = buildWorkload(
+    [{ email: "mia@x.au", name: "Mia" }],
+    [
+      { email: "mia@x.au", due_on: today, n: 2 },
+      { email: "mia@x.au", due_on: "2026-11-12", n: 1 },
+    ],
+    today,
+    weeks
+  )
+  assert.deepEqual(mia, { email: "mia@x.au", name: "Mia", open: 3, overdue: 1, no_due: 0, by_week: [3], later: 0 })
+})

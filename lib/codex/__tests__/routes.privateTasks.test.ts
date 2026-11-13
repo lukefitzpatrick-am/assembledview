@@ -108,7 +108,24 @@ if (supportsMockModule()) {
     },
   })
   await mock.module!("@/lib/fireflies/proposalRepo", {
-    namedExports: { dismissAutoCreatedTask: rec("dismissAutoCreatedTask", { ok: true }) },
+    namedExports: {
+      dismissAutoCreatedTask: rec("dismissAutoCreatedTask", { ok: true }),
+      // B42fix (R16): the Inbox reads as the session email.
+      listProposedInbox: async (_db: unknown, opts: { viewerEmail?: unknown }) => {
+        viewers.push({ fn: "listProposedInbox", viewer: opts.viewerEmail })
+        return { items: [], total: 0 }
+      },
+      batchAcceptForNote: rec("batchAcceptForNote", { ok: true }),
+    },
+  })
+  // B42fix (R15): the Team tab reads as the session email.
+  await mock.module!("@/lib/myhours/timeSummary", {
+    namedExports: {
+      getTeamWeekTimeSummary: async (...args: unknown[]) => {
+        viewers.push({ fn: "getTeamWeekTimeSummary", viewer: args[2] })
+        return { members: [] }
+      },
+    },
   })
   await mock.module!("@/lib/codex/searchRepo", {
     namedExports: {
@@ -387,6 +404,21 @@ test("My Work: my_work reaches the store with the primary email and replaces min
     lastFilters.length = 0
     await list.GET(req("GET", `${T}?my_work=everything`))
     assert.equal(lastFilters[0].myWork, undefined, "an unknown tab is ignored")
+  })
+})
+
+test("the Team tab and the Inbox read as the session email (R15, R16)", { skip }, async () => {
+  const team = await import("../../../app/api/codex/time/team-week/route.js")
+  const inbox = await import("../../../app/api/codex/proposals/route.js")
+  await withSwitches({ ...ON, codex_projects: false }, async () => {
+    session = staff("Luke@X.au")
+    viewers.length = 0
+    assert.equal((await team.GET(req("GET", "http://l/api/codex/time/team-week"))).status, 200)
+    assert.equal((await inbox.GET(req("GET", "http://l/api/codex/proposals"))).status, 200)
+    assert.deepEqual(
+      viewers.map((v) => `${v.fn}:${String(v.viewer)}`),
+      ["getTeamWeekTimeSummary:luke@x.au", "listProposedInbox:luke@x.au"]
+    )
   })
 })
 

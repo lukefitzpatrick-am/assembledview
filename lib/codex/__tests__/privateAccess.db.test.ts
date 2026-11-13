@@ -38,6 +38,7 @@ import {
   bulkUpdateTasks,
   countTasksByMba,
   countTasksByStatus,
+  getTask,
   listTasks,
   requestHelp,
   updateTask,
@@ -372,6 +373,13 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     await client`UPDATE public.tasks SET status = 'todo' WHERE id = ${second}`
     assert.ok((await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: p2, sort_order: null }, database)).ok)
     assert.deepEqual(await projectOf(second), { project: priv, section: sec["priv:To do"] })
+  })
+
+  it("R8: a help task in a private project is not listed under a parent the viewer can see", async () => {
+    const parent = await task("Public parent", null)
+    const helpId = await task("Help: Public parent", priv, { parent, assignee: MIA, section: sec["priv:To do"] })
+    assert.deepEqual((await getTask(parent, database, OUT))?.children?.map((c) => c.id), [])
+    assert.deepEqual((await getTask(parent, database, MIA))?.children?.map((c) => c.id), [helpId])
   })
 
   it("F2: accepting a meeting action never flags a duplicate against a task the person cannot see", async () => {
