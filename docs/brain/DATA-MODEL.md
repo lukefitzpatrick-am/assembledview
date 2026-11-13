@@ -183,7 +183,7 @@ erDiagram
 | `codex_custom_fields` | 0 (0118) | Per-project field definitions: `field_type` single_select\|multi_select\|text\|date, `options` jsonb, `done_option` (progress rule, S4). Values live in `tasks.custom_values` |
 | `task_followers` | 0 (0118) | PK (`task_id`, `email`), `reason`. Index on `email` (My Work Following) |
 | `task_attachments` | 0 (0118) | `kind` blob (needs `blob_pathname`) or link (needs `url`), `name`, `size_bytes`, `uploaded_by_email` |
-| `codex_board_configs` | 0 (0118) | `scope`, `owner_email`, `group_by`, `swimlane_by`, `card_fields`, `hide_completed` (default true), `wip_limits` |
+| `codex_board_configs` | 0 (0118) | `scope`, `owner_email`, `group_by`, `swimlane_by`, `card_fields`, `hide_completed` (default true), `wip_limits`. B39: one row per person and project board, `scope` `project:<id>`, `group_by` `section`, only `hide_completed` read; no unique key, so writes take an advisory lock (`setBoardHideCompleted`) |
 | `codex_notifications` | 0 (0118) | Bell rows: `recipient_email`, `kind`, `task_id`, `actor_email`, `read_at`, `teams_sent_at`, `email_digest_at`. Index (`recipient_email`, `read_at`) |
 | `codex_notification_prefs` | 0 (0118) | Per email: `prefs` jsonb, quiet hours 18:00 to 08:00 |
 | `codex_user_prefs` | 0 (0118) | Per email: `default_lens` plan\|flow, `calendar_feed_token_hash` (ICS, hash only) |
