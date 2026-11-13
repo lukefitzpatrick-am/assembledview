@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
+  activeRosterCheck,
   digestEnabled,
   digestSubject,
   dueReminderKind,
@@ -23,6 +24,7 @@ const facts = (over: Partial<NotifyFacts> = {}): NotifyFacts => ({
   assignee_email: "assignee@x.au",
   followers: ["creator@x.au", "assignee@x.au", "fan@x.au"],
   canSee: () => true,
+  onRoster: () => true,
   ...over,
 })
 const who = (r: Array<{ email: string; kind: string }>) => r.map((x) => `${x.email}:${x.kind}`)
@@ -79,6 +81,25 @@ test("private project: only people who can see it", () => {
     facts({ canSee: (e) => e !== "out@x.au" && e !== "fan@x.au" }),
   )
   assert.deepEqual(who(r), ["creator@x.au:commented", "assignee@x.au:commented"])
+})
+
+test("only active roster members are notified, by primary email (F2)", () => {
+  const onRoster = activeRosterCheck([
+    { email: "Creator@x.au", name: "C" },
+    { email: "fan@x.au", name: "F", aliases: ["fan.alias@x.au"] },
+    { email: "gone@x.au", name: "G", active: false },
+  ])
+  assert.equal(onRoster("creator@x.au"), true, "case does not matter")
+  assert.equal(onRoster("fan.alias@x.au"), false, "an alias is not a recipient")
+  assert.equal(onRoster("gone@x.au"), false, "someone who left")
+  assert.equal(onRoster("stranger@gmail.example"), false)
+  const r = recipientsFor(
+    { kind: "comment", taskId: 1, actor: A, mentioned: ["stranger@gmail.example"] },
+    facts({ followers: ["creator@x.au", "gone@x.au", "fan@x.au"], onRoster }),
+  )
+  assert.deepEqual(who(r), ["creator@x.au:commented", "fan@x.au:commented"])
+  const a = recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: "gone@x.au", to: "contractor@gmail.example" }, facts({ onRoster }))
+  assert.deepEqual(a, [], "an assignee or helper stored as sent is not told")
 })
 
 test("followers: rows, then creator and assignee unless they unfollowed", () => {

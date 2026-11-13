@@ -212,7 +212,8 @@ export type DigestResult = { people: number; sent: number; failed: number; quiet
 
 /**
  * The rows a digest would carry, grouped per person (no sending). Unread,
- * never digested, last 7 days, still visible. The upper bound is the later of
+ * never digested, last 7 days, still visible, and only to people still
+ * active on the roster (someone who left gets no email). The upper bound is the later of
  * `now` and the database clock, so rows written earlier in the same run (the
  * reminders, stamped by the database a moment after the route read its clock)
  * go in this digest, and a `?now=` run still sees them.
@@ -231,6 +232,7 @@ export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ d
          WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
            AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz
            AND ${visibleToRecipient(sql`n.recipient_email`)}
+           AND EXISTS (SELECT 1 FROM public.team_members r WHERE lower(r.email) = n.recipient_email AND r.active IS NOT FALSE)
          ORDER BY n.recipient_email, n.created_at, n.id
          LIMIT ${DIGEST_ROWS_MAX}
       `)

@@ -35,7 +35,8 @@ import {
 import { normaliseEmail } from "@/lib/codex/projects"
 import { appendActivity, guarded, type ProjectFailure } from "@/lib/codex/projectsRepo"
 import type { DbExecutor } from "@/lib/codex/repo"
-import { displayNameFromEmail, rosterDisplayName, type RosterPerson } from "@/lib/codex/rosterResolve"
+import { loadRosterPeople } from "@/lib/codex/rosterRead"
+import { displayNameFromEmail, resolveRosterAddress, rosterDisplayName, type RosterPerson } from "@/lib/codex/rosterResolve"
 import type { TaskComment } from "@/lib/codex/types"
 
 const { taskAttachments, teamMembers } = schema
@@ -172,26 +173,47 @@ export async function listFollowers(taskId: number, viewerEmail: string, databas
 
 /**
  * Follow a task (yourself, reason `manual`), or add a colleague (`added`;
- * they are told, with codex_notifications on). Someone who cannot see the
- * task's private project cannot be added (409 follower_no_access).
+ * they are told, with codex_notifications on). Only active roster members
+ * follow, by primary email, through the B36 resolver (aliases with
+ * `codex_roster_aliases`): anyone else is 400 `not_on_roster`, an address two
+ * people hold 400 `ambiguous_address`. Someone who cannot see the task's
+ * private project cannot be added (409 follower_no_access).
  */
 export async function followTask(
   taskId: number,
   actorEmail: string,
   targetEmail: string | null,
-  opts: { notify: boolean },
+  opts: { notify: boolean; aliases?: boolean },
   database: Db = db
 ): Promise<FollowersResult> {
   const actor = normaliseEmail(actorEmail)
-  const target = normaliseEmail(targetEmail) || actor
+  const asked = normaliseEmail(targetEmail)
   return guarded(database, () =>
     database.transaction(async (tx): Promise<FollowersResult> => {
       const task = await loadVisibleTask(tx, taskId, actor, true)
       if (!task) return TASK_NOT_FOUND
+      const roster = await loadRosterPeople(tx)
+      const resolve = (email: string) => resolveRosterAddress(email, roster, { aliases: opts.aliases === true })
+      const actorMatch = resolve(actor)
+      const match = asked ? resolve(asked) : actorMatch
+      if (match.kind === "ambiguous") {
+        return { ok: false, reason: "ambiguous_address", message: "That address belongs to more than one person on the team list. Use their main email." }
+      }
+      if (match.kind === "none") {
+        return {
+          ok: false,
+          reason: "not_on_roster",
+          message: asked
+            ? "Only active people on the team list can follow a task."
+            : "You are not an active person on the team list, so you cannot follow tasks.",
+        }
+      }
+      const target = normaliseEmail(match.member.email)
+      const actorPrimary = actorMatch.kind === "unique" ? normaliseEmail(actorMatch.member.email) : actor
       if (!canSeeTask(task, target)) {
         return { ok: false, reason: "follower_no_access", message: "That person cannot see this private project, so they cannot follow the task." }
       }
-      const self = target === actor
+      const self = target === actorPrimary
       const changed = await applyFollows(tx, task, [{ email: target, reason: self ? "manual" : "added" }])
       if (changed.length > 0) {
         await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "follow", after: { email: target } })

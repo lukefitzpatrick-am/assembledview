@@ -11,6 +11,10 @@
  *   members) are notified (`canSee`, the B38 rule).
  * - One notification per person per event; the first kind in the event's
  *   order wins (a mentioned follower gets "mentioned", not also "commented").
+ * - Only active roster members, by primary email (`onRoster`, the B36
+ *   resolver with aliases off): an address that entered the task some other
+ *   way (an assignee or helper stored as sent, an old follower row, someone
+ *   who has left) is never notified or emailed.
  *
  * Followers (`effectiveFollowers`): the rows in `task_followers` whose reason
  * is not `unfollowed`, plus the creator and the current assignee unless they
@@ -21,6 +25,8 @@
  * still unread and were not in an earlier digest. Never in quiet hours
  * (18:00 to 08:00 Melbourne unless the person's row says otherwise).
  */
+
+import { resolveRosterAddress, type RosterPerson } from "./rosterResolve"
 
 export const NOTIFICATION_KINDS = [
   "assigned",
@@ -111,6 +117,17 @@ export type NotifyFacts = {
   followers: readonly string[]
   /** Can this person see the task's project? Always true with no project or a public one. */
   canSee: (email: string) => boolean
+  /** Is this the primary email of an active roster member? (`activeRosterCheck`) */
+  onRoster: (email: string) => boolean
+}
+
+/**
+ * Who may be notified or emailed: the primary email of an active roster
+ * member, through the one roster resolver (B36) with aliases off. Inactive
+ * people, unknown addresses and aliases are not.
+ */
+export function activeRosterCheck(roster: readonly RosterPerson[]): (email: string) => boolean {
+  return (email) => resolveRosterAddress(email, roster, { aliases: false }).kind === "unique"
 }
 
 export type Recipient = { email: string; kind: NotificationKind }
@@ -157,6 +174,7 @@ export function recipientsFor(event: NotifyEvent, facts: NotifyFacts): Recipient
     if (actor && email === actor) continue
     if (seen.has(email)) continue
     seen.add(email)
+    if (!facts.onRoster(email)) continue
     if (!facts.canSee(email)) continue
     out.push({ email, kind: c.kind })
   }

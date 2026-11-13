@@ -2,8 +2,9 @@
  * The one write path for Codex notifications (B41). Every event (comment,
  * assignment, due date, completion, attachment, follower added, the daily
  * due tomorrow and overdue run) goes through `writeNotifications`, which
- * loads the task's facts, asks the pure rule (`recipientsFor`) who is told
- * what, and inserts the rows. Callers check `codex_notifications` first;
+ * loads the task's facts and the roster, asks the pure rule
+ * (`recipientsFor`) who is told what (active roster members only), and
+ * inserts the rows. Callers check `codex_notifications` first;
  * `notifyEnabled` does that and the 0118 marker in one place.
  *
  * Comment, follower and attachment events are written in the same
@@ -22,6 +23,7 @@ import { db, schema, type Db } from "@/db"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isCodexNotificationsEnabled, isCodexProjectsEnabled } from "@/lib/codex/flag"
 import {
+  activeRosterCheck,
   effectiveFollowers,
   nextFollowReason,
   recipientsFor,
@@ -33,6 +35,7 @@ import {
 import { canSeeProject, normaliseEmail, type ProjectAccessFacts } from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
+import { loadRosterPeople } from "@/lib/codex/rosterRead"
 
 const { codexNotifications, taskFollowers, codexProjects, codexProjectMembers } = schema
 
@@ -203,6 +206,7 @@ export async function writeNotifications(database: DbExecutor, event: NotifyEven
     assignee_email: task.assignee_email,
     followers,
     canSee: (email) => canSeeTask(task, email),
+    onRoster: activeRosterCheck(await loadRosterPeople(database)),
   })
   const actor = normaliseEmail(event.actor) || null
   let written = 0

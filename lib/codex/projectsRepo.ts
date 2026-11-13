@@ -127,6 +127,9 @@ export type ProjectFailureReason =
   | "follower_no_access"
   | "not_uploader"
   | "too_many_attachments"
+  // B41fix
+  | "not_on_roster"
+  | "ambiguous_address"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 

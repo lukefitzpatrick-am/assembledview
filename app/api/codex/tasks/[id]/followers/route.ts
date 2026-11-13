@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { followTask, listFollowers, unfollowTask } from "@/lib/codex/collabRepo"
-import { isCodexNotificationsEnabled, isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isCodexNotificationsEnabled, isCodexProjectsEnabled, isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
 import { parseId } from "@/lib/codex/projects"
 import { looksLikeEmail } from "@/lib/codex/rosterResolve"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../_shared"
@@ -14,7 +14,10 @@ type RouteContext = { params: Promise<{ id: string }> }
 /**
  * Task followers (B41). GET the list and whether you follow. POST `{}` to
  * follow, or `{ email }` to add a colleague (told with codex_notifications
- * on; someone who cannot see a private project is 409 follower_no_access).
+ * on). Only active roster members follow (the B36 resolver, aliases with
+ * codex_roster_aliases): anyone else is 400 not_on_roster, a shared address
+ * 400 ambiguous_address; someone who cannot see a private project is 409
+ * follower_no_access.
  * DELETE stops you following (yourself only). Behind codex_projects; 503
  * before 0118; a private project's task you cannot see is 404.
  */
@@ -55,7 +58,8 @@ export async function POST(request: Request, context: RouteContext) {
     target = raw.email.trim().toLowerCase()
   }
   try {
-    const result = await followTask(g.id, g.email, target, { notify: await isCodexNotificationsEnabled() })
+    const [notify, aliases] = await Promise.all([isCodexNotificationsEnabled(), isCodexRosterAliasesEnabled()])
+    const result = await followTask(g.id, g.email, target, { notify, aliases })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
   } catch (error) {

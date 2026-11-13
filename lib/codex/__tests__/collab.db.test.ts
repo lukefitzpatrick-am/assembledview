@@ -88,12 +88,21 @@ const MIA = "mia.tran@assembledmedia.com.au"
 const ELLIE = "ellie.ward@assembledmedia.com.au"
 const JOSH = "josh.patel@assembledmedia.com.au"
 const OUT = "out.sider@assembledmedia.com.au"
+/** Left the team: on the roster but inactive. */
+const GONE = "gone.person@assembledmedia.com.au"
+/** Ellie's alias (counts only with codex_roster_aliases). */
+const ELLIE_ALIAS = "e.ward@assembledmedia.com.au"
+/** An alias Mia and Ellie both hold (ambiguous). */
+const STUDIO = "studio@assembledmedia.com.au"
 
 const ROSTER_SQL = `
 CREATE TABLE public.team_members (id bigint generated always as identity primary key, email text not null unique, name text not null,
   active boolean not null default true, email_aliases jsonb not null default '[]'::jsonb);
 INSERT INTO public.team_members (email, name) VALUES
-  ('${OWNER}', 'Olive Owner'), ('${MIA}', 'Mia Tran'), ('${ELLIE}', 'Ellie Ward'), ('${JOSH}', 'Josh Patel'), ('${OUT}', 'Out Sider');
+  ('${OWNER}', 'Olive Owner'), ('${JOSH}', 'Josh Patel'), ('${OUT}', 'Out Sider');
+INSERT INTO public.team_members (email, name, email_aliases) VALUES
+  ('${MIA}', 'Mia Tran', '["${STUDIO}"]'), ('${ELLIE}', 'Ellie Ward', '["${ELLIE_ALIAS}", "${STUDIO}"]');
+INSERT INTO public.team_members (email, name, active) VALUES ('${GONE}', 'Gone Person', false);
 `
 
 const ROSTER = [
@@ -102,6 +111,7 @@ const ROSTER = [
   { email: ELLIE, name: "Ellie Ward" },
   { email: JOSH, name: "Josh Patel" },
   { email: OUT, name: "Out Sider" },
+  { email: GONE, name: "Gone Person", active: false },
 ]
 
 describe("codex comments, followers, attachments and notifications on Postgres (0118 applied)", { skip }, () => {
@@ -257,6 +267,65 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     const list = await listFollowers(id, OUT, database)
     assert.equal(list.ok ? "" : list.reason, "task_not_found")
     assert.deepEqual(await notes(id), [])
+  })
+
+  it("followers API: only active roster members, by primary email; aliases only with the switch; a shared address refused (F2)", async () => {
+    const id = await newTask("Roster only", { project: publicProject, creator: OWNER })
+    const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? "ok" : r.reason)
+    assert.equal(reason(await followTask(id, JOSH, "someone@gmail.example", { notify: true }, database)), "not_on_roster")
+    assert.equal(reason(await followTask(id, JOSH, GONE, { notify: true }, database)), "not_on_roster", "someone who left")
+    assert.equal(reason(await followTask(id, JOSH, ELLIE_ALIAS, { notify: true }, database)), "not_on_roster", "an alias with the switch off")
+    assert.equal(reason(await followTask(id, JOSH, STUDIO, { notify: true, aliases: true }, database)), "ambiguous_address")
+    assert.equal(reason(await followTask(id, "temp.admin@assembledmedia.com.au", null, { notify: true }, database)), "not_on_roster", "following yourself needs the roster too")
+    assert.equal(
+      (await client`SELECT count(*)::int AS n FROM public.task_followers WHERE task_id = ${id}`)[0].n,
+      0,
+      "nothing refused is written"
+    )
+    assert.deepEqual(await notes(id), [])
+    const viaAlias = await followTask(id, JOSH, ELLIE_ALIAS, { notify: true, aliases: true }, database)
+    assert.ok(viaAlias.ok)
+    const rows = await client`SELECT email, reason FROM public.task_followers WHERE task_id = ${id}`
+    assert.deepEqual(rows.map((r) => `${r.email}:${r.reason}`), [`${ELLIE}:added`], "stored by primary email")
+    assert.deepEqual(await notes(id), [`${ELLIE}:follower_added`])
+    const self = await followTask(id, "Mia.Tran@AssembledMedia.com.au", null, { notify: true }, database)
+    assert.ok(self.ok && self.following)
+    assert.deepEqual(await notes(id), [`${ELLIE}:follower_added`], "following yourself tells nobody")
+    // Signed in with an alias (switch on): still yourself, by primary email, and nobody is told.
+    const other = await newTask("Alias login", { project: publicProject, creator: OWNER })
+    const aliasSelf = await followTask(other, ELLIE_ALIAS, null, { notify: true, aliases: true }, database)
+    assert.ok(aliasSelf.ok)
+    const selfRows = await client`SELECT email, reason FROM public.task_followers WHERE task_id = ${other}`
+    assert.deepEqual(selfRows.map((r) => `${r.email}:${r.reason}`), [`${ELLIE}:manual`])
+    assert.deepEqual(await notes(other), [])
+  })
+
+  it("notifications and the digest reach only active roster members: an off-roster assignee, an old row, a mention of someone who left (F2)", async () => {
+    const id = await newTask("Off roster", { project: publicProject, creator: OWNER, assignee: "contractor@gmail.example" })
+    await client`INSERT INTO public.task_followers (task_id, email, reason)
+      VALUES (${id}, 'old.row@gmail.example', 'manual'), (${id}, ${GONE}, 'manual'), (${id}, ${JOSH}, 'manual')`
+    await writeNotifications(database, { kind: "completed", taskId: id, actor: ELLIE })
+    assert.deepEqual((await notes(id)).sort(), [`${JOSH}:completed`, `${OWNER}:completed`])
+    await client`DELETE FROM public.codex_notifications`
+    const before = await captureTaskStates([id], database)
+    await updateTask(id, { assigneeEmail: "helper@gmail.example" }, ELLIE, database)
+    await recordTaskChanges(ELLIE, before, [id], { notify: true }, database)
+    assert.deepEqual(await notes(id), [], "an assignee stored as sent (or a helper) is not told, nor the one taken off")
+    const c = await comment(id, ELLIE, "@gone.person can you look")
+    assert.ok(c.ok)
+    assert.deepEqual(c.unresolved.map((u) => u.reason), ["unknown"], "someone who left is not mentioned")
+    assert.deepEqual((await notes(id)).sort(), [`${JOSH}:commented`, `${OWNER}:commented`])
+
+    // Someone who leaves after a row was written gets no email.
+    await client`UPDATE public.team_members SET active = false WHERE email = ${JOSH}`
+    try {
+      const sent: string[] = []
+      const r = await runDigest(new Date(Date.now() + 60_000), async (m) => void sent.push(m.to), () => "", database)
+      assert.deepEqual(sent, [OWNER])
+      assert.equal(r.people, 1)
+    } finally {
+      await client`UPDATE public.team_members SET active = true WHERE email = ${JOSH}`
+    }
   })
 
   // ---------------------------------------------------------------------------

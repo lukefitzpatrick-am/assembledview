@@ -115,13 +115,17 @@ function row(key: string, enabled: boolean): FeatureRow {
   return { key, enabled, updatedAt: null, updatedBy: null, updatedByName: null, note: null }
 }
 
-async function withSwitches<T>(s: { codex?: boolean; projects?: boolean; notifications?: boolean }, run: () => Promise<T>): Promise<T> {
+async function withSwitches<T>(
+  s: { codex?: boolean; projects?: boolean; notifications?: boolean; aliases?: boolean },
+  run: () => Promise<T>
+): Promise<T> {
   setFeatureRowReaderForTests(
     async () =>
       new Map([
         ["codex_v2", row("codex_v2", s.codex ?? true)],
         ["codex_projects", row("codex_projects", s.projects ?? true)],
         ["codex_notifications", row("codex_notifications", s.notifications ?? true)],
+        ["codex_roster_aliases", row("codex_roster_aliases", s.aliases ?? false)],
       ])
   )
   try {
@@ -211,7 +215,7 @@ test("staff with the switches on: every method reaches its store with ids, the p
   const byFn = Object.fromEntries(calls.map((c) => [c.fn, c.args]))
   for (const c of all) assert.ok(byFn[c.repo], c.repo)
   assert.deepEqual(byFn.listFollowers, [7, "luke@x.au"])
-  assert.deepEqual(byFn.followTask, [7, "luke@x.au", "ellie@x.au", { notify: true }])
+  assert.deepEqual(byFn.followTask, [7, "luke@x.au", "ellie@x.au", { notify: true, aliases: false }])
   assert.deepEqual(byFn.unfollowTask, [7, "luke@x.au"])
   assert.deepEqual(byFn.listAttachments, [7, "luke@x.au", ["admin"]])
   assert.deepEqual(byFn.createAttachment, [7, "luke@x.au", ["admin"], { kind: "link", name: "a.pdf", url: "https://x.com/a.pdf" }, { notify: true }])
@@ -222,6 +226,15 @@ test("staff with the switches on: every method reaches its store with ids, the p
   assert.deepEqual(byFn.setEmailDigest, ["luke@x.au", false])
   assert.deepEqual(blobs.del, ["codex/tasks/7/a-x.pdf"], "the deleted attachment's file goes from Blob")
   blobs.del.length = 0
+
+  // The store resolves the address on the roster; aliases count only with codex_roster_aliases (F2).
+  calls.length = 0
+  const followers = await import("../../../app/api/codex/tasks/[id]/followers/route.js")
+  const withAliases = await withSwitches({ aliases: true, notifications: false }, () =>
+    followers.POST(req("POST", `${T}/7/followers`, {}), ctx({ id: "7" }))
+  )
+  assert.equal(withAliases.status, 200)
+  assert.deepEqual(calls.at(-1)!.args, [7, "luke@x.au", null, { notify: false, aliases: true }])
 })
 
 test("before 0118 every method is 503 migration_not_applied; an unexpected error is 500 without the detail", { skip }, async () => {
@@ -253,6 +266,8 @@ test("store refusals map to statuses", { skip }, async () => {
     ["follower_no_access", 409],
     ["not_uploader", 403],
     ["too_many_attachments", 409],
+    ["not_on_roster", 400],
+    ["ambiguous_address", 400],
   ]
   for (const [reason, status] of cases) {
     mode = reason
