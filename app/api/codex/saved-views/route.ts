@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server"
-import { parseSavedViewInput } from "@/lib/codex/savedViews"
+import { isProjectSavedViewScreen, parseSavedViewInput, parseSavedViewScreen } from "@/lib/codex/savedViews"
 import {
   createSavedView,
   listSavedViews,
   SavedViewsUnavailableError,
 } from "@/lib/codex/savedViewsRepo"
-import { isCodexSavedViewsEnabled } from "@/lib/codex/flag"
+import { isCodexProjectsEnabled, isCodexSavedViewsEnabled } from "@/lib/codex/flag"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
 import { savedViewsErrorResponse } from "./_gate"
 
 export const runtime = "nodejs"
 
 /**
- * GET: own views and every shared view for `?screen=` (default tasks).
+ * GET: own views and every shared view for `?screen=` (default tasks;
+ * `project:<id>` with codex_projects on, B40).
  * Before migration 0117: 200 `{ available: false, items: [] }`, so the page
  * hides the views menu and still loads.
  */
@@ -24,8 +25,11 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)
   if (!email) return jsonError(401, "unauthorised")
-  const screen = new URL(request.url).searchParams.get("screen")?.trim() || "tasks"
-  if (screen !== "tasks") return jsonError(400, "invalid_screen", "Unknown screen")
+  const screen = parseSavedViewScreen(new URL(request.url).searchParams.get("screen")?.trim() || "tasks")
+  // A project's views (B40) need codex_projects too.
+  if (!screen || (isProjectSavedViewScreen(screen) && !(await isCodexProjectsEnabled()))) {
+    return jsonError(400, "invalid_screen", "Unknown screen")
+  }
   try {
     const items = await listSavedViews(email, screen)
     return NextResponse.json({ available: true, items })
@@ -49,6 +53,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const parsed = parseSavedViewInput(body)
   if (!parsed.ok) return jsonError(400, parsed.error, parsed.message)
+  if (isProjectSavedViewScreen(parsed.value.screen) && !(await isCodexProjectsEnabled())) {
+    return jsonError(400, "invalid_screen", "Unknown screen")
+  }
   try {
     const view = await createSavedView(email, parsed.value)
     return NextResponse.json(view, { status: 201 })

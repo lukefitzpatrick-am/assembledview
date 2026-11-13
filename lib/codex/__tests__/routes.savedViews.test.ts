@@ -60,12 +60,13 @@ function row(key: string, enabled: boolean): FeatureRow {
   return { key, enabled, updatedAt: null, updatedBy: null, updatedByName: null, note: null }
 }
 
-async function withSwitches<T>(codex: boolean, views: boolean, fn: () => Promise<T>): Promise<T> {
+async function withSwitches<T>(codex: boolean, views: boolean, fn: () => Promise<T>, projects = false): Promise<T> {
   setFeatureRowReaderForTests(
     async () =>
       new Map([
         ["codex_v2", row("codex_v2", codex)],
         ["codex_saved_views", row("codex_saved_views", views)],
+        ["codex_projects", row("codex_projects", projects)],
       ]),
   )
   try {
@@ -188,4 +189,30 @@ test("bad bodies and ids: 400 and 404 before the store; limit is 409", { skip },
     assert.equal((await list.POST(json("POST", { name: "a" }))).status, 409)
   })
   mode = "ok"
+})
+
+test("B40: project screens (project:<id>) need codex_projects; their filters are the list's keys", { skip }, async () => {
+  session = STAFF
+  mode = "ok"
+  calls.length = 0
+  const list = await import("../../../app/api/codex/saved-views/route.js")
+  const body = { name: "Mine", screen: "project:5", layout: "list", group_by: "section", filters: { assignee: "Mia@X.au", status: "todo", field_7: "o1" } }
+  const off = await withSwitches(true, true, async () => [
+    (await list.GET(new Request("http://l/api/codex/saved-views?screen=project:5"))).status,
+    (await list.POST(json("POST", body))).status,
+  ])
+  assert.deepEqual(off, [400, 400])
+  assert.equal(calls.length, 0)
+  const on = await withSwitches(true, true, async () => [
+    (await list.GET(new Request("http://l/api/codex/saved-views?screen=project:5"))).status,
+    (await list.POST(json("POST", body))).status,
+    (await list.GET(new Request("http://l/api/codex/saved-views?screen=project:x"))).status,
+  ], true)
+  assert.deepEqual(on, [200, 201, 400])
+  const created = calls.find((c) => c.fn === "create")
+  assert.ok(created)
+  const input = created.args[1] as { screen: string; filters: Record<string, string>; group_by: string }
+  assert.equal(input.screen, "project:5")
+  assert.equal(input.group_by, "section")
+  assert.deepEqual(input.filters, { assignee: "mia@x.au", field_7: "o1" }, "Tasks-only keys dropped, list keys kept")
 })

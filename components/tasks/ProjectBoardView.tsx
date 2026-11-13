@@ -63,6 +63,8 @@ export type ProjectBoardViewProps = SectionMenuHandlers & {
   cardChips?: (task: CodexTask) => readonly string[]
   onOpenFields?: () => void
   headerExtra?: ReactNode
+  /** B40: the list view, drawn in place of the board under the same header. */
+  listBody?: ReactNode
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -238,6 +240,7 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
     cardChips,
     onOpenFields,
     headerExtra,
+    listBody,
   } = props
   const sectionFor = (column: BoardColumnDef) => sections.find((s) => s.id === sectionIdFromColumnKey(column.key))
   const hiddenDone = Object.values(completedCounts).reduce((a, b) => a + b, 0)
@@ -307,6 +310,7 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
         </p>
       ) : null}
 
+      {listBody ?? (
       <GenericTaskBoard
         source={{ kind: "sections", sections }}
         columns={board.columns}
@@ -339,6 +343,7 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
           return <InlineAdd section={section} onAdd={onInlineAdd} onPaste={props.onPaste} />
         }}
       />
+      )}
     </div>
   )
 }

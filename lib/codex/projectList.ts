@@ -96,6 +96,17 @@ export function serializeProjectListParams(state: ProjectListState): Array<[stri
   return out
 }
 
+/** A saved view's stored filters for a project screen, as the page would write them (unknown keys dropped). */
+export function canonicalProjectListFilters(raw: unknown): Record<string, string> {
+  const params = new URLSearchParams()
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === "string" && value.length <= 200) params.set(key, value)
+    }
+  }
+  return projectListFiltersRecord(parseProjectListParams(params))
+}
+
 /** Saved view filters for a project screen (B37 stores the query pairs as an object). */
 export function projectListFiltersRecord(state: ProjectListState): Record<string, string> {
   return Object.fromEntries(serializeProjectListParams(state))

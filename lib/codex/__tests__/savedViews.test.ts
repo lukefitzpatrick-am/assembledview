@@ -10,6 +10,8 @@ import type { Db } from "@/db"
 import * as schema from "@/db/schema"
 import { serializeTasksFilterParams } from "../queryHelpers.js"
 import {
+  canonicalFiltersForScreen,
+  parseSavedViewScreen,
   canonicalSavedViewFilters,
   filtersFromQueryString,
   parseSavedViewInput,
@@ -376,4 +378,19 @@ test("row mapping: bad layout and lens fall back; filters sanitised", () => {
   assert.equal(view.lens, "plan")
   assert.deepEqual(view.filters, { status: "todo" })
   assert.equal(view.mine, false)
+})
+
+test("B40: screens are tasks or project:<id>; a project view keeps its screen and the list's filter keys", () => {
+  assert.equal(parseSavedViewScreen("tasks"), "tasks")
+  assert.equal(parseSavedViewScreen("project:12"), "project:12")
+  for (const bad of ["projects", "project:0", "project:x", "project:", 3, null]) assert.equal(parseSavedViewScreen(bad), null)
+  const input = parseSavedViewInput({ name: "Mia", screen: "project:12", layout: "board", group_by: "section", filters: { assignee: "mia@x.au", mba: "x", q: " a " } })
+  assert.ok(input.ok)
+  assert.equal(input.value.screen, "project:12")
+  assert.deepEqual(input.value.filters, { q: "a", assignee: "mia@x.au" })
+  assert.deepEqual(canonicalFiltersForScreen("tasks", { status: "todo", field_7: "o1" }), canonicalSavedViewFilters({ status: "todo" }))
+  const api = savedViewRowToApi(row({ screen: "project:12", filters: { due: "week", status: "todo" } }), "luke@x.au")
+  assert.equal(api.screen, "project:12")
+  assert.deepEqual(api.filters, { due: "week" })
+  assert.equal(savedViewRowToApi(row({ screen: "weird" }), "luke@x.au").screen, "tasks")
 })

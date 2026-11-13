@@ -13,6 +13,19 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { BulkPasteDialog, SectionDialog, type SectionDialogState } from "@/components/tasks/ProjectBoardDialogs"
 import { ProjectBoardView } from "@/components/tasks/ProjectBoardView"
 import { ProjectFieldsDialog } from "@/components/tasks/ProjectFieldsDialog"
+import { ProjectListView } from "@/components/tasks/ProjectListView"
+import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
+import { useUser } from "@/components/AuthWrapper"
+import { Button } from "@/components/ui/button"
+import { clientFeatureOn } from "@/lib/features/client"
+import {
+  canonicalProjectListFilters,
+  parseProjectListParams,
+  projectListFiltersRecord,
+  serializeProjectListParams,
+  type ProjectListState,
+} from "@/lib/codex/projectList"
+import { parseSavedViewParam, type CodexSavedView } from "@/lib/codex/savedViews"
 import {
   cardFieldKey,
   valueLabels,
@@ -65,6 +78,31 @@ export function cardChipLabels(
   task: Pick<CodexTask, "custom_values">
 ): string[] {
   return visibleCardFields(fields, settings).flatMap((f) => valueLabels(f, task.custom_values ?? null))
+}
+
+/** List rows ask for more per section than the board. */
+const LIST_PER_SECTION = 200
+
+/** `?view=list` is the list; `board`, absent or a saved view id is the board unless the view says list. */
+export function projectLayoutFromParams(view: string | null, savedView: Pick<CodexSavedView, "layout"> | null): "board" | "list" {
+  if (savedView) return savedView.layout === "list" ? "list" : "board"
+  return view === "list" ? "list" : "board"
+}
+
+/** The page's query string for a layout and list state; other keys (completed) kept. */
+export function projectPageQuery(
+  current: URLSearchParams,
+  layout: "board" | "list",
+  state: ProjectListState,
+  savedViewId: number | null = null
+): string {
+  const params = new URLSearchParams()
+  const completed = current.get(COMPLETED_PARAM)
+  if (completed) params.set(COMPLETED_PARAM, completed)
+  if (savedViewId != null) params.set("view", String(savedViewId))
+  else if (layout === "list") params.set("view", "list")
+  for (const [k, v] of serializeProjectListParams(state)) params.set(k, v)
+  return params.toString()
 }
 
 export type BoardLoadState =
@@ -129,6 +167,16 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const urlHide = parseCompletedParam(searchParams.get(COMPLETED_PARAM))
+  const { user } = useUser()
+  const meEmail = (user?.email ?? "").trim().toLowerCase() || null
+  const savedViewsOn = clientFeatureOn("codex_saved_views")
+  const screen = `project:${projectId}`
+  const [views, setViews] = useState<CodexSavedView[]>([])
+  const [viewsAvailable, setViewsAvailable] = useState(false)
+  const activeViewId = parseSavedViewParam(searchParams.get("view"))
+  const activeView = activeViewId != null ? views.find((v) => v.id === activeViewId) ?? null : null
+  const layout = projectLayoutFromParams(searchParams.get("view"), activeView)
+  const listState = useMemo(() => parseProjectListParams(new URLSearchParams(searchParams.toString())), [searchParams])
 
   const [load, setLoad] = useState<BoardLoadState>({ kind: "loading" })
   const [board, setBoard] = useState<BoardState>({ columns: {}, counts: {} })
@@ -149,7 +197,10 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
 
   useEffect(() => {
     let cancelled = false
-    const query = urlHide == null ? "" : `?${COMPLETED_PARAM}=${urlHide ? "hide" : "show"}`
+    const qs = new URLSearchParams()
+    if (urlHide != null) qs.set(COMPLETED_PARAM, urlHide ? "hide" : "show")
+    if (layout === "list") qs.set("per_section", String(LIST_PER_SECTION))
+    const query = qs.toString() ? `?${qs.toString()}` : ""
     void (async () => {
       try {
         const res = await fetch(`${base}/board${query}`, { cache: "no-store" })
@@ -174,7 +225,42 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
     return () => {
       cancelled = true
     }
-  }, [base, projectId, urlHide, reloadTick])
+  }, [base, projectId, urlHide, reloadTick, layout])
+
+  const loadViews = useCallback(async () => {
+    if (!savedViewsOn) return
+    try {
+      const res = await fetch(`/api/codex/saved-views?screen=${encodeURIComponent(screen)}`, { cache: "no-store" })
+      if (!res.ok) return
+      const body = (await res.json()) as { available?: boolean; items?: CodexSavedView[] }
+      setViewsAvailable(body.available === true)
+      setViews(Array.isArray(body.items) ? body.items : [])
+    } catch {
+      // Views are a convenience; the page works without them.
+    }
+  }, [savedViewsOn, screen])
+
+  useEffect(() => {
+    void loadViews()
+  }, [loadViews])
+
+  const go = useCallback(
+    (nextLayout: "board" | "list", state: ProjectListState, viewId: number | null = null) => {
+      const qs = projectPageQuery(new URLSearchParams(searchParams.toString()), nextLayout, state, viewId)
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [pathname, router, searchParams]
+  )
+
+  // A link with ?view=<id> alone: show the view's filters once the views load.
+  useEffect(() => {
+    if (!activeView) return
+    const want = canonicalProjectListFilters(activeView.filters)
+    const have = projectListFiltersRecord(listState)
+    if (JSON.stringify(want) !== JSON.stringify(have)) {
+      go(activeView.layout === "list" ? "list" : "board", parseProjectListParams(new URLSearchParams(want)), activeView.id)
+    }
+  }, [activeView, listState, go])
 
   const data = load.kind === "ready" ? load.data : null
   const sections = useMemo(() => data?.sections ?? [], [data])
@@ -320,6 +406,70 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   }
 
   const pasteName = pasteSection?.name ?? ""
+  const listRows: Record<string, CodexTask[]> = {}
+  const listTotals: Record<string, number> = {}
+  for (const s of sections) {
+    listRows[String(s.id)] = board.columns[sectionColumnKey(s.id)] ?? []
+    listTotals[String(s.id)] = board.counts[sectionColumnKey(s.id)] ?? 0
+  }
+  const viewRequest = async (url: string, init: RequestInit, failTitle: string): Promise<CodexSavedView | true | null> => {
+    try {
+      const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" } })
+      const body = await readJson(res)
+      if (!res.ok) {
+        fail(failTitle, messageOf(body, `Not saved (${res.status}).`))
+        return null
+      }
+      await loadViews()
+      return body && typeof body === "object" && "id" in body ? (body as CodexSavedView) : true
+    } catch {
+      fail(failTitle, "Could not reach the server.")
+      return null
+    }
+  }
+  const headerExtra = (
+    <>
+      {savedViewsOn && viewsAvailable ? (
+        <SavedViewsMenu
+          views={views}
+          activeViewId={activeView ? activeView.id : null}
+          activeViewEdited={false}
+          onPick={(view) => go(view.layout === "list" ? "list" : "board", parseProjectListParams(new URLSearchParams(canonicalProjectListFilters(view.filters))), view.id)}
+          onSave={async ({ name, shared }) => {
+            const made = await viewRequest(
+              "/api/codex/saved-views",
+              {
+                method: "POST",
+                body: JSON.stringify({ name, shared, screen, lens: "plan", layout, group_by: "section", filters: projectListFiltersRecord(listState) }),
+              },
+              "View not saved"
+            )
+            if (made && made !== true) go(layout, listState, made.id)
+            return made != null
+          }}
+          onRename={async (view, name) =>
+            (await viewRequest(`/api/codex/saved-views/${view.id}`, { method: "PATCH", body: JSON.stringify({ name }) }, "View not renamed")) != null
+          }
+          onSetShared={async (view, shared) =>
+            (await viewRequest(`/api/codex/saved-views/${view.id}`, { method: "PATCH", body: JSON.stringify({ shared }) }, "View not changed")) != null
+          }
+          onDelete={async (view) => {
+            const ok = (await viewRequest(`/api/codex/saved-views/${view.id}`, { method: "DELETE" }, "View not deleted")) != null
+            if (ok && activeView?.id === view.id) go(layout, listState)
+            return ok
+          }}
+        />
+      ) : null}
+      <div className="inline-flex rounded-md border border-border" role="group" aria-label="Layout">
+        <Button type="button" size="sm" variant={layout === "board" ? "secondary" : "ghost"} aria-pressed={layout === "board"} onClick={() => go("board", listState)}>
+          Board
+        </Button>
+        <Button type="button" size="sm" variant={layout === "list" ? "secondary" : "ghost"} aria-pressed={layout === "list"} onClick={() => go("list", listState)}>
+          List
+        </Button>
+      </div>
+    </>
+  )
   const fields = data.fields ?? []
   const cardSettings = data.card_fields ?? []
 
@@ -379,6 +529,24 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
         onPaste={(section) => setPasteSection(section)}
         cardChips={(task) => cardChipLabels(fields, cardSettings, task)}
         onOpenFields={() => setFieldsOpen(true)}
+        headerExtra={headerExtra}
+        listBody={
+          layout === "list" ? (
+            <ProjectListView
+              sections={sections}
+              fields={fields}
+              rowsBySection={listRows}
+              totals={listTotals}
+              state={listState}
+              // Changing a filter or sort leaves a saved view (the view stays as saved).
+              onStateChange={(next) => go("list", next)}
+              onOpenTask={(task) => router.push(`/tasks/${encodeURIComponent(String(task.id))}`)}
+              onLoadMore={(sectionId) => void onLoadMore(sectionColumnKey(sectionId))}
+              loadingMoreId={loadingMoreKey ? sectionIdFromColumnKey(loadingMoreKey) : null}
+              meEmail={meEmail}
+            />
+          ) : undefined
+        }
       />
 
       <ProjectFieldsDialog

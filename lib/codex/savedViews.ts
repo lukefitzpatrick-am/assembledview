@@ -14,9 +14,32 @@ import {
   type TasksFilterState,
   type TasksFilterView,
 } from "@/lib/codex/queryHelpers"
+import { canonicalProjectListFilters } from "@/lib/codex/projectList"
 
 export const SAVED_VIEW_SCREENS = ["tasks"] as const
-export type SavedViewScreen = (typeof SAVED_VIEW_SCREENS)[number]
+/**
+ * `tasks` (the /tasks toolbar) or `project:<id>` (B40: a project's board or
+ * list, filters from lib/codex/projectList.ts; needs codex_projects at the route).
+ */
+export type SavedViewScreen = (typeof SAVED_VIEW_SCREENS)[number] | `project:${number}`
+
+/** A known screen, or null. */
+export function parseSavedViewScreen(raw: unknown): SavedViewScreen | null {
+  if (raw === "tasks") return "tasks"
+  if (typeof raw === "string" && /^project:[1-9]\d{0,15}$/.test(raw)) return raw as `project:${number}`
+  return null
+}
+
+export function isProjectSavedViewScreen(screen: string): screen is `project:${number}` {
+  return screen.startsWith("project:")
+}
+
+/** Stored filters as the screen's page writes them. */
+export function canonicalFiltersForScreen(screen: SavedViewScreen, raw: unknown): SavedViewFilters {
+  return isProjectSavedViewScreen(screen)
+    ? canonicalProjectListFilters(raw)
+    : canonicalSavedViewFilters(sanitiseSavedViewFilters(raw))
+}
 
 /** Plan section 3.2. Only Plan exists today; Flow arrives with the capture track. */
 export const SAVED_VIEW_LENSES = ["plan", "flow"] as const
@@ -24,8 +47,8 @@ export type SavedViewLens = (typeof SAVED_VIEW_LENSES)[number]
 
 export const SAVED_VIEW_LAYOUTS = ["list", "board"] as const satisfies readonly TasksFilterView[]
 
-/** The board groups by status; no other grouping exists yet. */
-export const SAVED_VIEW_GROUP_BYS = ["status"] as const
+/** The Tasks board groups by status; a project's board and list by section (B40). */
+export const SAVED_VIEW_GROUP_BYS = ["status", "section"] as const
 
 export const SAVED_VIEW_NAME_MAX = 80
 export const SAVED_VIEW_FILTER_VALUE_MAX = 200
@@ -184,7 +207,7 @@ export function parseSavedViewInput(body: unknown): Result<SavedViewInput> {
   if (!isRecord(body)) return { ok: false, error: "invalid_body", message: "Send a JSON object" }
   const name = normaliseName(body.name)
   if (!name.ok) return name
-  const screen = oneOf(body.screen, SAVED_VIEW_SCREENS, "tasks")
+  const screen = body.screen == null || body.screen === "" ? "tasks" : parseSavedViewScreen(body.screen)
   if (!screen) return { ok: false, error: "invalid_screen", message: "Unknown screen" }
   const lens = oneOf(body.lens, SAVED_VIEW_LENSES, "plan")
   if (!lens) return { ok: false, error: "invalid_lens", message: "Unknown lens" }
@@ -204,7 +227,7 @@ export function parseSavedViewInput(body: unknown): Result<SavedViewInput> {
       name: name.value,
       screen,
       lens,
-      filters: canonicalSavedViewFilters(sanitiseSavedViewFilters(body.filters)),
+      filters: canonicalFiltersForScreen(screen, body.filters),
       layout,
       group_by: groupBy,
       shared: body.shared === true,

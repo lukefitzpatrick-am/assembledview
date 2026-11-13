@@ -14,6 +14,9 @@ import { and, asc, count, eq, or, sql, type SQL } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import {
+  canonicalFiltersForScreen,
+  isProjectSavedViewScreen,
+  parseSavedViewScreen,
   sanitiseSavedViewFilters,
   SAVED_VIEW_LAYOUTS,
   SAVED_VIEW_LENSES,
@@ -120,13 +123,14 @@ export function savedViewRowToApi(row: Row, viewerEmail: string): CodexSavedView
     ? (row.layout as TasksFilterView)
     : null
   const lens = (SAVED_VIEW_LENSES as readonly string[]).includes(row.lens) ? (row.lens as CodexSavedView["lens"]) : "plan"
+  const screen = parseSavedViewScreen(row.screen) ?? "tasks"
   return {
     id: Number(row.id),
     owner_email: row.ownerEmail,
     name: row.name,
-    screen: "tasks",
+    screen,
     lens,
-    filters: sanitiseSavedViewFilters(row.filters),
+    filters: isProjectSavedViewScreen(screen) ? canonicalFiltersForScreen(screen, row.filters) : sanitiseSavedViewFilters(row.filters),
     layout,
     group_by: row.groupBy ?? null,
     shared: Boolean(row.shared),
