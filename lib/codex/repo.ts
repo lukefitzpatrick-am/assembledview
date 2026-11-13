@@ -25,6 +25,7 @@ import type { CodexActorKind } from "@/db/schema/codex"
 import {
   applyEstimatedMinutes,
   estimatedMinutesByTaskId,
+  executeRows,
   writeTaskEstimatedMinutes,
 } from "@/lib/codex/estimatedMinutesColumn"
 import {
@@ -47,6 +48,7 @@ import {
   normaliseRecurringRule,
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
+import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type {
   ChecklistItem,
   CodexActivity,
@@ -88,6 +90,29 @@ const {
 
 /** Root `db` or a `db.transaction` callback handle — both share the query API. */
 export type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
+
+// ---------------------------------------------------------------------------
+// B40: subtasks share parent_task_id with help children
+// ---------------------------------------------------------------------------
+
+/**
+ * Once 0118 exists a child row with `task_type = 'subtask'` (B40) is a
+ * subtask, never a help child: it is not listed as "Waiting on", completing
+ * or reopening it never moves the parent, and it never holds a help parent
+ * in waiting. Before 0118 there are no subtasks, so nothing is read. This
+ * holds with codex_projects off too (subtasks made while it was on stay
+ * subtasks). task_type is not in the Drizzle mirror yet (C-210): raw SQL.
+ */
+async function helpChildCondition(database: DbExecutor): Promise<SQL | undefined> {
+  if (!(await isProjectsMigrationApplied(database))) return undefined
+  return sql`coalesce("tasks"."task_type", 'task') <> 'subtask'`
+}
+
+async function isSubtaskRow(database: DbExecutor, id: number): Promise<boolean> {
+  if (!(await isProjectsMigrationApplied(database))) return false
+  const rows = executeRows(await database.execute(sql`SELECT task_type FROM public.tasks WHERE id = ${id}`))
+  return rows[0]?.task_type === "subtask"
+}
 
 /** Canonical sorts, plus the three values the tasks API accepted before `sort` was a URL param. */
 export type TaskSort =
@@ -358,7 +383,7 @@ async function listHelpChildren(
   const rows = await database
     .select()
     .from(tasks)
-    .where(and(eq(tasks.parentTaskId, parentId), isNull(tasks.deletedAt)))
+    .where(and(eq(tasks.parentTaskId, parentId), isNull(tasks.deletedAt), await helpChildCondition(database)))
     .orderBy(asc(tasks.createdAt), asc(tasks.id))
   return rows.map(helpChildSummary)
 }
@@ -371,7 +396,7 @@ async function attachHelpGraph(
   const children = await listHelpChildren(database, id)
   let parent: HelpParentSummary | null = null
   let parentTitle: string | null = api.parent_title ?? null
-  if (api.parent_task_id != null) {
+  if (api.parent_task_id != null && !(await isSubtaskRow(database, id))) {
     const [row] = await database
       .select()
       .from(tasks)
@@ -1042,14 +1067,13 @@ async function updateLiveTask(
       after,
     })
 
-    if (before.status !== "done" && row.status === "done" && row.parentTaskId) {
-      await maybeCompleteHelpParent(tx, row, actorEmail)
-    } else if (
-      before.status === "done" &&
-      isOpenHelpChildStatus(row.status) &&
-      row.parentTaskId
-    ) {
-      await maybeRewaitHelpParent(tx, row, actorEmail)
+    const statusMoved = before.status !== row.status
+    if (statusMoved && row.parentTaskId && !(await isSubtaskRow(tx, id))) {
+      if (before.status !== "done" && row.status === "done") {
+        await maybeCompleteHelpParent(tx, row, actorEmail)
+      } else if (before.status === "done" && isOpenHelpChildStatus(row.status)) {
+        await maybeRewaitHelpParent(tx, row, actorEmail)
+      }
     }
 
     return after
@@ -1268,7 +1292,8 @@ async function maybeCompleteHelpParent(
       and(
         eq(tasks.parentTaskId, parentId),
         isNull(tasks.deletedAt),
-        ne(tasks.id, child.id)
+        ne(tasks.id, child.id),
+        await helpChildCondition(tx)
       )
     )
   const otherOpen = siblings.some((row) => isOpenHelpChildStatus(row.status))
@@ -1384,7 +1409,11 @@ async function softDeleteLiveTask(
       after: { ...taskRowToApi(row), deleted_at: deletedAt },
     })
 
-    if (before.parentTaskId != null && isOpenHelpChildStatus(before.status)) {
+    if (
+      before.parentTaskId != null &&
+      isOpenHelpChildStatus(before.status) &&
+      !(await isSubtaskRow(tx, id))
+    ) {
       await maybeCompleteHelpParent(tx, before, actorEmail, {
         onlyWhenParentWaiting: true,
       })

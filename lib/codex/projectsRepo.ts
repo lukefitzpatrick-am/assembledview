@@ -52,6 +52,7 @@ import {
   type UpdateSectionInput,
 } from "@/lib/codex/projects"
 import { projectBoardScope } from "@/lib/codex/projectBoard"
+import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
   bulkFailure,
   CodexBulkError,
@@ -64,12 +65,14 @@ import {
 } from "@/lib/codex/repo"
 import type { CodexTask } from "@/lib/codex/types"
 
-const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs, migrationMarkers } = schema
+const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs } = schema
 
-export const PROJECTS_MARKER = "0118_codex_s1_projects"
-
-/** How long a "not applied" answer is kept before the marker is read again. */
-export const PROJECTS_MARKER_RECHECK_MS = 60_000
+export {
+  PROJECTS_MARKER,
+  PROJECTS_MARKER_RECHECK_MS,
+  isProjectsMigrationApplied,
+  resetProjectsMarkerCacheForTests,
+} from "@/lib/codex/projectsMarker"
 
 export class ProjectsUnavailableError extends Error {
   readonly code = "PROJECTS_UNAVAILABLE"
@@ -109,42 +112,6 @@ const NOT_OWNER: ProjectFailure = {
 
 type ProjectRow = typeof codexProjects.$inferSelect
 type SectionRow = typeof codexSections.$inferSelect
-
-// ---------------------------------------------------------------------------
-// Marker guard
-// ---------------------------------------------------------------------------
-
-let markerSeen = false
-let missingUntil = 0
-
-/** Test hook. */
-export function resetProjectsMarkerCacheForTests(): void {
-  markerSeen = false
-  missingUntil = 0
-}
-
-/**
- * Once seen, the marker is cached for the process. A "not there" answer is
- * cached for PROJECTS_MARKER_RECHECK_MS so a missing migration costs one
- * query a minute, not one per request. A failed read is not cached.
- */
-export async function isProjectsMigrationApplied(database: Db = db, now = Date.now()): Promise<boolean> {
-  if (markerSeen) return true
-  if (now < missingUntil) return false
-  try {
-    const rows = await database
-      .select({ key: migrationMarkers.key })
-      .from(migrationMarkers)
-      .where(eq(migrationMarkers.key, PROJECTS_MARKER))
-      .limit(1)
-    markerSeen = rows.length > 0
-    if (!markerSeen) missingUntil = now + PROJECTS_MARKER_RECHECK_MS
-    return markerSeen
-  } catch (err) {
-    console.warn("[codex-projects] marker read failed", err)
-    return false
-  }
-}
 
 function errorChain(err: unknown): unknown[] {
   const out: unknown[] = []
@@ -192,7 +159,7 @@ async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
     return await run()
   } catch (err) {
     if (isMissingProjectsSchema(err)) {
-      markerSeen = false
+      forgetProjectsMarker()
       if (isMissingColumnOnly(err) && (await isProjectsMigrationApplied(database))) throw err
       throw new ProjectsUnavailableError()
     }
