@@ -36,7 +36,10 @@ import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
 import {
   bulkUpdateTasks,
+  countTasksByMba,
+  countTasksByStatus,
   listTasks,
+  requestHelp,
   updateTask,
 } from "../repo.js"
 import {
@@ -54,7 +57,10 @@ import { createSubtask } from "../taskDetailRepo.js"
 import { buildAccessIdentity, canSeeProject } from "../projects.js"
 import { hiddenTaskIds, loadAccessIdentity, taskVisibleSql } from "../taskVisibility.js"
 import { loadRosterPeople } from "../rosterRead.js"
+import { searchCodex } from "../searchRepo.js"
 import { listBell, loadDigestBatch } from "../notificationsRepo.js"
+import { loadWorkload } from "../workloadRepo.js"
+import { getTeamWeekTimeSummary } from "../../myhours/timeSummary.js"
 
 const URL_ = siblingUrl(RAW_URL, "access")
 const skip = URL_ ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"
@@ -296,5 +302,74 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     const again = await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: parent, sort_order: null }, database)
     assert.equal(again.ok ? "ok" : again.reason, "assignee_no_access")
     assert.ok((await moveTaskToSection(pub, sec["pub:To do"], OLIVE, { task_id: mine, sort_order: null }, database)).ok)
+  })
+
+  it("F1: Ask for help to someone outside the private project is refused (409), nothing written", async () => {
+    const parent = await task("Secret launch plan", priv, { section: sec["priv:To do"] })
+    const before = (await client`SELECT count(*)::int AS n FROM public.tasks`)[0].n
+    await assert.rejects(
+      requestHelp(parent, { assigneeEmail: OUT, ask: "zebra ask" }, { email: OLIVE }, database),
+      (e: Error & { status?: number }) => e.name === "CodexHelpError" && e.status === 409 && /Out Sider is not a member of this private project/.test(e.message)
+    )
+    assert.equal((await client`SELECT count(*)::int AS n FROM public.tasks`)[0].n, before)
+    assert.equal((await client`SELECT status FROM public.tasks WHERE id = ${parent}`)[0].status, "todo")
+  })
+
+  it("F1: the help task lives in the private project: hidden from outsiders on every surface, seen by the helper", async () => {
+    const parent = await task("Quokka merger", priv, { section: sec["priv:To do"] })
+    const ellieLoad = async (viewer: string) => (await loadWorkload(viewer, 3, NOW, database)).people.find((p) => p.email === ELLIE)?.open ?? 0
+    const ellieTeam = async (viewer: string) => (await getTeamWeekTimeSummary(database, NOW, viewer)).members.find((m) => m.email === ELLIE)?.open ?? 0
+    const loadGap = (await ellieLoad(ELLIE)) - (await ellieLoad(OUT))
+    const teamGap = (await ellieTeam(ELLIE)) - (await ellieTeam(OUT))
+    const { child } = await requestHelp(parent, { assigneeEmail: ELLIE, ask: "quokka numbers please" }, { email: OLIVE }, database)
+    const childId = Number(child.id)
+    assert.deepEqual(await projectOf(childId), { project: priv, section: null }, "the parent's project; backlog has no section")
+    await client`INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email) VALUES (${OUT}, 'assigned', ${childId}, ${OLIVE}), (${ELLIE}, 'assigned', ${childId}, ${OLIVE})`
+    try {
+      // list
+      assert.ok(!(await listIds(OUT)).includes(childId))
+      assert.ok((await listIds(ELLIE)).includes(childId))
+      // search: the title and the ask (a comment)
+      assert.deepEqual((await searchCodex("quokka", 10, database, OUT)).tasks.items, [])
+      assert.ok((await searchCodex("quokka numbers", 10, database, ELLIE)).tasks.items.some((t) => t.id === childId))
+      // counts and MBA counts (open tasks on the MBA, Ellie's view minus the outsider's)
+      const total = (c: Record<string, number | undefined>) => Object.values(c).reduce<number>((n, v) => n + (Number(v) || 0), 0)
+      const outTodo = total(await countTasksByStatus({ viewerEmail: OUT }, database))
+      const ellieTodo = total(await countTasksByStatus({ viewerEmail: ELLIE }, database))
+      assert.equal((await countTasksByStatus({ viewerEmail: ELLIE }, database)).backlog! - ((await countTasksByStatus({ viewerEmail: OUT }, database)).backlog ?? 0), 1, "the help task (backlog)")
+      const outIds = new Set(await listIds(OUT))
+      const visibleToEllieOnly = (await listIds(ELLIE)).filter((x) => !outIds.has(x)).length
+      assert.equal(ellieTodo - outTodo, visibleToEllieOnly)
+      const [mbaOut] = await countTasksByMba([MBA], database, NOW, OUT)
+      const [mbaEllie] = await countTasksByMba([MBA], database, NOW, ELLIE)
+      assert.equal(mbaEllie.open - mbaOut.open, visibleToEllieOnly)
+      // workload and Team tab: Ellie's help task counts only for people who can see it
+      assert.equal((await ellieLoad(ELLIE)) - (await ellieLoad(OUT)), loadGap + 1)
+      assert.equal((await ellieTeam(ELLIE)) - (await ellieTeam(OUT)), teamGap + 1)
+      // bell
+      assert.equal((await listBell(OUT, 30, database)).items.length, 0)
+      assert.equal((await listBell(ELLIE, 30, database)).items.length, 1)
+      // single-task routes and bulk
+      assert.deepEqual([...(await hiddenTaskIds(database, [childId], OUT))], [childId])
+      assert.deepEqual([...(await hiddenTaskIds(database, [childId], ELLIE))], [])
+    } finally {
+      await client`DELETE FROM public.codex_notifications`
+    }
+  })
+
+  it("F1: a help task follows its parent into a private project", async () => {
+    const parent = await task("Loose plan", null, { assignee: MIA })
+    const { child } = await requestHelp(parent, { assigneeEmail: ELLIE, ask: "help" }, { email: MIA }, database)
+    const childId = Number(child.id)
+    assert.deepEqual(await projectOf(childId), { project: null, section: null }, "no project: as before")
+    assert.ok((await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: parent, sort_order: null }, database)).ok)
+    assert.deepEqual(await projectOf(childId), { project: priv, section: null }, "backlog: no section")
+    assert.ok(!(await listIds(OUT)).includes(childId))
+    // A help task already started follows into the section its status names.
+    const p2 = await task("Loose plan two", null, { assignee: MIA })
+    const second = Number((await requestHelp(p2, { assigneeEmail: ELLIE, ask: "help" }, { email: MIA }, database)).child.id)
+    await client`UPDATE public.tasks SET status = 'todo' WHERE id = ${second}`
+    assert.ok((await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: p2, sort_order: null }, database)).ok)
+    assert.deepEqual(await projectOf(second), { project: priv, section: sec["priv:To do"] })
   })
 })

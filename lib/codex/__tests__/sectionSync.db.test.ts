@@ -42,7 +42,8 @@ describe("C-220: other status writers follow the section rule (Postgres, 0118 ap
   async function project(name: string, sections: Array<{ name: string; status_category: "todo" | "in_progress" | "waiting" | "done" }>, isPrivate = false) {
     const r = await createProject(
       OWNER,
-      { name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: isPrivate, start_on: null, due_on: null, members: [], sections },
+      // F1 (B42fix): a helper on a private project's task must be a member.
+      { name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: isPrivate, start_on: null, due_on: null, members: isPrivate ? [HELPER] : [], sections },
       database
     )
     assert.ok(r.ok)

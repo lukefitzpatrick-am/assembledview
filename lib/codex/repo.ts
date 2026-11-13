@@ -53,6 +53,7 @@ import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { AssigneeNoAccessError } from "@/lib/codex/projects"
 import {
   assertAssigneeCanSeeTask,
+  emailsWithoutProjectAccess,
   hiddenTaskIds,
   taskVisibilityCondition,
 } from "@/lib/codex/taskVisibility"
@@ -1268,6 +1269,18 @@ export async function updateTaskFollowingSections(
 
 export const HELP_ON_DONE_MESSAGE = "Reopen the task before asking for help"
 
+/** F1 (B42fix): Ask for help on a private project's task, to someone outside it. */
+export function helpNoAccessMessage(helper: string): string {
+  return `${helper} is not a member of this private project. Add them to the project first, or ask someone who is.`
+}
+
+/** The task's project (raw SQL: not mirrored, C-210). Null before 0118 or for no project. */
+async function taskProjectId(database: DbExecutor, id: number): Promise<number | null> {
+  if (!(await isProjectsMigrationApplied(database))) return null
+  const [row] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${id}`))
+  return row?.project_id == null ? null : Number(row.project_id)
+}
+
 export type RequestHelpInput = {
   assigneeEmail: string
   ask: string
@@ -1339,6 +1352,15 @@ export async function requestHelp(
       throw new CodexHelpError("Team member not found or inactive.")
     }
 
+    // F1 (B42fix): the help task lives in the parent's project, so a private
+    // project's privacy covers its title and the ask. The helper must be able
+    // to see that project (membership is the access rule, F5).
+    const projectId = await taskProjectId(tx, parent.id)
+    if (projectId != null) {
+      const [refused] = await emailsWithoutProjectAccess(tx, projectId, [assigneeEmail])
+      if (refused) throw new CodexHelpError(helpNoAccessMessage(member.name || assigneeEmail), 409)
+    }
+
     const helperName = member.name
     const now = new Date().toISOString()
     const [child] = await tx
@@ -1363,6 +1385,11 @@ export async function requestHelp(
       })
       .returning()
 
+    if (projectId != null) {
+      // In no section: a help task starts in backlog, which no section category names,
+      // so it shows under "No section" on the board until someone moves it.
+      await tx.execute(sql`UPDATE public.tasks SET project_id = ${projectId} WHERE id = ${child.id}`)
+    }
     if (opts.trackAssignedBy) await writeAssignedBy(tx, child.id, assigneeEmail, actorEmail)
 
     const [comment] = await tx

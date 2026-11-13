@@ -67,6 +67,7 @@ import {
   type CustomValues,
 } from "@/lib/codex/customFields"
 import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib/codex/taskDetail"
+import { followSectionRule } from "@/lib/codex/sectionSync"
 import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
@@ -837,6 +838,16 @@ async function placeTask(
       UPDATE public.tasks SET project_id = ${plan.project_id}
        WHERE parent_task_id = ${task.id} AND task_type = 'subtask' AND deleted_at IS NULL
     `)
+    // F1 (B42fix): so does a help task in no project (its title and ask copy the
+    // parent's), placed by the section rule for its status.
+    const helpers = executeRows(
+      await tx.execute(sql`
+        UPDATE public.tasks SET project_id = ${plan.project_id}, updated_at = now()
+         WHERE parent_task_id = ${task.id} AND task_type <> 'subtask' AND deleted_at IS NULL AND project_id IS NULL
+        RETURNING id, status
+      `)
+    )
+    for (const h of helpers) await followSectionRule(tx, Number(h.id), String(h.status), viewerEmail || null)
   }
   const sectionName = (id: number | null) => sections.find((s) => s.id === id)?.name ?? null
   const side = (projectId: number | null, sectionId: number | null) =>

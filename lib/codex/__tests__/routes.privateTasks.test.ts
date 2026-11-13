@@ -88,7 +88,14 @@ if (supportsMockModule()) {
       listComments: rec("listComments", []),
       createComment: rec("createComment", {}),
       deleteComment: rec("deleteComment", {}),
-      requestHelp: rec("requestHelp", { parent: TASK, child: TASK }),
+      requestHelp: async (...args: unknown[]) => {
+        // B42fix (F1): the store refuses a helper outside a private project (409).
+        if ((args[1] as { assigneeEmail?: string })?.assigneeEmail === "out.sider@x.au") {
+          const { CodexHelpError } = await import("../helpRoster.js")
+          throw new CodexHelpError("Out Sider is not a member of this private project. Add them to the project first, or ask someone who is.", 409)
+        }
+        return rec("requestHelp", { parent: TASK, child: TASK })(...args)
+      },
       HELP_ON_DONE_MESSAGE: "done",
       CodexBulkError,
       bulkUpdateTasks: rec("bulkUpdateTasks", []),
@@ -380,5 +387,21 @@ test("My Work: my_work reaches the store with the primary email and replaces min
     lastFilters.length = 0
     await list.GET(req("GET", `${T}?my_work=everything`))
     assert.equal(lastFilters[0].myWork, undefined, "an unknown tab is ignored")
+  })
+})
+
+test("an outsider on a private project's task: PATCH assignee is 409 assignee_no_access, help is 409 helper_no_access (F5, F1)", { skip }, async () => {
+  const task = await import("../../../app/api/codex/tasks/[id]/route.js")
+  const help = await import("../../../app/api/codex/tasks/[id]/help/route.js")
+  await withSwitches({ ...ON, codex_projects: false }, async () => {
+    session = staff(MEMBER)
+    const res = await task.PATCH(req("PATCH", `${T}/8`, { assignee_email: "out.sider@x.au" }), ctx({ id: "8" }))
+    assert.equal(res.status, 409)
+    const body = (await res.json()) as { error: string; message: string }
+    assert.equal(body.error, "assignee_no_access")
+    assert.match(body.message, /not a member of this private project/)
+    const h = await help.POST(req("POST", `${T}/8/help`, { assignee_email: "out.sider@x.au", ask: "hi" }), ctx({ id: "8" }))
+    assert.equal(h.status, 409)
+    assert.equal(((await h.json()) as { error: string }).error, "helper_no_access")
   })
 })
