@@ -179,6 +179,10 @@ describe("private projects stay private on every read surface (Postgres, 0118 ap
     const mia = await searchCodex("secret", 10, database, MEMBER)
     assert.deepEqual(mia.tasks.items.map((t) => t.id), [ids.priv])
     assert.deepEqual((await searchCodex("secret", 10, database, OUT)).tasks.items, [], "a comment on a hidden task finds nothing")
+    // The meeting whose only task is private: no count for an outsider, one for a member.
+    const count = async (viewer: string) => (await searchCodex("quiet", 10, database, viewer)).meetings.items.find((m) => m.id === ids.noteB)?.task_count
+    assert.equal(await count(OUT), 0)
+    assert.equal(await count(MEMBER), 1)
   })
 
   it("My Work tabs: assigned by me and following leave out a hidden task", async () => {

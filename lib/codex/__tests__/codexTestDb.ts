@@ -78,4 +78,3 @@ export async function createDatabase(url: string): Promise<ReturnType<typeof pos
   await client.unsafe(BASE_SQL)
   return client
 }
-
