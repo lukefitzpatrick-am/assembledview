@@ -17,6 +17,7 @@ import {
   serializeProjectListParams,
   sortListRows,
   EMPTY_LIST_FILTERS,
+  NO_SECTION_KEY,
   type ListRow,
 } from "../projectList.js"
 
@@ -107,9 +108,26 @@ test("groups: sections in board order with filtered, sorted rows and the server 
     { "10": 60 },
     TODAY
   )
-  assert.deepEqual(groups.map((g) => g.section.name), ["Today", "Next month"])
+  assert.deepEqual(groups.map((g) => g.section?.name), ["Today", "Next month"])
   assert.deepEqual(groups.map((g) => g.rows.map((r) => r.id)), [[2], [4]])
   assert.deepEqual(groups.map((g) => g.total), [60, 1])
   assert.equal(fieldCellText(progress, rows[0]), "In progress")
   assert.equal(fieldCellText(progress, rows[2]), "")
+
+  // B40fix (F8): project tasks without a section show last in a "No section" group, filtered and sorted the same.
+  const loose = groupListRows(
+    sections,
+    { "10": [rows[0]], [NO_SECTION_KEY]: [rows[2], rows[1]] },
+    { filters: EMPTY_LIST_FILTERS, sort: { column: "title", desc: false } },
+    [progress],
+    { [NO_SECTION_KEY]: 2 },
+    TODAY
+  )
+  assert.deepEqual(loose.map((g) => g.section?.name ?? null), ["Today", "Next month", null])
+  assert.deepEqual(loose[2].rows.map((r) => r.id), [3, 2], "sorted by title as the sections are")
+  assert.equal(loose[2].total, 2)
+  const filtered = groupListRows(sections, { [NO_SECTION_KEY]: [rows[2]] }, { filters: { ...EMPTY_LIST_FILTERS, assignee: "nobody@x.au" }, sort: null }, [], {}, TODAY)
+  assert.equal(filtered.length, 3, "the group stays (with no matches) while it has tasks")
+  assert.deepEqual(filtered[2].rows, [])
+  assert.equal(groupListRows(sections, {}, { filters: EMPTY_LIST_FILTERS, sort: null }, [], {}, TODAY).length, 2, "no tasks without a section: no group")
 })

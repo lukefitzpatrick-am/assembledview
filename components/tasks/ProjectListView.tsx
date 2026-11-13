@@ -24,6 +24,7 @@ import {
   fieldCellText,
   groupListRows,
   isListFiltered,
+  NO_SECTION_KEY,
   type ListRow,
   type ListSortColumn,
   type ProjectListState,
@@ -47,9 +48,9 @@ export function nextListSort(current: ProjectListState["sort"], column: ListSort
 export type ProjectListViewProps = {
   sections: CodexSection[]
   fields: CodexCustomField[]
-  /** Loaded rows per section id (text). */
+  /** Loaded rows per section id (text); `NO_SECTION_KEY` holds project tasks without a section. */
   rowsBySection: Record<string, ListRow[]>
-  /** Server totals per section id (text), for "Load more". */
+  /** Server totals per section id (text), for "Load more"; `NO_SECTION_KEY` too. */
   totals: Record<string, number>
   state: ProjectListState
   onStateChange: (next: ProjectListState) => void
@@ -183,13 +184,15 @@ export function ProjectListView(props: ProjectListViewProps) {
             </tr>
           </thead>
           {groups.map((group) => {
-            const loaded = rowsBySection[String(group.section.id)]?.length ?? 0
+            const section = group.section
+            const key = section ? String(section.id) : NO_SECTION_KEY
+            const loaded = rowsBySection[key]?.length ?? 0
             const more = Math.max(0, group.total - loaded)
             return (
-              <tbody key={group.section.id} data-section={group.section.id}>
+              <tbody key={key} data-section={key}>
                 <tr className="bg-surface-panel/60">
                   <th scope="rowgroup" colSpan={colCount} className="px-2 py-1.5 text-left text-xs font-semibold text-foreground">
-                    {group.section.name} · {sectionCategoryLabel(group.section.status_category)}
+                    {section ? `${section.name} · ${sectionCategoryLabel(section.status_category)}` : "No section"}
                     <span className="num ml-2 font-normal text-muted-foreground">{group.rows.length}</span>
                   </th>
                 </tr>
@@ -233,12 +236,19 @@ export function ProjectListView(props: ProjectListViewProps) {
                     </td>
                   </tr>
                 ) : null}
-                {more > 0 ? (
+                {more > 0 && section ? (
                   <tr>
                     <td colSpan={colCount} className="px-2 py-1.5">
-                      <Button type="button" variant="ghost" size="sm" disabled={props.loadingMoreId === group.section.id} onClick={() => props.onLoadMore(group.section.id)}>
+                      <Button type="button" variant="ghost" size="sm" disabled={props.loadingMoreId === section.id} onClick={() => props.onLoadMore(section.id)}>
                         {`Load more (${more} left)`}
                       </Button>
+                    </td>
+                  </tr>
+                ) : null}
+                {more > 0 && !section ? (
+                  <tr>
+                    <td colSpan={colCount} className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {`${more} more without a section. Open them from the Tasks list, or move one into a section.`}
                     </td>
                   </tr>
                 ) : null}

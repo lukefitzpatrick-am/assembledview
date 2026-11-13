@@ -198,11 +198,17 @@ export function sortListRows<T extends ListRow>(rows: readonly T[], sort: ListSo
   })
 }
 
-export type ListGroup<T> = { section: CodexSection; rows: T[]; total: number }
+/** `section` null is the "No section" group: project tasks without a section (B40fix). */
+export type ListGroup<T> = { section: CodexSection | null; rows: T[]; total: number }
+
+/** The key of project tasks without a section in `rowsBySection` and `totals` (the board's `unsectioned`). */
+export const NO_SECTION_KEY = "none"
 
 /**
- * Sections in board order, each with its filtered and sorted rows. `totals`
- * is the server's count per section (for "showing n of m").
+ * Sections in board order, each with its filtered and sorted rows, then a
+ * "No section" group (section null) when the project has tasks without a
+ * section (rare: a section is deleted only when it has no live tasks).
+ * `totals` is the server's count per section (for "showing n of m").
  */
 export function groupListRows<T extends ListRow>(
   sections: readonly CodexSection[],
@@ -212,11 +218,14 @@ export function groupListRows<T extends ListRow>(
   totals: Readonly<Record<string, number>> = {},
   today = sydneyTodayYmd()
 ): ListGroup<T>[] {
-  return sortSections(sections).map((section) => {
-    const key = String(section.id)
-    const rows = sortListRows(filterListRows(rowsBySection[key] ?? [], state.filters, today), state.sort, fields)
-    return { section, rows, total: totals[key] ?? (rowsBySection[key]?.length ?? 0) }
+  const group = (key: string, section: CodexSection | null): ListGroup<T> => ({
+    section,
+    rows: sortListRows(filterListRows(rowsBySection[key] ?? [], state.filters, today), state.sort, fields),
+    total: totals[key] ?? (rowsBySection[key]?.length ?? 0),
   })
+  const groups = sortSections(sections).map((section) => group(String(section.id), section))
+  const loose = group(NO_SECTION_KEY, null)
+  return loose.total > 0 || (rowsBySection[NO_SECTION_KEY]?.length ?? 0) > 0 ? [...groups, loose] : groups
 }
 
 /** A custom field cell: the labels joined. */

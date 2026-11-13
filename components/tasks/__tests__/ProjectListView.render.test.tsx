@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import type { CodexCustomField } from "@/lib/codex/customFields"
-import { EMPTY_LIST_FILTERS, type ListRow, type ProjectListState } from "@/lib/codex/projectList"
+import { EMPTY_LIST_FILTERS, NO_SECTION_KEY, type ListRow, type ProjectListState } from "@/lib/codex/projectList"
 import type { CodexSection } from "@/lib/codex/projects"
 
-import { projectLayoutFromParams, projectPageQuery } from "../ProjectBoardClient"
+import { projectLayoutFromParams, projectListRows, projectPageQuery } from "../ProjectBoardClient"
 import { nextListSort, ProjectListView, type ProjectListViewProps } from "../ProjectListView"
 
 const SECTIONS: CodexSection[] = [
@@ -71,6 +71,30 @@ describe("project list view (B40)", () => {
     expect(html).not.toContain("Creative swap live")
     expect(html).toContain("Clear filters")
     expect(html).toContain('aria-sort="descending"')
+  })
+
+  it("B40fix (F8): project tasks without a section show last in a No section group (no Load more there)", () => {
+    const loose: ListRow = { id: 9, title: "Orphan brief", client_id: 0, status: "todo", sort_order: null }
+    const html = renderToStaticMarkup(
+      <ProjectListView {...props(undefined, { rowsBySection: { ...ROWS, [NO_SECTION_KEY]: [loose] }, totals: { "10": 60, "20": 1, [NO_SECTION_KEY]: 3 } })} />
+    )
+    const group = html.indexOf(`data-section="${NO_SECTION_KEY}"`)
+    expect(group).toBeGreaterThan(html.indexOf('data-section="20"'))
+    expect(html).toContain(">No section<")
+    expect(html.indexOf("Orphan brief")).toBeGreaterThan(group)
+    expect(html).toContain("2 more without a section")
+    expect(html.match(/Load more/g)?.length).toBe(1)
+    const none = renderToStaticMarkup(<ProjectListView {...props()} />)
+    expect(none).not.toContain("No section")
+  })
+
+  it("B40fix (F8): the page passes the board's unsectioned tasks to the list", () => {
+    const board = { columns: { "section:10": ROWS["10"] as never, "section:20": [] }, counts: { "section:10": 60, "section:20": 0 } }
+    const { rows, totals } = projectListRows(SECTIONS, board, { items: [{ id: 9, title: "Orphan", client_id: 0, status: "todo" }], total: 1 })
+    expect(rows[NO_SECTION_KEY]?.map((r) => r.id)).toEqual([9])
+    expect(totals[NO_SECTION_KEY]).toBe(1)
+    expect(rows["10"]).toHaveLength(2)
+    expect(projectListRows(SECTIONS, board, { items: [], total: 0 }).rows[NO_SECTION_KEY]).toBeUndefined()
   })
 
   it("header clicks cycle ascending, descending, board order", () => {

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   canonicalProjectListFilters,
+  NO_SECTION_KEY,
   parseProjectListParams,
   projectListFiltersRecord,
   serializeProjectListParams,
@@ -69,6 +70,28 @@ type BoardResponse = {
   /** B40 (older servers may leave these out). */
   fields?: CodexCustomField[]
   card_fields?: CardFieldSetting[]
+}
+
+/**
+ * The list view's rows and totals per section id, plus project tasks without
+ * a section under `NO_SECTION_KEY` (the board's `unsectioned`, B40fix).
+ */
+export function projectListRows(
+  sections: readonly CodexSection[],
+  board: Pick<BoardState, "columns" | "counts">,
+  unsectioned: Pick<ColumnPage, "items" | "total"> | null | undefined
+): { rows: Record<string, CodexTask[]>; totals: Record<string, number> } {
+  const rows: Record<string, CodexTask[]> = {}
+  const totals: Record<string, number> = {}
+  for (const s of sections) {
+    rows[String(s.id)] = board.columns[sectionColumnKey(s.id)] ?? []
+    totals[String(s.id)] = board.counts[sectionColumnKey(s.id)] ?? 0
+  }
+  if (unsectioned && (unsectioned.total > 0 || unsectioned.items.length > 0)) {
+    rows[NO_SECTION_KEY] = unsectioned.items
+    totals[NO_SECTION_KEY] = unsectioned.total
+  }
+  return { rows, totals }
 }
 
 /** The chip labels a card shows: values of the fields set to show on cards, in field order. */
@@ -406,12 +429,7 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   }
 
   const pasteName = pasteSection?.name ?? ""
-  const listRows: Record<string, CodexTask[]> = {}
-  const listTotals: Record<string, number> = {}
-  for (const s of sections) {
-    listRows[String(s.id)] = board.columns[sectionColumnKey(s.id)] ?? []
-    listTotals[String(s.id)] = board.counts[sectionColumnKey(s.id)] ?? 0
-  }
+  const { rows: listRows, totals: listTotals } = projectListRows(sections, board, data.unsectioned)
   const viewRequest = async (url: string, init: RequestInit, failTitle: string): Promise<CodexSavedView | true | null> => {
     try {
       const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" } })
