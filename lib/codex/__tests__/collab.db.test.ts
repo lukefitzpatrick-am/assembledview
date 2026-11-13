@@ -35,7 +35,7 @@ import {
   unfollowTask,
 } from "../collabRepo.js"
 import { captureTaskStates, recordTaskChanges, writeNotifications } from "../notify.js"
-import { generateDueReminders, listBell, markNotificationsRead, runDigest, setEmailDigest } from "../notificationsRepo.js"
+import { generateDueReminders, listBell, markNotificationsRead, runDailyNotifications, runDigest, setEmailDigest } from "../notificationsRepo.js"
 
 /** The live tasks replica, as in taskDetail.db.test.ts (copied: importing a test file would run its suite). */
 const BASE_SQL = `
@@ -394,6 +394,28 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     const [row] = await client`SELECT actor_email FROM public.codex_notifications WHERE task_id = ${late}`
     assert.equal(row.actor_email, null)
     void tomorrow
+  })
+
+  it("daily run: the reminders written in a run are in that run's digest, on one clock (F1)", async () => {
+    await client`UPDATE public.tasks SET deleted_at = now() WHERE deleted_at IS NULL`
+    // The route's clock: 08:30 Melbourne on Fri 13 Nov. The rows are stamped by the database clock (later).
+    const now = new Date("2026-11-12T21:30:00Z")
+    await newTask("Due soon", { assignee: MIA, due: "2026-11-14" })
+    await newTask("Running late", { assignee: ELLIE, due: "2026-11-11" })
+    const sent: Array<{ to: string; html: string }> = []
+    const r = await runDailyNotifications(now, async (m) => void sent.push(m), (d) => d.tasks.flatMap((t) => t.lines).join("|"), database)
+    assert.deepEqual(r.reminders, { due_tomorrow: 1, overdue: 1, tasks: 2 })
+    assert.deepEqual(r.digest, { people: 2, sent: 2, failed: 0, quiet: 0, off: 0, notifications: 2 })
+    assert.deepEqual(
+      sent.map((m) => [m.to, m.html]),
+      [
+        [ELLIE, '"Running late" is overdue'],
+        [MIA, '"Due soon" is due tomorrow'],
+      ],
+      "due tomorrow arrives the day before, overdue the day after"
+    )
+    const again = await runDailyNotifications(new Date(now.getTime() + 3_600_000), async (m) => void sent.push(m), () => "", database)
+    assert.deepEqual([again.reminders.due_tomorrow, again.reminders.overdue, again.digest.sent], [0, 0, 0], "a second run that morning sends nothing")
   })
 
   // ---------------------------------------------------------------------------

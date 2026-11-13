@@ -77,8 +77,9 @@ if (supportsMockModule()) {
       listBell: fn("listBell", () => plain({ items: [], unread: 3, email_digest: true })),
       markNotificationsRead: fn("markNotificationsRead", () => plain(2)),
       setEmailDigest: fn("setEmailDigest", () => plain(false)),
-      generateDueReminders: fn("generateDueReminders", () => plain({ due_tomorrow: 1, overdue: 0, tasks: 1 })),
-      runDigest: fn("runDigest", () => plain({ people: 1, sent: 1, failed: 0, quiet: 0, off: 0, notifications: 1 })),
+      runDailyNotifications: fn("runDailyNotifications", () =>
+        plain({ reminders: { due_tomorrow: 1, overdue: 0, tasks: 1 }, digest: { people: 1, sent: 1, failed: 0, quiet: 0, off: 0, notifications: 1 } })
+      ),
     },
   })
   await mock.module!("@/lib/codex/attachmentBlob", {
@@ -424,8 +425,11 @@ test("cron: secret required; off, wrong hour or before 0118 skipped; the Melbour
   assert.equal(calls.length, 0)
   const ok = await withSwitches({}, () => run("2026-06-15T22:30:00Z"))
   assert.equal(ok.status, 200)
-  assert.deepEqual(calls.map((c) => c.fn), ["generateDueReminders", "runDigest"])
+  assert.deepEqual(calls.map((c) => c.fn), ["runDailyNotifications"], "reminders and digest in one call, in that order (pinned on Postgres)")
   assert.equal((calls[0]!.args[0] as Date).toISOString(), "2026-06-15T22:30:00.000Z")
+  const okBody = (await ok.json()) as { reminders: { due_tomorrow: number }; digest: { sent: number } }
+  assert.equal(okBody.reminders.due_tomorrow, 1)
+  assert.equal(okBody.digest.sent, 1)
   mode = "boom"
   const failed = await withSwitches({}, () => run("2026-06-15T22:30:00Z"))
   assert.equal(failed.status, 500)

@@ -210,7 +210,13 @@ export type DigestSender = (args: { to: string; subject: string; html: string; d
 
 export type DigestResult = { people: number; sent: number; failed: number; quiet: number; off: number; notifications: number }
 
-/** The rows a digest would carry, grouped per person (no sending). Unread, never digested, last 7 days, still visible. */
+/**
+ * The rows a digest would carry, grouped per person (no sending). Unread,
+ * never digested, last 7 days, still visible. The upper bound is the later of
+ * `now` and the database clock, so rows written earlier in the same run (the
+ * reminders, stamped by the database a moment after the route read its clock)
+ * go in this digest, and a `?now=` run still sees them.
+ */
 export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ digests: DigestEmail[]; prefs: Map<string, PrefRow> }> {
   return guarded(database, async () => {
     const since = new Date(now.getTime() - DIGEST_LOOKBACK_DAYS * 86_400_000).toISOString()
@@ -223,7 +229,7 @@ export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ d
           LEFT JOIN public.codex_projects p ON p.id = t.project_id
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
          WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
-           AND n.created_at <= ${now.toISOString()}::timestamptz AND n.created_at >= ${since}::timestamptz
+           AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz
            AND ${visibleToRecipient(sql`n.recipient_email`)}
          ORDER BY n.recipient_email, n.created_at, n.id
          LIMIT ${DIGEST_ROWS_MAX}
@@ -314,4 +320,22 @@ export async function runDigest(now: Date, send: DigestSender, buildHtml: (d: Di
     out.notifications += d.notificationIds.length
   }
   return out
+}
+
+export type DailyRunResult = { reminders: ReminderResult; digest: DigestResult }
+
+/**
+ * The daily run, in order: the due tomorrow and overdue reminders first, then
+ * the digest, so the reminders written now go out in this morning's email
+ * (not the next one). One clock (`now`) for both.
+ */
+export async function runDailyNotifications(
+  now: Date,
+  send: DigestSender,
+  buildHtml: (d: DigestEmail) => string,
+  database: Db = db
+): Promise<DailyRunResult> {
+  const reminders = await generateDueReminders(now, database)
+  const digest = await runDigest(now, send, buildHtml, database)
+  return { reminders, digest }
 }
