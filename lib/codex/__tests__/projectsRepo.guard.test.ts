@@ -8,6 +8,7 @@ import { test } from "node:test"
 
 import type { Db } from "@/db"
 import {
+  bulkUpdateTasksThroughSections,
   isMissingProjectsSchema,
   isProjectsMigrationApplied,
   listProjects,
@@ -16,6 +17,7 @@ import {
   PROJECTS_MARKER_RECHECK_MS,
   ProjectsUnavailableError,
   resetProjectsMarkerCacheForTests,
+  updateTaskThroughSections,
 } from "../projectsRepo.js"
 
 type Calls = { marker: number; other: number }
@@ -145,4 +147,81 @@ test("isMissingProjectsSchema", () => {
   assert.equal(isMissingProjectsSchema(Object.assign(new Error(), { code: "42703" })), true)
   assert.equal(isMissingProjectsSchema(Object.assign(new Error(), { code: "23505" })), false)
   assert.equal(isMissingProjectsSchema(null), false)
+})
+
+/**
+ * B39fix (F2): a fake db whose transaction runs the callback. Selects answer
+ * [] (the task is missing, so the plain update returns null); raw `execute`
+ * SQL is recorded, because only the 0118 path sends raw SQL (project_id,
+ * section_id and the project locks).
+ */
+function recordingDb(markerRows: unknown[]) {
+  const seen = { marker: 0, selects: 0, transactions: 0, raw: [] as string[] }
+  const chain = (onAwait: () => Promise<unknown>) => {
+    const c: Record<string, unknown> = {}
+    for (const m of ["from", "where", "limit", "orderBy", "for", "set", "returning", "values"]) c[m] = () => c
+    c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => onAwait().then(res, rej)
+    return c
+  }
+  const exec = {
+    select: (fields?: Record<string, unknown>) =>
+      chain(async () => {
+        if (fields && "key" in fields) {
+          seen.marker += 1
+          return markerRows
+        }
+        seen.selects += 1
+        return []
+      }),
+    update: () => chain(async () => []),
+    insert: () => chain(async () => []),
+    execute: async (query: { queryChunks?: unknown[] }) => {
+      seen.raw.push(JSON.stringify(query?.queryChunks ?? query))
+      return []
+    },
+  }
+  const database = {
+    ...exec,
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      seen.transactions += 1
+      return fn(exec)
+    },
+  } as unknown as Db
+  return { database, seen }
+}
+
+test("B39fix: PATCH through sections before 0118 is the plain update and sends no raw SQL on the 0118 columns", async () => {
+  resetProjectsMarkerCacheForTests()
+  const { database, seen } = recordingDb([])
+  const out = await updateTaskThroughSections(7, { status: "done" }, "luke@x.au", database)
+  assert.deepEqual(out, { ok: true, task: null })
+  assert.equal(seen.marker, 1, "the marker was read")
+  assert.equal(seen.transactions, 1, "updateTask's own transaction")
+  assert.ok(seen.selects >= 1, "the plain update read the task")
+  assert.deepEqual(seen.raw, [], "no project_id peek, no project lock")
+  resetProjectsMarkerCacheForTests()
+})
+
+test("B39fix: bulk through sections before 0118 returns null (the route's plain bulk) and opens no transaction", async () => {
+  resetProjectsMarkerCacheForTests()
+  const { database, seen } = recordingDb([])
+  assert.equal(await bulkUpdateTasksThroughSections([7, 8], { status: "done" }, "luke@x.au", database), null)
+  assert.equal(seen.marker, 1)
+  assert.equal(seen.transactions, 0)
+  assert.deepEqual(seen.raw, [])
+  resetProjectsMarkerCacheForTests()
+})
+
+test("B39fix: with 0118 applied the same calls take the section path (control for the two tests above)", async () => {
+  resetProjectsMarkerCacheForTests()
+  const patch = recordingDb([{ key: "0118_codex_s1_projects" }])
+  assert.deepEqual(await updateTaskThroughSections(7, { status: "done" }, "luke@x.au", patch.database), { ok: true, task: null })
+  assert.equal(patch.seen.raw.length, 1, "the project_id peek (the task is missing, so nothing more)")
+  assert.match(patch.seen.raw[0], /project_id/)
+  resetProjectsMarkerCacheForTests()
+  const bulk = recordingDb([{ key: "0118_codex_s1_projects" }])
+  await assert.rejects(bulkUpdateTasksThroughSections([7], { status: "done" }, "luke@x.au", bulk.database))
+  assert.equal(bulk.seen.transactions, 1)
+  assert.match(bulk.seen.raw[0] ?? "", /FOR UPDATE OF p/)
+  resetProjectsMarkerCacheForTests()
 })
