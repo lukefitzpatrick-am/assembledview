@@ -753,7 +753,8 @@ async function applyPlan(
   plan: Extract<SectionMovePlan, { ok: true }>,
   sections: readonly CodexSection[],
   placement: Placement,
-  viewerEmail: string
+  viewerEmail: string,
+  isPrivate: boolean
 ): Promise<TaskPlacementResult | ProjectFailure> {
   let anchored: number[] | null = null
   if (placement.kind === "after") {
@@ -764,10 +765,15 @@ async function applyPlan(
     // Same path as PATCH: activity row, help parent complete or re-wait.
     await updateTaskStatusInTx(tx, task.id, plan.status, normaliseEmail(viewerEmail))
   }
-  return placeTask(tx, task, plan, sections, placement, anchored, viewerEmail)
+  return placeTask(tx, task, plan, sections, placement, anchored, viewerEmail, isPrivate)
 }
 
-/** Set project, section and order (no status change here) and record a section move. */
+/**
+ * Set project, section and order (no status change here) and record a
+ * section move. Task activity is readable by every staff member (C-211), so
+ * for a private project the row keeps the ids and leaves the section names
+ * out (`isPrivate`).
+ */
 async function placeTask(
   tx: DbExecutor,
   task: TaskPlacementRow,
@@ -775,7 +781,8 @@ async function placeTask(
   sections: readonly CodexSection[],
   placement: Placement,
   anchored: number[] | null,
-  viewerEmail: string
+  viewerEmail: string,
+  isPrivate: boolean
 ): Promise<TaskPlacementResult> {
   const order =
     anchored != null
@@ -795,14 +802,16 @@ async function placeTask(
      WHERE id = ${task.id} AND deleted_at IS NULL
   `)
   const sectionName = (id: number | null) => sections.find((s) => s.id === id)?.name ?? null
+  const side = (projectId: number | null, sectionId: number | null) =>
+    isPrivate ? { project_id: projectId, section_id: sectionId } : { project_id: projectId, section: sectionName(sectionId), section_id: sectionId }
   if (task.section_id !== plan.section_id || task.project_id !== plan.project_id) {
     await appendActivity(tx, {
       entityType: "task",
       entityId: task.id,
       actorEmail: viewerEmail,
       action: "move_section",
-      before: { project_id: task.project_id, section: sectionName(task.section_id), section_id: task.section_id },
-      after: { project_id: plan.project_id, section: sectionName(plan.section_id), section_id: plan.section_id },
+      before: side(task.project_id, task.section_id),
+      after: side(plan.project_id, plan.section_id),
     })
   }
   return {
@@ -834,7 +843,7 @@ export async function moveTaskToSection(
       if (!task) return TASK_NOT_FOUND
       const plan = planSectionMove(task, section)
       if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail)
+      return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail, Boolean(p.row.isPrivate))
     })
   )
 }
@@ -855,7 +864,7 @@ export async function completeProjectTask(
       const sections = await loadSections(tx, projectId)
       const plan = planCompleteInProject(task, sections)
       if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, { kind: "end" }, viewerEmail)
+      return applyPlan(tx, task, plan, sections, { kind: "end" }, viewerEmail, Boolean(p.row.isPrivate))
     })
   )
 }
@@ -1087,7 +1096,8 @@ export async function createTasksInSection(
             actorKind: "user",
             action: "create",
             before: null,
-            after: { ...t, section: section.name },
+            // Task activity is readable by all staff (C-211): no section name for a private project.
+            after: p.row.isPrivate ? t : { ...t, section: section.name },
           }))
         )
       }
@@ -1151,8 +1161,13 @@ async function statusChangeInTx(
   )[0]
   if (!peek) return { ok: true, task: null }
   const projectId = peek.project_id == null ? null : Number(peek.project_id)
+  let isPrivate = false
   if (projectId != null) {
-    await tx.execute(sql`SELECT id FROM public.codex_projects WHERE id = ${projectId} FOR UPDATE`)
+    const locked = executeRows(
+      await tx.execute(sql`SELECT id, is_private FROM public.codex_projects WHERE id = ${projectId} FOR UPDATE`)
+    )[0]
+    // Unknown counts as private: the safe side for what the activity row names.
+    isPrivate = locked?.is_private !== false
   }
   const task = await lockLiveTask(tx, id)
   if (!task) return { ok: true, task: null }
@@ -1166,7 +1181,7 @@ async function statusChangeInTx(
   if (!plan.inProject) return { ok: true, task: await updateTaskInTx(tx, id, patch, actorEmail) }
   const updated = await updateTaskInTx(tx, id, patch, actorEmail)
   if (!updated) return { ok: true, task: null }
-  const placed = await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "")
+  const placed = await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "", isPrivate)
   return {
     ok: true,
     task: { ...updated, project_id: placed.task.project_id, section_id: placed.task.section_id, sort_order: placed.task.sort_order },

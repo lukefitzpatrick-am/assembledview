@@ -363,6 +363,36 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.equal((await taskRow(ids.A)).section_id, sec["Done"])
   })
 
+  it("a private project's task activity names no section (all staff read task activity, C-211) (B39fix F8)", async () => {
+    const board = await loadProjectBoard(privateId, OWNER, { hideCompleted: false }, database)
+    assert.ok(board.ok)
+    const [first, , done] = board.sections
+    const pasted = await createTasksInSection(privateId, first.id, OWNER, ["Secret plan"], database)
+    assert.ok(pasted.ok)
+    const id = Number(pasted.tasks[0].id)
+    // PATCH, bulk and a board move each write a move_section row.
+    const patched = await updateTaskThroughSections(id, { status: "in_progress" }, OWNER, database)
+    assert.ok(patched.ok)
+    const bulk = await bulkUpdateTasksThroughSections([id], { status: "done" }, OWNER, database)
+    assert.equal(bulk?.length, 1)
+    const moved = await moveTaskToSection(privateId, first.id, OWNER, { task_id: id, sort_order: null }, database)
+    assert.ok(moved.ok)
+    const rows = await client`SELECT action, before, after FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${id} ORDER BY id`
+    const moves = rows.filter((r) => r.action === "move_section")
+    assert.equal(moves.length, 3)
+    for (const r of moves) {
+      assert.equal("section" in r.before, false)
+      assert.equal("section" in r.after, false)
+      assert.equal(r.after.project_id, privateId, "the ids stay for the record")
+    }
+    assert.deepEqual(moves.map((r) => r.after.section_id), [board.sections[1].id, done.id, first.id])
+    const created = rows.find((r) => r.action === "create")
+    assert.equal("section" in created!.after, false)
+    const names = JSON.stringify(rows)
+    for (const s of board.sections) assert.equal(names.includes(`"${s.name}"`), false, `no "${s.name}" in task activity`)
+    // A public project's rows keep the names (the PATCH done test above reads "Done").
+  })
+
   it("hide completed is stored per person and project, and read back as stored", async () => {
     const set = await setBoardHideCompleted(projectId, OWNER, false, database)
     assert.ok(set.ok)
