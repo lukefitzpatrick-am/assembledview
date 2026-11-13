@@ -444,6 +444,57 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
     })
   })
 
+  describe("private projects (B40fix F2)", () => {
+    it("a non-member gets not_found from every field call and an empty hidden detail; nothing changes", async () => {
+      const priv = await createProject(OWNER, {
+        name: "Private fields", kind: "internal", client_id: null, mba_number: null, owner_email: null, is_private: true,
+        start_on: null, due_on: null, members: [], sections: undefined,
+      }, database)
+      assert.ok(priv.ok)
+      const pid = priv.project.id
+      const field = await createCustomField(pid, OWNER, {
+        name: "Stage", field_type: "single_select", options: [{ id: "o1", label: "Draft" }, { id: "o2", label: "Live" }], done_option: null,
+      }, database)
+      assert.ok(field.ok)
+      const fid = field.field.id
+      const made = await createTasksInSection(pid, priv.sections[0].id, OWNER, ["Secret task"], database)
+      assert.ok(made.ok)
+      const tid = Number(made.tasks[0].id)
+      assert.ok((await updateTaskThroughSections(tid, {}, OWNER, database, { custom_values: { [String(fid)]: "o2" } })).ok)
+      const sub = await createSubtask(tid, OWNER, { title: "Secret sub", assignee_email: null, start_on: null, due_on: null }, database)
+      assert.ok(sub.ok)
+
+      const mine = await getTaskProjectDetail(tid, OWNER, database)
+      assert.ok(mine.ok)
+      assert.equal(mine.project_hidden, false, "control: the owner sees it")
+      assert.deepEqual(mine.task.custom_values, { [String(fid)]: "o2" })
+      assert.equal(mine.subtasks.length, 1)
+      assert.equal(mine.fields.length, 1)
+      assert.ok(mine.sections.length > 0)
+
+      const notFound = (r: { ok: boolean; reason?: string }) => !r.ok && r.reason === "not_found"
+      assert.ok(notFound(await listProjectFields(pid, MIA, database)), "list fields")
+      assert.ok(notFound(await createCustomField(pid, MIA, { name: "Mine", field_type: "single_select", options: [{ id: "o1", label: "A" }], done_option: null }, database)), "create a field")
+      assert.ok(notFound(await updateCustomField(pid, fid, MIA, { name: "Renamed" }, database)), "update a field")
+      assert.ok(notFound(await deleteCustomField(pid, fid, MIA, database)), "delete a field")
+      assert.ok(notFound(await setProjectCardFields(pid, MIA, [{ key: `field:${fid}`, show: false }], database)), "card fields")
+
+      const hidden = await getTaskProjectDetail(tid, MIA, database)
+      assert.ok(hidden.ok)
+      assert.equal(hidden.project, null)
+      assert.equal(hidden.project_hidden, true)
+      assert.deepEqual(hidden.task.custom_values, {}, "no values")
+      assert.deepEqual(hidden.subtasks, [], "no subtasks")
+      assert.deepEqual(hidden.fields, [], "no fields")
+      assert.deepEqual(hidden.sections, [], "no sections")
+
+      const after = await listProjectFields(pid, OWNER, database)
+      assert.ok(after.ok)
+      assert.deepEqual(after.fields.map((f) => [f.id, f.name]), [[fid, "Stage"]], "no field made, renamed or deleted")
+      assert.deepEqual(after.card_fields, [], "no card setting saved")
+    })
+  })
+
   it("project fixture exists", () => {
     assert.ok(projectId > 0 && sec["Done"] > 0)
   })
