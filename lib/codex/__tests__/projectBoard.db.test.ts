@@ -347,4 +347,111 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     const hidden = await setBoardHideCompleted(privateId, OTHER, true, database)
     assert.equal(!hidden.ok && hidden.reason, "not_found")
   })
+
+  describe("lock order under concurrency (B39fix F3: project rows, then tasks, everywhere)", () => {
+    // Several connections so the transactions really overlap. A lock-order
+    // break shows as a rejected call (Postgres 40P01 deadlock, about 1 s each).
+    let conc: ReturnType<typeof postgres>
+    let cdb: Db
+    const ROUNDS = 10
+    const LANES = [
+      { name: "To do", status_category: "todo" as const },
+      { name: "Doing", status_category: "in_progress" as const },
+      { name: "Done", status_category: "done" as const },
+    ]
+
+    before(() => {
+      conc = postgres(BOARD_URL!, { max: 8, onnotice: () => {} })
+      cdb = drizzle(conc, { schema }) as unknown as Db
+    })
+    after(async () => {
+      await conc?.end({ timeout: 5 })
+    })
+
+    async function lanesProject(name: string) {
+      const r = await createProject(OWNER, {
+        name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: false,
+        start_on: null, due_on: null, members: [], sections: LANES,
+      }, cdb)
+      assert.ok(r.ok)
+      return { id: r.project.id, sec: Object.fromEntries(r.sections.map((s) => [s.name, s.id])) as Record<string, number> }
+    }
+    async function pasteInto(p: { id: number; sec: Record<string, number> }, titles: string[]) {
+      const r = await createTasksInSection(p.id, p.sec["To do"], OWNER, titles, cdb)
+      assert.ok(r.ok)
+      return r.tasks.map((t) => Number(t.id))
+    }
+    const reasons = (out: PromiseSettledResult<unknown>[]) =>
+      out.filter((o): o is PromiseRejectedResult => o.status === "rejected").map((o) => String((o.reason as Error)?.message ?? o.reason))
+
+    it("two bulk status edits over the same two projects in opposite order never deadlock", async () => {
+      const p1 = await lanesProject("Lock P1")
+      const p2 = await lanesProject("Lock P2")
+      const a = await pasteInto(p1, ["a1", "a2", "a3", "a4"])
+      const b = await pasteInto(p2, ["b1", "b2", "b3", "b4"])
+      const forward = a.flatMap((id, i) => [id, b[i]])
+      const backward = [...forward].reverse()
+      const failures: string[] = []
+      for (let i = 0; i < ROUNDS; i++) {
+        const out = await Promise.allSettled([
+          bulkUpdateTasksThroughSections(forward, { status: i % 2 ? "in_progress" : "todo" }, OWNER, cdb),
+          bulkUpdateTasksThroughSections(backward, { status: i % 2 ? "todo" : "in_progress" }, OWNER, cdb),
+        ])
+        failures.push(...reasons(out))
+      }
+      assert.deepEqual(failures, [])
+    })
+
+    it("PATCH, a board move and a bulk edit on the same task at once never deadlock", async () => {
+      const p = await lanesProject("Lock P3")
+      const [t, u, v] = await pasteInto(p, ["t", "u", "v"])
+      const failures: string[] = []
+      for (let i = 0; i < ROUNDS; i++) {
+        const out = await Promise.allSettled([
+          updateTaskThroughSections(t, { status: i % 2 ? "in_progress" : "todo" }, OWNER, cdb),
+          moveTaskToSection(p.id, p.sec[i % 2 ? "To do" : "Doing"], OWNER, { task_id: t, sort_order: null, after_task_id: null }, cdb),
+          bulkUpdateTasksThroughSections([v, u, t], { status: i % 2 ? "todo" : "in_progress" }, OWNER, cdb),
+        ])
+        failures.push(...reasons(out))
+      }
+      assert.deepEqual(failures, [])
+    })
+
+    it("many anchored moves in one section at once keep the card order 0..n-1 with no gaps or repeats", async () => {
+      const p = await lanesProject("Lock P4")
+      const ids = await pasteInto(p, Array.from({ length: 12 }, (_, i) => `c${i}`))
+      const out = await Promise.allSettled(
+        Array.from({ length: 30 }, (_, k) => {
+          const task = ids[k % ids.length]
+          const anchor = ids[(k * 7 + 3) % ids.length]
+          return moveTaskToSection(p.id, p.sec["To do"], OWNER, { task_id: task, sort_order: null, after_task_id: anchor === task ? null : anchor }, cdb)
+        })
+      )
+      assert.deepEqual(reasons(out), [])
+      const rows = await conc`SELECT sort_order FROM public.tasks WHERE section_id = ${p.sec["To do"]} AND deleted_at IS NULL ORDER BY sort_order`
+      assert.deepEqual(rows.map((r) => Number(r.sort_order)), ids.map((_, i) => i))
+    })
+
+    it("PATCH status while a move puts the task into a project: status and section always agree after", async () => {
+      const p = await lanesProject("Lock P5")
+      const failures: string[] = []
+      const mismatches: number[] = []
+      for (let i = 0; i < ROUNDS; i++) {
+        const [row] = await conc`INSERT INTO public.tasks (title, status, client_id) VALUES (${`loose ${i}`}, 'todo', 42) RETURNING id`
+        const t = Number(row.id)
+        const out = await Promise.allSettled([
+          moveTaskToSection(p.id, p.sec["Doing"], OWNER, { task_id: t, sort_order: null }, cdb),
+          (async () => {
+            await new Promise((r) => setTimeout(r, i % 5))
+            return updateTaskThroughSections(t, { status: "done" }, OWNER, cdb)
+          })(),
+        ])
+        failures.push(...reasons(out))
+        const [r] = await conc`SELECT t.status, s.status_category FROM public.tasks t LEFT JOIN public.codex_sections s ON s.id = t.section_id WHERE t.id = ${t}`
+        if (r.status_category != null && r.status !== r.status_category) mismatches.push(t)
+      }
+      assert.deepEqual(failures, [])
+      assert.deepEqual(mismatches, [], "a task in a section has that section's status")
+    })
+  })
 })
