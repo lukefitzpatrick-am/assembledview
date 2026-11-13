@@ -8,6 +8,7 @@ import { mock, test } from "node:test"
 
 import type { BillingMonth } from "@/lib/billing/types"
 import { derivePlanReceivableBillingRecordsForMonth } from "@/lib/finance/deriveReceivableRecords"
+import { composeBillingRecordsForMonth } from "@/lib/finance/composeFinanceHubRecords"
 
 const JUNE = "June 2026"
 
@@ -86,5 +87,62 @@ test("switch on, a clean month: no field", () => {
   mock.method(console, "log", () => {})
   const clean = version({ ooh: [oohLine("billing-ooh::malay004OH1", 37000)] } as NonNullable<BillingMonth["lineItems"]>, 37000)
   assert.equal(derive(clean, true)[0]!.billing_alias_duplicates, undefined)
+  mock.restoreAll()
+})
+
+// B35fix (L1): live doubled rows differ (malay003 v4 May: ML1 $8,512, OH1 $4,864).
+const unequal = version(
+  { ooh: [oohLine("billing-ooh::malay004ML1", 8512), oohLine("billing-ooh::malay004OH1", 4864)] } as NonNullable<
+    BillingMonth["lineItems"]
+  >,
+  13376,
+)
+
+test("B35fix (L1): unequal amounts: the record carries the old row's amount as oldAmount and the current row's as currentAmount", () => {
+  mock.method(console, "log", () => {})
+  mock.method(console, "warn", () => {})
+  const [record] = derive(unequal, true)
+  assert.deepEqual(record!.billing_alias_duplicates, [
+    { mediaKey: "ooh", oldId: "malay004ML1", currentId: "malay004OH1", oldAmount: 8512, currentAmount: 4864 },
+  ])
+  assert.equal(record!.total, 13376)
+  mock.restoreAll()
+})
+
+// B35fix (M1): the flag goes through composeBillingRecordsForMonth, the step both
+// finance billing loaders call.
+function composeJune(flag?: boolean) {
+  return composeBillingRecordsForMonth({
+    monthStr: "2026-06",
+    relevantVersions: [unequal],
+    clients: [{ id: 21, clientname_input: "Malay", mp_client_name: "Malay" }],
+    publishers: [],
+    scopes: null,
+    persistedStatusRows: [],
+    includeNonBooked: true,
+    ...(flag === undefined ? {} : { flagBillingAliasDuplicates: flag }),
+    types: [],
+    clientsIdParam: null,
+    searchParam: null,
+    statusParam: null,
+    publishersIdParam: null,
+  })
+}
+
+test("B35fix (M1): compose passes the switch through: on flags the media record, off or unset does not", () => {
+  mock.method(console, "log", () => {})
+  mock.method(console, "warn", () => {})
+  const on = composeJune(true).filter((r) => r.billing_type === "media")
+  assert.equal(on.length, 1)
+  assert.deepEqual(on[0]!.billing_alias_duplicates, [
+    { mediaKey: "ooh", oldId: "malay004ML1", currentId: "malay004OH1", oldAmount: 8512, currentAmount: 4864 },
+  ])
+  assert.equal(on[0]!.total, 13376)
+  for (const off of [composeJune(false), composeJune()]) {
+    const media = off.filter((r) => r.billing_type === "media")
+    assert.equal(media.length, 1)
+    assert.equal(media[0]!.billing_alias_duplicates, undefined)
+    assert.equal(media[0]!.total, 13376)
+  }
   mock.restoreAll()
 })

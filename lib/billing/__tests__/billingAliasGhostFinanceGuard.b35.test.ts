@@ -115,6 +115,26 @@ test("invoice draft month: doubled lines are named with both amounts, nothing dr
   assert.deepEqual(invoiceDraftAliasDuplicates(month(JUNE, [line("malay004OH1", { [JUNE]: 1 })]), "malay004"), [])
 })
 
+test("B35fix (L1): unequal amounts (malay003 v4 May shape): the old row's amount is the one counted twice", () => {
+  const may = month(MAY, [line("billing-ooh::malay003ML1", { [MAY]: 8512 }), line("billing-ooh::malay003OH1", { [MAY]: 4864 })])
+  const dups = invoiceDraftAliasDuplicates(may, "malay003")
+  assert.deepEqual(dups, [
+    { mediaKey: "ooh", oldId: "malay003ML1", currentId: "malay003OH1", oldAmount: 8512, currentAmount: 4864 },
+  ])
+  assert.equal(
+    describeInvoiceDraftAliasDuplicates(dups),
+    "Counted twice: malay003ML1 duplicates malay003OH1 ($8,512.00 too much on this invoice). Fix the plan's billing before raising it.",
+  )
+  const two = [
+    ...dups,
+    { mediaKey: "ooh", oldId: "malay003ML2", currentId: "malay003OH2", oldAmount: 100.5, currentAmount: 7 },
+  ]
+  assert.match(describeInvoiceDraftAliasDuplicates(two), /\(\$8,612\.50 too much on this invoice\)/)
+  const refusal = billingScheduleAliasGhostRefusal(buildBillingScheduleJSON([may]), "malay003")
+  assert.equal(refusal?.body.doubledTotal, 8512)
+  assert.match(refusal!.body.error, /May 2026 \$8,512\.00 and \$4,864\.00/)
+})
+
 test("invoice flag text names three, then a count", () => {
   const dups = [1, 2, 3, 4].map((n) => ({ mediaKey: "digiDisplay", oldId: `h${n}ML`, currentId: `h${n}DD`, oldAmount: 0.1, currentAmount: 0.1 }))
   assert.equal(

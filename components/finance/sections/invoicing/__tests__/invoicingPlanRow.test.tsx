@@ -141,6 +141,27 @@ describe("InvoicingPlanRow primary action", () => {
     expect(container.querySelector("[data-invoicing-alias-duplicates]")).toBeNull()
   })
 
+  it("B35fix (L1): unequal amounts: the flag counts the old row's amount, not the current row's", () => {
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({
+            state: "ready",
+            billing_alias_duplicates: [
+              { mediaKey: "ooh", oldId: "malay003ML1", currentId: "malay003OH1", oldAmount: 8512, currentAmount: 4864 },
+            ],
+          })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    expect(container.querySelector("[data-invoicing-alias-duplicates]")?.textContent).toBe(
+      "Counted twice: malay003ML1 duplicates malay003OH1 ($8,512.00 too much on this invoice). Fix the plan's billing before raising it.",
+    )
+  })
+
   it("does not render Mark sent on an Approved row", () => {
     act(() => {
       root.render(
