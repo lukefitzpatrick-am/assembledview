@@ -17,6 +17,7 @@ import {
   checkDeleteField,
   checkFieldCount,
   planFieldUpdate,
+  readRemovedOptions,
   type CardFieldSetting,
   type CodexCustomField,
   type CreateFieldInput,
@@ -112,11 +113,21 @@ export async function updateCustomField(
       if (!(await loadVisibleProject(tx, projectId, viewerEmail, true))) return NOT_FOUND
       const before = (await loadProjectFields(tx, projectId)).find((f) => f.id === fieldId)
       if (!before) return FIELD_NOT_FOUND
-      const plan = planFieldUpdate(before, patch, patch.options ? await optionUsage(tx, projectId, fieldId) : {})
+      // Removed options stay in the jsonb so a new option never takes their id (B40fix).
+      const [raw] = await tx
+        .select({ options: codexCustomFields.options })
+        .from(codexCustomFields)
+        .where(and(eq(codexCustomFields.id, fieldId), eq(codexCustomFields.projectId, projectId)))
+      const plan = planFieldUpdate(
+        before,
+        patch,
+        patch.options ? await optionUsage(tx, projectId, fieldId) : {},
+        readRemovedOptions(raw?.options)
+      )
       if (!plan.ok) return plan
       await tx
         .update(codexCustomFields)
-        .set({ name: plan.field.name, options: plan.field.options, doneOption: plan.field.done_option })
+        .set({ name: plan.field.name, options: plan.stored, doneOption: plan.field.done_option })
         .where(and(eq(codexCustomFields.id, fieldId), eq(codexCustomFields.projectId, projectId)))
       await appendActivity(tx, {
         entityType: "codex_custom_field",

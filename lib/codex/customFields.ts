@@ -8,7 +8,11 @@
  *   check but are refused here until they are built.
  * - Options are `[{ id, label }]` in `options` jsonb. The id is stable, so a
  *   rename or a reorder keeps every task's value. Ids are `o1`, `o2`, ...
- *   and never reused within a field.
+ *   and never reused within a field: a removed option stays in the jsonb as
+ *   `{ id, label, removed: true }` (B40fix), so the next new option counts
+ *   past it, and a soft-deleted task's value, a saved list filter or an
+ *   activity row naming it never comes to mean a new option. Readers drop
+ *   removed entries (`readStoredOptions`).
  * - A task's values live in `tasks.custom_values` keyed by field id:
  *   `{ "12": "o3" }` (single) or `{ "13": ["o1", "o4"] }` (multi). No value
  *   is no key.
@@ -28,6 +32,9 @@ export const OPTIONS_PER_FIELD_MAX = 50
 export const FIELDS_PER_PROJECT_MAX = 20
 
 export type CustomFieldOption = { id: string; label: string }
+
+/** An entry of `options` jsonb: a live option, or a removed one kept so its id is never reused. */
+export type StoredFieldOption = CustomFieldOption & { removed?: true }
 
 export type CodexCustomField = {
   id: number
@@ -91,8 +98,7 @@ export function nextOptionNumber(existing: readonly string[]): number {
   return max + 1
 }
 
-/** Options as stored, from whatever jsonb holds (bad entries dropped). */
-export function readStoredOptions(raw: unknown): CustomFieldOption[] {
+function readOptionEntries(raw: unknown, removed: boolean): CustomFieldOption[] {
   if (!Array.isArray(raw)) return []
   const out: CustomFieldOption[] = []
   const seen = new Set<string>()
@@ -101,9 +107,19 @@ export function readStoredOptions(raw: unknown): CustomFieldOption[] {
     const rec = item as Record<string, unknown>
     if (typeof rec.id !== "string" || typeof rec.label !== "string" || seen.has(rec.id)) continue
     seen.add(rec.id)
-    out.push({ id: rec.id, label: rec.label })
+    if ((rec.removed === true) === removed) out.push({ id: rec.id, label: rec.label })
   }
   return out
+}
+
+/** Live options as stored, from whatever jsonb holds (bad and removed entries dropped). */
+export function readStoredOptions(raw: unknown): CustomFieldOption[] {
+  return readOptionEntries(raw, false)
+}
+
+/** Removed options kept in the jsonb so their ids are never reused (B40fix). */
+export function readRemovedOptions(raw: unknown): CustomFieldOption[] {
+  return readOptionEntries(raw, true)
 }
 
 export type CreateFieldInput = {
@@ -218,17 +234,23 @@ export type FieldRuleFailure = {
 }
 
 /**
- * The field after a PATCH. `usage` counts live tasks per option id. Refuses
- * an id that is not the field's, removing an option a live task still uses,
- * and a done option that is not an option (or on a multi-select). A removed
- * option that was the done option clears it.
+ * The field after a PATCH. `usage` counts live tasks per option id;
+ * `removed` is the field's removed options as stored. Refuses an id that is
+ * not a live option of the field (a removed one never comes back), removing
+ * an option a live task still uses, and a done option that is not an option
+ * (or on a multi-select). A removed option that was the done option clears
+ * it. A new option takes the next number after every id the field has ever
+ * had; `stored` is what to write to `options` jsonb (live options, then
+ * every removed one marked `removed: true`).
  */
 export function planFieldUpdate(
   field: CodexCustomField,
   patch: UpdateFieldInput,
-  usage: Readonly<Record<string, number>>
-): { ok: true; field: CodexCustomField } | FieldRuleFailure {
+  usage: Readonly<Record<string, number>>,
+  removed: readonly CustomFieldOption[] = []
+): { ok: true; field: CodexCustomField; stored: StoredFieldOption[] } | FieldRuleFailure {
   let options = field.options
+  let retired: CustomFieldOption[] = [...removed]
   if (patch.options) {
     const known = new Set(field.options.map((o) => o.id))
     for (const o of patch.options) {
@@ -247,7 +269,10 @@ export function planFieldUpdate(
         message: `${n} task${n === 1 ? " uses" : "s use"} "${o.label}". Change ${n === 1 ? "it" : "them"} first.`,
       }
     }
-    let next = nextOptionNumber(field.options.map((o) => o.id))
+    for (const o of field.options) {
+      if (!kept.has(o.id) && !retired.some((r) => r.id === o.id)) retired = [...retired, { id: o.id, label: o.label }]
+    }
+    let next = nextOptionNumber([...field.options, ...removed].map((o) => o.id))
     options = patch.options.map((o) => {
       if (o.id != null) return { id: o.id, label: o.label }
       const id = `o${next}`
@@ -268,7 +293,12 @@ export function planFieldUpdate(
     }
     doneOption = patch.done_option
   }
-  return { ok: true, field: { ...field, name: patch.name ?? field.name, options, done_option: doneOption } }
+  const live = new Set(options.map((o) => o.id))
+  const stored: StoredFieldOption[] = [
+    ...options,
+    ...retired.filter((o) => !live.has(o.id)).map((o) => ({ id: o.id, label: o.label, removed: true as const })),
+  ]
+  return { ok: true, field: { ...field, name: patch.name ?? field.name, options, done_option: doneOption }, stored }
 }
 
 /** A field is deleted only when no live task has a value for it. */

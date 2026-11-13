@@ -17,6 +17,7 @@ import {
   parseCustomValuesPatch,
   parseUpdateFieldInput,
   planFieldUpdate,
+  readRemovedOptions,
   readStoredOptions,
   readStoredValues,
   valueLabels,
@@ -117,6 +118,40 @@ test("update plan: removing an option a live task uses is refused; unused is rem
   assert.equal(removeDone.field.done_option, null, "a removed done option clears it")
   const stranger = planFieldUpdate(progress, { options: [{ id: "o9", label: "x" }] }, {})
   assert.equal(!stranger.ok && stranger.reason, "unknown_option")
+})
+
+test("B40fix (F5): option ids are never reused: remove, save, add takes a new number; a removed id never comes back", () => {
+  // Remove the top option o3 (unused), save.
+  const removed = planFieldUpdate(progress, { options: [{ id: "o1", label: "Not started" }, { id: "o2", label: "In progress" }] }, {})
+  assert.ok(removed.ok)
+  assert.deepEqual(removed.stored, [
+    { id: "o1", label: "Not started" },
+    { id: "o2", label: "In progress" },
+    { id: "o3", label: "Done", removed: true },
+  ], "the removed option is kept, marked removed")
+  // Read back as the store does, then add "D".
+  const field = { ...removed.field, options: readStoredOptions(removed.stored) }
+  assert.deepEqual(field.options.map((o) => o.id), ["o1", "o2"], "readers see live options only")
+  assert.deepEqual(readRemovedOptions(removed.stored), [{ id: "o3", label: "Done" }])
+  const added = planFieldUpdate(field, { options: [...field.options, { id: null, label: "D" }] }, {}, readRemovedOptions(removed.stored))
+  assert.ok(added.ok)
+  assert.deepEqual(added.field.options.at(-1), { id: "o4", label: "D" }, "D is o4, never o3")
+  assert.deepEqual(added.stored.at(-1), { id: "o3", label: "Done", removed: true }, "the removed entry is kept on later saves")
+  assert.equal(added.stored.filter((o) => o.id === "o3").length, 1)
+  // A stale screen sending the removed id back is refused.
+  const stale = planFieldUpdate(field, { options: [{ id: "o3", label: "Done" }] }, {}, readRemovedOptions(removed.stored))
+  assert.equal(!stale.ok && stale.reason, "unknown_option")
+  // A rename-only save keeps the removed entries too.
+  const renamed = planFieldUpdate(added.field, { name: "Stage" }, {}, readRemovedOptions(added.stored))
+  assert.ok(renamed.ok)
+  assert.deepEqual(renamed.stored.filter((o) => o.removed).map((o) => o.id), ["o3"])
+  // Two removals across saves both stay reserved.
+  const again = planFieldUpdate(added.field, { options: [{ id: "o1", label: "Not started" }] }, {}, readRemovedOptions(added.stored))
+  assert.ok(again.ok)
+  assert.deepEqual(readRemovedOptions(again.stored).map((o) => o.id).sort(), ["o2", "o3", "o4"])
+  const next = planFieldUpdate(again.field, { options: [{ id: "o1", label: "Not started" }, { id: null, label: "E" }] }, {}, readRemovedOptions(again.stored))
+  assert.ok(next.ok)
+  assert.equal(next.field.options[1].id, "o5")
 })
 
 test("update plan: done option must be an option, and only on a single-select", () => {

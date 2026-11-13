@@ -423,6 +423,31 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       assert.ok(del2.ok)
     })
 
+    it("B40fix (F5): a removed option's id is never reused (remove, save, add)", async () => {
+      const made = await createCustomField(projectId, OWNER, {
+        name: "Stage", field_type: "single_select",
+        options: [{ id: "o1", label: "A" }, { id: "o2", label: "B" }, { id: "o3", label: "C" }], done_option: null,
+      }, database)
+      assert.ok(made.ok)
+      const fid = made.field.id
+      const removed = await updateCustomField(projectId, fid, OWNER, { options: [{ id: "o1", label: "A" }, { id: "o2", label: "B" }] }, database)
+      assert.ok(removed.ok)
+      assert.deepEqual(removed.field.options.map((o) => o.id), ["o1", "o2"])
+      const added = await updateCustomField(projectId, fid, OWNER, { options: [{ id: "o1", label: "A" }, { id: "o2", label: "B" }, { id: null, label: "D" }] }, database)
+      assert.ok(added.ok)
+      assert.deepEqual(added.field.options.map((o) => [o.id, o.label]), [["o1", "A"], ["o2", "B"], ["o4", "D"]], "D is o4, never o3")
+      const listed = await listProjectFields(projectId, OWNER, database)
+      assert.ok(listed.ok)
+      assert.deepEqual(listed.fields.find((f) => f.id === fid)?.options.map((o) => o.id), ["o1", "o2", "o4"], "readers see live options only")
+      const [raw] = await client`SELECT options FROM public.codex_custom_fields WHERE id = ${fid}`
+      assert.deepEqual(raw.options.filter((o: { removed?: boolean }) => o.removed), [{ id: "o3", label: "C", removed: true }])
+      const stale = await updateCustomField(projectId, fid, OWNER, { options: [{ id: "o3", label: "C" }, { id: "o1", label: "A" }] }, database)
+      assert.equal(!stale.ok && stale.reason, "unknown_option", "a removed id never comes back")
+      const value = await updateTaskThroughSections(taskId, {}, OWNER, database, { custom_values: { [String(fid)]: "o3" } })
+      assert.equal(!value.ok && value.reason, "invalid_value", "nor as a value")
+      assert.ok((await deleteCustomField(projectId, fid, OWNER, database)).ok)
+    })
+
     it("card chips: project-wide setting, unknown fields dropped; the board carries fields and settings", async () => {
       const r = await setProjectCardFields(projectId, OWNER, [{ key: `field:${progressId}`, show: false }, { key: "field:999999", show: true }], database)
       assert.ok(r.ok)
