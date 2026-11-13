@@ -57,7 +57,7 @@ import {
 import { projectBoardScope } from "@/lib/codex/projectBoard"
 import {
   applyCustomValuesPatch,
-  valuesCompleteTask,
+  progressPatchDecision,
   readCardFields,
   readStoredOptions,
   readStoredValues,
@@ -141,6 +141,7 @@ export type ProjectFailureReason =
   | "progress_field_invalid"
   // B42fix
   | "assignee_no_access"
+  | "progress_conflict"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -1439,9 +1440,17 @@ async function writeTaskInTx(
     values = applied.values
   }
   // B42 (codex_progress_field): setting the progress field to its done option completes the task.
+  // F7 (B42fix): one rule decides when a status is sent with it (`progressPatchDecision`).
   let effective = patch
-  if (values != null && !hasStatus(patch) && task.status !== "done" && valuesCompleteTask(await loadProgressRule(tx, task.project_id), values)) {
-    effective = { ...patch, status: "done" }
+  if (values != null) {
+    const decision = progressPatchDecision(
+      await loadProgressRule(tx, task.project_id),
+      details.custom_values,
+      hasStatus(patch) ? patch.status : undefined,
+      task.status
+    )
+    if (decision.kind === "conflict") return { ok: false, reason: decision.reason, message: decision.message }
+    if (decision.kind === "complete") effective = { ...patch, status: "done" }
   }
   let plan: Extract<ReturnType<typeof planStatusChangeInProject>, { inProject: true }> | null = null
   let sections: CodexSection[] = []

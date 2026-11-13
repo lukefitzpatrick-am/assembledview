@@ -46,6 +46,7 @@ export const PROJECT_FAILURE_STATUS: Record<ProjectFailureReason, number> = {
   progress_field_invalid: 409,
   // B42fix
   assignee_no_access: 409,
+  progress_conflict: 409,
 }
 
 /** True for the store's "migration 0118 not applied" error, without importing the store. */

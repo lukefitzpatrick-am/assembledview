@@ -496,6 +496,45 @@ export function valuesCompleteTask(rule: ProgressRule | null, values: CustomValu
   return rule != null && values != null && values[String(rule.fieldId)] === rule.doneOption
 }
 
+export type ProgressPatchDecision =
+  | { kind: "none" }
+  | { kind: "complete" }
+  | { kind: "conflict"; reason: "progress_conflict"; message: string }
+
+export const PROGRESS_CONFLICT_OPEN =
+  "Setting the progress field to its done option completes the task, so it cannot be sent with an open status. Send one or the other."
+export const PROGRESS_CONFLICT_DONE =
+  "Completing the task sets the progress field to its done option, so it cannot be set to another option in the same change. Send one or the other."
+
+/**
+ * F7 (B42fix): one rule for a PATCH that may send a status and the progress
+ * field together. Only the field as sent in this change counts (a value
+ * already stored, such as a reopened task's done value, never completes the
+ * task again).
+ * - Status sent: it decides. A done status with the field set to another
+ *   option, or an open status with the field set to its done option, is
+ *   refused (409 `progress_conflict`), nothing changed. A done status sets
+ *   the field (`markProgressDone`).
+ * - No status: the field set to its done option completes an open task.
+ */
+export function progressPatchDecision(
+  rule: ProgressRule | null,
+  patch: CustomValuesPatch | null | undefined,
+  status: string | undefined,
+  currentStatus: string
+): ProgressPatchDecision {
+  if (rule == null || patch == null) return { kind: "none" }
+  const key = String(rule.fieldId)
+  if (!Object.prototype.hasOwnProperty.call(patch, key)) return { kind: "none" }
+  const setsDone = patch[key] === rule.doneOption
+  if (status !== undefined) {
+    if (status === "done" && !setsDone) return { kind: "conflict", reason: "progress_conflict", message: PROGRESS_CONFLICT_DONE }
+    if (status !== "done" && setsDone) return { kind: "conflict", reason: "progress_conflict", message: PROGRESS_CONFLICT_OPEN }
+    return { kind: "none" }
+  }
+  return setsDone && currentStatus !== "done" ? { kind: "complete" } : { kind: "none" }
+}
+
 /** Completing a task sets the field to the done option: the values after, or null when already set. */
 export function valuesOnComplete(rule: ProgressRule, values: CustomValues | null | undefined): CustomValues | null {
   const current = values ?? {}

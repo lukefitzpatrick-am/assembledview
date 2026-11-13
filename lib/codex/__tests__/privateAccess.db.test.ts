@@ -252,6 +252,10 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     }
   })
 
+  // -------------------------------------------------------------------------
+  // F5
+  // -------------------------------------------------------------------------
+
   it("F5: PATCH refuses an assignee outside the private project, nothing changed; members and public projects are fine", async () => {
     const id = await task("assign", priv, { section: sec["priv:To do"], assignee: null })
     await assert.rejects(updateTask(id, { assigneeEmail: OUT, title: "changed" }, OLIVE, database), (e: Error) => e.name === "AssigneeNoAccessError" && /not a member of this private project/.test(e.message))
@@ -305,6 +309,10 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     assert.equal(again.ok ? "ok" : again.reason, "assignee_no_access")
     assert.ok((await moveTaskToSection(pub, sec["pub:To do"], OLIVE, { task_id: mine, sort_order: null }, database)).ok)
   })
+
+  // -------------------------------------------------------------------------
+  // F1
+  // -------------------------------------------------------------------------
 
   it("F1: Ask for help to someone outside the private project is refused (409), nothing written", async () => {
     const parent = await task("Secret launch plan", priv, { section: sec["priv:To do"] })
@@ -381,6 +389,10 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     assert.deepEqual((await getTask(parent, database, OUT))?.children?.map((c) => c.id), [])
     assert.deepEqual((await getTask(parent, database, MIA))?.children?.map((c) => c.id), [helpId])
   })
+
+  // -------------------------------------------------------------------------
+  // F2
+  // -------------------------------------------------------------------------
 
   it("F2: accepting a meeting action never flags a duplicate against a task the person cannot see", async () => {
     await task("Wombat audit", priv, { section: sec["priv:To do"] })

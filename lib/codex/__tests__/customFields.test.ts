@@ -247,3 +247,19 @@ test("progress rule: the done option completes; completing sets it once", async 
   assert.equal(valuesOnComplete(rule, { "4": "o2" }), null, "already set: nothing to write")
   assert.deepEqual(valuesOnComplete(rule, null), { "4": "o2" })
 })
+
+test("F7 (B42fix): progressPatchDecision: a status decides; disagreeing with the field sent is a conflict; only the field as sent completes", async () => {
+  const { progressPatchDecision } = await import("../customFields.js")
+  const rule = { fieldId: 4, doneOption: "o2" }
+  const kind = (r: ReturnType<typeof progressPatchDecision>) => (r.kind === "conflict" ? r.reason : r.kind)
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, undefined, "todo")), "complete")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, undefined, "done")), "none")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, undefined, "todo")), "none")
+  assert.equal(kind(progressPatchDecision(rule, { "5": "x" }, undefined, "todo")), "none", "another field: a stored done value does not count")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, "todo", "todo")), "progress_conflict")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, "done", "todo")), "progress_conflict")
+  assert.equal(kind(progressPatchDecision(rule, { "4": null }, "done", "todo")), "progress_conflict", "clearing it while completing")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, "done", "todo")), "none")
+  assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, "in_progress", "todo")), "none")
+  assert.equal(kind(progressPatchDecision(null, { "4": "o2" }, "todo", "todo")), "none", "no rule (switch off or no link)")
+})

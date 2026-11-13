@@ -171,6 +171,28 @@ describe("the progress field rule (Postgres, 0118 applied)", { skip }, () => {
     assert.deepEqual(await state(id), { status: "todo", section: sec["Inbound"], value: DONE })
   })
 
+  it("F7: a status and the progress field in one PATCH must agree, else 409 progress_conflict and nothing changed", async () => {
+    const id = await task("conflict", "This week", "in_progress")
+    const open = await updateTaskThroughSections(id, { status: "todo" }, OWNER, database, { custom_values: { [String(progress)]: DONE } })
+    assert.equal(open.ok ? "ok" : open.reason, "progress_conflict")
+    assert.deepEqual(await state(id), { status: "in_progress", section: sec["This week"], value: null })
+    const done = await updateTaskThroughSections(id, { status: "done" }, OWNER, database, { custom_values: { [String(progress)]: STARTED } })
+    assert.equal(done.ok ? "ok" : done.reason, "progress_conflict")
+    assert.deepEqual(await state(id), { status: "in_progress", section: sec["This week"], value: null })
+    // Agreeing: done with the done option, an open status with another option.
+    assert.ok((await updateTaskThroughSections(id, { status: "todo" }, OWNER, database, { custom_values: { [String(progress)]: STARTED } })).ok)
+    assert.deepEqual(await state(id), { status: "todo", section: sec["Inbound"], value: STARTED })
+    assert.ok((await updateTaskThroughSections(id, { status: "done" }, OWNER, database, { custom_values: { [String(progress)]: DONE } })).ok)
+    assert.deepEqual(await state(id), { status: "done", section: sec["Published"], value: DONE })
+  })
+
+  it("F7: a done value already stored never completes a reopened task again when another field changes", async () => {
+    const id = await task("reopened", "Inbound", "todo")
+    await client`UPDATE public.tasks SET custom_values = ${JSON.stringify({ [String(progress)]: DONE })}::jsonb WHERE id = ${id}`
+    assert.ok((await updateTaskThroughSections(id, {}, OWNER, database, { custom_values: { [String(noDone)]: "o1" } })).ok)
+    assert.deepEqual(await state(id), { status: "todo", section: sec["Inbound"], value: DONE })
+  })
+
   it("a help child finishing restores the parent; a parent restored to done is not a case (prior status is open)", async () => {
     const id = await task("help", "This week", "in_progress")
     const { child } = await requestHelp(id, { assigneeEmail: HELPER, ask: "Check" }, { email: OWNER }, database)
