@@ -41,3 +41,16 @@ export async function isCodexProjectsEnabled(): Promise<boolean> {
   const [codex, projects] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_projects")])
   return codex && projects
 }
+
+/**
+ * Codex notifications (B41): codex_notifications, which needs codex_projects
+ * and codex_v2. Off: no bell, no notifications written, the cron skips.
+ */
+export async function isCodexNotificationsEnabled(): Promise<boolean> {
+  const [codex, projects, notifications] = await Promise.all([
+    isFeatureOn("codex_v2"),
+    isFeatureOn("codex_projects"),
+    isFeatureOn("codex_notifications"),
+  ])
+  return codex && projects && notifications
+}

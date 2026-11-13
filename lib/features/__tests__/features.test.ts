@@ -186,6 +186,16 @@ test("codex_projects (S1, B38): new switch, default off, no env fallback, needs 
   }
 })
 
+test("codex_notifications (B41): new switch, default off, no env fallback, needs codex_projects, sent to the browser", () => {
+  const def = featureDefinition("codex_notifications")!
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.deepEqual(def.requires, ["codex_projects"])
+  assert.equal(def.clientVisible, true)
+  assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("codex_notifications"))
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+})
+
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {
   let enabled = false
   try {

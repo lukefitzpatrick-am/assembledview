@@ -15,7 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { CheckSquare, ListTree, MessageSquare } from "lucide-react"
+import { CheckSquare, ListTree, MessageSquare, Paperclip } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { TASK_PRIORITY, TONE_TEXT, type Tone } from "@/lib/design/status"
@@ -99,6 +99,7 @@ function TaskBoardCardFace({
   const total = task.checklist_total ?? 0
   const subtasks = task.subtask_count ?? 0
   const comments = task.comment_count ?? 0
+  const attachments = task.attachment_count ?? 0
   const priority = String(task.priority ?? "normal")
 
   return (
@@ -178,6 +179,12 @@ function TaskBoardCardFace({
           <span className="inline-flex items-center gap-1 num" title={`${comments} comment${comments === 1 ? "" : "s"}`}>
             <MessageSquare className="h-3 w-3" aria-hidden />
             {comments}
+          </span>
+        ) : null}
+        {attachments > 0 ? (
+          <span className="inline-flex items-center gap-1 num" title={`${attachments} attachment${attachments === 1 ? "" : "s"}`}>
+            <Paperclip className="h-3 w-3" aria-hidden />
+            {attachments}
           </span>
         ) : null}
         {task.estimated_minutes != null && task.estimated_minutes > 0 ? (

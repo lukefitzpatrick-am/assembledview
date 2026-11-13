@@ -123,6 +123,10 @@ export type ProjectFailureReason =
   | "unknown_option"
   | "invalid_done_option"
   | "too_many_fields"
+  // B41
+  | "follower_no_access"
+  | "not_uploader"
+  | "too_many_attachments"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -929,7 +933,8 @@ async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Pro
              t.due_on::text AS due_on, t.assigned_by_email, t.custom_values,
              (SELECT count(*)::int FROM public.tasks c
                WHERE c.parent_task_id = t.id AND c.deleted_at IS NULL AND c.task_type = 'subtask') AS subtask_count,
-             (SELECT count(*)::int FROM public.task_comments m WHERE m.task_id = t.id) AS comment_count
+             (SELECT count(*)::int FROM public.task_comments m WHERE m.task_id = t.id) AS comment_count,
+             (SELECT count(*)::int FROM public.task_attachments a WHERE a.task_id = t.id) AS attachment_count
         FROM public.tasks t
        WHERE t.id IN (${idList(ids)})
     `)
@@ -945,6 +950,7 @@ async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Pro
       sort_order: num(r?.sort_order),
       subtask_count: Number(r?.subtask_count ?? 0) || 0,
       comment_count: Number(r?.comment_count ?? 0) || 0,
+      attachment_count: Number(r?.attachment_count ?? 0) || 0,
       ...s1FieldsFromRow(r),
     }
   })
@@ -973,7 +979,8 @@ export async function attachTaskS1Fields(items: CodexTask[], database: Db = db):
     const rows = executeRows(
       await database.execute(sql`
         SELECT id, project_id, section_id, sort_order, task_type, start_on::text AS start_on, due_on::text AS due_on,
-               assigned_by_email, custom_values
+               assigned_by_email, custom_values,
+               (SELECT count(*)::int FROM public.task_attachments a WHERE a.task_id = tasks.id) AS attachment_count
           FROM public.tasks WHERE id IN (${idList(ids)})
       `)
     )
@@ -982,7 +989,14 @@ export async function attachTaskS1Fields(items: CodexTask[], database: Db = db):
     return items.map((t) => {
       const r = byId.get(Number(t.id))
       if (!r) return t
-      return { ...t, project_id: num(r.project_id), section_id: num(r.section_id), sort_order: num(r.sort_order), ...s1FieldsFromRow(r) }
+      return {
+        ...t,
+        project_id: num(r.project_id),
+        section_id: num(r.section_id),
+        sort_order: num(r.sort_order),
+        attachment_count: Number(r.attachment_count ?? 0) || 0,
+        ...s1FieldsFromRow(r),
+      }
     })
   } catch (err) {
     if (isMissingProjectsSchema(err)) {

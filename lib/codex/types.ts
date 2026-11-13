@@ -132,6 +132,8 @@ export type CodexTask = {
   /** Project board cards: live subtasks (task_type subtask) and comments. */
   subtask_count?: number
   comment_count?: number
+  /** B41: attachments on the task (board cards; codex_projects on, after 0118). */
+  attachment_count?: number
   /** B40 (after 0118, codex_projects on): type, dates, assigned by and field values. */
   task_type?: string | null
   start_on?: string | null
@@ -212,6 +214,8 @@ export type TaskComment = {
   author_email: string | null
   author_name: string | null
   author_kind: "user" | "ava"
+  /** B41: people the server resolved from @tokens (codex_projects on, after 0118). */
+  mentions?: Array<{ email: string; name: string; token: string }>
 }
 
 /** Append-only activity row (snake_case API). */

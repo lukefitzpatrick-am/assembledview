@@ -35,6 +35,10 @@ export const PROJECT_FAILURE_STATUS: Record<ProjectFailureReason, number> = {
   unknown_option: 409,
   invalid_done_option: 400,
   too_many_fields: 409,
+  // B41
+  follower_no_access: 409,
+  not_uploader: 403,
+  too_many_attachments: 409,
 }
 
 /** True for the store's "migration 0118 not applied" error, without importing the store. */
