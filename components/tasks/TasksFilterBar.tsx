@@ -33,9 +33,10 @@ import {
 import {
   STATUSES,
   TASK_CATEGORY_OPTIONS,
-  TASK_PRIORITIES,
   categoryLabel,
   statusMeta,
+  taskPriorityChoices,
+  taskPriorityLabel,
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
 
@@ -67,7 +68,7 @@ function sourceLabel(value: string): string {
 }
 
 function priorityLabel(value: string): string {
-  return TASK_PRIORITIES.find((option) => option.value === value)?.label ?? value
+  return taskPriorityLabel(value)
 }
 
 type ClientOpt = { id: number; label: string }
@@ -82,6 +83,8 @@ export type TasksFilterBarProps = {
   categoryFilter: string
   statusFilter: string[]
   priorities: string[]
+  /** B40fix: offer ASAP (codex_projects on and 0118 applied). An ASAP filter already set still shows. */
+  showAsap?: boolean
   overdue: boolean
   unassigned: boolean
   noClient: boolean
@@ -148,6 +151,7 @@ export function TasksFilterBar({
   categoryFilter,
   statusFilter,
   priorities,
+  showAsap = false,
   overdue,
   unassigned,
   noClient,
@@ -435,15 +439,17 @@ export function TasksFilterBar({
                 onValueChange={onPriorities}
                 aria-label="Priority"
               >
-                {[...TASK_PRIORITIES].toReversed().map((priority) => (
-                  <ToggleGroupItem
-                    key={priority.value}
-                    value={priority.value}
-                    aria-label={priority.label}
-                  >
-                    {priority.label}
-                  </ToggleGroupItem>
-                ))}
+                {taskPriorityChoices(showAsap || priorities.includes("asap"))
+                  .toReversed()
+                  .map((priority) => (
+                    <ToggleGroupItem
+                      key={priority.value}
+                      value={priority.value}
+                      aria-label={priority.label}
+                    >
+                      {priority.label}
+                    </ToggleGroupItem>
+                  ))}
               </ToggleGroup>
             </div>
             <div className="flex items-center justify-between gap-2">

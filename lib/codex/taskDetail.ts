@@ -33,6 +33,16 @@ export const SUBTASKS_PER_TASK_MAX = 100
 /** Priorities once 0118 widens the check. `asap` is refused before it. */
 export const S1_PRIORITIES = ["low", "normal", "high", "asap"] as const
 
+/**
+ * B40fix: the task detail offers ASAP only with codex_projects on and once the
+ * project panel's read has answered (0118 applied; before it the read is 503
+ * and saving ASAP would be a 503 too). A task already ASAP keeps the choice.
+ */
+export function asapOffered(projectsOn: boolean, projectsReady: boolean, current: string | null | undefined): boolean {
+  if (current === "asap") return true
+  return projectsOn && projectsReady
+}
+
 export function isTaskType(value: unknown): value is TaskType {
   return typeof value === "string" && (TASK_TYPES as readonly string[]).includes(value)
 }

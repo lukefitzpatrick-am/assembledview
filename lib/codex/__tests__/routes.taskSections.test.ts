@@ -69,6 +69,7 @@ if (supportsMockModule()) {
             : { ok: true, task: TASK }
       }),
       attachTaskS1Fields: record("attachTaskS1Fields", () => [{ ...TASK, task_type: "subtask" }]),
+      isProjectsMigrationApplied: async () => mode !== "unavailable",
       bulkUpdateTasksThroughSections: record("bulkUpdateTasksThroughSections", () => {
         if (mode === "refused") throw new CodexBulkError(7, 409, "Task 7: No section in this task's project has the Backlog status.")
         return mode === "plain" ? null : [TASK]
@@ -273,8 +274,16 @@ test("GET list: rows carry the B40 fields only with the switch on", { skip }, as
   const list = await import("../../../app/api/codex/tasks/route.js")
   calls.length = 0
   const off = await withProjects(false, () => list.GET(new Request("http://l/api/codex/tasks")))
-  assert.deepEqual(((await off.json()) as { items: unknown[] }).items, [TASK])
+  const offBody = (await off.json()) as { items: unknown[]; projects_ready?: boolean }
+  assert.deepEqual(offBody.items, [TASK])
+  assert.equal("projects_ready" in offBody, false, "switch off: the response is as before")
   const on = await withProjects(true, () => list.GET(new Request("http://l/api/codex/tasks")))
-  assert.deepEqual(((await on.json()) as { items: Array<{ task_type?: string }> }).items[0].task_type, "subtask")
+  const onBody = (await on.json()) as { items: Array<{ task_type?: string }>; projects_ready?: boolean }
+  assert.deepEqual(onBody.items[0].task_type, "subtask")
+  assert.equal(onBody.projects_ready, true, "B40fix: 0118 applied, so the page may offer ASAP")
   assert.deepEqual(calls.map((c) => c.fn), ["listTasks", "listTasks", "attachTaskS1Fields"])
+  mode = "unavailable"
+  const before = await withProjects(true, () => list.GET(new Request("http://l/api/codex/tasks")))
+  assert.equal(((await before.json()) as { projects_ready?: boolean }).projects_ready, false, "before 0118: no ASAP")
+  mode = "ok"
 })

@@ -112,9 +112,9 @@ import {
 import {
   STATUSES,
   TASK_CATEGORIES,
-  TASK_PRIORITIES,
   TASK_STATUSES,
   categoryLabel,
+  taskPriorityLabel,
   isTaskCategory,
   statusMeta,
   type CodexPagedResponse,
@@ -472,6 +472,8 @@ export function TasksPageClient({
   const urlFilters = parseTasksFilterParams(seededSearchParams)
   /** Projects tab (B39): only with codex_projects on; `?tab=projects` opens it. */
   const projectsOn = clientFeatureOn("codex_projects")
+  /** B40fix: the Tasks GET says 0118 is applied (codex_projects on); ASAP is offered as a filter only then. */
+  const [projectsReady, setProjectsReady] = useState(false)
   const [mainTab, setMainTab] = useState<
     "tasks" | "team" | "templates" | "inbox" | "projects"
   >(() => (projectsOn && seededSearchParams.get("tab") === "projects" ? "projects" : "tasks"))
@@ -1166,9 +1168,10 @@ export function TasksPageClient({
             : null) || "Failed to fetch tasks"
         )
       }
-      const data = (await response.json()) as CodexPagedResponse<CodexTask>
+      const data = (await response.json()) as CodexPagedResponse<CodexTask> & { projects_ready?: boolean }
       if (controller.signal.aborted || tasksFetchAbort.current !== controller) return
       setTasks(Array.isArray(data.items) ? data.items : [])
+      setProjectsReady(data.projects_ready === true)
       setItemsTotal(typeof data.itemsTotal === "number" ? data.itemsTotal : 0)
       setNextPage(
         typeof data.nextPage === "number"
@@ -2503,8 +2506,7 @@ export function TasksPageClient({
         ),
         cell: ({ row }) => {
           const value = row.original.priority
-          const label = TASK_PRIORITIES.find((p) => p.value === value)?.label
-          return <span>{label ?? (value ? String(value) : "—")}</span>
+          return <span>{value ? taskPriorityLabel(value) : "—"}</span>
         },
       },
       {
@@ -2985,6 +2987,7 @@ export function TasksPageClient({
             categoryFilter={categoryFilter}
             statusFilter={statusFilter}
             priorities={priorities}
+            showAsap={projectsOn && projectsReady}
             overdue={overdue}
             unassigned={unassigned}
             noClient={noClient}

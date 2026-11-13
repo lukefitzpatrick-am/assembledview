@@ -6,6 +6,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
+  asapOffered,
   assignedByAfterAssign,
   assigneeChanged,
   checkSubtaskOrder,
@@ -18,7 +19,29 @@ import {
   SUBTASKS_PER_TASK_MAX,
   taskTypeBadge,
 } from "../taskDetail.js"
-import { validateTaskInput } from "../types.js"
+import { taskPriorityChoices, taskPriorityLabel, validateTaskInput } from "../types.js"
+import { compareTasksForSort, parseTaskPriorityFilter } from "../queryHelpers.js"
+
+test("B40fix (F6): on the Tasks page ASAP sorts above High, reads ASAP, filters, and is offered only once 0118 answers", () => {
+  const rows = [
+    { id: 1, priority: "low", due_date: null },
+    { id: 2, priority: "high", due_date: null },
+    { id: 3, priority: "asap", due_date: null },
+    { id: 4, priority: "normal", due_date: null },
+    { id: 5, priority: null, due_date: null },
+  ]
+  assert.deepEqual([...rows].sort((a, b) => compareTasksForSort(a, b, "priority_desc")).map((r) => r.priority), ["asap", "high", "normal", "low", null])
+  assert.deepEqual(parseTaskPriorityFilter("asap,high,bogus"), ["asap", "high"])
+  assert.equal(taskPriorityLabel("asap"), "ASAP")
+  assert.equal(taskPriorityLabel("high"), "High")
+  assert.equal(taskPriorityLabel(null), "Normal")
+  assert.deepEqual(taskPriorityChoices(false).map((p) => p.value), ["low", "normal", "high"])
+  assert.deepEqual(taskPriorityChoices(true).map((p) => p.value), ["low", "normal", "high", "asap"])
+  assert.equal(asapOffered(true, true, "normal"), true)
+  assert.equal(asapOffered(true, false, "normal"), false, "before the panel's read answers (503 before 0118)")
+  assert.equal(asapOffered(false, true, "high"), false, "switch off")
+  assert.equal(asapOffered(false, false, "asap"), true, "a task already ASAP keeps its choice")
+})
 
 test("assigned by: someone else gets it, the saver is assigned by; self or nobody clears", () => {
   assert.equal(assignedByAfterAssign("Mia@AM.com.au", "luke@am.com.au"), "luke@am.com.au")

@@ -34,8 +34,8 @@ import {
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import {
-  TASK_PRIORITIES,
   isTaskStatus,
+  taskPriorityLabel,
   statusMeta,
   type CodexTask,
   type TaskStatus,
@@ -54,9 +54,7 @@ function priorityTone(value: string): Tone {
 }
 
 function priorityLabel(value: string | null | undefined): string {
-  if (value === "asap") return "ASAP"
-  const found = TASK_PRIORITIES.find((p) => p.value === value)
-  return found?.label ?? (value ? String(value) : "Normal")
+  return taskPriorityLabel(value)
 }
 
 function columnDropId(key: string): string {

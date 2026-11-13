@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest"
+import { act } from "react"
+import { createRoot } from "react-dom/client"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import type { TeamMember } from "@/lib/codex/types"
 
-import { TaskProjectPanelView, type TaskProjectDetailData, type TaskProjectPanelViewProps } from "../TaskProjectPanel"
+import { TaskProjectPanel, TaskProjectPanelView, type TaskProjectDetailData, type TaskProjectPanelViewProps } from "../TaskProjectPanel"
 
 const MEMBERS: TeamMember[] = [
   {
@@ -127,5 +129,37 @@ describe("TaskProjectPanelView", () => {
     )
     expect(hidden).toContain("private project")
     expect(hidden).not.toContain("Subtasks")
+  })
+})
+
+describe("TaskProjectPanel tells the detail whether 0118 answered (B40fix F6: ASAP is offered only then)", () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.body.innerHTML = ""
+  })
+
+  async function mount(response: { ok: boolean; status: number; body?: unknown }): Promise<boolean[]> {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: response.ok, status: response.status, json: async () => response.body })))
+    const seen: boolean[] = []
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(<TaskProjectPanel taskId={7} members={MEMBERS} meEmail="luke@x.au" onChanged={noop} onLoaded={(v) => seen.push(v)} />)
+    })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    act(() => root.unmount())
+    return seen
+  }
+
+  it("503 before 0118: not loaded, and the panel renders nothing", async () => {
+    expect(await mount({ ok: false, status: 503 })).toEqual([false])
+  })
+
+  it("200 after 0118: loaded", async () => {
+    expect(await mount({ ok: true, status: 200, body: DATA })).toEqual([true])
   })
 })

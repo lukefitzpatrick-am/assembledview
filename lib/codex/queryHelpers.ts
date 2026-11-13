@@ -22,7 +22,8 @@ export function parseStatusFilter(raw: string | null): string[] | undefined {
   return parts.length ? parts : undefined
 }
 
-const TASK_PRIORITY_VALUES = new Set(["high", "normal", "low"])
+/** B40fix: `asap` filters too (no row has it before 0118, so it finds nothing there). */
+const TASK_PRIORITY_VALUES = new Set(["asap", "high", "normal", "low"])
 const TASK_SOURCE_VALUES = new Set([
   "manual",
   "ava",
@@ -108,11 +109,13 @@ export type TaskSortable = {
   priority?: string | null
 }
 
+/** ASAP above High (B40fix); the same order as `taskListOrder` in repo.ts. */
 function priorityRank(priority: string | null | undefined): number {
-  if (priority === "high") return 0
-  if (priority === "normal") return 1
-  if (priority === "low") return 2
-  return 3
+  if (priority === "asap") return 0
+  if (priority === "high") return 1
+  if (priority === "normal") return 2
+  if (priority === "low") return 3
+  return 4
 }
 
 /** Null and blank dues sort after every dated row, in both directions. */

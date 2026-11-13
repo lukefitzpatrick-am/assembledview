@@ -114,10 +114,12 @@ export async function GET(request: Request) {
 
     const data = await listTasks(parsed.filters)
     // codex_projects (B40): rows carry type, dates, assigned by and field values
-    // (a subtask shows as one, not as a help request). Off: as before.
+    // (a subtask shows as one, not as a help request), and `projects_ready`
+    // says 0118 is applied (the page offers ASAP only then, B40fix). Off: as before.
     if (await isCodexProjectsEnabled()) {
-      const { attachTaskS1Fields } = await import("@/lib/codex/projectsRepo")
+      const { attachTaskS1Fields, isProjectsMigrationApplied } = await import("@/lib/codex/projectsRepo")
       data.items = await attachTaskS1Fields(data.items)
+      return NextResponse.json({ ...data, projects_ready: await isProjectsMigrationApplied() })
     }
 
     return NextResponse.json(data)

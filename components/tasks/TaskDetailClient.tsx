@@ -27,11 +27,11 @@ import { formatActivityDiff } from "@/lib/codex/activityDiff"
 import {
   STATUSES,
   TASK_CATEGORIES,
-  TASK_PRIORITIES,
   categoryLabel,
   isTaskCategory,
   isTaskStatus,
   statusMeta,
+  taskPriorityChoices,
   type ChecklistItem,
   type CodexActivity,
   type CodexPagedResponse,
@@ -58,6 +58,7 @@ import {
 import { TaskChecklist } from "@/components/tasks/TaskChecklist"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TaskProjectPanel } from "@/components/tasks/TaskProjectPanel"
+import { asapOffered } from "@/lib/codex/taskDetail"
 import { clientFeatureOn } from "@/lib/features/client"
 
 type ClientOption = {
@@ -133,6 +134,8 @@ export function TaskDetailClient({ taskId }: Props) {
   const meEmail = (user?.email ?? "").trim().toLowerCase() || null
   /** Project details, subtasks, fields and ASAP (B40): codex_projects on. */
   const projectsOn = clientFeatureOn("codex_projects")
+  /** B40fix: the project panel's read answered (0118 applied), so ASAP can be saved. */
+  const [projectsReady, setProjectsReady] = useState(false)
 
   const [task, setTask] = useState<CodexTask | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -942,12 +945,11 @@ export function TaskDetailClient({ taskId }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TASK_PRIORITIES.map((p) => (
+              {taskPriorityChoices(asapOffered(projectsOn, projectsReady, priority)).map((p) => (
                 <SelectItem key={p.value} value={p.value}>
                   {p.label}
                 </SelectItem>
               ))}
-              {projectsOn ? <SelectItem value="asap">ASAP</SelectItem> : null}
             </SelectContent>
           </Select>
         </div>
@@ -1145,6 +1147,7 @@ export function TaskDetailClient({ taskId }: Props) {
           meEmail={meEmail}
           reloadKey={task.updated_at}
           onChanged={() => void loadAll()}
+          onLoaded={setProjectsReady}
         />
       ) : null}
 

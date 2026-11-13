@@ -144,7 +144,7 @@ function taskListOrder(sort: TaskSortKey): SQL[] {
   }
   if (sort === "priority_desc") {
     return [
-      sql`case ${tasks.priority} when 'high' then 0 when 'normal' then 1 when 'low' then 2 else 3 end`,
+      sql`case ${tasks.priority} when 'asap' then 0 when 'high' then 1 when 'normal' then 2 when 'low' then 3 else 4 end`,
       sql`${tasks.dueDate} asc nulls last`,
       id,
     ]

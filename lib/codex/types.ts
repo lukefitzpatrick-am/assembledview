@@ -41,6 +41,21 @@ export const TASK_PRIORITIES = [
   { value: "high" as const, label: "High" },
 ]
 
+/** ASAP (B40): saved only after 0118 with codex_projects on; ranks above High. */
+export const TASK_PRIORITY_ASAP = { value: "asap" as const, label: "ASAP" }
+
+/** Priority choices, lowest first; ASAP last when it may be offered. */
+export function taskPriorityChoices(withAsap: boolean): Array<{ value: string; label: string }> {
+  return withAsap ? [...TASK_PRIORITIES, TASK_PRIORITY_ASAP] : [...TASK_PRIORITIES]
+}
+
+/** A priority as a word ("ASAP", "High"); an unknown value as itself, none as "Normal". */
+export function taskPriorityLabel(value: string | null | undefined): string {
+  if (value === TASK_PRIORITY_ASAP.value) return TASK_PRIORITY_ASAP.label
+  const found = TASK_PRIORITIES.find((p) => p.value === value)
+  return found?.label ?? (value ? String(value) : "Normal")
+}
+
 export const TASK_CATEGORIES = [
   "reporting",
   "pacing",

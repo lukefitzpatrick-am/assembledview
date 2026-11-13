@@ -360,6 +360,7 @@ export function TaskProjectPanel({
   meEmail,
   reloadKey,
   onChanged,
+  onLoaded,
 }: {
   taskId: number
   members: readonly TeamMember[]
@@ -367,6 +368,8 @@ export function TaskProjectPanel({
   /** Changes when the detail reloads, so the panel reloads too. */
   reloadKey?: unknown
   onChanged: () => void
+  /** B40fix: true once the read answers (0118 applied), false on 503 or any failure. */
+  onLoaded?: (loaded: boolean) => void
 }) {
   const { toast } = useToast()
   const [data, setData] = useState<TaskProjectDetailData | null>(null)
@@ -379,19 +382,28 @@ export function TaskProjectPanel({
       try {
         const res = await fetch(`/api/codex/tasks/${taskId}/project`, { cache: "no-store" })
         if (!res.ok) {
-          if (!cancelled) setData(null)
+          if (!cancelled) {
+            setData(null)
+            onLoaded?.(false)
+          }
           return
         }
         const body = (await res.json()) as TaskProjectDetailData
-        if (!cancelled) setData(body)
+        if (!cancelled) {
+          setData(body)
+          onLoaded?.(true)
+        }
       } catch {
-        if (!cancelled) setData(null)
+        if (!cancelled) {
+          setData(null)
+          onLoaded?.(false)
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [taskId, tick, reloadKey])
+  }, [taskId, tick, reloadKey, onLoaded])
 
   const run = useCallback(
     async (url: string, init: RequestInit, failTitle: string): Promise<boolean> => {

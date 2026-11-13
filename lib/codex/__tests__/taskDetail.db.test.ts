@@ -20,7 +20,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
-import { createTask, getTask, requestHelp, softDeleteTask, updateTask } from "../repo.js"
+import { createTask, getTask, listTasks, requestHelp, softDeleteTask, updateTask } from "../repo.js"
 import { CodexBulkError } from "../repo.js"
 import {
   bulkUpdateTasksThroughSections,
@@ -377,6 +377,19 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       assert.equal(row.due_on, "2026-11-25")
       const [p] = await client`SELECT priority FROM public.tasks WHERE id = ${taskId}`
       assert.equal(p.priority, "asap")
+    })
+
+    it("B40fix (F6): the Tasks list sorts ASAP above High and filters it", async () => {
+      const ids: number[] = []
+      for (const priority of ["low", "high", "asap", "normal"]) {
+        const [row] = await client`INSERT INTO public.tasks (title, client_id, priority) VALUES (${`prio-f6 ${priority}`}, 42, ${priority}) RETURNING id`
+        ids.push(Number(row.id))
+      }
+      const sorted = await listTasks({ q: "prio-f6", sort: "priority_desc" }, database)
+      assert.deepEqual(sorted.items.map((t) => t.priority), ["asap", "high", "normal", "low"])
+      const only = await listTasks({ q: "prio-f6", priority: "asap" }, database)
+      assert.deepEqual(only.items.map((t) => t.priority), ["asap"])
+      await client`DELETE FROM public.tasks WHERE id IN ${client(ids)}`
     })
 
     it("custom fields: create, values checked against the options, rename keeps values, used option and valued field refused", async () => {
