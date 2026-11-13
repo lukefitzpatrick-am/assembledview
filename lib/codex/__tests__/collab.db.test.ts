@@ -66,6 +66,21 @@ CREATE TABLE public.codex_activity (id bigint generated always as identity prima
 INSERT INTO public.clients (id) VALUES (42);
 `
 
+// C-269: the digest skips people in quiet hours (18:00 to 08:00 Melbourne) on the run clock,
+// and only reads notifications from the last DIGEST_LOOKBACK_DAYS before it. These tests run
+// the digest at the next 10:00 Melbourne after the test starts: always daytime, always within
+// the lookback, and later than every row the tests write.
+function nextMelbourneTenAm(from: number): Date {
+  const hourFmt = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", hourCycle: "h23" })
+  let t = Math.ceil(from / 3_600_000) * 3_600_000 + 60_000
+  for (let i = 0; i < 26; i += 1) {
+    if (Number(hourFmt.format(new Date(t))) === 10) return new Date(t)
+    t += 3_600_000
+  }
+  throw new Error("no 10:00 Melbourne within 26 hours")
+}
+const DIGEST_DAYTIME = nextMelbourneTenAm(Date.now())
+
 const RAW_URL = process.env.CODEX_PROJECTS_TEST_DATABASE_URL?.trim() ?? ""
 
 function collabUrl(url: string): string | null {
@@ -349,7 +364,7 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     await client`UPDATE public.team_members SET active = false WHERE email = ${JOSH}`
     try {
       const sent: string[] = []
-      const r = await runDigest(new Date(Date.now() + 60_000), async (m) => void sent.push(m.to), () => "", database)
+      const r = await runDigest(DIGEST_DAYTIME, async (m) => void sent.push(m.to), () => "", database)
       assert.deepEqual(sent, [OWNER])
       assert.equal(r.people, 1)
     } finally {
@@ -630,7 +645,7 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     assert.equal((await listBell(ELLIE, 30, database)).email_digest, false)
     void josh
 
-    const now = new Date(Date.now() + 60_000)
+    const now = DIGEST_DAYTIME
     // 08:30 Melbourne on the same calendar instant is not needed: use quiet hours that never apply.
     await client`INSERT INTO public.codex_notification_prefs (email, quiet_start, quiet_end) VALUES (${MIA}, '00:00', '00:00')`
     await client`INSERT INTO public.codex_notification_prefs (email, quiet_start, quiet_end) VALUES (${OWNER}, '00:00', '23:59')`
@@ -668,7 +683,7 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     await client`DELETE FROM public.codex_project_members WHERE project_id = ${privateProject} AND email = ${MIA}`
     try {
       const sent: Array<{ to: string; html: string }> = []
-      const r = await runDigest(new Date(Date.now() + 60_000), async (m) => void sent.push(m), (d) => d.tasks.map((t) => t.title).join("|"), database)
+      const r = await runDigest(DIGEST_DAYTIME, async (m) => void sent.push(m), (d) => d.tasks.map((t) => t.title).join("|"), database)
       assert.deepEqual(sent.map((m) => [m.to, m.html]), [[MIA, "Digest open"]])
       assert.equal(r.notifications, 1)
       const [left] = await client`SELECT email_digest_at FROM public.codex_notifications WHERE task_id = ${priv}`
