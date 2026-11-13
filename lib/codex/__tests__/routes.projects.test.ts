@@ -129,6 +129,14 @@ test("every method: codex_v2 off 404, codex_projects off 404, no session 401, cl
   assert.deepEqual(await withSwitches(false, true, () => statuses(all)), all.map(() => 404), "codex_v2 off")
   assert.deepEqual(await withSwitches(true, false, () => statuses(all)), all.map(() => 404), "codex_projects off")
   assert.deepEqual(await withSwitches(false, false, () => statuses(all)), all.map(() => 404), "both off")
+  // STACKfix (stack review L2): the codex_projects 404 comes before the session
+  // and staff gates, so an anonymous or client caller learns nothing either.
+  session = null
+  assert.deepEqual(await withSwitches(true, false, () => statuses(all)), all.map(() => 404), "codex_projects off, no session")
+  session = { user: { email: "c@client.com", roles: ["client"] } }
+  assert.deepEqual(await withSwitches(true, false, () => statuses(all)), all.map(() => 404), "codex_projects off, client role")
+  session = { user: { roles: ["admin"] } }
+  assert.deepEqual(await withSwitches(true, false, () => statuses(all)), all.map(() => 404), "codex_projects off, no email")
   session = null
   assert.deepEqual(await withSwitches(true, true, () => statuses(all)), all.map(() => 401), "no session")
   session = { user: { email: "c@client.com", roles: ["client"] } }
