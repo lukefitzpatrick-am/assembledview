@@ -50,6 +50,7 @@ import {
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { hiddenTaskIds, taskVisibilityCondition } from "@/lib/codex/taskVisibility"
+import { followSectionRule, lockTaskProject } from "@/lib/codex/sectionSync"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
   ChecklistItem,
@@ -1206,6 +1207,26 @@ export async function updateTask(
   return database.transaction((tx) => updateLiveTask(tx, id, patch, actorEmail))
 }
 
+/**
+ * C-220 (B42): a system writer's update (the relabel auto-close) that also
+ * follows the section rule for a project task: the project is locked first,
+ * then the plain update, then the task moves to the section its new status
+ * names (never refused; no such section keeps it where it is).
+ */
+export async function updateTaskFollowingSections(
+  id: number,
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<CodexTask | null> {
+  return database.transaction(async (tx) => {
+    if (typeof patch.status === "string") await lockTaskProject(tx, id)
+    const updated = await updateLiveTask(tx, id, patch, actorEmail)
+    if (updated && typeof patch.status === "string") await followSectionRule(tx, id, patch.status, actorEmail)
+    return updated
+  })
+}
+
 export const HELP_ON_DONE_MESSAGE = "Reopen the task before asking for help"
 
 export type RequestHelpInput = {
@@ -1249,6 +1270,8 @@ export async function requestHelp(
   }
 
   return database.transaction(async (tx) => {
+    // C-220 (B42): the parent's project first, as every section writer.
+    await lockTaskProject(tx, parentId)
     const [parent] = await tx
       .select()
       .from(tasks)
@@ -1332,6 +1355,8 @@ export async function requestHelp(
       .set(parentValues)
       .where(and(eq(tasks.id, parent.id), isNull(tasks.deletedAt)))
       .returning()
+    // C-220 (B42): a project task moves to a Waiting section when its project has one.
+    await followSectionRule(tx, parent.id, "waiting", actorEmail)
 
     const childApi = taskRowToApi(child)
     await appendActivity(tx, {
@@ -1398,6 +1423,9 @@ async function maybeCompleteHelpParent(
       updatedAt: now,
     })
     .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+  // C-220 (B42): a project parent follows its status to a section (NOWAIT: we
+  // are inside the child's write, see sectionSync.ts).
+  await followSectionRule(tx, parentId, restoreStatus, actorEmail, { nowait: true })
 
   const [lastComment] = await tx
     .select()
@@ -1461,6 +1489,7 @@ async function maybeRewaitHelpParent(
       updatedAt: now,
     })
     .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+  await followSectionRule(tx, parentId, "waiting", actorEmail, { nowait: true })
 
   const helperName =
     child.assigneeName?.trim() || child.assigneeEmail?.trim() || "someone"

@@ -44,6 +44,7 @@ const NOT_A_PERSON_READ = [
   "lib/codex/taskVisibility.ts",
   "lib/codex/estimatedMinutesColumn.ts",
   "lib/codex/seedTasks.ts",
+  "lib/codex/sectionSync.ts",
   "lib/pacing/relabel/autoClose.ts",
 ]
 

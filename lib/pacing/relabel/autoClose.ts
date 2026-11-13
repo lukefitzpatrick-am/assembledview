@@ -3,7 +3,7 @@ import "server-only"
 import { and, isNull, like, ne } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import { updateTask } from "@/lib/codex/repo"
+import { updateTaskFollowingSections } from "@/lib/codex/repo"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { shouldAutoCloseAppliedTask } from "./notify"
 
@@ -60,7 +60,8 @@ export async function runCloseUntouchedRelabelTasks(now: Date = new Date()): Pro
       })),
       asOfYmd,
       async (id) => {
-        await updateTask(id, { status: "done" }, "system")
+        // C-220 (B42): a project task goes to its first done section.
+        await updateTaskFollowingSections(id, { status: "done" }, "system")
       },
     )
   } catch (err) {
