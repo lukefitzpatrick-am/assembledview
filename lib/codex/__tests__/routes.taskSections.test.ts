@@ -250,6 +250,9 @@ test("bulk and create: assigned by is tracked only with the switch on", { skip }
   assert.deepEqual(calls.map((c) => c.fn), ["bulkUpdateTasks", "bulkUpdateTasks"])
   assert.equal((calls[0].args[1] as { trackAssignedBy?: boolean }).trackAssignedBy, undefined)
   assert.equal((calls[1].args[1] as { trackAssignedBy?: boolean }).trackAssignedBy, true)
+  calls.length = 0
+  await withProjects(true, () => bulk.POST(json("POST", url, { ids: [7], patch: { due_date: "2026-11-21" } })))
+  assert.deepEqual(calls.map((c) => c.fn), ["bulkUpdateTasksThroughSections"], "a due date change is checked against start dates")
   const create = await import("../../../app/api/codex/tasks/route.js")
   calls.length = 0
   await withProjects(false, () => create.POST(json("POST", "http://l/api/codex/tasks", { title: "x", client_id: 4, assignee_email: "mia@x.au" })))

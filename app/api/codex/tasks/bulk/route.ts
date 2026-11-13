@@ -176,7 +176,7 @@ export async function POST(request: Request) {
     // refused task is 409 and the whole batch is rolled back.
     // The projects store loads only with the switch on.
     const throughSections =
-      patch.status !== undefined && (await isCodexProjectsEnabled())
+      (patch.status !== undefined || patch.dueDate !== undefined) && (await isCodexProjectsEnabled())
         ? await (await import("@/lib/codex/projectsRepo")).bulkUpdateTasksThroughSections(ids, patch, actor)
         : null
     const tasks = throughSections ?? (await bulkUpdateTasks(ids, patch, actor))

@@ -1418,7 +1418,8 @@ export async function bulkUpdateTasksThroughSections(
   actorEmail: string | null,
   database: Db = db
 ): Promise<CodexTask[] | null> {
-  if (!hasStatus(patch) || !(await isProjectsMigrationApplied(database))) return null
+  // A due date change is checked against each task's start date too (B40).
+  if ((!hasStatus(patch) && patch.dueDate === undefined) || !(await isProjectsMigrationApplied(database))) return null
   return database.transaction(async (tx) => {
     // Lock every project in the batch first, in id order, so two bulk edits
     // over the same projects queue instead of deadlocking.

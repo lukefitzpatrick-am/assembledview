@@ -21,7 +21,9 @@ import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
 import { createTask, getTask, softDeleteTask, updateTask } from "../repo.js"
+import { CodexBulkError } from "../repo.js"
 import {
+  bulkUpdateTasksThroughSections,
   completeProjectTask,
   createProject,
   createTasksInSection,
@@ -318,6 +320,13 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       const early = await updateTaskThroughSections(taskId, { status: "todo", dueDate: "2026-11-01" }, OWNER, database, {})
       assert.equal(!early.ok && early.reason, "start_after_due", "a due_date before the stored start is refused too")
       assert.equal((await taskRow(taskId)).start_on, "2026-11-16", "nothing changed")
+      await assert.rejects(
+        bulkUpdateTasksThroughSections([taskId], { dueDate: "2026-11-01" }, OWNER, database),
+        (e: unknown) => e instanceof CodexBulkError && /start date is after the due date/.test(e.message)
+      )
+      const okBulk = await bulkUpdateTasksThroughSections([taskId], { dueDate: "2026-11-21" }, OWNER, database)
+      assert.equal(okBulk?.length, 1)
+      assert.equal((await taskRow(taskId)).due_on, "2026-11-21")
     })
 
     it("type: task to milestone and back; a subtask stays a subtask", async () => {
