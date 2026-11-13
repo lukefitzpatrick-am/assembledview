@@ -24,6 +24,9 @@ import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
   canSeeProject,
   checkDeleteSection,
+  orderAfterPlacement,
+  planStatusChangeInProject,
+  statusForSectionCategory,
   checkRecategorise,
   checkReorder,
   initialSectionDrafts,
@@ -48,9 +51,19 @@ import {
   type UpdateProjectInput,
   type UpdateSectionInput,
 } from "@/lib/codex/projects"
-import { updateTaskStatusInTx, type DbExecutor } from "@/lib/codex/repo"
+import { projectBoardScope } from "@/lib/codex/projectBoard"
+import {
+  CodexBulkError,
+  loadListTasksByIds,
+  updateTask,
+  updateTaskInTx,
+  updateTaskStatusInTx,
+  type DbExecutor,
+  type UpdateTaskInput,
+} from "@/lib/codex/repo"
+import type { CodexTask } from "@/lib/codex/types"
 
-const { codexProjects, codexProjectMembers, codexSections, codexActivity, migrationMarkers } = schema
+const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs, migrationMarkers } = schema
 
 export const PROJECTS_MARKER = "0118_codex_s1_projects"
 
@@ -78,6 +91,9 @@ export type ProjectFailureReason =
   | "last_done_section"
   | "section_not_empty"
   | "no_done_section"
+  | "no_section_for_status"
+  | "anchor_not_in_section"
+  | "task_changed"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -684,23 +700,91 @@ export type TaskPlacementResult = {
   task: { id: number; status: string; project_id: number; section_id: number; sort_order: number }
 }
 
+/** Live task ids in a section, in board order (sort_order, then id). */
+async function sectionTaskIds(database: DbExecutor, sectionId: number): Promise<number[]> {
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT id FROM public.tasks
+       WHERE section_id = ${sectionId} AND deleted_at IS NULL
+       ORDER BY sort_order ASC NULLS LAST, id ASC
+    `)
+  )
+  return rows.map((r) => Number(r.id))
+}
+
+/**
+ * Write a section's card order as 0..n-1. Only rows whose order changes are
+ * written; their updated_at is left alone (a reorder is not an edit).
+ */
+async function writeSectionOrder(database: DbExecutor, orderedIds: readonly number[], skipId: number): Promise<void> {
+  const pairs = orderedIds.map((id, index) => ({ id, index })).filter((p) => p.id !== skipId)
+  if (pairs.length === 0) return
+  const values = sql.join(
+    pairs.map((p) => sql`(${p.id}::bigint, ${p.index}::int)`),
+    sql`, `
+  )
+  await database.execute(sql`
+    UPDATE public.tasks t
+       SET sort_order = v.ord
+      FROM (VALUES ${values}) AS v(id, ord)
+     WHERE t.id = v.id AND t.deleted_at IS NULL AND t.sort_order IS DISTINCT FROM v.ord
+  `)
+}
+
+/** Where the task goes in the section: an anchor (renumbers the section), a sort_order, or last. */
+type Placement = { kind: "end" } | { kind: "sort_order"; value: number } | { kind: "after"; taskId: number | null }
+
+function placementFrom(input: Pick<MoveTaskInput, "sort_order" | "after_task_id">): Placement {
+  if (input.after_task_id !== undefined) return { kind: "after", taskId: input.after_task_id }
+  if (input.sort_order != null) return { kind: "sort_order", value: input.sort_order }
+  return { kind: "end" }
+}
+
+const ANCHOR_GONE: ProjectFailure = {
+  ok: false,
+  reason: "anchor_not_in_section",
+  message: "The board changed while you were dragging. Reload the board and try again.",
+}
+
 async function applyPlan(
   tx: DbExecutor,
   task: TaskPlacementRow,
   plan: Extract<SectionMovePlan, { ok: true }>,
   sections: readonly CodexSection[],
-  sortOrder: number | null,
+  placement: Placement,
   viewerEmail: string
-): Promise<TaskPlacementResult> {
+): Promise<TaskPlacementResult | ProjectFailure> {
+  let anchored: number[] | null = null
+  if (placement.kind === "after") {
+    anchored = orderAfterPlacement(await sectionTaskIds(tx, plan.section_id), task.id, placement.taskId)
+    if (!anchored) return ANCHOR_GONE
+  }
   if (plan.statusChanges) {
     // Same path as PATCH: activity row, help parent complete or re-wait.
     await updateTaskStatusInTx(tx, task.id, plan.status, normaliseEmail(viewerEmail))
   }
+  return placeTask(tx, task, plan, sections, placement, anchored, viewerEmail)
+}
+
+/** Set project, section and order (no status change here) and record a section move. */
+async function placeTask(
+  tx: DbExecutor,
+  task: TaskPlacementRow,
+  plan: Extract<SectionMovePlan, { ok: true }>,
+  sections: readonly CodexSection[],
+  placement: Placement,
+  anchored: number[] | null,
+  viewerEmail: string
+): Promise<TaskPlacementResult> {
   const order =
-    sortOrder ??
-    (task.section_id === plan.section_id && task.sort_order != null
-      ? task.sort_order
-      : await nextSortOrderInSection(tx, plan.section_id, task.id))
+    anchored != null
+      ? anchored.indexOf(task.id)
+      : placement.kind === "sort_order"
+        ? placement.value
+        : task.section_id === plan.section_id && task.sort_order != null
+          ? task.sort_order
+          : await nextSortOrderInSection(tx, plan.section_id, task.id)
+  if (anchored != null) await writeSectionOrder(tx, anchored, task.id)
   await tx.execute(sql`
     UPDATE public.tasks
        SET project_id = ${plan.project_id},
@@ -749,7 +833,7 @@ export async function moveTaskToSection(
       if (!task) return TASK_NOT_FOUND
       const plan = planSectionMove(task, section)
       if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, input.sort_order, viewerEmail)
+      return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail)
     })
   )
 }
@@ -770,7 +854,365 @@ export async function completeProjectTask(
       const sections = await loadSections(tx, projectId)
       const plan = planCompleteInProject(task, sections)
       if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, null, viewerEmail)
+      return applyPlan(tx, task, plan, sections, { kind: "end" }, viewerEmail)
     })
   )
+}
+
+// ---------------------------------------------------------------------------
+// B39: the project board
+// ---------------------------------------------------------------------------
+
+/** Cards per section on first load; the rest come by "Load more". */
+export const BOARD_PAGE_SIZE = 50
+const BOARD_PAGE_MAX = 200
+
+export type BoardColumnPage = { items: CodexTask[]; total: number; completed: number }
+
+export type ProjectBoard = {
+  ok: true
+  project: CodexProject
+  sections: CodexSection[]
+  /** Keyed by section id. `total` counts the cards shown with this setting; `completed` the done ones. */
+  columns: Record<string, BoardColumnPage>
+  /** Live tasks of the project with no section (should not happen; shown so nothing hides). */
+  unsectioned: BoardColumnPage
+  hide_completed: boolean
+  hide_completed_source: "request" | "stored" | "default"
+}
+
+function idList(ids: readonly number[]): SQL {
+  return sql.join(
+    ids.map((id) => sql`${id}::bigint`),
+    sql`, `
+  )
+}
+
+/** Board cards: the list fields plus project placement, live subtasks and comments. */
+async function loadBoardCards(database: DbExecutor, ids: readonly number[]): Promise<CodexTask[]> {
+  if (ids.length === 0) return []
+  const base = await loadListTasksByIds(database, ids)
+  const placement = executeRows(
+    await database.execute(sql`
+      SELECT t.id, t.project_id, t.section_id, t.sort_order,
+             (SELECT count(*)::int FROM public.tasks c
+               WHERE c.parent_task_id = t.id AND c.deleted_at IS NULL AND c.task_type = 'subtask') AS subtask_count,
+             (SELECT count(*)::int FROM public.task_comments m WHERE m.task_id = t.id) AS comment_count
+        FROM public.tasks t
+       WHERE t.id IN (${idList(ids)})
+    `)
+  )
+  const num = (v: unknown) => (v == null ? null : Number(v))
+  const byId = new Map(placement.map((r) => [Number(r.id), r]))
+  return base.map((t) => {
+    const r = byId.get(Number(t.id))
+    return {
+      ...t,
+      project_id: num(r?.project_id),
+      section_id: num(r?.section_id),
+      sort_order: num(r?.sort_order),
+      subtask_count: Number(r?.subtask_count ?? 0) || 0,
+      comment_count: Number(r?.comment_count ?? 0) || 0,
+    }
+  })
+}
+
+async function storedHideCompleted(database: DbExecutor, projectId: number, viewerEmail: string): Promise<boolean | null> {
+  const [row] = await database
+    .select({ hide: codexBoardConfigs.hideCompleted })
+    .from(codexBoardConfigs)
+    .where(
+      and(
+        eq(codexBoardConfigs.scope, projectBoardScope(projectId)),
+        sql`lower(${codexBoardConfigs.ownerEmail}) = ${normaliseEmail(viewerEmail)}`
+      )
+    )
+    .orderBy(sql`${codexBoardConfigs.id} desc`)
+    .limit(1)
+  return row ? Boolean(row.hide) : null
+}
+
+function clampPageSize(n: number | undefined): number {
+  if (n == null || !Number.isFinite(n)) return BOARD_PAGE_SIZE
+  return Math.min(BOARD_PAGE_MAX, Math.max(1, Math.trunc(n)))
+}
+
+/**
+ * The project, its sections and the first page of cards in each section
+ * (board order), with per-section counts. `hideCompleted` null uses the
+ * viewer's stored setting, then hide.
+ */
+export async function loadProjectBoard(
+  projectId: number,
+  viewerEmail: string,
+  options: { hideCompleted: boolean | null; perSection?: number },
+  database: Db = db
+): Promise<ProjectBoard | ProjectFailure> {
+  return guarded(database, async () => {
+    const p = await loadVisibleProject(database, projectId, viewerEmail)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(database, projectId)
+    const stored = options.hideCompleted == null ? await storedHideCompleted(database, projectId, viewerEmail) : null
+    const hide = options.hideCompleted ?? stored ?? true
+    const source = options.hideCompleted != null ? "request" : stored != null ? "stored" : "default"
+    const per = clampPageSize(options.perSection)
+    const countRows = executeRows(
+      await database.execute(sql`
+        SELECT section_id,
+               count(*) FILTER (WHERE status <> 'done')::int AS open,
+               count(*) FILTER (WHERE status = 'done')::int AS done
+          FROM public.tasks
+         WHERE project_id = ${projectId} AND deleted_at IS NULL
+         GROUP BY section_id
+      `)
+    )
+    const pickRows = executeRows(
+      await database.execute(sql`
+        SELECT id, section_id FROM (
+          SELECT id, section_id,
+                 row_number() OVER (PARTITION BY section_id ORDER BY sort_order ASC NULLS LAST, id ASC) AS rn
+            FROM public.tasks
+           WHERE project_id = ${projectId} AND deleted_at IS NULL
+             AND (${hide} = false OR status <> 'done')
+        ) ranked
+        WHERE rn <= ${per}
+        ORDER BY section_id NULLS LAST, rn
+      `)
+    )
+    const cards = await loadBoardCards(database, pickRows.map((r) => Number(r.id)))
+    const known = new Set(sections.map((s) => s.id))
+    const columns: Record<string, BoardColumnPage> = {}
+    for (const s of sections) columns[String(s.id)] = { items: [], total: 0, completed: 0 }
+    const unsectioned: BoardColumnPage = { items: [], total: 0, completed: 0 }
+    const pageFor = (sectionId: unknown) => {
+      const id = sectionId == null ? null : Number(sectionId)
+      return id != null && known.has(id) ? columns[String(id)] : unsectioned
+    }
+    for (const r of countRows) {
+      const page = pageFor(r.section_id)
+      const open = Number(r.open ?? 0) || 0
+      const done = Number(r.done ?? 0) || 0
+      page.total += hide ? open : open + done
+      page.completed += done
+    }
+    for (const card of cards) pageFor(card.section_id).items.push(card)
+    return {
+      ok: true as const,
+      project: projectRowToApi(p.row, p.members),
+      sections,
+      columns,
+      unsectioned,
+      hide_completed: hide,
+      hide_completed_source: source,
+    }
+  })
+}
+
+/** One more page of a section's cards ("Load more"). */
+export async function listSectionTasks(
+  projectId: number,
+  sectionId: number,
+  viewerEmail: string,
+  options: { hideCompleted: boolean; offset: number; limit?: number },
+  database: Db = db
+): Promise<{ ok: true; items: CodexTask[]; total: number } | ProjectFailure> {
+  return guarded(database, async () => {
+    const p = await loadVisibleProject(database, projectId, viewerEmail)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(database, projectId)
+    if (!sections.some((s) => s.id === sectionId)) return SECTION_NOT_FOUND
+    const limit = clampPageSize(options.limit)
+    const offset = Math.max(0, Math.trunc(options.offset) || 0)
+    const where = sql`project_id = ${projectId} AND section_id = ${sectionId} AND deleted_at IS NULL
+      AND (${options.hideCompleted} = false OR status <> 'done')`
+    const [countRow] = executeRows(await database.execute(sql`SELECT count(*)::int AS n FROM public.tasks WHERE ${where}`))
+    const rows = executeRows(
+      await database.execute(sql`
+        SELECT id FROM public.tasks WHERE ${where}
+         ORDER BY sort_order ASC NULLS LAST, id ASC
+         LIMIT ${limit} OFFSET ${offset}
+      `)
+    )
+    return { ok: true as const, items: await loadBoardCards(database, rows.map((r) => Number(r.id))), total: Number(countRow?.n ?? 0) || 0 }
+  })
+}
+
+/**
+ * Inline add and bulk paste: new tasks at the end of a section, in the
+ * order given. Each takes the section's status (a done section creates them
+ * done), the project's client and MBA, and is created by the viewer,
+ * unassigned, priority normal, source manual, with a create activity row.
+ */
+export async function createTasksInSection(
+  projectId: number,
+  sectionId: number,
+  viewerEmail: string,
+  titles: readonly string[],
+  database: Db = db
+): Promise<{ ok: true; tasks: CodexTask[] } | ProjectFailure> {
+  return guarded(database, () =>
+    database.transaction(async (tx) => {
+      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+      if (!p) return NOT_FOUND
+      const sections = await loadSections(tx, projectId)
+      const section = sections.find((s) => s.id === sectionId)
+      if (!section) return SECTION_NOT_FOUND
+      const creator = normaliseEmail(viewerEmail)
+      const status = statusForSectionCategory(section.status_category)
+      const start = await nextSortOrderInSection(tx, sectionId, 0)
+      const values = sql.join(
+        titles.map(
+          (title, i) => sql`(${title}, ${p.row.clientId ?? null}::bigint, ${p.row.mbaNumber ?? null}, ${status}, 'normal',
+            ${creator}, 'manual', ${projectId}::bigint, ${sectionId}::bigint, ${start + i}::int, now(), now())`
+        ),
+        sql`, `
+      )
+      const inserted = executeRows(
+        await tx.execute(sql`
+          INSERT INTO public.tasks (title, client_id, mba_number, status, priority, created_by_email, source,
+                                    project_id, section_id, sort_order, created_at, updated_at)
+          VALUES ${values}
+          RETURNING id
+        `)
+      )
+      const ids = inserted.map((r) => Number(r.id))
+      const created = await loadBoardCards(tx, ids)
+      if (created.length > 0) {
+        await tx.insert(codexActivity).values(
+          created.map((t) => ({
+            entityType: "task",
+            entityId: Number(t.id),
+            actorEmail: creator || null,
+            actorKind: "user",
+            action: "create",
+            before: null,
+            after: { ...t, section: section.name },
+          }))
+        )
+      }
+      return { ok: true as const, tasks: created }
+    })
+  )
+}
+
+/** Save the viewer's hide or show completed setting for this project board. */
+export async function setBoardHideCompleted(
+  projectId: number,
+  viewerEmail: string,
+  hideCompleted: boolean,
+  database: Db = db
+): Promise<{ ok: true; hide_completed: boolean } | ProjectFailure> {
+  return guarded(database, () =>
+    database.transaction(async (tx) => {
+      const p = await loadVisibleProject(tx, projectId, viewerEmail)
+      if (!p) return NOT_FOUND
+      const scope = projectBoardScope(projectId)
+      const owner = normaliseEmail(viewerEmail)
+      // codex_board_configs has no unique key on (scope, owner): one writer at a time per board and person.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`codex_board_configs:${scope}:${owner}`}))`)
+      const [row] = await tx
+        .select({ id: codexBoardConfigs.id })
+        .from(codexBoardConfigs)
+        .where(and(eq(codexBoardConfigs.scope, scope), sql`lower(${codexBoardConfigs.ownerEmail}) = ${owner}`))
+        .orderBy(sql`${codexBoardConfigs.id} desc`)
+        .limit(1)
+      if (row) {
+        await tx.update(codexBoardConfigs).set({ hideCompleted }).where(eq(codexBoardConfigs.id, row.id))
+      } else {
+        await tx.insert(codexBoardConfigs).values({ scope, ownerEmail: owner, groupBy: "section", hideCompleted })
+      }
+      return { ok: true as const, hide_completed: hideCompleted }
+    })
+  )
+}
+
+// ---------------------------------------------------------------------------
+// B39: PATCH, bulk and the Tasks board move a project task only by section
+// ---------------------------------------------------------------------------
+
+type StatusChangeOutcome = { ok: true; task: CodexTask | null } | ProjectFailure
+
+/**
+ * One task's PATCH-shaped update with a status in it, inside the caller's
+ * transaction. A task in no project updates as before. A task in a project
+ * moves to the section the status names (planStatusChangeInProject) or is
+ * refused with nothing changed. Locks the project row, then the task, the
+ * same order as moveTaskToSection.
+ */
+async function statusChangeInTx(
+  tx: DbExecutor,
+  id: number,
+  patch: UpdateTaskInput & { status: string },
+  actorEmail: string | null
+): Promise<StatusChangeOutcome> {
+  const peek = executeRows(
+    await tx.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${id} AND deleted_at IS NULL`)
+  )[0]
+  if (!peek) return { ok: true, task: null }
+  const projectId = peek.project_id == null ? null : Number(peek.project_id)
+  if (projectId != null) {
+    await tx.execute(sql`SELECT id FROM public.codex_projects WHERE id = ${projectId} FOR UPDATE`)
+  }
+  const task = await lockLiveTask(tx, id)
+  if (!task) return { ok: true, task: null }
+  if (task.project_id !== projectId) {
+    return { ok: false, reason: "task_changed", message: "The task moved project while saving. Reload and try again." }
+  }
+  if (task.project_id == null) return { ok: true, task: await updateTaskInTx(tx, id, patch, actorEmail) }
+  const sections = await loadSections(tx, task.project_id)
+  const plan = planStatusChangeInProject(task, sections, patch.status)
+  if (!plan.ok) return plan
+  if (!plan.inProject) return { ok: true, task: await updateTaskInTx(tx, id, patch, actorEmail) }
+  const updated = await updateTaskInTx(tx, id, patch, actorEmail)
+  if (!updated) return { ok: true, task: null }
+  const placed = await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "")
+  return {
+    ok: true,
+    task: { ...updated, project_id: placed.task.project_id, section_id: placed.task.section_id, sort_order: placed.task.sort_order },
+  }
+}
+
+function hasStatus(patch: UpdateTaskInput): patch is UpdateTaskInput & { status: string } {
+  return typeof patch.status === "string"
+}
+
+/**
+ * PATCH /api/codex/tasks/[id] with codex_projects on. Without a status, or
+ * before 0118, this is the plain update. A refused move is a failure (409);
+ * a missing task is `task: null` (404).
+ */
+export async function updateTaskThroughSections(
+  id: number,
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<StatusChangeOutcome> {
+  if (!hasStatus(patch) || !(await isProjectsMigrationApplied(database))) {
+    return { ok: true, task: await updateTask(id, patch, actorEmail, database) }
+  }
+  return database.transaction((tx) => statusChangeInTx(tx, id, patch, actorEmail))
+}
+
+/**
+ * POST /api/codex/tasks/bulk with codex_projects on: one transaction, every
+ * task or none. A project task with no section for the status throws
+ * CodexBulkError 409 naming that task.
+ */
+export async function bulkUpdateTasksThroughSections(
+  ids: readonly number[],
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<CodexTask[] | null> {
+  if (!hasStatus(patch) || !(await isProjectsMigrationApplied(database))) return null
+  return database.transaction(async (tx) => {
+    const updated: CodexTask[] = []
+    for (const id of ids) {
+      const outcome = await statusChangeInTx(tx, id, patch, actorEmail)
+      if (!outcome.ok) throw new CodexBulkError(id, 409, `Task ${id}: ${outcome.message}`)
+      if (!outcome.task) throw new CodexBulkError(id, 409, `Task ${id} was not found.`)
+      updated.push(outcome.task)
+    }
+    return updated
+  })
 }

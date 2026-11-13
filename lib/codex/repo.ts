@@ -646,10 +646,35 @@ export async function listTasks(
     .offset(offset)
 
   const apiTasks = rows.map(taskRowToApi)
+  return pagedEnvelope(await enrichListTasks(database, apiTasks), itemsTotal, page, perPage)
+}
+
+/**
+ * Live tasks by id with the list's card fields (checklist progress,
+ * estimate, help parent title), in the order of `ids`. Used by the project
+ * board (B39), which picks and orders the ids itself.
+ */
+export async function loadListTasksByIds(
+  database: DbExecutor,
+  ids: readonly number[]
+): Promise<CodexTask[]> {
+  if (ids.length === 0) return []
+  const rows = await database
+    .select()
+    .from(tasks)
+    .where(and(inArray(tasks.id, [...ids]), isNull(tasks.deletedAt)))
+  const byId = new Map(rows.map((r) => [Number(r.id), taskRowToApi(r)]))
+  const ordered = ids.map((id) => byId.get(id)).filter((t): t is CodexTask => t != null)
+  return enrichListTasks(database, ordered)
+}
+
+/** Checklist progress, estimates and help parent titles for list rows and board cards. */
+async function enrichListTasks(
+  database: DbExecutor,
+  apiTasks: CodexTask[]
+): Promise<CodexTask[]> {
   const ids = apiTasks.map((t) => Number(t.id)).filter((id) => Number.isFinite(id) && id > 0)
-  if (ids.length === 0) {
-    return pagedEnvelope(apiTasks, itemsTotal, page, perPage)
-  }
+  if (ids.length === 0) return apiTasks
 
   const checkRows = await database
     .select({
@@ -679,8 +704,7 @@ export async function listTasks(
   })
 
   const withEstimates = await applyEstimatedMinutes(database, withProgress)
-  const withParents = await attachParentTitles(database, withEstimates)
-  return pagedEnvelope(withParents, itemsTotal, page, perPage)
+  return attachParentTitles(database, withEstimates)
 }
 
 export type TaskStatusCounts = Record<TaskStatus, number>
@@ -1045,6 +1069,20 @@ export async function updateTaskStatusInTx(
   actorEmail: string | null
 ): Promise<CodexTask | null> {
   return updateLiveTask(tx, id, { status }, actorEmail)
+}
+
+/**
+ * Any PATCH-shaped update inside the caller's transaction, through the same
+ * path as PATCH. Used by the project section rule (B39: PATCH and bulk status
+ * changes on a project task). Null when the task is missing or soft-deleted.
+ */
+export async function updateTaskInTx(
+  tx: DbExecutor,
+  id: number,
+  patch: UpdateTaskInput,
+  actorEmail: string | null
+): Promise<CodexTask | null> {
+  return updateLiveTask(tx, id, patch, actorEmail)
 }
 
 export async function updateTask(

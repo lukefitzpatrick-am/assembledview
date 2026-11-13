@@ -30,6 +30,9 @@ const FAILURE_STATUS: Record<ProjectFailure["reason"], number> = {
   last_done_section: 409,
   section_not_empty: 409,
   no_done_section: 409,
+  no_section_for_status: 409,
+  anchor_not_in_section: 409,
+  task_changed: 409,
 }
 
 export function projectFailureResponse(failure: ProjectFailure): NextResponse {
