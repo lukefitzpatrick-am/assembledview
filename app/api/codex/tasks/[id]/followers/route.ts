@@ -38,7 +38,8 @@ export async function GET(request: Request, context: RouteContext) {
   const g = await gate(request, context)
   if (!g.ok) return g.error
   try {
-    const result = await listFollowers(g.id, g.email)
+    // N1 (B42): the login as the roster's primary email, as follow stores it.
+    const result = await listFollowers(g.id, g.email, undefined, { aliases: await isCodexRosterAliasesEnabled() })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
   } catch (error) {
@@ -71,7 +72,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const g = await gate(request, context)
   if (!g.ok) return g.error
   try {
-    const result = await unfollowTask(g.id, g.email)
+    const result = await unfollowTask(g.id, g.email, undefined, { aliases: await isCodexRosterAliasesEnabled() })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
   } catch (error) {

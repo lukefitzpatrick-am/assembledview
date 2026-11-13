@@ -163,11 +163,29 @@ async function followersOf(database: DbExecutor, task: TaskFacts, viewer: string
   return { ok: true, followers, following: followers.some((f) => f.email === normaliseEmail(viewer)) }
 }
 
-export async function listFollowers(taskId: number, viewerEmail: string, database: Db = db): Promise<FollowersResult> {
+/**
+ * N1 (B42): a login as the roster's primary email, through the same B36
+ * resolver follow uses (aliases with `codex_roster_aliases`). Follower rows
+ * are stored by primary email, so unfollow, the `following` flag and My Work
+ * Following read the person this way. No unique active match: the login.
+ */
+export async function primaryEmailFor(database: DbExecutor, login: string, aliases: boolean): Promise<string> {
+  const email = normaliseEmail(login)
+  if (!email) return email
+  const match = resolveRosterAddress(email, await loadRosterPeople(database), { aliases })
+  return match.kind === "unique" ? normaliseEmail(match.member.email) : email
+}
+
+export async function listFollowers(
+  taskId: number,
+  viewerEmail: string,
+  database: Db = db,
+  opts: { aliases?: boolean } = {}
+): Promise<FollowersResult> {
   return guarded(database, async () => {
     const task = await loadVisibleTask(database, taskId, viewerEmail)
     if (!task) return TASK_NOT_FOUND
-    return followersOf(database, task, viewerEmail)
+    return followersOf(database, task, await primaryEmailFor(database, viewerEmail, opts.aliases === true))
   })
 }
 
@@ -221,21 +239,31 @@ export async function followTask(
           await writeNotifications(tx, { kind: "follower_added", taskId, actor, added: [target] }, { task })
         }
       }
-      return followersOf(tx, task, actor)
+      return followersOf(tx, task, actorPrimary)
     })
   )
 }
 
-/** Stop following (yourself only). Kept as an `unfollowed` row so creator and assignee can stop too. */
-export async function unfollowTask(taskId: number, actorEmail: string, database: Db = db): Promise<FollowersResult> {
+/**
+ * Stop following (yourself only). Kept as an `unfollowed` row so creator and
+ * assignee can stop too. The row is written for your primary email (N1,
+ * B42): an alias login stops the same row follow wrote.
+ */
+export async function unfollowTask(
+  taskId: number,
+  actorEmail: string,
+  database: Db = db,
+  opts: { aliases?: boolean } = {}
+): Promise<FollowersResult> {
   const actor = normaliseEmail(actorEmail)
   return guarded(database, () =>
     database.transaction(async (tx): Promise<FollowersResult> => {
       const task = await loadVisibleTask(tx, taskId, actor, true)
       if (!task) return TASK_NOT_FOUND
-      await applyFollows(tx, task, [{ email: actor, reason: "unfollowed" }])
-      await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "unfollow", after: { email: actor } })
-      return followersOf(tx, task, actor)
+      const me = await primaryEmailFor(tx, actor, opts.aliases === true)
+      await applyFollows(tx, task, [{ email: me, reason: "unfollowed" }])
+      await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "unfollow", after: { email: me } })
+      return followersOf(tx, task, me)
     })
   )
 }

@@ -32,6 +32,7 @@ import {
   listAttachments,
   listCommentsWithMentions,
   listFollowers,
+  primaryEmailFor,
   unfollowTask,
 } from "../collabRepo.js"
 import { captureTaskStates, recordTaskChanges, writeNotifications } from "../notify.js"
@@ -298,6 +299,34 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     const selfRows = await client`SELECT email, reason FROM public.task_followers WHERE task_id = ${other}`
     assert.deepEqual(selfRows.map((r) => `${r.email}:${r.reason}`), [`${ELLIE}:manual`])
     assert.deepEqual(await notes(other), [])
+  })
+
+  it("N1 (B42): an alias login reads following, unfollows its own row and stops follower notices (aliases on); with aliases off the login is used as it is", async () => {
+    const id = await newTask("Alias unfollow", { project: publicProject, creator: OWNER })
+    const followed = await followTask(id, ELLIE_ALIAS, null, { notify: true, aliases: true }, database)
+    assert.ok(followed.ok && followed.following, "follow answers following for an alias login")
+    const listed = await listFollowers(id, ELLIE_ALIAS, database, { aliases: true })
+    assert.ok(listed.ok && listed.following, "the list says following for an alias login")
+    const listedOff = await listFollowers(id, ELLIE_ALIAS, database, { aliases: false })
+    assert.ok(listedOff.ok && !listedOff.following, "aliases off: the alias is not Ellie")
+    assert.equal(await primaryEmailFor(database, ELLIE_ALIAS, true), ELLIE)
+    assert.equal(await primaryEmailFor(database, ELLIE_ALIAS, false), ELLIE_ALIAS)
+    assert.equal(await primaryEmailFor(database, STUDIO, true), STUDIO, "an address two people hold stays as it is")
+    const gone = await unfollowTask(id, ELLIE_ALIAS, database, { aliases: true })
+    assert.ok(gone.ok && !gone.following)
+    const rows = await client`SELECT email, reason FROM public.task_followers WHERE task_id = ${id} ORDER BY email`
+    assert.deepEqual(rows.map((r) => `${r.email}:${r.reason}`), [`${ELLIE}:unfollowed`], "the primary row, no alias row")
+    const [act] = await client`SELECT after FROM public.codex_activity WHERE entity_type = 'task_follower' AND entity_id = ${id} AND action = 'unfollow'`
+    assert.deepEqual(act.after, { email: ELLIE })
+    await comment(id, JOSH, "an update")
+    assert.ok(!(await notes(id)).includes(`${ELLIE}:commented`), "no follower notice after unfollow")
+    // Aliases off: an alias login is its own address (it cannot follow, C-246), and unfollow writes that address only.
+    const id2 = await newTask("Alias off", { project: publicProject, creator: OWNER })
+    await followTask(id2, ELLIE, null, { notify: true }, database)
+    const off = await unfollowTask(id2, ELLIE_ALIAS, database, { aliases: false })
+    assert.ok(off.ok)
+    const rows2 = await client`SELECT email, reason FROM public.task_followers WHERE task_id = ${id2} ORDER BY email`
+    assert.deepEqual(rows2.map((r) => `${r.email}:${r.reason}`), [`${ELLIE_ALIAS}:unfollowed`, `${ELLIE}:manual`])
   })
 
   it("notifications and the digest reach only active roster members: an off-roster assignee, an old row, a mention of someone who left (F2)", async () => {
