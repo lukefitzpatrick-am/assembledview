@@ -32,10 +32,11 @@ import {
   type NotifyEvent,
   type TaskNotifyState,
 } from "@/lib/codex/notifications"
-import { canSeeProject, normaliseEmail, type ProjectAccessFacts } from "@/lib/codex/projects"
+import { canSeeProject, normaliseEmail, NO_ALIASES, type AccessIdentity, type ProjectAccessFacts } from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
+import { loadAccessIdentity } from "@/lib/codex/taskVisibility"
 
 const { codexNotifications, codexActivity, taskFollowers, codexProjects, codexProjectMembers } = schema
 
@@ -55,6 +56,8 @@ export type TaskFacts = {
   deleted: boolean
   /** The task's project access facts, or null for a task in no project. */
   project: ProjectAccessFacts | null
+  /** F4: the alias map the access checks on this task use (empty for no project or the switch off). */
+  identity?: AccessIdentity
 }
 
 function idList(ids: readonly number[]): SQL {
@@ -77,6 +80,7 @@ export async function loadTaskFactsMany(database: DbExecutor, ids: readonly numb
   )
   const projectIds = [...new Set(rows.map((r) => (r.project_id == null ? null : Number(r.project_id))).filter((v): v is number => v != null))]
   const projects = await loadProjectFactsMany(database, projectIds)
+  const identity = projectIds.length > 0 ? await loadAccessIdentity(database) : NO_ALIASES
   for (const r of rows) {
     const projectId = r.project_id == null ? null : Number(r.project_id)
     out.set(Number(r.id), {
@@ -89,6 +93,7 @@ export async function loadTaskFactsMany(database: DbExecutor, ids: readonly numb
       project_id: projectId,
       deleted: r.deleted === true || r.deleted === "t",
       project: projectId == null ? null : projects.get(projectId) ?? { is_private: true, owner_email: null, created_by_email: null, members: [] },
+      identity,
     })
   }
   return out
@@ -126,8 +131,8 @@ async function loadProjectFactsMany(database: DbExecutor, ids: readonly number[]
 }
 
 /** Can this person see the task (its project's rule; no project: every staff member)? */
-export function canSeeTask(task: Pick<TaskFacts, "project">, email: string): boolean {
-  return task.project == null || canSeeProject(task.project, email)
+export function canSeeTask(task: Pick<TaskFacts, "project" | "identity">, email: string): boolean {
+  return task.project == null || canSeeProject(task.project, email, task.identity ?? NO_ALIASES)
 }
 
 /** The task if it is live and the viewer may see it, else null (not found: existence not confirmed). */
@@ -155,7 +160,7 @@ export async function loadFollowerRows(database: DbExecutor, taskId: number): Pr
  */
 export async function applyFollows(
   database: DbExecutor,
-  task: Pick<TaskFacts, "id" | "project">,
+  task: Pick<TaskFacts, "id" | "project" | "identity">,
   follows: ReadonlyArray<{ email: string | null | undefined; reason: FollowReason }>
 ): Promise<string[]> {
   const changed: string[] = []

@@ -16,12 +16,13 @@
  */
 import "server-only"
 
-import { and, asc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
+  canonicalEmail,
   canSeeProject,
   checkDeleteSection,
   orderAfterPlacement,
@@ -41,6 +42,7 @@ import {
   touchesProjectAccess,
   SECTIONS_PER_PROJECT_MAX,
   MEMBERS_PER_PROJECT_MAX,
+  type AccessIdentity,
   type CodexProject,
   type CodexSection,
   type CreateProjectInput,
@@ -64,6 +66,7 @@ import {
   type CustomValues,
 } from "@/lib/codex/customFields"
 import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib/codex/taskDetail"
+import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
   bulkFailure,
@@ -246,7 +249,8 @@ async function loadMembers(database: DbExecutor, projectId: number): Promise<str
   return rows.map((r) => normaliseEmail(r.email))
 }
 
-export type VisibleProject = { row: ProjectRow; members: string[] }
+/** `identity` (F4): the alias map the visibility check used, for the owner check and member writes. */
+export type VisibleProject = { row: ProjectRow; members: string[]; identity: AccessIdentity }
 
 /**
  * A live project the viewer may see, or null (missing, deleted, or private
@@ -273,7 +277,8 @@ export async function loadVisibleProject(
     created_by_email: row.createdByEmail,
     members,
   }
-  return canSeeProject(facts, viewerEmail) ? { row, members } : null
+  const identity = await loadAccessIdentity(database)
+  return canSeeProject(facts, viewerEmail, identity) ? { row, members, identity } : null
 }
 
 function ownerFacts(p: VisibleProject) {
@@ -313,15 +318,9 @@ export async function appendActivity(
 // Projects
 // ---------------------------------------------------------------------------
 
-/** SQL: the viewer may see this project row (public, owner, creator or member). */
-function visibleTo(viewerEmail: string): SQL {
-  const viewer = normaliseEmail(viewerEmail)
-  return or(
-    eq(codexProjects.isPrivate, false),
-    sql`lower(${codexProjects.ownerEmail}) = ${viewer}`,
-    sql`lower(${codexProjects.createdByEmail}) = ${viewer}`,
-    sql`exists (select 1 from ${codexProjectMembers} m where m.project_id = ${codexProjects.id} and lower(m.email) = ${viewer})`
-  ) as SQL
+/** SQL: the viewer may see this project row (public, owner, creator or member): the shared rule (C-211, F4). */
+function visibleTo(viewerEmail: string, identity: AccessIdentity): SQL {
+  return taskVisibleSql(sql`${codexProjects.id}`, viewerEmail, identity)
 }
 
 /** Live projects the viewer may see, by name. `status` narrows to one status. */
@@ -333,7 +332,7 @@ export async function listProjects(
   return guarded(database, async () => {
     const where = and(
       isNull(codexProjects.deletedAt),
-      visibleTo(viewerEmail),
+      visibleTo(viewerEmail, await loadAccessIdentity(database)),
       options.status ? eq(codexProjects.status, options.status) : undefined
     )
     const rows = await database
@@ -376,7 +375,10 @@ export async function createProject(
   database: Db = db
 ): Promise<ProjectWithSections | ProjectFailure> {
   return guarded(database, async () => {
-    const creator = normaliseEmail(viewerEmail)
+    // F4: the creator, owner and members are stored as their primary email (aliases with codex_roster_aliases).
+    const identity = await loadAccessIdentity(database)
+    const creator = canonicalEmail(viewerEmail, identity)
+    const members = [...new Set(input.members.map((e) => canonicalEmail(e, identity)))]
     if (input.client_id != null && !(await codexClientExists(input.client_id, database))) {
       return { ok: false, reason: "unknown_client", message: `Client ${input.client_id} does not exist.` }
     }
@@ -389,7 +391,7 @@ export async function createProject(
             clientId: input.client_id,
             mbaNumber: input.mba_number,
             name: input.name,
-            ownerEmail: input.owner_email ?? creator,
+            ownerEmail: input.owner_email ? canonicalEmail(input.owner_email, identity) : creator,
             isPrivate: input.is_private,
             startOn: input.start_on,
             dueOn: input.due_on,
@@ -397,15 +399,15 @@ export async function createProject(
           })
           .returning()
         const projectId = Number(row.id)
-        if (input.members.length > 0) {
-          await tx.insert(codexProjectMembers).values(input.members.map((email) => ({ projectId, email })))
+        if (members.length > 0) {
+          await tx.insert(codexProjectMembers).values(members.map((email) => ({ projectId, email })))
         }
         const drafts = initialSectionDrafts(input.sections)
         const sectionRows = await tx
           .insert(codexSections)
           .values(drafts.map((d, i) => ({ projectId, name: d.name, sortOrder: i, statusCategory: d.status_category })))
           .returning()
-        const project = projectRowToApi(row, input.members)
+        const project = projectRowToApi(row, members)
         const sections = sortSections(sectionRows.map(sectionRowToApi))
         await appendActivity(tx, {
           entityType: "codex_project",
@@ -435,12 +437,12 @@ export async function updateProject(
     database.transaction(async (tx) => {
       const p = await loadVisibleProject(tx, id, viewerEmail, true)
       if (!p) return NOT_FOUND
-      if (touchesProjectAccess(patch) && !isProjectOwner(ownerFacts(p), viewerEmail)) return NOT_OWNER
+      if (touchesProjectAccess(patch) && !isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
       const set: Partial<typeof codexProjects.$inferInsert> = { updatedAt: new Date().toISOString() }
       if (patch.name !== undefined) set.name = patch.name
       if (patch.status !== undefined) set.status = patch.status
       if (patch.is_private !== undefined) set.isPrivate = patch.is_private
-      if (patch.owner_email !== undefined) set.ownerEmail = patch.owner_email
+      if (patch.owner_email !== undefined) set.ownerEmail = patch.owner_email ? canonicalEmail(patch.owner_email, p.identity) : patch.owner_email
       const [row] = await tx.update(codexProjects).set(set).where(eq(codexProjects.id, id)).returning()
       const before = projectRowToApi(p.row, p.members)
       const after = projectRowToApi(row, p.members)
@@ -461,8 +463,10 @@ export async function addProjectMembers(
     database.transaction(async (tx) => {
       const p = await loadVisibleProject(tx, id, viewerEmail, true)
       if (!p) return NOT_FOUND
-      if (!isProjectOwner(ownerFacts(p), viewerEmail)) return NOT_OWNER
-      const fresh = [...new Set(emails.map(normaliseEmail))].filter((e) => e && !p.members.includes(e))
+      if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
+      // F4: stored as the primary email; an alias of someone already a member adds no one.
+      const already = new Set(p.members.map((m) => canonicalEmail(m, p.identity)))
+      const fresh = [...new Set(emails.map((e) => canonicalEmail(e, p.identity)))].filter((e) => e && !already.has(e))
       if (p.members.length + fresh.length > MEMBERS_PER_PROJECT_MAX) {
         return { ok: false, reason: "too_many_members", message: `A project can have up to ${MEMBERS_PER_PROJECT_MAX} members.` }
       }
@@ -489,15 +493,17 @@ export async function removeProjectMember(
     database.transaction(async (tx) => {
       const p = await loadVisibleProject(tx, id, viewerEmail, true)
       if (!p) return NOT_FOUND
-      if (!isProjectOwner(ownerFacts(p), viewerEmail)) return NOT_OWNER
-      const target = normaliseEmail(email)
-      if (p.members.includes(target)) {
+      if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
+      // F4: removing someone by any of their addresses removes every row that is them.
+      const target = canonicalEmail(email, p.identity)
+      const rows = p.members.filter((m) => canonicalEmail(m, p.identity) === target)
+      if (rows.length > 0) {
         await tx
           .delete(codexProjectMembers)
-          .where(and(eq(codexProjectMembers.projectId, id), sql`lower(${codexProjectMembers.email}) = ${target}`))
-        await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_remove", before: { members: [target] } })
+          .where(and(eq(codexProjectMembers.projectId, id), inArray(sql`lower(${codexProjectMembers.email})`, rows)))
+        await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_remove", before: { members: rows } })
       }
-      return { ok: true as const, project: projectRowToApi(p.row, p.members.filter((m) => m !== target)) }
+      return { ok: true as const, project: projectRowToApi(p.row, p.members.filter((m) => !rows.includes(m))) }
     })
   )
 }

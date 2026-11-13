@@ -19,6 +19,7 @@ import type {
   CodexProjectStatus,
   CodexSectionStatusCategory,
 } from "@/db/schema/codex"
+import { resolveRosterAddress, type RosterPerson } from "@/lib/codex/rosterResolve"
 import { TASK_TITLE_MAX, type TaskStatus } from "@/lib/codex/types"
 
 export const PROJECT_KINDS = ["campaign", "retainer", "onboarding", "pitch", "internal", "ops"] as const satisfies readonly CodexProjectKind[]
@@ -95,20 +96,58 @@ export function isSectionStatusCategory(value: unknown): value is SectionStatusC
 // Visibility
 // ---------------------------------------------------------------------------
 
-/** Owner or creator: the people who decide who can see the project. */
-export function isProjectOwner(project: ProjectAccessFacts, viewerEmail: string): boolean {
-  const viewer = normaliseEmail(viewerEmail)
-  if (!viewer) return false
-  return normaliseEmail(project.owner_email) === viewer || normaliseEmail(project.created_by_email) === viewer
+/**
+ * B42fix (F4): who an address is, for project access. Maps an alias to its
+ * person's primary email, through the B36 resolver (`resolveRosterAddress`):
+ * active members only, and an address two people hold maps to no one. With
+ * `codex_roster_aliases` off the map is empty: addresses compare as stored,
+ * as before. A primary email is never in the map (it is already itself).
+ */
+export type AccessIdentity = ReadonlyMap<string, string>
+
+export const NO_ALIASES: AccessIdentity = new Map()
+
+export function buildAccessIdentity(roster: readonly RosterPerson[], aliases: boolean): AccessIdentity {
+  if (!aliases) return NO_ALIASES
+  const out = new Map<string, string>()
+  for (const person of roster) {
+    for (const raw of person.aliases ?? []) {
+      const address = normaliseEmail(raw)
+      if (!address || out.has(address)) continue
+      const match = resolveRosterAddress(address, roster, { aliases: true })
+      if (match.kind !== "unique") continue
+      const primary = normaliseEmail(match.member.email)
+      if (primary && primary !== address) out.set(address, primary)
+    }
+  }
+  return out
 }
 
-/** Public projects: every staff member. Private: owner, creator and members only. */
-export function canSeeProject(project: ProjectAccessFacts, viewerEmail: string): boolean {
-  if (!project.is_private) return true
-  const viewer = normaliseEmail(viewerEmail)
+/** The address an access check compares: the primary email for a known alias, else the address as stored (lower case). */
+export function canonicalEmail(value: string | null | undefined, identity: AccessIdentity = NO_ALIASES): string {
+  const email = normaliseEmail(value)
+  return identity.get(email) ?? email
+}
+
+/** Owner or creator: the people who decide who can see the project. */
+export function isProjectOwner(project: ProjectAccessFacts, viewerEmail: string, identity: AccessIdentity = NO_ALIASES): boolean {
+  const viewer = canonicalEmail(viewerEmail, identity)
   if (!viewer) return false
-  if (isProjectOwner(project, viewer)) return true
-  return project.members.some((m) => normaliseEmail(m) === viewer)
+  return canonicalEmail(project.owner_email, identity) === viewer || canonicalEmail(project.created_by_email, identity) === viewer
+}
+
+/**
+ * Public projects: every staff member. Private: owner, creator and members
+ * only. With an identity (F4) the viewer and every stored address compare as
+ * their primary email, so an alias login or an alias stored as a member never
+ * costs access.
+ */
+export function canSeeProject(project: ProjectAccessFacts, viewerEmail: string, identity: AccessIdentity = NO_ALIASES): boolean {
+  if (!project.is_private) return true
+  const viewer = canonicalEmail(viewerEmail, identity)
+  if (!viewer) return false
+  if (isProjectOwner(project, viewer, identity)) return true
+  return project.members.some((m) => canonicalEmail(m, identity) === viewer)
 }
 
 // ---------------------------------------------------------------------------

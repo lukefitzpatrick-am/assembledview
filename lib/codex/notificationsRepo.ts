@@ -30,7 +30,8 @@ import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
 import { normaliseEmail } from "@/lib/codex/projects"
 import { guarded } from "@/lib/codex/projectsRepo"
 import { displayNameFromEmail, looksLikeEmail } from "@/lib/codex/rosterResolve"
-import { taskVisibleSql } from "@/lib/codex/taskVisibility"
+import type { AccessIdentity } from "@/lib/codex/projects"
+import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
 
 const { codexNotificationPrefs } = schema
 
@@ -57,10 +58,11 @@ export type BellPayload = { items: BellItem[]; unread: number; email_digest: boo
 
 /**
  * SQL: notification `n` on live task `t` that `recipient` may see. The
- * private-project rule is the shared one (`taskVisibleSql`, B42).
+ * private-project rule is the shared one (`taskVisibleSql`, B42), with the
+ * alias map (F4).
  */
-function visibleToRecipient(recipient: SQL): SQL {
-  return sql`t.deleted_at IS NULL AND ${taskVisibleSql(sql`t.project_id`, recipient)}`
+function visibleToRecipient(recipient: SQL, identity: AccessIdentity): SQL {
+  return sql`t.deleted_at IS NULL AND ${taskVisibleSql(sql`t.project_id`, recipient, identity)}`
 }
 
 function actorName(email: unknown, rosterName: unknown): string | null {
@@ -92,6 +94,7 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
   const viewer = normaliseEmail(viewerEmail)
   const take = Math.min(Math.max(1, Math.trunc(limit) || BELL_LIMIT_DEFAULT), BELL_LIMIT_MAX)
   return guarded(database, async () => {
+    const identity = await loadAccessIdentity(database)
     const rows = executeRows(
       await database.execute(sql`
         SELECT n.id, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
@@ -99,7 +102,7 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
-         WHERE n.recipient_email = ${viewer} AND ${visibleToRecipient(sql`${viewer}`)}
+         WHERE n.recipient_email = ${viewer} AND ${visibleToRecipient(sql`${viewer}`, identity)}
          ORDER BY n.created_at DESC, n.id DESC
          LIMIT ${take}
       `)
@@ -109,7 +112,7 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
         SELECT count(*)::int AS n
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
-         WHERE n.recipient_email = ${viewer} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`)}
+         WHERE n.recipient_email = ${viewer} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`, identity)}
       `)
     )
     const prefs = await database
@@ -225,6 +228,7 @@ export type DigestResult = { people: number; sent: number; failed: number; quiet
 export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ digests: DigestEmail[]; prefs: Map<string, PrefRow> }> {
   return guarded(database, async () => {
     const since = new Date(now.getTime() - DIGEST_LOOKBACK_DAYS * 86_400_000).toISOString()
+    const identity = await loadAccessIdentity(database)
     const rows = executeRows(
       await database.execute(sql`
         SELECT n.id, n.recipient_email, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
@@ -234,7 +238,7 @@ export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ d
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
          WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
            AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz
-           AND ${visibleToRecipient(sql`n.recipient_email`)}
+           AND ${visibleToRecipient(sql`n.recipient_email`, identity)}
            AND EXISTS (SELECT 1 FROM public.team_members r WHERE lower(r.email) = n.recipient_email AND r.active IS NOT FALSE)
          ORDER BY n.recipient_email, n.created_at, n.id
          LIMIT ${DIGEST_ROWS_MAX}

@@ -37,7 +37,12 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/codex/taskDetailRepo", { namedExports: { createSubtask: async () => ({ ok: true, subtask: SUB }) } })
   // B42: the hidden-task guard (C-211) is pinned in routes.privateTasks.test.ts; here no task is hidden.
   await mock.module!("@/lib/codex/taskVisibility", {
-    namedExports: { isTaskHiddenFrom: async () => false, hiddenTaskIds: async () => new Set<number>() },
+    namedExports: {
+      isTaskHiddenFrom: async () => false,
+      hiddenTaskIds: async () => new Set<number>(),
+      // B42fix (F4): the access identity (no aliases here).
+      loadAccessIdentity: async () => new Map<string, string>(),
+    },
   })
   // The notify store's first read: fails, as a lost database connection would.
   await mock.module!("@/lib/codex/projectsMarker", {

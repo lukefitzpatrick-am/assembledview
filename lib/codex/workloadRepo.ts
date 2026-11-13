@@ -13,7 +13,7 @@ import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { ProjectsUnavailableError } from "@/lib/codex/projectsRepo"
 import { rosterDisplayName } from "@/lib/codex/rosterResolve"
-import { taskVisibleSql } from "@/lib/codex/taskVisibility"
+import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { buildWorkload, workloadWeeks, type Workload } from "@/lib/codex/workload"
 
 export async function loadWorkload(viewerEmail: string, weeks: number, now: Date = new Date(), database: Db = db): Promise<Workload> {
@@ -29,7 +29,7 @@ export async function loadWorkload(viewerEmail: string, weeks: number, now: Date
       SELECT lower(t.assignee_email) AS email, t.due_on::text AS due_on, count(*)::int AS n
         FROM public.tasks t
        WHERE t.deleted_at IS NULL AND t.status <> 'done' AND t.assignee_email IS NOT NULL
-         AND ${taskVisibleSql(sql`t.project_id`, viewerEmail)}
+         AND ${taskVisibleSql(sql`t.project_id`, viewerEmail, await loadAccessIdentity(database))}
        GROUP BY 1, 2
     `)
   ).map((r) => ({ email: String(r.email), due_on: r.due_on == null ? null : String(r.due_on), n: Number(r.n) || 0 }))
