@@ -257,6 +257,11 @@ test("F7 (B42fix): progressPatchDecision: a status decides; disagreeing with the
   assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, undefined, "todo")), "none")
   assert.equal(kind(progressPatchDecision(rule, { "5": "x" }, undefined, "todo")), "none", "another field: a stored done value does not count")
   assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, "todo", "todo")), "progress_conflict")
+  // PACK3fix (review K16): every open status sent with the done option is a conflict, not only to do.
+  for (const open of ["backlog", "in_progress", "waiting"]) {
+    assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, open, "todo")), "progress_conflict", open)
+    assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, open, "done")), "progress_conflict", `${open} from done`)
+  }
   assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, "done", "todo")), "progress_conflict")
   assert.equal(kind(progressPatchDecision(rule, { "4": null }, "done", "todo")), "progress_conflict", "clearing it while completing")
   assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, "done", "todo")), "none")

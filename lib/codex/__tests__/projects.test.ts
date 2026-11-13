@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
+  buildAccessIdentity,
+  canonicalEmail,
   canSeeProject,
   checkDeleteSection,
   checkRecategorise,
@@ -171,6 +173,34 @@ test("visibility: public to all staff; private to owner, creator and members onl
   assert.equal(isProjectOwner(priv, "maker@x.au"), true)
   assert.equal(isProjectOwner({ ...priv, owner_email: null }, "owner@x.au"), false)
   assert.equal(isProjectOwner(priv, ""), false)
+})
+
+test("PACK3fix (review K2): an owner or creator stored by an alias is the owner for their primary login, with aliases on", () => {
+  const roster = [
+    { email: "ellie.ward@x.au", name: "Ellie", aliases: ["ellie@x.au"] },
+    { email: "josh.patel@x.au", name: "Josh", aliases: ["josh@x.au"] },
+  ]
+  const on = buildAccessIdentity(roster, true)
+  const byOwnerAlias = { is_private: true, owner_email: "ellie@x.au", created_by_email: "someone@x.au", members: [] }
+  const byCreatorAlias = { is_private: true, owner_email: "someone@x.au", created_by_email: "JOSH@x.au", members: [] }
+  assert.equal(isProjectOwner(byOwnerAlias, "ellie.ward@x.au", on), true, "owner stored by an alias")
+  assert.equal(isProjectOwner(byCreatorAlias, "josh.patel@x.au", on), true, "creator stored by an alias")
+  assert.equal(isProjectOwner(byOwnerAlias, "ellie.ward@x.au"), false, "off: compared as stored")
+  assert.equal(isProjectOwner(byCreatorAlias, "josh.patel@x.au"), false, "off: compared as stored")
+  assert.equal(isProjectOwner(byOwnerAlias, "josh.patel@x.au", on), false, "another person")
+})
+
+test("PACK3fix (review K5): the alias map never has a primary email as a key, so a primary compares as itself", () => {
+  // shared@ is Mia's alias and Sam's primary: ambiguous, so it maps to no one.
+  const roster = [
+    { email: "mia.tran@x.au", name: "Mia", aliases: ["mia@x.au", "sam@x.au"] },
+    { email: "sam@x.au", name: "Sam", aliases: [] },
+    { email: "gone@x.au", name: "Gone", aliases: ["g@x.au"], active: false },
+  ]
+  const on = buildAccessIdentity(roster, true)
+  for (const person of roster) assert.equal(on.has(person.email), false, person.email)
+  for (const person of roster) assert.equal(canonicalEmail(person.email, on), person.email)
+  assert.equal(canonicalEmail("MIA@x.au", on), "mia.tran@x.au")
 })
 
 test("parseCreateProjectInput: required name and kind; optional fields normalised", () => {

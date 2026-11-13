@@ -94,6 +94,11 @@ if (supportsMockModule()) {
           const { CodexHelpError } = await import("../helpRoster.js")
           throw new CodexHelpError("Out Sider is not a member of this private project. Add them to the project first, or ask someone who is.", 409)
         }
+        // P3 (PACK3fix): the parent kept moving between projects while the help request waited.
+        if ((args[1] as { assigneeEmail?: string })?.assigneeEmail === "moved@x.au") {
+          const { CodexHelpError } = await import("../helpRoster.js")
+          throw new CodexHelpError("The task moved to a project while this was saved. Try again.", 409, "task_changed")
+        }
         return rec("requestHelp", { parent: TASK, child: TASK })(...args)
       },
       HELP_ON_DONE_MESSAGE: "done",
@@ -435,5 +440,8 @@ test("an outsider on a private project's task: PATCH assignee is 409 assignee_no
     const h = await help.POST(req("POST", `${T}/8/help`, { assignee_email: "out.sider@x.au", ask: "hi" }), ctx({ id: "8" }))
     assert.equal(h.status, 409)
     assert.equal(((await h.json()) as { error: string }).error, "helper_no_access")
+    const moved = await help.POST(req("POST", `${T}/8/help`, { assignee_email: "moved@x.au", ask: "hi" }), ctx({ id: "8" }))
+    assert.equal(moved.status, 409)
+    assert.equal(((await moved.json()) as { error: string }).error, "task_changed", "P3: the store's code is kept")
   })
 })

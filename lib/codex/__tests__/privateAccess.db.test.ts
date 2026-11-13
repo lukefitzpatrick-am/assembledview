@@ -52,6 +52,7 @@ import {
   moveTaskToSection,
   removeProjectMember,
   resetProjectsMarkerCacheForTests,
+  updateProject,
   updateTaskThroughSections,
 } from "../projectsRepo.js"
 import { createSubtask } from "../taskDetailRepo.js"
@@ -393,6 +394,85 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     const helpId = await task("Help: Public parent", priv, { parent, assignee: MIA, section: sec["priv:To do"] })
     assert.deepEqual((await getTask(parent, database, OUT))?.children?.map((c) => c.id), [])
     assert.deepEqual((await getTask(parent, database, MIA))?.children?.map((c) => c.id), [helpId])
+  })
+
+  // -------------------------------------------------------------------------
+  // PACK3fix (review P4): owners, creators and members stored by an alias
+  // -------------------------------------------------------------------------
+
+  async function aliasOwnedProject(name: string): Promise<number> {
+    const made = await createProject(
+      OLIVE,
+      { name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: true, start_on: null, due_on: null, members: [], sections: [{ name: "To do", status_category: "todo" }, { name: "Done", status_category: "done" }] },
+      database
+    )
+    assert.ok(made.ok)
+    // Written while codex_roster_aliases was off: the owner and creator as aliases.
+    await client`UPDATE public.codex_projects SET owner_email = ${ELLIE_ALIAS}, created_by_email = ${JOSH_ALIAS} WHERE id = ${made.project.id}`
+    return made.project.id
+  }
+
+  it("K4: the SQL rule matches an owner and a creator stored by an alias, with aliases on (list, hidden ids, digest)", async () => {
+    const proj = await aliasOwnedProject("Alias owned")
+    const id = await task("alias owned task", proj)
+    await client`INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email) VALUES (${ELLIE}, 'assigned', ${id}, ${OLIVE})`
+    try {
+      assert.ok(!(await listIds(ELLIE)).includes(id), "off: the stored alias is not Ellie's primary")
+      assert.ok(!(await listIds(JOSH)).includes(id))
+      aliases(true)
+      assert.ok((await listIds(ELLIE)).includes(id), "the owner, stored by an alias")
+      assert.ok((await listIds(JOSH)).includes(id), "the creator, stored by an alias")
+      assert.deepEqual([...(await hiddenTaskIds(database, [id], ELLIE))], [])
+      assert.deepEqual([...(await hiddenTaskIds(database, [id], JOSH))], [])
+      assert.ok(!(await listIds(MIA)).includes(id), "someone else still sees nothing")
+      const { digests } = await loadDigestBatch(NOW, database)
+      assert.ok(digests.some((d) => d.email === ELLIE), "the digest uses the same rule")
+      // K2 on the store: owner-only actions accept the owner stored by an alias.
+      assert.equal((await addProjectMembers(proj, ELLIE, [OUT], database)).ok, true, "owner by alias")
+      assert.equal((await removeProjectMember(proj, JOSH, OUT, database)).ok, true, "creator by alias")
+    } finally {
+      await client`DELETE FROM public.codex_notifications`
+    }
+  })
+
+  it("K5: an SQL viewer (the bell's recipient) compares as its primary: a legacy notification addressed to an alias shows its private task", async () => {
+    const id = await task("alias recipient", priv, { section: sec["priv:To do"] })
+    await client`INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email) VALUES (${MIA_ALIAS}, 'assigned', ${id}, ${OLIVE})`
+    try {
+      assert.equal((await listBell(MIA_ALIAS, 30, database)).items.length, 0, "off: the alias is its own address, not a member")
+      aliases(true)
+      assert.equal((await listBell(MIA_ALIAS, 30, database)).items.length, 1, "on: the alias is Mia, a member")
+      await client`UPDATE public.codex_notifications SET recipient_email = ${`x${MIA_ALIAS}`}`
+      assert.equal((await listBell(`x${MIA_ALIAS}`, 30, database)).items.length, 0, "an address that is no one sees nothing private")
+    } finally {
+      await client`DELETE FROM public.codex_notifications`
+    }
+  })
+
+  it("K20: removing a member stored by an alias, by their primary, removes that row", async () => {
+    const proj = await aliasOwnedProject("Alias members")
+    await client`INSERT INTO public.codex_project_members (project_id, email) VALUES (${proj}, ${MIA_ALIAS})`
+    aliases(true)
+    const res = await removeProjectMember(proj, ELLIE, MIA, database)
+    assert.ok(res.ok)
+    assert.deepEqual(res.project.members, [])
+    const rows = await client`SELECT email FROM public.codex_project_members WHERE project_id = ${proj}`
+    assert.deepEqual(rows.map((r) => r.email), [], "the alias row is gone")
+  })
+
+  it("K22, K24: a new project and an owner change store the owner (and creator) as the primary email", async () => {
+    aliases(true)
+    const made = await createProject(
+      JOSH_ALIAS,
+      { name: "Canonical", kind: "ops", client_id: 42, mba_number: null, owner_email: ELLIE_ALIAS, is_private: true, start_on: null, due_on: null, members: [MIA_ALIAS], sections: [{ name: "Done", status_category: "done" }] },
+      database
+    )
+    assert.ok(made.ok)
+    const stored = async () => (await client`SELECT owner_email, created_by_email FROM public.codex_projects WHERE id = ${made.project.id}`)[0]
+    assert.deepEqual({ ...(await stored()) }, { owner_email: ELLIE, created_by_email: JOSH })
+    const changed = await updateProject(made.project.id, ELLIE, { owner_email: MIA_ALIAS }, database)
+    assert.ok(changed.ok)
+    assert.equal((await stored()).owner_email, MIA, "owner change: the primary")
   })
 
   // -------------------------------------------------------------------------
