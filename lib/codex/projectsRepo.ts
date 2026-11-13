@@ -156,6 +156,19 @@ function isUniqueViolation(err: unknown, constraint: string): boolean {
   })
 }
 
+function isMissingColumnOnly(err: unknown): boolean {
+  const codes = errorChain(err).map((e) => (e as { code?: unknown })?.code)
+  return codes.includes("42703") && !codes.includes("42P01")
+}
+
+/**
+ * Marker first, then the query. A missing table mid-query (42P01) is "not
+ * applied" (503) and drops the cached marker, so the next call reads it
+ * again. A missing column (42703) is "not applied" only while the marker is
+ * missing on a fresh read (STACKfix, stack review N2): with the marker in
+ * place it is a real bug (a column typo), so the error is thrown as it is
+ * (500) and the marker stays cached.
+ */
 async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
   if (!(await isProjectsMigrationApplied(database))) throw new ProjectsUnavailableError()
   try {
@@ -163,6 +176,7 @@ async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
   } catch (err) {
     if (isMissingProjectsSchema(err)) {
       markerSeen = false
+      if (isMissingColumnOnly(err) && (await isProjectsMigrationApplied(database))) throw err
       throw new ProjectsUnavailableError()
     }
     throw err
