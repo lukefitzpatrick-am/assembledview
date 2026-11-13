@@ -8,6 +8,7 @@ import {
 } from "@/lib/codex/repo"
 import { validateTaskInput } from "@/lib/codex/types"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
+import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -169,7 +170,14 @@ export async function POST(request: Request) {
       patch.assigneeEmail = assignee.email
       if (assignee.resolved) patch.assigneeName = assignee.name
     }
-    const tasks = await bulkUpdateTasks(ids, patch, actor)
+    // codex_projects (B39): a status change moves project tasks by section; one
+    // refused task is 409 and the whole batch is rolled back.
+    // The projects store loads only with the switch on.
+    const throughSections =
+      patch.status !== undefined && (await isCodexProjectsEnabled())
+        ? await (await import("@/lib/codex/projectsRepo")).bulkUpdateTasksThroughSections(ids, patch, actor)
+        : null
+    const tasks = throughSections ?? (await bulkUpdateTasks(ids, patch, actor))
     return NextResponse.json({ tasks })
   } catch (error) {
     if (error instanceof CodexBulkError) {

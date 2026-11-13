@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
+import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
 import {
@@ -252,7 +253,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     const actor = sessionEmail(auth.session, currentUser?.email)
     let task
     try {
-      task = await updateTask(id, patch, actor)
+      // codex_projects (B39): a status change on a project task moves it to the
+      // matching section, or is refused (409) with nothing changed.
+      // The projects store loads only with the switch on, so the off path is the module as before.
+      if (patch.status !== undefined && (await isCodexProjectsEnabled())) {
+        const { updateTaskThroughSections } = await import("@/lib/codex/projectsRepo")
+        const outcome = await updateTaskThroughSections(id, patch, actor)
+        if (!outcome.ok) {
+          return NextResponse.json({ error: outcome.reason, message: outcome.message }, { status: 409 })
+        }
+        task = outcome.task
+      } else {
+        task = await updateTask(id, patch, actor)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (/template_id .* does not exist/i.test(msg) || /Invalid recurring_rule/i.test(msg)) {

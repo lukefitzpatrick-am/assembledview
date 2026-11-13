@@ -54,6 +54,12 @@ if (supportsMockModule()) {
       reorderSections: fn("reorderSections", () => outcome({ ok: true, sections: [SECTION] })),
       moveTaskToSection: fn("moveTaskToSection", () => outcome({ ok: true, task: TASK })),
       completeProjectTask: fn("completeProjectTask", () => outcome({ ok: true, task: TASK })),
+      loadProjectBoard: fn("loadProjectBoard", () =>
+        outcome({ ok: true, project: PROJECT, sections: [SECTION], columns: {}, unsectioned: { items: [], total: 0, completed: 0 }, hide_completed: true, hide_completed_source: "default" })
+      ),
+      listSectionTasks: fn("listSectionTasks", () => outcome({ ok: true, items: [TASK], total: 1 })),
+      createTasksInSection: fn("createTasksInSection", () => outcome({ ok: true, tasks: [TASK] })),
+      setBoardHideCompleted: fn("setBoardHideCompleted", () => outcome({ ok: true, hide_completed: false })),
     },
   })
 }
@@ -98,6 +104,9 @@ async function routes(): Promise<Call[]> {
   const reorder = await import("../../../app/api/codex/projects/[id]/sections/reorder/route.js")
   const move = await import("../../../app/api/codex/projects/[id]/sections/[sectionId]/tasks/route.js")
   const complete = await import("../../../app/api/codex/projects/[id]/tasks/[taskId]/complete/route.js")
+  const board = await import("../../../app/api/codex/projects/[id]/board/route.js")
+  const boardConfig = await import("../../../app/api/codex/projects/[id]/board-config/route.js")
+  const create = await import("../../../app/api/codex/projects/[id]/sections/[sectionId]/tasks/create/route.js")
   return [
     { name: "GET projects", repo: "listProjects", okStatus: 200, run: () => list.GET(req("GET", U)) },
     { name: "POST projects", repo: "createProject", okStatus: 201, run: () => list.POST(req("POST", U, { name: "Sinch", kind: "campaign" })) },
@@ -112,6 +121,10 @@ async function routes(): Promise<Call[]> {
     { name: "POST reorder", repo: "reorderSections", okStatus: 200, run: () => reorder.POST(req("POST", `${U}/5/sections/reorder`, { ordered_ids: [9] }), ctx({ id: "5" })) },
     { name: "POST move", repo: "moveTaskToSection", okStatus: 200, run: () => move.POST(req("POST", `${U}/5/sections/9/tasks`, { task_id: 7 }), ctx({ id: "5", sectionId: "9" })) },
     { name: "POST complete", repo: "completeProjectTask", okStatus: 200, run: () => complete.POST(req("POST", `${U}/5/tasks/7/complete`), ctx({ id: "5", taskId: "7" })) },
+    { name: "GET board", repo: "loadProjectBoard", okStatus: 200, run: () => board.GET(req("GET", `${U}/5/board`), ctx({ id: "5" })) },
+    { name: "GET section tasks", repo: "listSectionTasks", okStatus: 200, run: () => move.GET(req("GET", `${U}/5/sections/9/tasks?offset=50`), ctx({ id: "5", sectionId: "9" })) },
+    { name: "POST create tasks", repo: "createTasksInSection", okStatus: 201, run: () => create.POST(req("POST", `${U}/5/sections/9/tasks/create`, { titles: ["A", " ", "B"] }), ctx({ id: "5", sectionId: "9" })) },
+    { name: "PUT board config", repo: "setBoardHideCompleted", okStatus: 200, run: () => boardConfig.PUT(req("PUT", `${U}/5/board-config`, { hide_completed: false }), ctx({ id: "5" })) },
   ]
 }
 
@@ -123,7 +136,7 @@ async function statuses(all: Call[]): Promise<number[]> {
 
 test("every method: codex_v2 off 404, codex_projects off 404, no session 401, client 403, no email 401; the store is never reached", { skip }, async () => {
   const all = await routes()
-  assert.equal(all.length, 13)
+  assert.equal(all.length, 17)
   calls.length = 0
   session = STAFF
   assert.deepEqual(await withSwitches(false, true, () => statuses(all)), all.map(() => 404), "codex_v2 off")
@@ -164,6 +177,7 @@ test("staff with both switches on: every method reaches its store with the lower
   const emailArg: Record<string, number> = {
     listProjects: 0, createProject: 0, getProject: 1, updateProject: 1, addProjectMembers: 1, removeProjectMember: 1,
     listSections: 1, createSection: 1, updateSection: 2, deleteSection: 2, reorderSections: 1, moveTaskToSection: 2, completeProjectTask: 2,
+    loadProjectBoard: 1, listSectionTasks: 2, createTasksInSection: 2, setBoardHideCompleted: 1,
   }
   for (const c of calls) assert.equal(c.args[emailArg[c.fn]], "luke@x.au", c.fn)
   const byFn = Object.fromEntries(calls.map((c) => [c.fn, c.args]))
@@ -174,6 +188,11 @@ test("staff with both switches on: every method reaches its store with the lower
   assert.deepEqual(byFn.reorderSections[2], [9])
   assert.deepEqual(byFn.moveTaskToSection[3], { task_id: 7, sort_order: null })
   assert.deepEqual(byFn.completeProjectTask.slice(0, 2), [5, 7])
+  assert.deepEqual(byFn.loadProjectBoard[2], { hideCompleted: null, perSection: undefined })
+  assert.deepEqual(byFn.listSectionTasks.slice(0, 2), [5, 9])
+  assert.deepEqual(byFn.listSectionTasks[3], { hideCompleted: true, offset: 50, limit: undefined })
+  assert.deepEqual(byFn.createTasksInSection[3], ["A", "B"], "blank lines dropped before the store")
+  assert.deepEqual(byFn.setBoardHideCompleted.slice(2), [false])
 })
 
 test("before migration 0118: every method is 503 migration_not_applied, never 500", { skip }, async () => {
@@ -222,6 +241,9 @@ test("store refusals map to statuses: private or missing 404, not owner 403, rul
     last_done_section: 409,
     section_not_empty: 409,
     no_done_section: 409,
+    no_section_for_status: 409,
+    anchor_not_in_section: 409,
+    task_changed: 409,
   }
   // GET projects returns a list, not a result; the rest pass refusals through.
   for (const c of all.slice(1)) {
@@ -261,6 +283,38 @@ test("bad ids are 404 and bad bodies 400, before the store", { skip }, async () 
   ])
   assert.deepEqual(results, [404, 404, 404, 404, 400, 400, 400, 400, 400, 400, 400, 400])
   assert.equal(calls.length, 0)
+})
+
+test("B39 routes: bad queries and bodies are 400 before the store; the board passes ?completed and ?per_section", { skip }, async () => {
+  const board = await import("../../../app/api/codex/projects/[id]/board/route.js")
+  const boardConfig = await import("../../../app/api/codex/projects/[id]/board-config/route.js")
+  const create = await import("../../../app/api/codex/projects/[id]/sections/[sectionId]/tasks/create/route.js")
+  const move = await import("../../../app/api/codex/projects/[id]/sections/[sectionId]/tasks/route.js")
+  calls.length = 0
+  mode = "ok"
+  session = STAFF
+  const bad = await withSwitches(true, true, async () => [
+    (await board.GET(req("GET", `${U}/5/board?completed=maybe`), ctx({ id: "5" }))).status,
+    (await board.GET(req("GET", `${U}/5/board?per_section=0`), ctx({ id: "5" }))).status,
+    (await boardConfig.PUT(req("PUT", `${U}/5/board-config`, { hide_completed: "yes" }), ctx({ id: "5" }))).status,
+    (await create.POST(req("POST", `${U}/5/sections/9/tasks/create`, { titles: [] }), ctx({ id: "5", sectionId: "9" }))).status,
+    (await create.POST(req("POST", `${U}/5/sections/9/tasks/create`, { titles: Array.from({ length: 201 }, () => "x") }), ctx({ id: "5", sectionId: "9" }))).status,
+    (await move.GET(req("GET", `${U}/5/sections/9/tasks?offset=-1`), ctx({ id: "5", sectionId: "9" }))).status,
+    (await move.GET(req("GET", `${U}/5/sections/9/tasks?completed=all`), ctx({ id: "5", sectionId: "9" }))).status,
+    (await move.POST(req("POST", `${U}/5/sections/9/tasks`, { task_id: 7, after_task_id: 3, sort_order: 1 }), ctx({ id: "5", sectionId: "9" }))).status,
+    (await board.GET(req("GET", `${U}/x/board`), ctx({ id: "x" }))).status,
+  ])
+  assert.deepEqual(bad, [400, 400, 400, 400, 400, 400, 400, 400, 404])
+  assert.equal(calls.length, 0)
+  const res = await withSwitches(true, true, () => board.GET(req("GET", `${U}/5/board?completed=show&per_section=20`), ctx({ id: "5" })))
+  assert.equal(res.status, 200)
+  const body = (await res.json()) as Record<string, unknown>
+  assert.equal("ok" in body, false)
+  assert.equal(body.hide_completed, true)
+  assert.deepEqual(calls[0].args.slice(0, 3), [5, "luke@x.au", { hideCompleted: false, perSection: 20 }])
+  calls.length = 0
+  await withSwitches(true, true, () => move.POST(req("POST", `${U}/5/sections/9/tasks`, { task_id: 7, after_task_id: null }), ctx({ id: "5", sectionId: "9" })))
+  assert.deepEqual(calls[0].args[3], { task_id: 7, sort_order: null, after_task_id: null })
 })
 
 test("GET projects passes ?status through", { skip }, async () => {
