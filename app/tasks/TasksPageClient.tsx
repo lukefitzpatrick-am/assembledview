@@ -10,7 +10,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, FolderKanban, Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
+import { ArrowDown, ArrowUp, FolderKanban, Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate, CalendarRange } from "lucide-react"
 import { isValid, parseISO } from "date-fns"
 import { formatDueYmd, isOverdueYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
@@ -32,6 +32,7 @@ import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
 import { CodexSearchDialog } from "@/components/tasks/CodexSearchDialog"
 import { NotificationBell } from "@/components/tasks/NotificationBell"
 import { MyWorkTabs } from "@/components/tasks/MyWorkTabs"
+import { WorkloadPanel } from "@/components/tasks/WorkloadPanel"
 import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
 import {
   filtersFromQueryString,
@@ -488,8 +489,11 @@ export function TasksPageClient({
   /** B40fix: the Tasks GET says 0118 is applied (codex_projects on); ASAP is offered as a filter only then. */
   const [projectsReady, setProjectsReady] = useState(false)
   const [mainTab, setMainTab] = useState<
-    "tasks" | "team" | "templates" | "inbox" | "projects"
-  >(() => (projectsOn && seededSearchParams.get("tab") === "projects" ? "projects" : "tasks"))
+    "tasks" | "team" | "templates" | "inbox" | "projects" | "workload"
+  >(() => {
+    const tab = seededSearchParams.get("tab")
+    return projectsOn && (tab === "projects" || tab === "workload") ? tab : "tasks"
+  })
 
   type InboxProposalRow = {
     id: number
@@ -2915,7 +2919,7 @@ export function TasksPageClient({
             v === "team" ||
             v === "templates" ||
             v === "inbox" ||
-            (v === "projects" && projectsOn)
+            ((v === "projects" || v === "workload") && projectsOn)
           ) {
             setMainTab(v)
           }
@@ -2944,6 +2948,14 @@ export function TasksPageClient({
               <span className="inline-flex items-center gap-1.5">
                 <FolderKanban className="h-3.5 w-3.5" aria-hidden />
                 Projects
+              </span>
+            </TabsTrigger>
+          ) : null}
+          {projectsOn ? (
+            <TabsTrigger value="workload">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarRange className="h-3.5 w-3.5" aria-hidden />
+                Workload
               </span>
             </TabsTrigger>
           ) : null}
@@ -3513,6 +3525,12 @@ export function TasksPageClient({
               meEmail={meEmail}
               clients={clients.map((c) => ({ id: c.id, name: getClientDisplayName(c) || `Client ${c.id}` }))}
             />
+          </TabsContent>
+        ) : null}
+
+        {projectsOn ? (
+          <TabsContent value="workload" className="mt-6 space-y-6">
+            <WorkloadPanel active={mainTab === "workload"} />
           </TabsContent>
         ) : null}
 

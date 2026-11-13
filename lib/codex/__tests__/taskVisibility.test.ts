@@ -34,6 +34,7 @@ const USES_SHARED_RULE = [
   "lib/fireflies/proposalRepo.ts",
   "lib/clients/listClientMeetings.ts",
   "lib/pacing/detail/notes.ts",
+  "lib/codex/workloadRepo.ts",
 ]
 
 /** Readers inside one project, after its visibility check (`loadVisibleProject` / `canSeeProject` / `canSeeTask`). */

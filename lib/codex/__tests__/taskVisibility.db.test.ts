@@ -212,6 +212,17 @@ describe("private projects stay private on every read surface (Postgres, 0118 ap
     assert.equal(owner.members.find((m) => m.email === ELLIE)?.estimated_open_minutes, 180)
   })
 
+  it("workload: a private project's task counts only for people who can see it", async () => {
+    const { loadWorkload } = await import("../workloadRepo.js")
+    const ellie = async (viewer: string) => (await loadWorkload(viewer, 3, NOW, database)).people.find((p) => p.email === ELLIE)
+    assert.deepEqual(
+      { open: (await ellie(OUT))?.open, overdue: (await ellie(OUT))?.overdue },
+      { open: 2, overdue: 2 }
+    )
+    assert.equal((await ellie(MEMBER))?.open, 3)
+    assert.equal((await ellie(""))?.open, 2, "nobody: public only")
+  })
+
   it("bell: the shared rule hides a private task's notification from an outsider", async () => {
     assert.equal((await listBell(OUT, 30, database)).items.length, 0)
     assert.equal((await listBell(OUT, 30, database)).unread, 0)
@@ -269,5 +280,7 @@ describe("before 0118 nothing is filtered and no 0118 column is named", { skip: 
     assert.equal((await searchCodex("plain", 5, database, OUT)).tasks.items.length, 1)
     assert.equal((await listTasks({ myWork: "assigned_by", myWorkEmail: CREATOR }, database)).itemsTotal, 0, "My Work before 0118: nothing, no error")
     assert.equal((await listTasks({ myWork: "following", myWorkEmail: CREATOR }, database)).itemsTotal, 0)
+    const { loadWorkload } = await import("../workloadRepo.js")
+    await assert.rejects(loadWorkload(OUT, 2, NOW, database), (e: Error) => e.name === "ProjectsUnavailableError", "the workload needs 0118 (503)")
   })
 })
