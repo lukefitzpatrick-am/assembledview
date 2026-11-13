@@ -256,7 +256,7 @@ Boring text — **no cron-expression parser**. All date decisions use **Australi
 | `weekly:<dow>` | `mon\|tue\|wed\|thu\|fri\|sat\|sun` | `YYYY-Www-dow` (ISO week of due date) |
 | `monthly:lbd` | Last Mon–Fri of the Sydney month (no public-holiday calendar) | `YYYY-MM-lbd` |
 
-**Series seeds:** live tasks with non-null `recurring_rule` + `template_id` + `client_id`, and status not `done`. A done seed stops. Cron `GET /api/cron/codex-recurring` (`CRON_SECRET`, Vercel `30 19 * * *`) generates children with `source=recurring`, `recurring_rule=null`, checklist copied from the template, `due_date` = period due YMD.
+**Series seeds:** live tasks with non-null `recurring_rule` + `template_id` + `client_id`, and status not `done`. A done seed stops. Cron `GET /api/cron/codex-recurring` (`CRON_SECRET`, Vercel `30 19 * * *`) generates children with `source=recurring`, `recurring_rule=null`, checklist copied from the template, `due_date` = period due YMD. After 0118 a child lives in its seed's project (so a private seed's copies stay private), placed by the section rule for to do (the first To do section, else No section); a seed in a private project whose assignee cannot see it makes nothing until fixed (`skippedNoAccess`, logged), and the next run catches the period up (C-268).
 
 **Idempotency:** key `(seed task id, period)`, stamped as `[codex-period:<key>]` then `[codex-seed:<id>]`. Soft-deleted instances do not block regeneration. Running the job twice on the same Sydney day creates one task. Catch-up fills missed due dates back to the later of the seed's created Sydney day and 31 Sydney days ago.
 

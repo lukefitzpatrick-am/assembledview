@@ -294,3 +294,48 @@ export function checkReaders(
   for (const key of Object.keys(table)) if (!found.has(key)) problems.push(`stale entry ${key}: no read found there`)
   return problems
 }
+
+// ---------------------------------------------------------------------------
+// P1 (PACK3fix): writers that create a task
+// ---------------------------------------------------------------------------
+
+export type TaskCreate = {
+  key: string
+  line: number
+  /** `insert`: a Drizzle or raw SQL insert into `tasks`; `createTask`: a call to the shared creator. */
+  kind: "insert" | "createTask"
+}
+
+const RAW_TASK_INSERT = /\binsert\s+into\s+(?:"?public"?\s*\.\s*)?"?tasks"?(?![\w$])/i
+
+/**
+ * Every place that makes a new task row: inserts into `tasks` (Drizzle
+ * `.insert(t)` with a task table binding, or raw SQL) and calls to a function
+ * named `createTask` (the shared creator, injected or imported). Keyed
+ * `file#function` like the readers.
+ */
+export function findTaskCreates(file: string, text: string): TaskCreate[] {
+  const kind = /\.(tsx|jsx)$/.test(file) ? ts.ScriptKind.TSX : /\.(m|c)?js$/.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TS
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind)
+  const bindings = tableBindings(sf)
+  const out: TaskCreate[] = []
+  const add = (node: ts.Node, k: TaskCreate["kind"]) => {
+    const where = enclosing(node, sf)
+    out.push({ key: `${file}#${where.fn}`, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, kind: k })
+  }
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "insert" && node.arguments.length > 0 && tableOf(node.arguments[0], bindings) === "tasks") add(node, "insert")
+      const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : ""
+      if (name === "createTask") add(node, "createTask")
+    }
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) {
+      const lit = literalText(node, bindings, sf)
+      if (lit && RAW_TASK_INSERT.test(lit)) add(node, "insert")
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return out
+}

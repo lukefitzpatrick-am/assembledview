@@ -99,7 +99,11 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/codex/repo.ts#requestHelp": { rule: "exempt", reason: WRITER },
   "lib/codex/repo.ts#maybeCompleteHelpParent": { rule: "exempt", reason: "help writer: the parent of a child being saved" },
   "lib/codex/repo.ts#maybeRewaitHelpParent": { rule: "exempt", reason: "help writer: the parent of a child being saved" },
-  "lib/codex/repo.ts#listRecurringSeeds": { rule: "exempt", reason: SYSTEM },
+  "lib/codex/repo.ts#listRecurringSeeds": {
+    rule: "exempt",
+    reason:
+      "the recurring job's seeds: their rows go only into the copies it makes, and each copy keeps its seed's project, so the same people see it (P1, taskWriters.test.ts)",
+  },
   "lib/codex/repo.ts#findGeneratedRecurringTask": { rule: "exempt", reason: SYSTEM },
   "lib/codex/repo.ts#latestRecurringInstanceDueYmd": { rule: "exempt", reason: SYSTEM },
   "lib/codex/notificationsRepo.ts#generateDueReminders": { rule: "exempt", reason: `${SYSTEM}; recipients through writeNotifications (canSeeTask)` },

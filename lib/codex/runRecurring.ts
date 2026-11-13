@@ -3,11 +3,13 @@ import "server-only"
 import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
+import type { Db } from "@/db"
 import {
   createGeneratedRecurringTask,
   findGeneratedRecurringTask,
   latestRecurringInstanceDueYmd,
   listRecurringSeeds,
+  RecurringCopySkipped,
 } from "@/lib/codex/repo"
 import {
   parseRecurringRule,
@@ -22,6 +24,9 @@ export type RecurringRunResult = {
   skippedExisting: number
   skippedNotDue: number
   skippedInvalidRule: number
+  /** P1 (PACK3fix): a private project's seed whose assignee cannot see the project, or a seed deleted mid-run. */
+  skippedNoAccess: number
+  skippedSeedGone: number
   createdIds: number[]
   sydneyYmd: string
 }
@@ -32,7 +37,9 @@ export type RecurringRunResult = {
  * to the later of the seed's created day and 31 Sydney days ago.
  */
 export async function runCodexRecurring(
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** Tests pass a database; the cron uses the default. */
+  database?: Db
 ): Promise<RecurringRunResult> {
   const sydneyYmd = sydneyCivilParts(now).ymd
 
@@ -45,16 +52,20 @@ export async function runCodexRecurring(
       skippedExisting: 0,
       skippedNotDue: 0,
       skippedInvalidRule: 0,
+      skippedNoAccess: 0,
+      skippedSeedGone: 0,
       createdIds: [],
       sydneyYmd,
     }
   }
 
-  const seeds = await listRecurringSeeds()
+  const seeds = await listRecurringSeeds(database)
   const createdIds: number[] = []
   let skippedExisting = 0
   let skippedNotDue = 0
   let skippedInvalidRule = 0
+  let skippedNoAccess = 0
+  let skippedSeedGone = 0
 
   for (const seed of seeds) {
     const parsed = parseRecurringRule(seed.recurringRule)
@@ -63,7 +74,7 @@ export async function runCodexRecurring(
       continue
     }
 
-    const lastDue = await latestRecurringInstanceDueYmd(seed.id)
+    const lastDue = await latestRecurringInstanceDueYmd(seed.id, database)
     const createdYmd = toSydneyCivilYmd(seed.createdAt) ?? sydneyYmd
     const periods = recurringPeriodsToGenerate(parsed, {
       todayYmd: sydneyYmd,
@@ -76,28 +87,41 @@ export async function runCodexRecurring(
     }
 
     for (const due of periods) {
-      const existing = await findGeneratedRecurringTask(seed.id, due.period)
+      const existing = await findGeneratedRecurringTask(seed.id, due.period, database)
       if (existing) {
         skippedExisting += 1
         continue
       }
 
-      const created = await createGeneratedRecurringTask({
-        seedTaskId: seed.id,
-        title: seed.title,
-        clientId: seed.clientId,
-        templateId: seed.templateId,
-        period: due.period,
-        dueYmd: due.dueYmd,
-        description: seed.description,
-        priority: seed.priority,
-        assigneeEmail: seed.assigneeEmail,
-        assigneeName: seed.assigneeName,
-        category: seed.category,
-        mbaNumber: seed.mbaNumber,
-        estimatedMinutes: seed.estimatedMinutes,
-        createdByEmail: seed.createdByEmail || "system@codex.local",
-      })
+      let created
+      try {
+        created = await createGeneratedRecurringTask(
+          {
+            seedTaskId: seed.id,
+            title: seed.title,
+            clientId: seed.clientId,
+            templateId: seed.templateId,
+            period: due.period,
+            dueYmd: due.dueYmd,
+            description: seed.description,
+            priority: seed.priority,
+            assigneeEmail: seed.assigneeEmail,
+            assigneeName: seed.assigneeName,
+            category: seed.category,
+            mbaNumber: seed.mbaNumber,
+            estimatedMinutes: seed.estimatedMinutes,
+            createdByEmail: seed.createdByEmail || "system@codex.local",
+          },
+          database
+        )
+      } catch (err) {
+        if (!(err instanceof RecurringCopySkipped)) throw err
+        // Nothing written; the next run catches the period up once the seed is fixed.
+        console.warn(`[codex-recurring] skipped seed ${seed.id} ${due.period}: ${err.reason}`)
+        if (err.reason === "assignee_no_access") skippedNoAccess += 1
+        else skippedSeedGone += 1
+        break
+      }
       createdIds.push(Number(created.id))
     }
   }
@@ -109,6 +133,8 @@ export async function runCodexRecurring(
     skippedExisting,
     skippedNotDue,
     skippedInvalidRule,
+    skippedNoAccess,
+    skippedSeedGone,
     createdIds,
     sydneyYmd,
   }

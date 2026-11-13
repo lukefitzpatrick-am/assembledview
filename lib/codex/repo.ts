@@ -2974,9 +2974,32 @@ export type CreateGeneratedRecurringInput = {
   createdByEmail: string
 }
 
+/** P1 (PACK3fix): why a period instance was not made (nothing was written). */
+export type RecurringSkipReason = "seed_gone" | "assignee_no_access"
+
+export class RecurringCopySkipped extends Error {
+  constructor(
+    readonly seedTaskId: number,
+    readonly reason: RecurringSkipReason
+  ) {
+    super(`recurring seed ${seedTaskId}: ${reason}`)
+    this.name = "RecurringCopySkipped"
+  }
+}
+
 /**
  * Create one period instance. Caller must check idempotency first.
  * Checklist copied from template; source=recurring; no recurring_rule on child.
+ *
+ * P1 (PACK3fix): the instance copies the seed's title and description, so it
+ * lives in the seed's project (and so has its privacy), placed by the section
+ * rule for to do (the first To do section, else "No section"). The seed's
+ * project and row are locked first (`lockTaskAndProject`), so a board move
+ * cannot slip in between. A seed in a private project whose assignee can no
+ * longer see it makes nothing (`assignee_no_access`, F5: a private task goes
+ * only to someone who can see it); a seed deleted since it was listed makes
+ * nothing (`seed_gone`). Both throw `RecurringCopySkipped`, the transaction
+ * rolls back, and the next run catches the period up once fixed.
  */
 export async function createGeneratedRecurringTask(
   input: CreateGeneratedRecurringInput,
@@ -2989,6 +3012,13 @@ export async function createGeneratedRecurringTask(
   )
 
   return database.transaction(async (tx) => {
+    const seed = await lockTaskAndProject(tx, input.seedTaskId)
+    if (!seed.found) throw new RecurringCopySkipped(input.seedTaskId, "seed_gone")
+    const assigneeEmail = input.assigneeEmail?.trim().toLowerCase() || null
+    if (seed.projectId != null && assigneeEmail) {
+      const [refused] = await emailsWithoutProjectAccess(tx, seed.projectId, [assigneeEmail])
+      if (refused) throw new RecurringCopySkipped(input.seedTaskId, "assignee_no_access")
+    }
     const now = new Date().toISOString()
     const [row] = await tx
       .insert(tasks)
@@ -2998,7 +3028,7 @@ export async function createGeneratedRecurringTask(
         description,
         status: "todo",
         priority: input.priority ?? "normal",
-        assigneeEmail: input.assigneeEmail?.trim().toLowerCase() || null,
+        assigneeEmail,
         assigneeName: input.assigneeName ?? null,
         dueDate: input.dueYmd,
         mbaNumber: input.mbaNumber ?? null,
@@ -3012,6 +3042,12 @@ export async function createGeneratedRecurringTask(
         updatedAt: now,
       })
       .returning()
+
+    if (seed.projectId != null) {
+      // Raw SQL: project_id is not mirrored (C-210). In no section, then the section rule for to do.
+      await tx.execute(sql`UPDATE public.tasks SET project_id = ${seed.projectId} WHERE id = ${row.id}`)
+      await followSectionRule(tx, row.id, "todo", null)
+    }
 
     const api = taskRowToApi(row)
     if (
