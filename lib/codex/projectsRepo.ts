@@ -985,6 +985,8 @@ export async function attachTaskS1Fields(items: CodexTask[], database: Db = db):
   } catch (err) {
     if (isMissingProjectsSchema(err)) {
       forgetProjectsMarker()
+      // STACKfix N2: a missing column with the marker in place is a real error, not "not applied".
+      if (isMissingColumnOnly(err) && (await isProjectsMigrationApplied(database))) throw err
       return items
     }
     throw err

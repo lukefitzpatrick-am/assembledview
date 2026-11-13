@@ -18,6 +18,7 @@ import {
   ProjectsUnavailableError,
   resetProjectsMarkerCacheForTests,
   updateTaskThroughSections,
+  attachTaskS1Fields,
 } from "../projectsRepo.js"
 
 type Calls = { marker: number; other: number }
@@ -223,5 +224,20 @@ test("B39fix: with 0118 applied the same calls take the section path (control fo
   await assert.rejects(bulkUpdateTasksThroughSections([7], { status: "done" }, "luke@x.au", bulk.database))
   assert.equal(bulk.seen.transactions, 1)
   assert.match(bulk.seen.raw[0] ?? "", /FOR UPDATE OF p/)
+  resetProjectsMarkerCacheForTests()
+})
+
+test("B40 list enrichment follows the same rule: 42P01 returns the rows as they are; 42703 with the marker in place is the real error", async () => {
+  const withExecute = (err: unknown, calls: Calls) => {
+    const base = fakeDb({ markerRows: [{ key: "0118_codex_s1_projects" }] }, calls) as unknown as Record<string, unknown>
+    return { ...base, execute: async () => { throw err } } as unknown as Db
+  }
+  const items = [{ id: 1, title: "t", client_id: 0, status: "todo" }]
+  resetProjectsMarkerCacheForTests()
+  const gone = Object.assign(new Error("no table"), { code: "42P01" })
+  assert.deepEqual(await attachTaskS1Fields(items, withExecute(gone, { marker: 0, other: 0 })), items)
+  resetProjectsMarkerCacheForTests()
+  const typo = Object.assign(new Error("no column"), { code: "42703" })
+  await assert.rejects(attachTaskS1Fields(items, withExecute(typo, { marker: 0, other: 0 })), /no column/)
   resetProjectsMarkerCacheForTests()
 })
