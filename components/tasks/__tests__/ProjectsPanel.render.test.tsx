@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import type { CodexProject } from "@/lib/codex/projects"
 
-import { newProjectBody, ProjectsTable } from "../ProjectsPanel"
+import { defaultProjectOwner, newProjectBody, ProjectsTable } from "../ProjectsPanel"
 
 const P = (id: number, name: string, extra: Partial<CodexProject> = {}): CodexProject => ({
   id,
@@ -58,5 +58,14 @@ describe("Projects tab (B39)", () => {
       mba_number: "sinch001",
       is_private: false,
     })
+  })
+
+  it("B39fix F10: the owner picker starts on you as the roster's lowercased value, else empty (the You placeholder)", () => {
+    const roster = [{ email: "Luke@AssembledMedia.com.au" }, { email: "clay@assembledmedia.com.au" }]
+    expect(defaultProjectOwner("LUKE@assembledmedia.com.au", roster)).toBe("luke@assembledmedia.com.au")
+    expect(defaultProjectOwner(" clay@assembledmedia.com.au ", roster)).toBe("clay@assembledmedia.com.au")
+    expect(defaultProjectOwner("someone@else.au", roster)).toBe("")
+    expect(defaultProjectOwner(null, roster)).toBe("")
+    expect(defaultProjectOwner("luke@assembledmedia.com.au", [])).toBe("")
   })
 })

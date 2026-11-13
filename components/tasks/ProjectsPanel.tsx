@@ -75,6 +75,20 @@ export function newProjectBody(draft: NewProjectDraft): Record<string, unknown> 
   }
 }
 
+/**
+ * The owner picker's starting value: you, as the roster item's value
+ * (lowercased), when you are an active roster member; otherwise "" so the
+ * picker shows its "You" placeholder instead of a blank (the server then
+ * makes you the owner).
+ */
+export function defaultProjectOwner(meEmail: string | null, activeMembers: readonly Pick<TeamMember, "email">[]): string {
+  const me = meEmail?.trim().toLowerCase() ?? ""
+  if (!me) return ""
+  const member = activeMembers.find((m) => m.email.trim().toLowerCase() === me)
+  // The same value the picker's items use (m.email.toLowerCase()).
+  return member ? member.email.toLowerCase() : ""
+}
+
 export function ProjectsTable({ items, nameFor }: { items: CodexProject[]; nameFor: (email: string | null) => string }) {
   if (items.length === 0) {
     return <EmptyState title="No projects yet" message="Create one with New project. Private projects show to their members only." />
@@ -197,7 +211,13 @@ export function ProjectsPanel({
           <Button
             type="button"
             onClick={() => {
-              setDraft({ name: "", kind: "campaign", mba_number: "", is_private: false, owner_email: meEmail ?? "" })
+              setDraft({
+                name: "",
+                kind: "campaign",
+                mba_number: "",
+                is_private: false,
+                owner_email: defaultProjectOwner(meEmail, activeMembers),
+              })
               setOpen(true)
             }}
           >
