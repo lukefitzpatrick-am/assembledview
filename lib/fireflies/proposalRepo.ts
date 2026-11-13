@@ -563,7 +563,12 @@ async function getProposal(
   return row ? rowToProposal(row) : null
 }
 
-async function listOpenTasksForMba(mba: string, database: Db) {
+/**
+ * Open tasks on the MBA for the accept duplicate check, as the person
+ * accepting sees them (F2, B42fix): a private project's task they cannot see
+ * never flags a duplicate.
+ */
+async function listOpenTasksForMba(mba: string, database: Db, viewerEmail: string | null) {
   const rows = await database
     .select({
       title: schema.tasks.title,
@@ -574,7 +579,8 @@ async function listOpenTasksForMba(mba: string, database: Db) {
       and(
         isNull(schema.tasks.deletedAt),
         ne(schema.tasks.status, "done"),
-        sql`lower(${schema.tasks.mbaNumber}) = ${mba.trim().toLowerCase()}`
+        sql`lower(${schema.tasks.mbaNumber}) = ${mba.trim().toLowerCase()}`,
+        await taskVisibilityCondition(database, viewerEmail)
       )
     )
   return rows
@@ -622,7 +628,7 @@ export async function acceptProposal(
           })
           .where(eq(schema.avaTaskProposals.id, id))
       },
-      listOpenTasksForMba: (mba) => listOpenTasksForMba(mba, database),
+      listOpenTasksForMba: (mba) => listOpenTasksForMba(mba, database, decidedByEmail),
     }
   )
 }

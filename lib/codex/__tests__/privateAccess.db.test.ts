@@ -61,6 +61,7 @@ import { searchCodex } from "../searchRepo.js"
 import { listBell, loadDigestBatch } from "../notificationsRepo.js"
 import { loadWorkload } from "../workloadRepo.js"
 import { getTeamWeekTimeSummary } from "../../myhours/timeSummary.js"
+import { acceptProposal } from "../../fireflies/proposalRepo.js"
 
 const URL_ = siblingUrl(RAW_URL, "access")
 const skip = URL_ ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"
@@ -371,5 +372,17 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     await client`UPDATE public.tasks SET status = 'todo' WHERE id = ${second}`
     assert.ok((await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: p2, sort_order: null }, database)).ok)
     assert.deepEqual(await projectOf(second), { project: priv, section: sec["priv:To do"] })
+  })
+
+  it("F2: accepting a meeting action never flags a duplicate against a task the person cannot see", async () => {
+    await task("Wombat audit", priv, { section: sec["priv:To do"] })
+    const propose = async () =>
+      Number((await client`INSERT INTO public.ava_task_proposals (proposed_title, proposed_mba_number, client_id) VALUES ('Wombat audit', ${MBA}, 42) RETURNING id`)[0].id)
+    const out = await acceptProposal(await propose(), OUT, null, database)
+    assert.ok(out.ok)
+    assert.equal(out.possibleDuplicate, false)
+    const mia = await acceptProposal(await propose(), MIA, null, database)
+    assert.ok(mia.ok)
+    assert.equal(mia.possibleDuplicate, true)
   })
 })
