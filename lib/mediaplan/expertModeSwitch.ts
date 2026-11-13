@@ -44,7 +44,10 @@ import type {
 } from "./expertChannelMappings.js"
 
 import { formatBurstDateLocal } from "./burstDate"
-import { preservePreviousBurstsIfApplyWouldZeroBudget } from "./cardExpertBudgetSync"
+import {
+  keepZeroQuantityPackageBurstsOnApply,
+  preservePreviousBurstsIfApplyWouldZeroBudget,
+} from "./cardExpertBudgetSync"
 
 export { preservePreviousBurstsIfApplyWouldZeroBudget }
 
@@ -63,17 +66,27 @@ function carriedFixedCostFrom(li: object, prev: object): { fixedCostFrom?: strin
 
 function attachBurstPreserve<T extends { bursts?: unknown; buyType?: string }>(
   li: T,
-  prev: T | undefined
+  prev: T | undefined,
+  options?: {
+    /**
+     * B35fix (C-168, B35 review L2): press and programmatic grids, where a
+     * package of 0 opens as 0 (C-168 (d)). Card bursts with money and
+     * quantity 0 are kept on Apply (`keepZeroQuantityPackageBurstsOnApply`).
+     */
+    keepZeroQuantityPackageBursts?: boolean
+  }
 ): T {
   if (!prev) return li
+  type B = { budget?: unknown; calculatedValue?: unknown; startDate?: unknown; endDate?: unknown }
+  const generated = (li as { bursts?: B[] }).bursts
+  const previous = (prev as { bursts?: B[] }).bursts
+  const floored = preservePreviousBurstsIfApplyWouldZeroBudget(generated, previous, li.buyType)
   return {
     ...li,
     ...carriedFixedCostFrom(li, prev),
-    bursts: preservePreviousBurstsIfApplyWouldZeroBudget(
-      (li as { bursts?: Array<{ budget?: unknown }> }).bursts,
-      (prev as { bursts?: Array<{ budget?: unknown }> }).bursts,
-      li.buyType,
-    ) as T["bursts"],
+    bursts: (options?.keepZeroQuantityPackageBursts && floored === generated
+      ? keepZeroQuantityPackageBurstsOnApply(generated, previous, li.buyType)
+      : floored) as T["bursts"],
   }
 }
 
@@ -278,7 +291,7 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -311,7 +324,7 @@ export function mergeMagazineStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -1464,7 +1477,7 @@ export function mergeProgAudioStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -1487,7 +1500,7 @@ export function mergeProgBvodStandardFromExpertWithPrevious(
       ...li,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -1514,7 +1527,7 @@ export function mergeProgDisplayStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -1541,7 +1554,7 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 
@@ -1565,7 +1578,7 @@ export function mergeProgOohStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }, prev)
+    }, prev, { keepZeroQuantityPackageBursts: true })
   })
 }
 

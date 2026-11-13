@@ -460,3 +460,4 @@ pct === 100 → fee = 0 (division guard)
 ## Legal
 
 - Every third party that receives personal information is listed in `lib/legal/privacyConfig.ts`.
+- Expert Apply on a `package` line in the Newspaper, Magazines and programmatic grids keeps each card burst with money and quantity 0 as it was (`keepZeroQuantityPackageBurstsOnApply`), unless the grid has a quantity over its dates that no other card burst had there; Apply never drops a zero-quantity burst's money or invents a quantity for it.

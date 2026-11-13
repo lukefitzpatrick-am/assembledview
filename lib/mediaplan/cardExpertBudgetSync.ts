@@ -8,6 +8,7 @@
  * (except bonus / package_inclusions, where generated 0 is intended).
  */
 import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import {
   expertRowGrossCost,
   expertRowQuantitySum,
@@ -244,4 +245,73 @@ export function preservePreviousBurstsIfApplyWouldZeroBudget<
     return prev
   }
   return gen
+}
+
+type ApplyBurst = {
+  budget?: unknown
+  calculatedValue?: unknown
+  startDate?: unknown
+  endDate?: unknown
+}
+
+function burstDay(value: unknown): string {
+  if (value instanceof Date || typeof value === "string") return formatBurstDateLocal(value)
+  return ""
+}
+
+function burstQty(b: ApplyBurst): number {
+  const n = Number(b.calculatedValue)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Civil-day overlap (Sydney), inclusive. A burst with no readable dates overlaps nothing. */
+function burstsOverlap(a: ApplyBurst, b: ApplyBurst): boolean {
+  const as = burstDay(a.startDate)
+  const ae = burstDay(a.endDate) || as
+  const bs = burstDay(b.startDate)
+  const be = burstDay(b.endDate) || bs
+  if (!as || !bs) return false
+  return as <= be && bs <= ae
+}
+
+/**
+ * B35fix (B35 review L2, C-168): Apply on a `package` line in the press and
+ * programmatic grids keeps each card burst that has money and quantity 0.
+ *
+ * The grid opens such a burst as 0 (C-168 (d)), so it generates no burst for
+ * it, and the per-line floor above only steps in when the whole line would be
+ * $0. Without this a line with a $750 burst at quantity 0 and a $500 burst at
+ * quantity 2 (rate $250) came back as $500.
+ *
+ * - A zero-quantity card burst is kept as it was (its own budget and dates; no
+ *   fee or quantity worked out here) unless the grid now has quantity over its
+ *   dates that no other card burst had there: a quantity typed into that
+ *   week, which then prices as quantity x rate in its place.
+ * - Bursts with a quantity come from the grid as before (quantity x rate).
+ * - Other buy types, a line the grid priced at $0 (the floor keeps the card),
+ *   and lines with no such burst: the generated bursts as they are.
+ *
+ * Returns the generated bursts with the kept card bursts added, in start date order.
+ */
+export function keepZeroQuantityPackageBurstsOnApply<B extends ApplyBurst>(
+  generated: B[] | undefined,
+  previous: B[] | undefined,
+  generatedBuyType?: string | null,
+): B[] {
+  const gen = generated ?? []
+  if (String(generatedBuyType || "").trim().toLowerCase() !== "package") return gen
+  const prev = previous ?? []
+  if (!(sumBurstsBudgetMoney(gen) > 0)) return gen
+  const zeroBursts = prev.filter((b) => !(burstQty(b) > 0) && parseBurstMoney(b.budget) !== 0)
+  if (zeroBursts.length === 0) return gen
+  const quantityBursts = prev.filter((b) => burstQty(b) > 0)
+  const kept = zeroBursts.filter((z) => {
+    const typedOver = gen.some((g) => burstsOverlap(g, z))
+    if (!typedOver) return true
+    // A card quantity burst shares these dates: the grid can't tell the two
+    // apart, so the quantity there is that burst's and the zero burst stays.
+    return quantityBursts.some((q) => burstsOverlap(q, z))
+  })
+  if (kept.length === 0) return gen
+  return [...gen, ...kept].sort((a, b) => burstDay(a.startDate).localeCompare(burstDay(b.startDate)))
 }
