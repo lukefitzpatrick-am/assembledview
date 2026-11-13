@@ -1,7 +1,7 @@
 "use client"
 
 import { rosterDisplayName } from "@/lib/codex/rosterResolve"
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import {
   DndContext,
   DragOverlay,
@@ -15,19 +15,26 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { CheckSquare } from "lucide-react"
+import { CheckSquare, ListTree, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { TASK_PRIORITY, TONE_TEXT, type Tone } from "@/lib/design/status"
 import { Button } from "@/components/ui/button"
 import { formatDueYmd, isOverdueYmd } from "@/lib/codex/dueDate"
 import { compareTasksForSort, type TaskSortKey } from "@/lib/codex/queryHelpers"
+import {
+  boardColumns as columnsForSource,
+  columnKeyForTask,
+  planBoardDrop,
+  visibleBoardStatuses,
+  type BoardColumnDef,
+  type BoardColumnSource,
+  type BoardMove,
+} from "@/lib/codex/projectBoard"
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import {
-  STATUSES,
   TASK_PRIORITIES,
-  TASK_STATUSES,
   isTaskStatus,
   statusMeta,
   type CodexTask,
@@ -36,48 +43,34 @@ import {
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
 
+export { visibleBoardStatuses }
+
 function priorityTone(value: string): Tone {
   if (value === "high" || value === "normal" || value === "low") {
     return TASK_PRIORITY[value].tone
   }
+  if (value === "asap") return "critical"
   return "neutral"
 }
 
 function priorityLabel(value: string | null | undefined): string {
+  if (value === "asap") return "ASAP"
   const found = TASK_PRIORITIES.find((p) => p.value === value)
   return found?.label ?? (value ? String(value) : "Normal")
 }
 
-function columnDropId(status: TaskStatus): string {
-  return `col:${status}`
+function columnDropId(key: string): string {
+  return `col:${key}`
 }
 
-function parseColumnId(id: string | number): TaskStatus | null {
-  const raw = String(id)
-  if (raw.startsWith("col:")) {
-    const status = raw.slice(4)
-    return isTaskStatus(status) ? status : null
-  }
-  return null
-}
-
-/** Empty or missing filter shows every column. A set filter shows those columns, in board order. */
-export function visibleBoardStatuses(
-  statusFilter: readonly string[] | null | undefined
-): TaskStatus[] {
-  if (statusFilter == null || statusFilter.length === 0) {
-    return [...TASK_STATUSES]
-  }
-  const selected = new Set(statusFilter.filter(isTaskStatus))
-  return TASK_STATUSES.filter((status) => selected.has(status))
+function cardDropId(taskId: string): string {
+  return `card:${taskId}`
 }
 
 export type BoardStatusCounts = Record<TaskStatus, number>
 
-type BoardCardProps = {
-  task: CodexTask
-  columnStatus: TaskStatus
-  clientName: string
+type CardSharedProps = {
+  clientName: string | null
   onOpen: (task: CodexTask) => void
   teamMembers: TeamMember[]
   meEmail: string | null
@@ -93,7 +86,7 @@ function TaskBoardCardFace({
   onHelpAsked,
 }: {
   task: CodexTask
-  clientName: string
+  clientName: string | null
   overdue: boolean
   teamMembers?: TeamMember[]
   meEmail?: string | null
@@ -101,6 +94,8 @@ function TaskBoardCardFace({
 }) {
   const done = task.checklist_done ?? 0
   const total = task.checklist_total ?? 0
+  const subtasks = task.subtask_count ?? 0
+  const comments = task.comment_count ?? 0
   const priority = String(task.priority ?? "normal")
 
   return (
@@ -113,7 +108,9 @@ function TaskBoardCardFace({
           {priorityLabel(priority)}
         </Badge>
       </div>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{clientName}</p>
+      {clientName != null ? (
+        <p className="mt-1 truncate text-xs text-muted-foreground">{clientName}</p>
+      ) : null}
       {task.parent_task_id != null && task.parent_title ? (
         <Link
           href={`/tasks/${task.parent_task_id}`}
@@ -140,18 +137,25 @@ function TaskBoardCardFace({
             />
           ) : null}
         </span>
-        <span
-          className={cn(
-            "num",
-            overdue && `font-semibold ${TONE_TEXT.critical}`
-          )}
-        >
+        <span className={cn("num", overdue && `font-semibold ${TONE_TEXT.critical}`)}>
           {overdue ? `Overdue · ${formatDueYmd(task.due_date ?? null)}` : formatDueYmd(task.due_date ?? null)}
         </span>
         {total > 0 ? (
           <span className="inline-flex items-center gap-1 num">
             <CheckSquare className="h-3 w-3" aria-hidden />
             {done}/{total}
+          </span>
+        ) : null}
+        {subtasks > 0 ? (
+          <span className="inline-flex items-center gap-1 num" title={`${subtasks} subtask${subtasks === 1 ? "" : "s"}`}>
+            <ListTree className="h-3 w-3" aria-hidden />
+            {subtasks}
+          </span>
+        ) : null}
+        {comments > 0 ? (
+          <span className="inline-flex items-center gap-1 num" title={`${comments} comment${comments === 1 ? "" : "s"}`}>
+            <MessageSquare className="h-3 w-3" aria-hidden />
+            {comments}
           </span>
         ) : null}
         {task.estimated_minutes != null && task.estimated_minutes > 0 ? (
@@ -164,22 +168,32 @@ function TaskBoardCardFace({
 
 function TaskBoardCard({
   task,
-  columnStatus,
+  columnKey,
+  droppable,
   clientName,
   onOpen,
   teamMembers,
   meEmail,
   onHelpAsked,
-}: BoardCardProps) {
+}: CardSharedProps & { task: CodexTask; columnKey: string; droppable: boolean }) {
   const overdue = isOverdueYmd(task.due_date ?? null, task.status)
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: String(task.id),
-    data: { type: "card" as const, task, status: columnStatus },
+  const id = String(task.id)
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id,
+    data: { type: "card" as const, task, columnKey },
+  })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: cardDropId(id),
+    data: { type: "card" as const, columnKey, taskId: Number(task.id) },
+    disabled: !droppable,
   })
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setDragRef(node)
+        setDropRef(node)
+      }}
       {...attributes}
       {...listeners}
       role="button"
@@ -195,7 +209,8 @@ function TaskBoardCard({
         "interactive w-full cursor-pointer rounded-card border border-border bg-card p-3 text-left shadow-e1",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         overdue && "border-l-[3px] border-l-status-critical-fg",
-        isDragging && "opacity-40"
+        isDragging && "opacity-40",
+        droppable && isOver && !isDragging && "ring-2 ring-ring"
       )}
       aria-label={`${task.title}${overdue ? ", overdue" : ""}`}
     >
@@ -211,62 +226,106 @@ function TaskBoardCard({
   )
 }
 
+type ColumnRenderers = {
+  /** Extra header content (the project board's section menu). */
+  renderColumnMenu?: (column: BoardColumnDef) => ReactNode
+  /** Below the cards (the project board's inline add and paste). */
+  renderColumnFooter?: (column: BoardColumnDef) => ReactNode
+}
+
 function BoardColumn({
-  status,
-  label,
+  column,
+  showCategory,
+  collapsed,
   tasks,
   count,
   loadingMore,
   onLoadMore,
-  clientNameById,
+  clientNameFor,
+  cardsDroppable,
   onOpen,
   teamMembers,
   meEmail,
   onHelpAsked,
-}: {
-  status: TaskStatus
-  label: string
+  renderColumnMenu,
+  renderColumnFooter,
+}: ColumnRenderers & {
+  column: BoardColumnDef
+  showCategory: boolean
+  collapsed: boolean
   tasks: CodexTask[]
   count: number
   loadingMore: boolean
-  onLoadMore: (status: TaskStatus) => void
-  clientNameById: Map<number, string>
+  onLoadMore: (key: string) => void
+  clientNameFor: (task: CodexTask) => string | null
+  cardsDroppable: boolean
   onOpen: (task: CodexTask) => void
   teamMembers: TeamMember[]
   meEmail: string | null
   onHelpAsked?: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: columnDropId(status),
-    data: { type: "column" as const, status },
+    id: columnDropId(column.key),
+    data: { type: "column" as const, columnKey: column.key, status: column.status },
   })
-  const meta = statusMeta(status)
+  const meta = statusMeta(column.status)
   const remaining = Math.max(0, count - tasks.length)
+
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        data-column={column.key}
+        data-collapsed="true"
+        className={cn(
+          "flex min-h-[12rem] w-12 shrink-0 flex-col items-center gap-2 rounded-card border border-border bg-surface-panel/60 py-2",
+          isOver && "ring-2 ring-ring"
+        )}
+      >
+        {renderColumnMenu ? renderColumnMenu(column) : null}
+        <span className="num text-xs text-muted-foreground">{count}</span>
+        <span className="text-xs font-medium text-muted-foreground [writing-mode:vertical-rl]">{column.label}</span>
+      </div>
+    )
+  }
 
   return (
     <div
       ref={setNodeRef}
+      data-column={column.key}
       className={cn(
         "flex min-h-[12rem] min-w-[16.5rem] flex-1 flex-col rounded-card border border-border bg-surface-panel/60",
         isOver && "ring-2 ring-ring"
       )}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-        <Badge variant={meta.badgeVariant} size="sm">
-          {label}
-        </Badge>
-        <span className="num text-xs text-muted-foreground">{count}</span>
+        <span className="inline-flex min-w-0 items-center gap-2">
+          {showCategory ? (
+            <>
+              <span className="truncate text-sm font-semibold text-foreground">{column.label}</span>
+              <Badge variant={meta.badgeVariant} size="sm">
+                {meta.label}
+              </Badge>
+            </>
+          ) : (
+            <Badge variant={meta.badgeVariant} size="sm">
+              {column.label}
+            </Badge>
+          )}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="num text-xs text-muted-foreground">{count}</span>
+          {renderColumnMenu ? renderColumnMenu(column) : null}
+        </span>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-2">
         {tasks.map((task) => (
           <TaskBoardCard
             key={String(task.id)}
             task={task}
-            columnStatus={status}
-            clientName={
-              clientNameById.get(Number(task.client_id)) ??
-              String(task.client_id || "—")
-            }
+            columnKey={column.key}
+            droppable={cardsDroppable}
+            clientName={clientNameFor(task)}
             onOpen={onOpen}
             teamMembers={teamMembers}
             meEmail={meEmail}
@@ -274,9 +333,7 @@ function BoardColumn({
           />
         ))}
         {tasks.length === 0 ? (
-          <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-            Drop here
-          </p>
+          <p className="px-1 py-6 text-center text-xs text-muted-foreground">Drop here</p>
         ) : null}
       </div>
       {remaining > 0 ? (
@@ -287,110 +344,93 @@ function BoardColumn({
             size="sm"
             className="w-full"
             disabled={loadingMore}
-            onClick={() => onLoadMore(status)}
+            onClick={() => onLoadMore(column.key)}
           >
             {`Load more (${remaining} left)`}
           </Button>
         </div>
       ) : null}
+      {renderColumnFooter ? <div className="border-t border-border/60 p-2">{renderColumnFooter(column)}</div> : null}
     </div>
   )
 }
 
-type Props = {
-  columns: Record<TaskStatus, CodexTask[]>
-  counts: BoardStatusCounts
-  statusFilter?: readonly string[] | null
-  onLoadMore: (status: TaskStatus) => void
-  loadingMoreStatus?: TaskStatus | null
+export type GenericTaskBoardProps = ColumnRenderers & {
+  /** Statuses (Tasks board) or a project's sections (project board). */
+  source: BoardColumnSource
+  /** Cards per column key. Status boards sort by `sort`; section boards keep the given order. */
+  columns: Record<string, CodexTask[]>
+  counts: Record<string, number>
+  onLoadMore: (key: string) => void
+  loadingMoreKey?: string | null
   sort?: TaskSortKey
-  clientNameById: Map<number, string>
+  /** Null hides the client line (a project's cards share its client). */
+  clientNameFor: (task: CodexTask) => string | null
   onOpenTask: (task: CodexTask) => void
-  onStatusChange: (
-    task: CodexTask,
-    nextStatus: TaskStatus
-  ) => void | Promise<void>
+  /** A drop that changes something (planBoardDrop). */
+  onMove: (task: CodexTask, move: BoardMove) => void | Promise<void>
+  collapsedKeys?: ReadonlySet<string>
   teamMembers: TeamMember[]
   meEmail: string | null
   onHelpAsked?: () => void
+  ariaLabel?: string
 }
 
-function emptyColumns(): Record<TaskStatus, CodexTask[]> {
-  return {
-    backlog: [],
-    todo: [],
-    in_progress: [],
-    waiting: [],
-    done: [],
-  }
-}
-
-export function TaskBoard({
+/** The one board: columns from a status or sections source (plan 5.1), drag rules from planBoardDrop. */
+export function GenericTaskBoard({
+  source,
   columns,
   counts,
-  statusFilter,
   onLoadMore,
-  loadingMoreStatus = null,
+  loadingMoreKey = null,
   sort = "due_asc",
-  clientNameById,
+  clientNameFor,
   onOpenTask,
-  onStatusChange,
+  onMove,
+  collapsedKeys,
   teamMembers,
   meEmail,
   onHelpAsked,
-}: Props) {
+  renderColumnMenu,
+  renderColumnFooter,
+  ariaLabel = "Task board",
+}: GenericTaskBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
-  const visible = useMemo(
-    () => visibleBoardStatuses(statusFilter),
-    [statusFilter]
-  )
+  const defs = useMemo(() => columnsForSource(source), [source])
+  const sections = source.kind === "sections"
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
   )
 
-  const byStatus = useMemo(() => {
-    const map = emptyColumns()
-    for (const column of TASK_STATUSES) {
-      for (const task of columns[column] ?? []) {
-        const status = isTaskStatus(task.status) ? task.status : "todo"
-        map[status].push(task)
+  const byKey = useMemo(() => {
+    const map: Record<string, CodexTask[]> = {}
+    for (const def of defs) map[def.key] = []
+    if (sections) {
+      // Section boards keep the server's card order (sort_order).
+      for (const def of defs) map[def.key] = [...(columns[def.key] ?? [])]
+      return map
+    }
+    // Status boards: each card goes in its own status column (unknown statuses with To do), sorted.
+    for (const list of Object.values(columns)) {
+      for (const task of list ?? []) {
+        const key = columnKeyForTask(source, task)
+        if (key != null && map[key]) map[key].push(task)
       }
     }
-    for (const column of Object.values(map)) {
-      column.sort((a, b) => compareTasksForSort(a, b, sort))
-    }
+    for (const list of Object.values(map)) list.sort((a, b) => compareTasksForSort(a, b, sort))
     return map
-  }, [columns, sort])
+  }, [columns, defs, sections, sort, source])
 
   const activeTask = useMemo(() => {
     if (!activeId) return null
-    for (const column of TASK_STATUSES) {
-      const found = byStatus[column].find((task) => String(task.id) === activeId)
+    for (const def of defs) {
+      const found = byKey[def.key]?.find((task) => String(task.id) === activeId)
       if (found) return found
     }
     return null
-  }, [activeId, byStatus])
-
-  const resolveDropStatus = (
-    overId: string | number,
-    overData: unknown
-  ): TaskStatus | null => {
-    const col = parseColumnId(overId)
-    if (col) return col
-    if (
-      overData &&
-      typeof overData === "object" &&
-      "status" in overData &&
-      isTaskStatus((overData as { status?: unknown }).status)
-    ) {
-      return (overData as { status: TaskStatus }).status
-    }
-    return null
-  }
+  }, [activeId, byKey, defs])
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id))
@@ -400,34 +440,20 @@ export function TaskBoard({
     setActiveId(null)
     const { active, over } = event
     if (!over) return
-
-    const task =
-      (active.data.current &&
-      typeof active.data.current === "object" &&
-      "task" in active.data.current
-        ? (active.data.current as { task?: CodexTask }).task
-        : null) ?? activeTask
+    const data = (active.data.current ?? {}) as { task?: CodexTask; columnKey?: unknown }
+    const task = data.task ?? activeTask
     if (!task) return
-
-    const fromData =
-      active.data.current &&
-      typeof active.data.current === "object" &&
-      "status" in active.data.current
-        ? (active.data.current as { status?: unknown }).status
-        : null
-    const from = isTaskStatus(fromData)
-      ? fromData
-      : isTaskStatus(task.status)
-        ? task.status
-        : "todo"
-    const to = resolveDropStatus(over.id, over.data.current)
-    if (!to || from === to) return
-
-    void onStatusChange(task, to)
-  }
-
-  const handleDragCancel = () => {
-    setActiveId(null)
+    const fromKey = typeof data.columnKey === "string" ? data.columnKey : null
+    if (!fromKey) return
+    const overData = (over.data.current ?? {}) as { columnKey?: unknown; taskId?: unknown; type?: unknown }
+    const toKey = typeof overData.columnKey === "string" ? overData.columnKey : null
+    if (!toKey) return
+    const overTaskId = overData.type === "card" && typeof overData.taskId === "number" ? overData.taskId : null
+    const move = planBoardDrop({ columns: byKey, counts }, source, Number(task.id), fromKey, {
+      columnKey: toKey,
+      overTaskId,
+    })
+    if (move) void onMove(task, move)
   }
 
   return (
@@ -436,27 +462,27 @@ export function TaskBoard({
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
+      onDragCancel={() => setActiveId(null)}
     >
-      <div
-        className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2"
-        role="region"
-        aria-label="Task board"
-      >
-        {STATUSES.filter((s) => visible.includes(s.value)).map((s) => (
+      <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2" role="region" aria-label={ariaLabel}>
+        {defs.map((def) => (
           <BoardColumn
-            key={s.value}
-            status={s.value}
-            label={s.label}
-            tasks={byStatus[s.value]}
-            count={counts[s.value] ?? 0}
-            loadingMore={loadingMoreStatus === s.value}
+            key={def.key}
+            column={def}
+            showCategory={sections}
+            collapsed={collapsedKeys?.has(def.key) ?? false}
+            tasks={byKey[def.key] ?? []}
+            count={counts[def.key] ?? 0}
+            loadingMore={loadingMoreKey === def.key}
             onLoadMore={onLoadMore}
-            clientNameById={clientNameById}
+            clientNameFor={clientNameFor}
+            cardsDroppable={sections}
             onOpen={onOpenTask}
             teamMembers={teamMembers}
             meEmail={meEmail}
             onHelpAsked={onHelpAsked}
+            renderColumnMenu={renderColumnMenu}
+            renderColumnFooter={renderColumnFooter}
           />
         ))}
       </div>
@@ -471,15 +497,63 @@ export function TaskBoard({
           >
             <TaskBoardCardFace
               task={activeTask}
-              clientName={
-                clientNameById.get(Number(activeTask.client_id)) ??
-                String(activeTask.client_id || "—")
-              }
+              clientName={clientNameFor(activeTask)}
               overdue={isOverdueYmd(activeTask.due_date ?? null, activeTask.status)}
             />
           </div>
         ) : null}
       </DragOverlay>
     </DndContext>
+  )
+}
+
+type Props = {
+  columns: Record<TaskStatus, CodexTask[]>
+  counts: BoardStatusCounts
+  statusFilter?: readonly string[] | null
+  onLoadMore: (status: TaskStatus) => void
+  loadingMoreStatus?: TaskStatus | null
+  sort?: TaskSortKey
+  clientNameById: Map<number, string>
+  onOpenTask: (task: CodexTask) => void
+  onStatusChange: (task: CodexTask, nextStatus: TaskStatus) => void | Promise<void>
+  teamMembers: TeamMember[]
+  meEmail: string | null
+  onHelpAsked?: () => void
+}
+
+/** The Tasks board: the generic board with status columns (unchanged behaviour). */
+export function TaskBoard({
+  columns,
+  counts,
+  statusFilter,
+  onLoadMore,
+  loadingMoreStatus = null,
+  sort = "due_asc",
+  clientNameById,
+  onOpenTask,
+  onStatusChange,
+  teamMembers,
+  meEmail,
+  onHelpAsked,
+}: Props) {
+  const source = useMemo<BoardColumnSource>(() => ({ kind: "status", statusFilter }), [statusFilter])
+  return (
+    <GenericTaskBoard
+      source={source}
+      columns={columns}
+      counts={counts}
+      onLoadMore={(key) => {
+        if (isTaskStatus(key)) onLoadMore(key)
+      }}
+      loadingMoreKey={loadingMoreStatus}
+      sort={sort}
+      clientNameFor={(task) => clientNameById.get(Number(task.client_id)) ?? String(task.client_id || "—")}
+      onOpenTask={onOpenTask}
+      onMove={(task, move) => onStatusChange(task, move.status)}
+      teamMembers={teamMembers}
+      meEmail={meEmail}
+      onHelpAsked={onHelpAsked}
+    />
   )
 }
