@@ -20,6 +20,8 @@ let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: Array<{ fn: string; args: unknown[] }> = []
 let mode = "ok"
 let markerApplied = true
+/** Only createAttachment refuses (after the file is in Blob). */
+let createMode = "ok"
 const blobs = { put: [] as string[], del: [] as string[] }
 
 class ProjectsUnavailableError extends Error {
@@ -58,7 +60,9 @@ if (supportsMockModule()) {
       unfollowTask: fn("unfollowTask", () => outcome({ ...FOLLOWERS, following: false })),
       listAttachments: fn("listAttachments", () => outcome({ ok: true, attachments: [ATT] })),
       checkCanAttach: fn("checkCanAttach", () => outcome({ ok: true })),
-      createAttachment: fn("createAttachment", () => outcome({ ok: true, attachment: ATT })),
+      createAttachment: fn("createAttachment", () =>
+        createMode === "ok" ? outcome({ ok: true, attachment: ATT }) : { ok: false, reason: createMode, message: "m" }
+      ),
       deleteAttachment: fn("deleteAttachment", () => outcome({ ok: true, blobPathname: "codex/tasks/7/a-x.pdf" })),
       getAttachmentFile: fn("getAttachmentFile", () => outcome({ ok: true, pathname: "codex/tasks/7/a-x.pdf", name: "a \"b\".pdf", contentType: "application/pdf" })),
       listCommentsWithMentions: fn("listCommentsWithMentions", () => outcome({ ok: true, items: [{ id: 1, mentions: [] }] })),
@@ -93,6 +97,12 @@ if (supportsMockModule()) {
         calls.push({ fn: "getPrivateBlob", args: [p] })
         return { statusCode: 200, stream: new Blob(["PDF"]).stream(), blob: { contentType: "text/html" } }
       },
+    },
+  })
+  await mock.module!("@/lib/codex/repo", {
+    namedExports: {
+      createComment: fn("createComment", () => ({ id: 9, body: "plain" })),
+      listComments: fn("listComments", () => [{ id: 9, body: "plain" }]),
     },
   })
   await mock.module!("@/lib/codex/rosterRead", { namedExports: { loadRosterPeople: async () => [] } })
@@ -308,6 +318,14 @@ test("upload: one file, type and size checked before Blob, visibility and count 
   assert.deepEqual(created.args.slice(0, 4), [7, "luke@x.au", ["admin"], { kind: "blob", name: "proof.pdf", blobPathname: "codex/tasks/7/proof.pdf-rnd", sizeBytes: 3 }])
   assert.ok(calls.findIndex((c) => c.fn === "checkCanAttach") < calls.findIndex((c) => c.fn === "createAttachment"))
 
+  // The store refuses after the file is stored (the count filled up meanwhile): the file is removed.
+  blobs.put.length = 0
+  createMode = "too_many_attachments"
+  assert.equal((await post([{ name: "late.pdf", bytes: 3 }])).status, 409)
+  assert.deepEqual(blobs.del, ["codex/tasks/7/late.pdf-rnd"])
+  createMode = "ok"
+  blobs.del.length = 0
+
   // A task you cannot see: refused before the file goes to Blob.
   blobs.put.length = 0
   mode = "task_not_found"
@@ -358,6 +376,19 @@ test("comments: with codex_projects on the mention store is used and a client-se
   assert.equal(input.authorEmail, "luke@x.au")
   assert.equal(input.notify, false)
   assert.equal("mentions" in input, false)
+
+  calls.length = 0
+  const off = await withSwitches({ projects: false }, () => comments.POST(req("POST", `${T}/7/comments`, { body: "hi @x" }), ctx({ id: "7" })))
+  assert.equal(off.status, 201)
+  await withSwitches({ projects: false }, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
+  assert.deepEqual(calls.map((c) => c.fn), ["createComment", "listComments"], "switch off: the plain store, no mentions")
+  mode = "unavailable"
+  calls.length = 0
+  const before0118 = await withSwitches({}, () => comments.POST(req("POST", `${T}/7/comments`, { body: "hi" }), ctx({ id: "7" })))
+  assert.equal(before0118.status, 201)
+  await withSwitches({}, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
+  assert.deepEqual(calls.map((c) => c.fn), ["createCommentWithMentions", "createComment", "listCommentsWithMentions", "listComments"], "before 0118: as before")
+  mode = "ok"
 
   calls.length = 0
   const listed = await withSwitches({}, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
