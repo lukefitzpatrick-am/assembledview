@@ -250,6 +250,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "core",
   },
   {
+    path: "/tasks/projects/[id]",
+    label: "Project board",
+    title: "Codex Project",
+    inPalette: false,
+    roles: ["admin"],
+    group: "core",
+  },
+  {
     path: "/insights",
     label: "Insights",
     title: "Insights",

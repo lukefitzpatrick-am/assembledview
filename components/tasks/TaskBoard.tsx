@@ -72,7 +72,8 @@ export type BoardStatusCounts = Record<TaskStatus, number>
 type CardSharedProps = {
   clientName: string | null
   onOpen: (task: CodexTask) => void
-  teamMembers: TeamMember[]
+  /** Undefined hides Ask for help on the cards. */
+  teamMembers?: TeamMember[]
   meEmail: string | null
   onHelpAsked?: () => void
 }
@@ -260,7 +261,7 @@ function BoardColumn({
   clientNameFor: (task: CodexTask) => string | null
   cardsDroppable: boolean
   onOpen: (task: CodexTask) => void
-  teamMembers: TeamMember[]
+  teamMembers?: TeamMember[]
   meEmail: string | null
   onHelpAsked?: () => void
 }) {
@@ -370,7 +371,8 @@ export type GenericTaskBoardProps = ColumnRenderers & {
   /** A drop that changes something (planBoardDrop). */
   onMove: (task: CodexTask, move: BoardMove) => void | Promise<void>
   collapsedKeys?: ReadonlySet<string>
-  teamMembers: TeamMember[]
+  /** Undefined hides Ask for help on the cards. */
+  teamMembers?: TeamMember[]
   meEmail: string | null
   onHelpAsked?: () => void
   ariaLabel?: string
