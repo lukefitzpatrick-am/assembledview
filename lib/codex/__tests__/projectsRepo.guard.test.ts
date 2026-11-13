@@ -213,6 +213,39 @@ test("B39fix: bulk through sections before 0118 returns null (the route's plain 
   resetProjectsMarkerCacheForTests()
 })
 
+test("B40fix (F3): details or asap before 0118 throw ProjectsUnavailableError (route 503) and write nothing", async () => {
+  const cases: Array<[string, Parameters<typeof updateTaskThroughSections>[1], Parameters<typeof updateTaskThroughSections>[4]]> = [
+    ["start_on", {}, { start_on: "2026-11-16" }],
+    ["due_on", {}, { due_on: "2026-11-20" }],
+    ["task_type", {}, { task_type: "milestone" }],
+    ["custom_values", {}, { custom_values: { "3": "o1" } }],
+    ["asap", { priority: "asap" }, {}],
+    ["asap with a status", { priority: "asap", status: "done" }, {}],
+  ]
+  for (const [name, patch, details] of cases) {
+    resetProjectsMarkerCacheForTests()
+    const { database, seen } = recordingDb([])
+    await assert.rejects(updateTaskThroughSections(7, patch, "luke@x.au", database, details), ProjectsUnavailableError, name)
+    assert.equal(seen.marker, 1, `${name}: the marker was read`)
+    assert.equal(seen.transactions, 0, `${name}: no plain update ran (never a 200 that saved nothing)`)
+    assert.equal(seen.selects, 0, `${name}: the task was not read`)
+    assert.deepEqual(seen.raw, [], name)
+  }
+  // A due date alone (or another priority) before 0118 is the plain update, as before B40.
+  for (const patch of [{ dueDate: "2026-11-20" }, { priority: "high" }, { dueDate: "2026-11-20", status: "done" }] as const) {
+    resetProjectsMarkerCacheForTests()
+    const { database, seen } = recordingDb([])
+    assert.deepEqual(await updateTaskThroughSections(7, { ...patch }, "luke@x.au", database), { ok: true, task: null })
+    assert.equal(seen.transactions, 1, `${JSON.stringify(patch)}: the plain update`)
+    assert.deepEqual(seen.raw, [])
+  }
+  resetProjectsMarkerCacheForTests()
+  const bulk = recordingDb([])
+  assert.equal(await bulkUpdateTasksThroughSections([7, 8], { dueDate: "2026-11-20" }, "luke@x.au", bulk.database), null, "bulk due date: the plain bulk")
+  assert.equal(bulk.seen.transactions, 0)
+  resetProjectsMarkerCacheForTests()
+})
+
 test("B39fix: with 0118 applied the same calls take the section path (control for the two tests above)", async () => {
   resetProjectsMarkerCacheForTests()
   const patch = recordingDb([{ key: "0118_codex_s1_projects" }])

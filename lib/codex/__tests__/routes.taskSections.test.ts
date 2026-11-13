@@ -239,6 +239,11 @@ test("PATCH B40: store refusals map to statuses; 503 before 0118", { skip }, asy
   const res = await withProjects(true, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { start_on: "2026-11-02" }), ctx))
   assert.equal(res.status, 503)
   assert.equal(((await res.json()) as { error: string }).error, "migration_not_applied")
+  // B40fix (F3): asap alone goes to the store too, so before 0118 it is 503, never a plain 200.
+  calls.length = 0
+  const asap = await withProjects(true, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { priority: "asap" }), ctx))
+  assert.equal(asap.status, 503)
+  assert.deepEqual(calls.map((c) => c.fn), ["updateTaskThroughSections"], "the store was asked; the plain update did not run")
   mode = "ok"
 })
 
