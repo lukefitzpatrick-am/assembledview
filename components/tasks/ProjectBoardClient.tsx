@@ -12,6 +12,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { BulkPasteDialog, SectionDialog, type SectionDialogState } from "@/components/tasks/ProjectBoardDialogs"
 import { ProjectBoardView } from "@/components/tasks/ProjectBoardView"
+import { ProjectFieldsDialog } from "@/components/tasks/ProjectFieldsDialog"
+import {
+  cardFieldKey,
+  valueLabels,
+  visibleCardFields,
+  type CardFieldSetting,
+  type CodexCustomField,
+} from "@/lib/codex/customFields"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +53,18 @@ type BoardResponse = {
   columns: Record<string, ColumnPage>
   unsectioned: ColumnPage
   hide_completed: boolean
+  /** B40 (older servers may leave these out). */
+  fields?: CodexCustomField[]
+  card_fields?: CardFieldSetting[]
+}
+
+/** The chip labels a card shows: values of the fields set to show on cards, in field order. */
+export function cardChipLabels(
+  fields: readonly CodexCustomField[],
+  settings: readonly CardFieldSetting[],
+  task: Pick<CodexTask, "custom_values">
+): string[] {
+  return visibleCardFields(fields, settings).flatMap((f) => valueLabels(f, task.custom_values ?? null))
 }
 
 export type BoardLoadState =
@@ -122,6 +142,7 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   const [pasteSection, setPasteSection] = useState<CodexSection | null>(null)
   const [deleteSection, setDeleteSection] = useState<CodexSection | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
+  const [fieldsOpen, setFieldsOpen] = useState(false)
 
   const base = `/api/codex/projects/${projectId}`
   const reload = useCallback(() => setReloadTick((n) => n + 1), [])
@@ -299,6 +320,8 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   }
 
   const pasteName = pasteSection?.name ?? ""
+  const fields = data.fields ?? []
+  const cardSettings = data.card_fields ?? []
 
   return (
     <>
@@ -354,6 +377,26 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
         }
         onDelete={(section) => setDeleteSection(section)}
         onPaste={(section) => setPasteSection(section)}
+        cardChips={(task) => cardChipLabels(fields, cardSettings, task)}
+        onOpenFields={() => setFieldsOpen(true)}
+      />
+
+      <ProjectFieldsDialog
+        open={fieldsOpen}
+        onClose={() => setFieldsOpen(false)}
+        fields={fields}
+        cardFields={cardSettings}
+        busy={busy}
+        onCreate={(input) => sectionRequest(`${base}/fields`, { method: "POST", body: JSON.stringify(input) }, "Field not added")}
+        onUpdate={(fieldId, patch) =>
+          sectionRequest(`${base}/fields/${fieldId}`, { method: "PATCH", body: JSON.stringify(patch) }, "Field not saved")
+        }
+        onDelete={(fieldId) => void sectionRequest(`${base}/fields/${fieldId}`, { method: "DELETE" }, "Field not deleted")}
+        onToggleCard={(fieldId, show) => {
+          const key = cardFieldKey(fieldId)
+          const next = [...cardSettings.filter((c) => c.key !== key), { key, show }]
+          void sectionRequest(`${base}/card-fields`, { method: "PUT", body: JSON.stringify({ card_fields: next }) }, "Card setting not saved")
+        }}
       />
 
       <SectionDialog

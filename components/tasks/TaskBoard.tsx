@@ -85,6 +85,7 @@ function TaskBoardCardFace({
   teamMembers,
   meEmail,
   onHelpAsked,
+  chips,
 }: {
   task: CodexTask
   clientName: string | null
@@ -92,6 +93,8 @@ function TaskBoardCardFace({
   teamMembers?: TeamMember[]
   meEmail?: string | null
   onHelpAsked?: () => void
+  /** Project boards (B40): the card's custom field chips. */
+  chips?: readonly string[]
 }) {
   const done = task.checklist_done ?? 0
   const total = task.checklist_total ?? 0
@@ -119,8 +122,27 @@ function TaskBoardCardFace({
           onPointerDown={(e) => e.stopPropagation()}
           className="mt-1 inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
         >
-          <span className="truncate">Help for: {task.parent_title}</span>
+          <span className="truncate">
+            {task.task_type === "subtask" ? "Subtask of" : "Help for:"} {task.parent_title}
+          </span>
         </Link>
+      ) : null}
+      {task.task_type === "milestone" || (chips && chips.length > 0) ? (
+        <div className="mt-1.5 flex flex-wrap gap-1" data-testid="card-chips">
+          {task.task_type === "milestone" ? (
+            <Badge variant="info" size="sm">
+              Milestone
+            </Badge>
+          ) : null}
+          {(chips ?? []).map((chip) => (
+            <span
+              key={chip}
+              className="inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              <span className="truncate">{chip}</span>
+            </span>
+          ))}
+        </div>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex min-w-0 items-center gap-1">
@@ -176,7 +198,8 @@ function TaskBoardCard({
   teamMembers,
   meEmail,
   onHelpAsked,
-}: CardSharedProps & { task: CodexTask; columnKey: string; droppable: boolean }) {
+  chips,
+}: CardSharedProps & { task: CodexTask; columnKey: string; droppable: boolean; chips?: readonly string[] }) {
   const overdue = isOverdueYmd(task.due_date ?? null, task.status)
   const id = String(task.id)
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
@@ -222,12 +245,15 @@ function TaskBoardCard({
         teamMembers={teamMembers}
         meEmail={meEmail}
         onHelpAsked={onHelpAsked}
+        chips={chips}
       />
     </div>
   )
 }
 
 type ColumnRenderers = {
+  /** Project boards (B40): custom field chips for a card (labels, already filtered by the project's settings). */
+  cardChips?: (task: CodexTask) => readonly string[]
   /** Extra header content (the project board's section menu). */
   renderColumnMenu?: (column: BoardColumnDef) => ReactNode
   /** Below the cards (the project board's inline add and paste). */
@@ -250,6 +276,7 @@ function BoardColumn({
   onHelpAsked,
   renderColumnMenu,
   renderColumnFooter,
+  cardChips,
 }: ColumnRenderers & {
   column: BoardColumnDef
   showCategory: boolean
@@ -331,6 +358,7 @@ function BoardColumn({
             teamMembers={teamMembers}
             meEmail={meEmail}
             onHelpAsked={onHelpAsked}
+            chips={cardChips?.(task)}
           />
         ))}
         {tasks.length === 0 ? (
@@ -395,6 +423,7 @@ export function GenericTaskBoard({
   onHelpAsked,
   renderColumnMenu,
   renderColumnFooter,
+  cardChips,
   ariaLabel = "Task board",
 }: GenericTaskBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -485,6 +514,7 @@ export function GenericTaskBoard({
             onHelpAsked={onHelpAsked}
             renderColumnMenu={renderColumnMenu}
             renderColumnFooter={renderColumnFooter}
+            cardChips={cardChips}
           />
         ))}
       </div>

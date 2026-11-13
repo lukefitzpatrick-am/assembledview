@@ -4,7 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import type { CodexProject, CodexSection } from "@/lib/codex/projects"
 
-import { boardLoadFailure } from "../ProjectBoardClient"
+import type { CodexCustomField } from "@/lib/codex/customFields"
+
+import { boardLoadFailure, cardChipLabels } from "../ProjectBoardClient"
+import { moveOptionDraft, optionLabelsFromText, ProjectFieldsEditor } from "../ProjectFieldsDialog"
 import { pastePreviewText } from "../ProjectBoardDialogs"
 import { ProjectBoardView, type ProjectBoardViewProps } from "../ProjectBoardView"
 
@@ -122,5 +125,72 @@ describe("project board (B39)", () => {
     expect(over.canSave).toBe(false)
     expect(over.message).toContain("up to 200")
     expect(pastePreviewText(`ok\n${"x".repeat(301)}`, "Inbound")).toEqual({ message: "Line 2 is longer than 300 characters.", canSave: false })
+  })
+
+  it("B40: a milestone card shows its marker and field chips show on cards; the Fields button opens settings", () => {
+    const html = renderToStaticMarkup(
+      <ProjectBoardView
+        {...props({
+          board: {
+            columns: {
+              "section:10": [
+                { id: 1, title: "Creative swap live", client_id: 0, status: "todo", section_id: 10, task_type: "milestone", custom_values: { "3": "o2" } },
+                { id: 2, title: "Plain", client_id: 0, status: "todo", section_id: 10 },
+              ],
+              "section:20": [],
+              "section:30": [],
+            },
+            counts: { "section:10": 2, "section:20": 0, "section:30": 0 },
+          },
+          cardChips: (task) => (Number(task.id) === 1 ? ["In progress", "Meta"] : []),
+          onOpenFields: noop,
+        })}
+      />
+    )
+    expect(html.match(/data-testid="card-chips"/g)?.length).toBe(1)
+    expect(html).toContain(">Milestone<")
+    expect(html).toContain(">In progress<")
+    expect(html).toContain(">Meta<")
+    expect(html).toContain(">Fields<")
+  })
+})
+
+const FIELDS: CodexCustomField[] = [
+  { id: 3, project_id: 5, name: "Progress", field_type: "single_select", options: [{ id: "o1", label: "Not started" }, { id: "o2", label: "In progress" }], done_option: "o2" },
+  { id: 4, project_id: 5, name: "Tags", field_type: "multi_select", options: [{ id: "o1", label: "Meta" }, { id: "o2", label: "Search" }], done_option: null },
+]
+
+describe("project fields (B40)", () => {
+  it("card chips follow the project's show or hide setting, in field order, labels in option order", () => {
+    const task = { custom_values: { "3": "o2", "4": ["o2", "o1"] } }
+    expect(cardChipLabels(FIELDS, [], task)).toEqual(["In progress", "Meta", "Search"])
+    expect(cardChipLabels(FIELDS, [{ key: "field:3", show: false }], task)).toEqual(["Meta", "Search"])
+    expect(cardChipLabels(FIELDS, [], { custom_values: null })).toEqual([])
+  })
+
+  it("the settings list each field with its type, options, done option, card switch and delete; and an add form", () => {
+    const html = renderToStaticMarkup(
+      <ProjectFieldsEditor fields={FIELDS} cardFields={[{ key: "field:4", show: false }]} onCreate={async () => true} onUpdate={async () => true} onDelete={noop} onToggleCard={noop} />
+    )
+    expect(html).toContain("Single-select")
+    expect(html).toContain("Multi-select")
+    expect(html).toContain('aria-label="Show Progress on cards"')
+    expect(html).toMatch(/aria-checked="true"[^>]*aria-label="Show Progress on cards"|aria-label="Show Progress on cards"[^>]*aria-checked="true"/)
+    expect(html).toMatch(/aria-checked="false"[^>]*aria-label="Show Tags on cards"|aria-label="Show Tags on cards"[^>]*aria-checked="false"/)
+    expect(html).toContain('aria-label="Done option of Progress"')
+    expect(html).not.toContain('aria-label="Done option of Tags"')
+    expect(html).toContain('aria-label="Delete Tags"')
+    expect(html).toContain("Add a field")
+    const empty = renderToStaticMarkup(
+      <ProjectFieldsEditor fields={[]} cardFields={[]} onCreate={async () => true} onUpdate={async () => true} onDelete={noop} onToggleCard={noop} />
+    )
+    expect(empty).toContain("No fields yet")
+  })
+
+  it("option helpers: one per line, blanks dropped; moves stop at the ends", () => {
+    expect(optionLabelsFromText(" Not started\n\n In  progress \r\nDone")).toEqual(["Not started", "In progress", "Done"])
+    const list = [{ id: "o1", label: "a" }, { id: null, label: "b" }]
+    expect(moveOptionDraft(list, 1, -1).map((o) => o.label)).toEqual(["b", "a"])
+    expect(moveOptionDraft(list, 0, -1).map((o) => o.label)).toEqual(["a", "b"])
   })
 })

@@ -6,9 +6,9 @@
  * adds a task inline or opens the paste box. ProjectBoardClient loads the
  * data and owns the requests.
  */
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Link from "next/link"
-import { ArrowLeft, ClipboardPaste, Lock, MoreHorizontal, Plus } from "lucide-react"
+import { ArrowLeft, ClipboardPaste, Lock, MoreHorizontal, Plus, SlidersHorizontal } from "lucide-react"
 
 import { GenericTaskBoard } from "@/components/tasks/TaskBoard"
 import { Badge } from "@/components/ui/badge"
@@ -59,6 +59,10 @@ export type ProjectBoardViewProps = SectionMenuHandlers & {
   onAddSection: () => void
   onInlineAdd: (section: CodexSection, title: string) => Promise<boolean>
   busy?: boolean
+  /** B40: custom field chips for a card, and the fields settings and view toggle in the header. */
+  cardChips?: (task: CodexTask) => readonly string[]
+  onOpenFields?: () => void
+  headerExtra?: ReactNode
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -231,6 +235,9 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
     onAddSection,
     onInlineAdd,
     busy = false,
+    cardChips,
+    onOpenFields,
+    headerExtra,
   } = props
   const sectionFor = (column: BoardColumnDef) => sections.find((s) => s.id === sectionIdFromColumnKey(column.key))
   const hiddenDone = Object.values(completedCounts).reduce((a, b) => a + b, 0)
@@ -280,6 +287,13 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
             Hide completed
             {hideCompleted && hiddenDone > 0 ? <span className="num text-xs">({hiddenDone} hidden)</span> : null}
           </label>
+          {headerExtra}
+          {onOpenFields ? (
+            <Button type="button" variant="outline" size="sm" onClick={onOpenFields} disabled={busy}>
+              <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Fields
+            </Button>
+          ) : null}
           <Button type="button" variant="outline" size="sm" onClick={onAddSection} disabled={busy}>
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             Add section
@@ -305,6 +319,7 @@ export function ProjectBoardView(props: ProjectBoardViewProps) {
         collapsedKeys={collapsedKeys}
         meEmail={null}
         ariaLabel={`${project.name} board`}
+        cardChips={cardChips}
         renderColumnMenu={(column) => {
           const section = sectionFor(column)
           if (!section) return null
