@@ -291,4 +291,31 @@ describe("codex projects store on Postgres (0118 applied)", { skip }, () => {
     assert.ok(ok.ok)
     assert.equal((await taskRow(id)).section_id, null, "ON DELETE SET NULL on the soft-deleted task")
   })
+  // ---- STACKfix (stack review L4) ------------------------------------------------
+
+  it("L4: one write that sets both due columns to different Sydney days is refused; the same day is kept as written", async () => {
+    const id = await newTask("both dates")
+    const refused = (e: unknown) => (e as { code?: string })?.code === "23514" && /does not match due_date/.test(String((e as Error).message))
+    // The review's probe: due_on 5 Dec beside due_date 8 Dec 13:00 UTC (9 Dec in Sydney).
+    await assert.rejects(client`UPDATE public.tasks SET due_on = '2026-12-05', due_date = '2026-12-08T13:00:00Z' WHERE id = ${id}`, refused)
+    let row = await client`SELECT due_on::text AS due_on, due_date FROM public.tasks WHERE id = ${id}`
+    assert.deepEqual([row[0].due_on, row[0].due_date], [null, null], "nothing written")
+    // Same Sydney day: both kept as written (due_date keeps its time).
+    await client`UPDATE public.tasks SET due_on = '2026-12-09', due_date = '2026-12-08T13:00:00Z' WHERE id = ${id}`
+    row = await client`SELECT due_on::text AS due_on, extract(epoch FROM due_date)::bigint AS e FROM public.tasks WHERE id = ${id}`
+    assert.deepEqual([row[0].due_on, Number(row[0].e)], ["2026-12-09", Date.UTC(2026, 11, 8, 13) / 1000])
+    // Both cleared together: fine.
+    await client`UPDATE public.tasks SET due_on = NULL, due_date = NULL WHERE id = ${id}`
+    // One cleared, the other set, in one write: refused.
+    await client`UPDATE public.tasks SET due_on = '2026-12-05' WHERE id = ${id}`
+    await assert.rejects(client`UPDATE public.tasks SET due_on = NULL, due_date = '2026-12-07T00:00:00Z' WHERE id = ${id}`, refused)
+    // Either column alone still fills the other.
+    await client`UPDATE public.tasks SET due_date = '2026-12-07T00:00:00Z' WHERE id = ${id}`
+    row = await client`SELECT due_on::text AS due_on FROM public.tasks WHERE id = ${id}`
+    assert.equal(row[0].due_on, "2026-12-07")
+    // An INSERT giving both follows the same rule.
+    await assert.rejects(client`INSERT INTO public.tasks (title, due_on, due_date) VALUES ('ins both', '2026-12-05', '2026-12-08T13:00:00Z')`, refused)
+    const [ok] = await client`INSERT INTO public.tasks (title, due_on, due_date) VALUES ('ins both ok', '2026-12-09', '2026-12-08T13:00:00Z') RETURNING due_on::text AS due_on`
+    assert.equal(ok.due_on, "2026-12-09")
+  })
 })

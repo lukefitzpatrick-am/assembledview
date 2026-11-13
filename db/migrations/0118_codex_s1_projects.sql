@@ -166,6 +166,10 @@ BEGIN
   -- Keep due_on and due_date in step, completed_at on done tasks only.
   -- due_date is written today as a bare YYYY-MM-DD in a UTC session (00:00
   -- UTC); due_on -> due_date writes that same instant.
+  -- A write that sets both (an UPDATE changing both, or an INSERT giving
+  -- both) must agree: due_on is the Sydney civil date of due_date. If not,
+  -- the write is refused (check_violation), so neither date is silently
+  -- dropped and the writer's bug shows at once. No writer sets both today.
   CREATE OR REPLACE FUNCTION public.codex_tasks_s1_sync()
   RETURNS trigger
   LANGUAGE plpgsql
@@ -177,6 +181,10 @@ BEGIN
         NEW.due_on := (NEW.due_date AT TIME ZONE 'Australia/Sydney')::date;
       ELSIF NEW.due_date IS NULL AND NEW.due_on IS NOT NULL THEN
         NEW.due_date := (NEW.due_on::timestamp AT TIME ZONE 'UTC');
+      ELSIF NEW.due_on IS DISTINCT FROM (NEW.due_date AT TIME ZONE 'Australia/Sydney')::date THEN
+        RAISE EXCEPTION 'tasks: due_on % does not match due_date % (Sydney date %); write one of them, or both from one date',
+          NEW.due_on, NEW.due_date, (NEW.due_date AT TIME ZONE 'Australia/Sydney')::date
+          USING ERRCODE = 'check_violation';
       END IF;
       IF NEW.status = 'done' THEN
         IF NEW.completed_at IS NULL THEN NEW.completed_at := now(); END IF;
@@ -190,6 +198,12 @@ BEGIN
       ELSIF NEW.due_on IS DISTINCT FROM OLD.due_on AND NEW.due_date IS NOT DISTINCT FROM OLD.due_date THEN
         NEW.due_date := CASE WHEN NEW.due_on IS NULL THEN NULL
                              ELSE (NEW.due_on::timestamp AT TIME ZONE 'UTC') END;
+      ELSIF NEW.due_on IS DISTINCT FROM OLD.due_on
+            AND NEW.due_on IS DISTINCT FROM (NEW.due_date AT TIME ZONE 'Australia/Sydney')::date THEN
+        -- Both changed in one UPDATE and they disagree (STACKfix, review L4).
+        RAISE EXCEPTION 'tasks: due_on % does not match due_date % (Sydney date %); write one of them, or both from one date',
+          NEW.due_on, NEW.due_date, (NEW.due_date AT TIME ZONE 'Australia/Sydney')::date
+          USING ERRCODE = 'check_violation';
       END IF;
       IF NEW.status = 'done' THEN
         IF OLD.status IS DISTINCT FROM 'done' AND NEW.completed_at IS NOT DISTINCT FROM OLD.completed_at THEN
@@ -316,7 +330,7 @@ BEGIN
   COMMENT ON TABLE public.codex_sections IS
     'Codex project sections (board columns). status_category drives tasks.status when a task moves in; a project keeps at least one done section (app).';
   COMMENT ON COLUMN public.tasks.due_on IS
-    'Sydney civil due date (S1 read column). Kept in step with due_date by trg_tasks_codex_s1_sync.';
+    'Sydney civil due date (S1 read column). Kept in step with due_date by trg_tasks_codex_s1_sync; a write that sets both to different days is refused.';
   COMMENT ON COLUMN public.tasks.completed_at IS
     'Set when status becomes done, cleared when it leaves done (trg_tasks_codex_s1_sync).';
 
