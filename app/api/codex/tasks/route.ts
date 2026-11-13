@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import {
@@ -112,6 +113,12 @@ export async function GET(request: Request) {
     if (!parsed.ok) return parsed.error
 
     const data = await listTasks(parsed.filters)
+    // codex_projects (B40): rows carry type, dates, assigned by and field values
+    // (a subtask shows as one, not as a help request). Off: as before.
+    if (await isCodexProjectsEnabled()) {
+      const { attachTaskS1Fields } = await import("@/lib/codex/projectsRepo")
+      data.items = await attachTaskS1Fields(data.items)
+    }
 
     return NextResponse.json(data)
   } catch (error) {
@@ -293,6 +300,8 @@ export async function POST(request: Request) {
           templateId,
           recurringRule,
           createdByEmail,
+          // B40: assigned by the creator when the task goes to someone else (switch on, after 0118).
+          trackAssignedBy: await isCodexProjectsEnabled(),
         },
         createdByEmail
       )

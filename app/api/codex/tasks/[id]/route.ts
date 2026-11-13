@@ -5,6 +5,8 @@ import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
+import { isProjectsUnavailable, PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
+import { hasTaskDetailKeys, parseTaskDetailPatch, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import {
   isTaskCategory,
   readEstimatedMinutes,
@@ -106,6 +108,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const raw = body as Record<string, unknown>
+    // codex_projects (B40): asap, start and due dates, task or milestone,
+    // custom field values and assigned by. Off: those keys are ignored and
+    // asap is refused, as before.
+    const projectsOn = await isCodexProjectsEnabled()
+    let details: TaskDetailPatch = {}
+    if (projectsOn && hasTaskDetailKeys(raw)) {
+      const parsedDetails = parseTaskDetailPatch(raw)
+      if (!parsedDetails.ok) {
+        return NextResponse.json({ error: parsedDetails.error, message: parsedDetails.message }, { status: 400 })
+      }
+      details = parsedDetails.value
+    }
     const issue = validateTaskInput({
       ...("title" in raw ? { title: raw.title } : {}),
       ...("status" in raw ? { status: raw.status } : {}),
@@ -116,7 +130,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         : {}),
       ...("category" in raw ? { category: raw.category } : {}),
       ...("assignee_email" in raw ? { assignee_email: raw.assignee_email } : {}),
-    })
+    }, { allowAsap: projectsOn })
     if (issue) {
       return NextResponse.json(
         { error: "invalid", field: issue.field, message: issue.message },
@@ -251,22 +265,38 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const currentUser = await getCurrentUser(request)
     const actor = sessionEmail(auth.session, currentUser?.email)
+    // Assigned by is the server's (never in the body): with the switch on, an
+    // assignee change records who gave the task to someone else.
+    if (projectsOn) patch.trackAssignedBy = true
     let task
     try {
-      // codex_projects (B39): a status change on a project task moves it to the
-      // matching section, or is refused (409) with nothing changed.
+      // codex_projects (B39, B40): a status change on a project task moves it to the
+      // matching section, or is refused with nothing changed; the B40 detail keys,
+      // asap and a due date change go through the same checked path.
       // The projects store loads only with the switch on, so the off path is the module as before.
-      if (patch.status !== undefined && (await isCodexProjectsEnabled())) {
+      if (
+        projectsOn &&
+        (patch.status !== undefined || patch.priority === "asap" || patch.dueDate !== undefined || Object.keys(details).length > 0)
+      ) {
         const { updateTaskThroughSections } = await import("@/lib/codex/projectsRepo")
-        const outcome = await updateTaskThroughSections(id, patch, actor)
+        const outcome = await updateTaskThroughSections(id, patch, actor, undefined, details)
         if (!outcome.ok) {
-          return NextResponse.json({ error: outcome.reason, message: outcome.message }, { status: 409 })
+          return NextResponse.json(
+            { error: outcome.reason, message: outcome.message },
+            { status: PROJECT_FAILURE_STATUS[outcome.reason] ?? 409 }
+          )
         }
         task = outcome.task
       } else {
         task = await updateTask(id, patch, actor)
       }
     } catch (err) {
+      if (isProjectsUnavailable(err)) {
+        return NextResponse.json(
+          { error: "migration_not_applied", message: "This needs migration 0118 (codex_s1_projects)." },
+          { status: 503 }
+        )
+      }
       const msg = err instanceof Error ? err.message : String(err)
       if (/template_id .* does not exist/i.test(msg) || /Invalid recurring_rule/i.test(msg)) {
         return NextResponse.json(

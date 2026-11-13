@@ -170,6 +170,8 @@ export async function POST(request: Request) {
       patch.assigneeEmail = assignee.email
       if (assignee.resolved) patch.assigneeName = assignee.name
     }
+    // codex_projects (B40): assignee changes record who assigned (server side).
+    if (await isCodexProjectsEnabled()) patch.trackAssignedBy = true
     // codex_projects (B39): a status change moves project tasks by section; one
     // refused task is 409 and the whole batch is rolled back.
     // The projects store loads only with the switch on.
