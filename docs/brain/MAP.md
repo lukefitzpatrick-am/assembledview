@@ -156,13 +156,13 @@ Three related-but-distinct stores, all joined on `publishers.id` and never on di
 
 ## 9. Codex (tasks, time, meetings)
 
-`/tasks`, `/tasks/[id]`, `/tasks/projects/[id]` (project board, B39), `/admin/fireflies-unattributed`, `/admin/myhours-mapping`.
+`/tasks`, `/tasks/[id]`, `/tasks/projects/[id]` (project board, B39; `?view=list` the list, B40), `/admin/fireflies-unattributed`, `/admin/myhours-mapping`.
 
 Flow: Fireflies meeting → `client_notes` (attributed to client / publisher / internal / new business) → AVA proposes → `ava_task_proposals` / `ava_time_entry_proposals` → human accepts → `tasks` / MyHours entry. Crons: `fireflies-sync` and `myhours-sync` every 6h, `codex-recurring` daily, `auth0-roster-sync` every 6h into `team_members`.
 
 Identity here is **email**, not a numeric user id.
 
-Switches: `codex_v2` (the module), `codex_roster_aliases`, `codex_search`, `codex_saved_views`, `codex_projects` (S1 projects and sections: API, the Projects tab and project boards, migration 0118). Staff only; outside `/tasks` Codex data is read-only and admin-only (decision 3 B; C-200 lists the exceptions still writing). Internal meeting summaries: staff yes (decision 52), Ava no (F9).
+Switches: `codex_v2` (the module), `codex_roster_aliases`, `codex_search`, `codex_saved_views`, `codex_projects` (S1 projects and sections: API, the Projects tab, project boards and lists, task detail for project tasks, subtasks, milestones and custom fields; migration 0118). Staff only; outside `/tasks` Codex data is read-only and admin-only (decision 3 B; C-200 lists the exceptions still writing). Internal meeting summaries: staff yes (decision 52), Ava no (F9).
 
 → `modules/codex.md`
 
