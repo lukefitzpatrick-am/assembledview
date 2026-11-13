@@ -28,3 +28,23 @@ test("both union paths go through unionGeneratedBillingLines with the MBA number
   // The old id-only union filter is gone.
   assert.doesNotMatch(page, /const newItems = generatedList\.filter/)
 })
+
+test("B35fix (L3): the number check gets every loaded line state, production included, below their declarations", () => {
+  const start = page.indexOf("const billingAliasNumberCheck = useMemo(")
+  assert.ok(start > 0)
+  const block = page.slice(start, page.indexOf("billingAliasNumberCheckRef.current = billingAliasNumberCheck", start))
+  const passed = new Map([...block.matchAll(/^\s+(\w+): (\w+LineItems),$/gm)].map((m) => [m[1]!, m[2]!]))
+  // The loaded line states, from the post-save writers (`initial: set<State>`).
+  const writers = [...page.matchAll(/^\s+(\w+): \{ media: set\w+, initial: set(\w+LineItems) \},$/gm)]
+  assert.ok(writers.length >= 20, `writers found: ${writers.length}`)
+  for (const [, key, setterState] of writers) {
+    const mediaKey = key === "social" ? "socialMedia" : key!
+    const state = setterState!.charAt(0).toLowerCase() + setterState!.slice(1)
+    assert.equal(passed.get(mediaKey), state, `${mediaKey} passes ${state}`)
+    assert.match(block, new RegExp(`\\n\\s+${state},\\n`), `${state} is a dependency`)
+    // Declared before the memo reads it (no temporal dead zone at render).
+    const decl = page.indexOf(`const [${state}, `)
+    assert.ok(decl > 0 && decl < start, `${state} declared before the number check`)
+  }
+  assert.equal(passed.get("production"), "productionLineItems")
+})

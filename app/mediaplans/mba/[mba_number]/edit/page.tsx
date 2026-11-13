@@ -1589,59 +1589,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [progAudioLineItems, setProgAudioLineItems] = useState<any[]>([])
   const [progOohLineItems, setProgOohLineItems] = useState<any[]>([])
   const [influencersLineItems, setInfluencersLineItems] = useState<any[]>([])
-  // B35 (MB-40): the lines as loaded, before the editor renumbers them, so an old
-  // no-code or production billing id pairs with a current id only when they prove
-  // its number. Read through a ref so the billing merges don't re-run on it.
-  const billingAliasNumberCheck = useMemo(
-    () =>
-      buildBillingAliasNumberCheck(
-        {
-          television: televisionLineItems,
-          radio: radioLineItems,
-          newspaper: newspaperLineItems,
-          magazines: magazinesLineItems,
-          ooh: oohLineItems,
-          cinema: cinemaLineItems,
-          digiDisplay: digitalDisplayLineItems,
-          digiAudio: digitalAudioLineItems,
-          digiVideo: digitalVideoLineItems,
-          bvod: bvodLineItems,
-          integration: integrationLineItems,
-          search: searchLineItems,
-          socialMedia: socialMediaLineItems,
-          progDisplay: progDisplayLineItems,
-          progVideo: progVideoLineItems,
-          progBvod: progBvodLineItems,
-          progAudio: progAudioLineItems,
-          progOoh: progOohLineItems,
-          influencers: influencersLineItems,
-        },
-        mbaNumber
-      ),
-    [
-      televisionLineItems,
-      radioLineItems,
-      newspaperLineItems,
-      magazinesLineItems,
-      oohLineItems,
-      cinemaLineItems,
-      digitalDisplayLineItems,
-      digitalAudioLineItems,
-      digitalVideoLineItems,
-      bvodLineItems,
-      integrationLineItems,
-      searchLineItems,
-      socialMediaLineItems,
-      progDisplayLineItems,
-      progVideoLineItems,
-      progBvodLineItems,
-      progAudioLineItems,
-      progOohLineItems,
-      influencersLineItems,
-      mbaNumber,
-    ]
-  )
-  billingAliasNumberCheckRef.current = billingAliasNumberCheck
 
   // State for LineItem[] arrays (for Excel generation)
   const [searchItems, setSearchItems] = useState<LineItem[]>([])
@@ -1689,6 +1636,62 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [integrationMediaLineItems, setIntegrationMediaLineItems] = useState<any[]>([])
   const [productionLineItems, setProductionLineItems] = useState<any[]>([])
   const [productionMediaLineItems, setProductionMediaLineItems] = useState<any[]>([])
+  // B35 (MB-40): the lines as loaded, before the editor renumbers them, so an old
+  // no-code or production billing id pairs with a current id only when they prove
+  // its number. Read through a ref so the billing merges don't re-run on it.
+  // B35fix (L3): production lines too, so this sits below their state.
+  const billingAliasNumberCheck = useMemo(
+    () =>
+      buildBillingAliasNumberCheck(
+        {
+          television: televisionLineItems,
+          radio: radioLineItems,
+          newspaper: newspaperLineItems,
+          magazines: magazinesLineItems,
+          ooh: oohLineItems,
+          cinema: cinemaLineItems,
+          digiDisplay: digitalDisplayLineItems,
+          digiAudio: digitalAudioLineItems,
+          digiVideo: digitalVideoLineItems,
+          bvod: bvodLineItems,
+          integration: integrationLineItems,
+          search: searchLineItems,
+          socialMedia: socialMediaLineItems,
+          progDisplay: progDisplayLineItems,
+          progVideo: progVideoLineItems,
+          progBvod: progBvodLineItems,
+          progAudio: progAudioLineItems,
+          progOoh: progOohLineItems,
+          influencers: influencersLineItems,
+          production: productionLineItems,
+        },
+        mbaNumber
+      ),
+    [
+      televisionLineItems,
+      radioLineItems,
+      newspaperLineItems,
+      magazinesLineItems,
+      oohLineItems,
+      cinemaLineItems,
+      digitalDisplayLineItems,
+      digitalAudioLineItems,
+      digitalVideoLineItems,
+      bvodLineItems,
+      integrationLineItems,
+      searchLineItems,
+      socialMediaLineItems,
+      progDisplayLineItems,
+      progVideoLineItems,
+      progBvodLineItems,
+      progAudioLineItems,
+      progOohLineItems,
+      influencersLineItems,
+      productionLineItems,
+      mbaNumber,
+    ]
+  )
+  billingAliasNumberCheckRef.current = billingAliasNumberCheck
   const [productionItems, setProductionItems] = useState<LineItem[]>([])
   const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([])
   const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([])
