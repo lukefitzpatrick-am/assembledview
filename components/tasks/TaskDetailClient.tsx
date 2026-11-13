@@ -59,6 +59,8 @@ import { TaskChecklist } from "@/components/tasks/TaskChecklist"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TaskProjectPanel } from "@/components/tasks/TaskProjectPanel"
 import { asapOffered } from "@/lib/codex/taskDetail"
+import { TaskCollabPanel } from "@/components/tasks/TaskCollabPanel"
+import { CommentBody } from "@/components/tasks/CommentBody"
 import { clientFeatureOn } from "@/lib/features/client"
 
 type ClientOption = {
@@ -810,9 +812,19 @@ export function TaskDetailClient({ taskId }: Props) {
         const errBody = await res.json().catch(() => null)
         throw new Error(errorMessage(errBody, "Could not add comment"))
       }
-      const comment = (await res.json()) as TaskComment
+      const comment = (await res.json()) as TaskComment & {
+        unresolved_mentions?: Array<{ message?: string }>
+      }
       setComments((prev) => [...prev, comment])
       setNewComment("")
+      // B41: @tokens that matched two people, no one, or someone outside a
+      // private project stayed as text; say so.
+      const unresolved = (comment.unresolved_mentions ?? [])
+        .map((u) => u.message)
+        .filter((m): m is string => typeof m === "string" && m.length > 0)
+      if (unresolved.length > 0) {
+        toast({ title: "Some mentions stayed as text", description: unresolved.join(" ") })
+      }
       void refreshActivity()
     } catch (error) {
       toast({
@@ -1141,6 +1153,10 @@ export function TaskDetailClient({ taskId }: Props) {
       </div>
 
       {projectsOn ? (
+        <TaskCollabPanel taskId={Number(task.id)} members={teamMembers} reloadKey={task.updated_at} />
+      ) : null}
+
+      {projectsOn ? (
         <TaskProjectPanel
           taskId={Number(task.id)}
           members={teamMembers}
@@ -1419,7 +1435,7 @@ export function TaskDetailClient({ taskId }: Props) {
                     </Badge>
                   ) : null}
                 </div>
-                <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+                <CommentBody body={c.body} mentions={c.mentions} />
               </li>
             ))
           )}
@@ -1429,7 +1445,7 @@ export function TaskDetailClient({ taskId }: Props) {
             rows={3}
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment…"
+            placeholder={projectsOn ? "Add a comment… Type @ and a name or email to mention someone." : "Add a comment…"}
           />
           <Button
             type="button"

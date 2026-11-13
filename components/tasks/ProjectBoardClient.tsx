@@ -17,6 +17,7 @@ import { ProjectListView } from "@/components/tasks/ProjectListView"
 import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
 import { useUser } from "@/components/AuthWrapper"
 import { Button } from "@/components/ui/button"
+import { NotificationBell } from "@/components/tasks/NotificationBell"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   canonicalProjectListFilters,
@@ -447,6 +448,8 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   }
   const headerExtra = (
     <>
+      {/* Codex bell (B41): only with codex_notifications on. */}
+      <NotificationBell />
       {savedViewsOn && viewsAvailable ? (
         <SavedViewsMenu
           views={views}

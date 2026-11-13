@@ -30,6 +30,7 @@ import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
 import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
 import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
 import { CodexSearchDialog } from "@/components/tasks/CodexSearchDialog"
+import { NotificationBell } from "@/components/tasks/NotificationBell"
 import { SavedViewsMenu } from "@/components/tasks/SavedViewsMenu"
 import {
   filtersFromQueryString,
@@ -2849,6 +2850,8 @@ export function TasksPageClient({
         }
         actions={
           <span className="inline-flex flex-wrap items-center gap-2">
+            {/* Codex bell (B41): only with codex_notifications and codex_projects on. */}
+            <NotificationBell />
             {/* Codex search (F8): only when codex_search is on. */}
             {clientFeatureOn("codex_search") ? (
               <CodexSearchDialog
