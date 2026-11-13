@@ -53,6 +53,7 @@ import {
 } from "@/lib/codex/projects"
 import { projectBoardScope } from "@/lib/codex/projectBoard"
 import {
+  bulkFailure,
   CodexBulkError,
   loadListTasksByIds,
   updateTask,
@@ -1196,7 +1197,8 @@ export async function updateTaskThroughSections(
 /**
  * POST /api/codex/tasks/bulk with codex_projects on: one transaction, every
  * task or none. A project task with no section for the status throws
- * CodexBulkError 409 naming that task.
+ * CodexBulkError 409 naming that task; any other failure is CodexBulkError
+ * 400 naming the task (bulkFailure, as the plain bulk path).
  */
 export async function bulkUpdateTasksThroughSections(
   ids: readonly number[],
@@ -1218,7 +1220,13 @@ export async function bulkUpdateTasksThroughSections(
     }
     const updated: CodexTask[] = []
     for (const id of ids) {
-      const outcome = await statusChangeInTx(tx, id, patch, actorEmail)
+      let outcome: StatusChangeOutcome
+      try {
+        outcome = await statusChangeInTx(tx, id, patch, actorEmail)
+      } catch (error) {
+        // As the plain bulk path: a failure that is not a refusal is 400 naming the task.
+        throw bulkFailure(id, error)
+      }
       if (!outcome.ok) throw new CodexBulkError(id, 409, `Task ${id}: ${outcome.message}`)
       if (!outcome.task) throw new CodexBulkError(id, 409, `Task ${id} was not found.`)
       updated.push(outcome.task)

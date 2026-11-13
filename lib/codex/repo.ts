@@ -1400,7 +1400,12 @@ export async function softDeleteTask(
   return database.transaction((tx) => softDeleteLiveTask(tx, id, actorEmail))
 }
 
-function bulkFailure(id: number, error: unknown): CodexBulkError {
+/**
+ * A bulk task's failure as CodexBulkError: a CodexBulkError stays as it is;
+ * anything else is 400 naming the task. Also used by the projects store's
+ * bulk path (`bulkUpdateTasksThroughSections`).
+ */
+export function bulkFailure(id: number, error: unknown): CodexBulkError {
   if (error instanceof CodexBulkError) return error
   const message = error instanceof Error ? error.message : String(error)
   return new CodexBulkError(id, 400, message)

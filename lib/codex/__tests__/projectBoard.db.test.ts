@@ -319,6 +319,21 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.equal(await bulkUpdateTasksThroughSections([plain], { priority: "high" }, OWNER, database), null, "no status: the plain bulk path")
   })
 
+  it("bulk: a failure that is not a refusal is CodexBulkError 400 naming the task, as the plain bulk path (B39fix F6)", async () => {
+    const plain = await newTask("bulk bad rule")
+    const ids = Object.fromEntries((await client`SELECT id, title FROM public.tasks WHERE project_id = ${projectId}`).map((r) => [r.title, Number(r.id)]))
+    const before = (await taskRow(ids.A)).status
+    // A plain task first, then a project task first: the first task in the batch fails either way.
+    for (const [batch, failing] of [[[plain, ids.A], plain], [[ids.A, plain], ids.A]] as const) {
+      await assert.rejects(
+        bulkUpdateTasksThroughSections([...batch], { status: "waiting", recurringRule: "every blue moon" }, OWNER, database),
+        (err) => err instanceof CodexBulkError && err.statusCode === 400 && err.taskId === failing && /recurring_rule/.test(err.message)
+      )
+    }
+    assert.equal((await taskRow(plain)).status, "todo", "rolled back")
+    assert.equal((await taskRow(ids.A)).status, before, "rolled back")
+  })
+
   it("bulk across two projects locks both and moves each task in its own project", async () => {
     const priv = await createTasksInSection(privateId, (await loadProjectBoard(privateId, OWNER, { hideCompleted: true }, database) as { sections: { id: number }[] }).sections[0].id, OWNER, ["P1"], database)
     assert.ok(priv.ok)
