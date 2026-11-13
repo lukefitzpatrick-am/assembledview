@@ -33,13 +33,13 @@ import {
 import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
 import {
+  alterBillingGhostPairsLeft,
   alterBillingOriginalTotal,
   billingAliasGhostFinanceMessage,
   keepCurrentRowsForAlterBilling,
 } from "@/lib/billing/billingAliasGhostFinanceGuard"
 import {
   billingAliasGhostTotal,
-  findBillingAliasGhostPairs,
   summariseBillingAliasGhostPairs,
 } from "@/lib/billing/billingAliasGhostPairs"
 import { clientFeatureOn } from "@/lib/features/client"
@@ -123,9 +123,14 @@ export function AlterBillingDialog({
   // id with money in one month count that line twice. Name them, stop Save until
   // "Keep the current rows". The server refuses the same schedule too.
   const ghostGuardOn = clientFeatureOn("billing_ghost_row_finance_guard")
+  // STACKfix (review M1): plus an opened pair whose current row was zeroed while
+  // the old row still carries money (no pair left, but the old id would bill alone).
   const ghostPairs = useMemo(
-    () => (ghostGuardOn ? findBillingAliasGhostPairs(months, mbaNumber) : []),
-    [ghostGuardOn, months, mbaNumber]
+    () =>
+      ghostGuardOn
+        ? alterBillingGhostPairsLeft({ openedMonths, currentMonths: months, mbaNumber })
+        : [],
+    [ghostGuardOn, openedMonths, months, mbaNumber]
   )
   const ghostLines = useMemo(
     () => summariseBillingAliasGhostPairs(ghostPairs, months.map((m) => m.monthYear)),
@@ -133,7 +138,7 @@ export function AlterBillingDialog({
   )
   const ghostTotal = billingAliasGhostTotal(ghostPairs)
   const handleKeepCurrentRows = () => {
-    setMonths(keepCurrentRowsForAlterBilling(months, mbaNumber).months)
+    setMonths(keepCurrentRowsForAlterBilling(months, mbaNumber, openedMonths).months)
     setValidationError(null)
   }
   // Switch off: the opened total, as before. On: less the old rows' amounts as

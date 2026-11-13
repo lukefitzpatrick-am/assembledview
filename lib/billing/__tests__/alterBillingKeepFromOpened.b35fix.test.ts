@@ -11,6 +11,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  alterBillingGhostPairsLeft,
   alterBillingOriginalTotal,
   billingScheduleAliasGhostRefusal,
   keepCurrentRowsForAlterBilling,
@@ -57,9 +58,13 @@ function edit(months: BillingMonth[], id: string, value: number): BillingMonth[]
   return next
 }
 
-/** The dialog's Save rule with the switch on: no pair left, and the total within $0.01 of the original. */
+/**
+ * The dialog's Save rule with the switch on: no pair left (live or broken
+ * against the opened schedule, STACKfix M1), and the total within $0.01 of
+ * the original.
+ */
 function saveAllowed(openedMonths: BillingMonth[], current: BillingMonth[]): boolean {
-  if (findBillingAliasGhostPairs(current, "malay004").length > 0) return false
+  if (alterBillingGhostPairsLeft({ openedMonths, currentMonths: current, mbaNumber: "malay004" }).length > 0) return false
   const { originalGrandTotal } = alterBillingOriginalTotal({
     openedMonths,
     currentMonths: current,

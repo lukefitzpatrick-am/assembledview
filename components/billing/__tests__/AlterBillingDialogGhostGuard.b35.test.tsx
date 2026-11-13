@@ -127,6 +127,46 @@ describe("AlterBillingDialog duplicate rows (B35)", () => {
     expect(saveButton()?.disabled).toBe(true)
   })
 
+  // STACKfix (stack review M1): zeroing the current row (not the old one) leaves no
+  // pair either, with ML1 still billing $37,000 under the old id.
+  it("switch on: OH1 (current) zeroed with ML1 still $37,000 names the broken pair and Save stays stopped", async () => {
+    const onSave = vi.fn()
+    act(() => {
+      root.render(<AlterBillingDialog open onOpenChange={() => {}} initialMonths={months} mbaNumber="malay004" onSave={onSave} />)
+    })
+    typeAmount(1, "$0.00")
+    expect(document.body.textContent).toMatch(/Current total:\s*\$37,000\.00/)
+    const notice = document.querySelector('[data-billing-alias-duplicates="modal"]')
+    expect(notice).not.toBeNull()
+    expect(notice!.textContent).toContain("Duplicate of malay004OH1")
+    expect(notice!.textContent).toContain("June 2026: $37,000.00 and $0.00")
+    expect(document.body.textContent).toMatch(/Original total:\s*\$74,000\.00/)
+    expect(document.querySelector("[data-alter-billing-original-rebased]")).toBeNull()
+    expect(saveButton()?.disabled).toBe(true)
+    // Keep drops ML1; OH1 back to $37,000 then saves one row.
+    act(() => keepButton()!.click())
+    expect(document.querySelector('[data-billing-alias-duplicates="modal"]')).toBeNull()
+    expect(document.body.textContent).toMatch(/Original total:\s*\$37,000\.00/)
+    expect(saveButton()?.disabled).toBe(true)
+    typeAmount(0, "$37,000.00")
+    expect(saveButton()?.disabled).toBe(false)
+    await act(async () => saveButton()!.click())
+    expect(onSave).toHaveBeenCalledTimes(1)
+    const sent = onSave.mock.calls[0]![0] as BillingMonth[]
+    expect((sent[0]!.lineItems as Record<string, Array<{ id: string }>>).ooh!.map((l) => l.id)).toEqual(["malay004OH1"])
+  })
+
+  it("switch off: zeroing the current row keeps the opened total and shows no notice, as before", () => {
+    switches.on = false
+    act(() => {
+      root.render(<AlterBillingDialog open onOpenChange={() => {}} initialMonths={months} mbaNumber="malay004" onSave={vi.fn()} />)
+    })
+    typeAmount(1, "$0.00")
+    expect(document.querySelector('[data-billing-alias-duplicates="modal"]')).toBeNull()
+    expect(document.body.textContent).toMatch(/Original total:\s*\$74,000\.00/)
+    expect(saveButton()?.disabled).toBe(true)
+  })
+
   it("switch off: clearing the pair by hand keeps the opened total (no rebase), as before B35", () => {
     switches.on = false
     act(() => {

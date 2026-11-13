@@ -25,7 +25,9 @@ import { requireFinanceAdmin } from "@/lib/requireRole"
  * that holds an old line id and the current id of the same line, both with
  * money in one month, is refused (409 `BILLING_ALIAS_GHOST_ROWS`, naming each
  * line and month). Nothing is written. A schedule built here from the line
- * items is never checked: it holds current ids only.
+ * items is never checked: it holds current ids only. STACKfix (review M1):
+ * also refused, an old-id row that still has money where the stored schedule
+ * paired it and the sent schedule zeroed (or dropped) its current row.
  */
 export async function PATCH(
   request: NextRequest,
@@ -98,7 +100,7 @@ export async function PATCH(
     }
 
     if (clientSentSchedule && clientBillingSchedule != null && (await readBillingGhostFinanceGuard("billing-schedule-patch"))) {
-      const refusal = billingScheduleAliasGhostRefusal(clientBillingSchedule, versionPg.mbaNumber)
+      const refusal = billingScheduleAliasGhostRefusal(clientBillingSchedule, versionPg.mbaNumber, oldSchedule)
       if (refusal) {
         console.warn("[billing-schedule-patch] refused: duplicate old-id billing rows", {
           versionId,

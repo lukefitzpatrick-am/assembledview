@@ -35,7 +35,13 @@ class BillingScheduleWriteError extends Error {
   }
 }
 
-const versionRow = {
+const versionRow: {
+  id: number
+  mbaNumber: string
+  campaignStartDate: string
+  campaignEndDate: string
+  legacySchedules: { billingSchedule: unknown }
+} = {
   id: 19001,
   mbaNumber: "malay004",
   campaignStartDate: "2026-06-01",
@@ -131,4 +137,34 @@ test("the role gate runs first and the switch is not read for a refused caller",
   requireFinanceAdminMock.mock.mockImplementationOnce(async () => ({ response: NextResponse.json({ error: "forbidden" }, { status: 403 }) }))
   assert.equal((await patch({ billingSchedule: doubled })).status, 403)
   assert.equal(isFeatureOnMock.mock.callCount(), reads)
+})
+
+// STACKfix (stack review M1): the stored schedule holds the pair; the sent one
+// zeroes the current row and keeps money on the old row.
+test("switch on: current row zeroed against a stored pair is 409 and nothing is written; old row zeroed saves", { skip }, async () => {
+  switchOn = true
+  versionRow.legacySchedules = { billingSchedule: doubled }
+  try {
+    const writes = patchMock.mock.callCount()
+    const zeroedCurrent = sched([["billing-ooh::malay004ML1", 37000], ["billing-ooh::malay004OH1", 0]])
+    const res = await patch({ billingSchedule: zeroedCurrent })
+    assert.equal(res.status, 409)
+    const body = (await res.json()) as { code: string; error: string; doubledTotal: number }
+    assert.equal(body.code, "BILLING_ALIAS_GHOST_ROWS")
+    assert.equal(body.doubledTotal, 37000)
+    assert.match(body.error, /malay004ML1 is a duplicate of malay004OH1 \(June 2026 \$37,000\.00 and \$0\.00\)/)
+    assert.equal(patchMock.mock.callCount(), writes, "no write")
+
+    const zeroedOld = sched([["billing-ooh::malay004ML1", 0], ["billing-ooh::malay004OH1", 37000]])
+    assert.equal((await patch({ billingSchedule: zeroedOld })).status, 200)
+    assert.equal(patchMock.mock.callCount(), writes + 1)
+
+    // Switch off: the broken schedule saves as before.
+    switchOn = false
+    assert.equal((await patch({ billingSchedule: zeroedCurrent })).status, 200)
+    assert.equal(patchMock.mock.callCount(), writes + 2)
+  } finally {
+    switchOn = true
+    versionRow.legacySchedules = { billingSchedule: [] }
+  }
 })

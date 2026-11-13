@@ -10,6 +10,9 @@
  *   refuses a client-sent schedule that holds a pair. Nothing is written.
  * - `keepCurrentRowsForAlterBilling`: Alter Billing's "Keep the current rows";
  *   `alterBillingOriginalTotal`: the total Save needs, from the schedule as opened.
+ * - `brokenAliasGhostPairs` (STACKfix, review M1): an old-id row that still
+ *   carries money after its current row was zeroed, where the schedule as
+ *   opened (or as stored, on the server) held the pair. Refused like a pair.
  * - `invoiceDraftAliasDuplicates`: one invoice draft month; the doubled lines
  *   are flagged on the record, never dropped.
  *
@@ -23,9 +26,11 @@ import {
   removeOldAliasGhostRows,
   summariseBillingAliasGhostPairs,
   type BillingAliasGhostLine,
+  type BillingAliasGhostPair,
 } from "@/lib/billing/billingAliasGhostPairs"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
-import type { BillingMonth } from "@/lib/billing/types"
+import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 import { formatMoney } from "@/lib/format/money"
 import { fromCents, sumCents, toCents } from "@/lib/money"
 
@@ -62,13 +67,27 @@ export function billingAliasGhostFinanceMessage(lines: readonly BillingAliasGhos
 /**
  * The 409 for a client-sent schedule that holds an old-id and current-id
  * pair with money in one month, or null when it holds none.
+ *
+ * With `storedSchedule` (the version's schedule before this PATCH), an old-id
+ * row that still has money in a month where the stored schedule paired it,
+ * and whose current row is now $0 or gone, is refused the same way
+ * (`brokenAliasGhostPairs`, review M1): that line would bill under the old id
+ * alone.
  */
 export function billingScheduleAliasGhostRefusal(
   schedule: unknown,
-  mbaNumber: string | null | undefined
+  mbaNumber: string | null | undefined,
+  storedSchedule?: unknown
 ): BillingAliasGhostRefusal | null {
   const months = billingMonthsFromSentSchedule(schedule)
-  const pairs = findBillingAliasGhostPairs(months, mbaNumber)
+  const pairs =
+    storedSchedule === undefined
+      ? findBillingAliasGhostPairs(months, mbaNumber)
+      : alterBillingGhostPairsLeft({
+          openedMonths: billingMonthsFromSentSchedule(storedSchedule),
+          currentMonths: months,
+          mbaNumber,
+        })
   if (pairs.length === 0) return null
   const lines = summariseBillingAliasGhostPairs(pairs, months.map((m) => m.monthYear))
   const doubledTotal = billingAliasGhostTotal(pairs)
@@ -124,13 +143,17 @@ export function describeInvoiceDraftAliasDuplicates(dups: readonly InvoiceDraftA
  * of each pair (`removeOldAliasGhostRows`). The total Save needs is
  * `alterBillingOriginalTotal`, from the schedule as opened, so nothing here
  * moves it. `removedTotal` is the old rows' amounts as they stand in this edit
- * (information only). No pair: the input as it is.
+ * (information only). No pair: the input as it is. With `openedMonths`, the
+ * old rows of broken pairs (`brokenAliasGhostPairs`) go too.
  */
 export function keepCurrentRowsForAlterBilling(
   months: readonly BillingMonth[],
-  mbaNumber: string | null | undefined
+  mbaNumber: string | null | undefined,
+  openedMonths?: readonly BillingMonth[]
 ): { months: BillingMonth[]; removedTotal: number } {
-  const pairs = findBillingAliasGhostPairs(months, mbaNumber)
+  const pairs = openedMonths
+    ? alterBillingGhostPairsLeft({ openedMonths, currentMonths: months, mbaNumber })
+    : findBillingAliasGhostPairs(months, mbaNumber)
   if (pairs.length === 0) {
     return { months: months as BillingMonth[], removedTotal: 0 }
   }
@@ -157,6 +180,12 @@ export function keepCurrentRowsForAlterBilling(
  * then Keep, leaves $20,000 against $37,000). An edit that zeroes the old row
  * and moves its money onto the current row fails it too: the doubled money as
  * opened must leave the schedule.
+ *
+ * STACKfix (review M1): "no pair left" alone is not enough. Zeroing the
+ * **current** row also leaves no pair, with the old row still billing. So the
+ * total is lowered only when every opened pair's old row is $0 or gone in its
+ * month; otherwise it stays the opened total, and Save is refused by the
+ * broken pair (`alterBillingGhostPairsLeft`).
  */
 export function alterBillingOriginalTotal(params: {
   openedMonths: readonly BillingMonth[]
@@ -166,7 +195,10 @@ export function alterBillingOriginalTotal(params: {
 }): { originalGrandTotal: number; doubledAsOpened: number; rebased: boolean } {
   const { openedMonths, currentMonths, mbaNumber, openedGrandTotal } = params
   const doubledAsOpened = billingAliasGhostTotal(findBillingAliasGhostPairs(openedMonths, mbaNumber))
-  if (toCents(doubledAsOpened) === 0 || findBillingAliasGhostPairs(currentMonths, mbaNumber).length > 0) {
+  if (
+    toCents(doubledAsOpened) === 0 ||
+    alterBillingGhostPairsLeft({ openedMonths, currentMonths, mbaNumber }).length > 0
+  ) {
     return { originalGrandTotal: openedGrandTotal, doubledAsOpened, rebased: false }
   }
   return {
@@ -174,4 +206,76 @@ export function alterBillingOriginalTotal(params: {
     doubledAsOpened,
     rebased: true,
   }
+}
+
+/** The row with this id (bare or `billing-<media>::`) in the month's bucket, and its amount there. */
+function rowIn(
+  month: BillingMonth | undefined,
+  mediaKey: string,
+  id: string
+): { id: string; amount: number } | null {
+  const rows = (month?.lineItems as Record<string, BillingLineItem[] | undefined> | undefined)?.[mediaKey]
+  if (!month || !Array.isArray(rows)) return null
+  const row = rows.find((r) => billingOverrideLineIdsMatch(String(r?.id ?? ""), id))
+  if (!row) return null
+  const n = Number(row.monthlyAmounts?.[month.monthYear])
+  return { id: String(row.id ?? ""), amount: Number.isFinite(n) ? n : 0 }
+}
+
+/**
+ * STACKfix (review M1): the pairs of the schedule as opened that are broken
+ * the wrong way round in the edit. The old-id row still carries money in that
+ * month, but the current-id row is $0 or gone, so no pair is found and the
+ * line would bill under the old id alone (what MB-37 exists to stop).
+ *
+ * Each comes back as a pair with the amounts as they stand in the edit (the
+ * current amount is 0), so `removeOldAliasGhostRows` and the refusal message
+ * work on it unchanged. An old row zeroed (or removed) in the edit is not
+ * broken: that is the fix.
+ */
+export function brokenAliasGhostPairs(params: {
+  openedMonths: readonly BillingMonth[]
+  currentMonths: readonly BillingMonth[]
+  mbaNumber: string | null | undefined
+}): BillingAliasGhostPair[] {
+  const { openedMonths, currentMonths, mbaNumber } = params
+  const openedPairs = findBillingAliasGhostPairs(openedMonths, mbaNumber)
+  if (openedPairs.length === 0) return []
+  const byMonth = new Map(currentMonths.map((m) => [String(m.monthYear ?? ""), m]))
+  const broken: BillingAliasGhostPair[] = []
+  for (const p of openedPairs) {
+    const month = byMonth.get(p.monthYear)
+    const oldRow = rowIn(month, p.mediaKey, p.oldId)
+    if (!oldRow || oldRow.amount === 0) continue
+    const currentRow = rowIn(month, p.mediaKey, p.currentId)
+    // Both still carry money: a live pair, found by the detector itself.
+    if (currentRow && currentRow.amount !== 0) continue
+    broken.push({
+      ...p,
+      // Ids as they sit in the edit, so `removeOldAliasGhostRows` finds the row.
+      oldId: oldRow.id,
+      currentId: currentRow?.id ?? p.currentId,
+      oldAmount: oldRow.amount,
+      currentAmount: 0,
+    })
+  }
+  return broken
+}
+
+/**
+ * Every pair Alter Billing (switch on) must clear before Save: the pairs in
+ * the edit, plus the broken pairs against the schedule as opened. Sorted like
+ * `findBillingAliasGhostPairs`.
+ */
+export function alterBillingGhostPairsLeft(params: {
+  openedMonths: readonly BillingMonth[]
+  currentMonths: readonly BillingMonth[]
+  mbaNumber: string | null | undefined
+}): BillingAliasGhostPair[] {
+  const live = findBillingAliasGhostPairs(params.currentMonths, params.mbaNumber)
+  const broken = brokenAliasGhostPairs(params)
+  if (broken.length === 0) return live
+  return [...live, ...broken].sort((a, b) =>
+    a.mediaKey === b.mediaKey ? a.lineNumber - b.lineNumber : a.mediaKey.localeCompare(b.mediaKey)
+  )
 }
