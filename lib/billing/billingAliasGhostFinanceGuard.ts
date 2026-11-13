@@ -8,7 +8,8 @@
  *
  * - `billingScheduleAliasGhostRefusal`: the billing schedule update route
  *   refuses a client-sent schedule that holds a pair. Nothing is written.
- * - `keepCurrentRowsForAlterBilling`: Alter Billing's "Keep the current rows".
+ * - `keepCurrentRowsForAlterBilling`: Alter Billing's "Keep the current rows";
+ *   `alterBillingOriginalTotal`: the total Save needs, from the schedule as opened.
  * - `invoiceDraftAliasDuplicates`: one invoice draft month; the doubled lines
  *   are flagged on the record, never dropped.
  *
@@ -120,23 +121,57 @@ export function describeInvoiceDraftAliasDuplicates(dups: readonly InvoiceDraftA
 
 /**
  * Alter Billing's "Keep the current rows": the months without the old-id row
- * of each pair (`removeOldAliasGhostRows`), and the dialog's original total
- * moved down by the same amount, so the equal-total rule then holds for the
- * corrected schedule. Nothing else changes. No pair: the input as it is.
+ * of each pair (`removeOldAliasGhostRows`). The total Save needs is
+ * `alterBillingOriginalTotal`, from the schedule as opened, so nothing here
+ * moves it. `removedTotal` is the old rows' amounts as they stand in this edit
+ * (information only). No pair: the input as it is.
  */
 export function keepCurrentRowsForAlterBilling(
   months: readonly BillingMonth[],
-  mbaNumber: string | null | undefined,
-  originalGrandTotal: number
-): { months: BillingMonth[]; originalGrandTotal: number; removedTotal: number } {
+  mbaNumber: string | null | undefined
+): { months: BillingMonth[]; removedTotal: number } {
   const pairs = findBillingAliasGhostPairs(months, mbaNumber)
   if (pairs.length === 0) {
-    return { months: months as BillingMonth[], originalGrandTotal, removedTotal: 0 }
+    return { months: months as BillingMonth[], removedTotal: 0 }
   }
-  const removedTotal = billingAliasGhostTotal(pairs)
   return {
     months: removeOldAliasGhostRows(months, pairs),
-    originalGrandTotal: fromCents(toCents(originalGrandTotal) - toCents(removedTotal)),
-    removedTotal,
+    removedTotal: billingAliasGhostTotal(pairs),
+  }
+}
+
+/**
+ * B35fix (H1): the original total Alter Billing's equal-total rule compares
+ * against, taken from the schedule **as opened**, never from the rows as
+ * edited.
+ *
+ * - The opened schedule holds no pair: the opened total, as before.
+ * - It holds pairs and the edit still holds one: the opened total (Save is
+ *   stopped by the pair anyway).
+ * - It held pairs and the edit holds none (after "Keep the current rows", or
+ *   any other edit that clears them): the opened total less the old rows'
+ *   amounts as opened (`doubledAsOpened`).
+ *
+ * So money moved onto or off an old row before Keep is a real change and
+ * fails the rule (malay004 shape: OH1 $37,000 to $20,000 and ML1 to $54,000,
+ * then Keep, leaves $20,000 against $37,000). An edit that zeroes the old row
+ * and moves its money onto the current row fails it too: the doubled money as
+ * opened must leave the schedule.
+ */
+export function alterBillingOriginalTotal(params: {
+  openedMonths: readonly BillingMonth[]
+  currentMonths: readonly BillingMonth[]
+  mbaNumber: string | null | undefined
+  openedGrandTotal: number
+}): { originalGrandTotal: number; doubledAsOpened: number; rebased: boolean } {
+  const { openedMonths, currentMonths, mbaNumber, openedGrandTotal } = params
+  const doubledAsOpened = billingAliasGhostTotal(findBillingAliasGhostPairs(openedMonths, mbaNumber))
+  if (toCents(doubledAsOpened) === 0 || findBillingAliasGhostPairs(currentMonths, mbaNumber).length > 0) {
+    return { originalGrandTotal: openedGrandTotal, doubledAsOpened, rebased: false }
+  }
+  return {
+    originalGrandTotal: fromCents(toCents(openedGrandTotal) - toCents(doubledAsOpened)),
+    doubledAsOpened,
+    rebased: true,
   }
 }

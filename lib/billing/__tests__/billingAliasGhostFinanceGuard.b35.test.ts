@@ -13,6 +13,7 @@ import {
   describeInvoiceDraftAliasDuplicates,
   invoiceDraftAliasDuplicates,
   keepCurrentRowsForAlterBilling,
+  alterBillingOriginalTotal,
 } from "@/lib/billing/billingAliasGhostFinanceGuard"
 import { removeOldAliasGhostRows, findBillingAliasGhostPairs } from "@/lib/billing/billingAliasGhostPairs"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
@@ -122,23 +123,33 @@ test("invoice flag text names three, then a count", () => {
   )
 })
 
-test("Alter Billing keep the current rows: old rows go and the original total drops by the same amount", () => {
+test("Alter Billing keep the current rows: old rows go; the original total drops by the old rows as opened", () => {
   const hema = [
     month(MAY, [line("hema001ML4", { [MAY]: 3 }), line("hema001DD4", { [MAY]: 3 }), line("hema001DD5", { [MAY]: 10.1 })], "digiDisplay"),
     month(JUNE, [line("hema001ML6", { [JUNE]: 34 }), line("hema001DD6", { [JUNE]: 34 })], "digiDisplay"),
   ]
-  const r = keepCurrentRowsForAlterBilling(hema, "hema001", 84.1)
+  const r = keepCurrentRowsForAlterBilling(hema, "hema001")
   assert.equal(r.removedTotal, 37)
-  assert.equal(r.originalGrandTotal, 47.1)
   assert.deepEqual(
     r.months.map((m) => (m.lineItems as Record<string, BillingLineItem[]>).digiDisplay!.map((l) => l.id)),
     [["hema001DD4", "hema001DD5"], ["hema001DD6"]],
   )
   assert.deepEqual(r.months.map((m) => m.totalAmount), ["$13.10", "$34.00"])
+  const original = alterBillingOriginalTotal({ openedMonths: hema, currentMonths: r.months, mbaNumber: "hema001", openedGrandTotal: 84.1 })
+  assert.deepEqual(original, { originalGrandTotal: 47.1, doubledAsOpened: 37, rebased: true })
   // The input is not changed, and a clean schedule comes back as it is.
   assert.equal((hema[0]!.lineItems as Record<string, BillingLineItem[]>).digiDisplay!.length, 3)
-  const again = keepCurrentRowsForAlterBilling(r.months, "hema001", r.originalGrandTotal)
+  const again = keepCurrentRowsForAlterBilling(r.months, "hema001")
   assert.equal(again.months, r.months)
   assert.equal(again.removedTotal, 0)
-  assert.equal(again.originalGrandTotal, 47.1)
+  // While a pair is left the opened total shows (Save is stopped by the pair).
+  assert.deepEqual(
+    alterBillingOriginalTotal({ openedMonths: hema, currentMonths: hema, mbaNumber: "hema001", openedGrandTotal: 84.1 }),
+    { originalGrandTotal: 84.1, doubledAsOpened: 37, rebased: false },
+  )
+  // Opened with no pair: the opened total, whatever the edit holds.
+  assert.deepEqual(
+    alterBillingOriginalTotal({ openedMonths: r.months, currentMonths: r.months, mbaNumber: "hema001", openedGrandTotal: 47.1 }),
+    { originalGrandTotal: 47.1, doubledAsOpened: 0, rebased: false },
+  )
 })

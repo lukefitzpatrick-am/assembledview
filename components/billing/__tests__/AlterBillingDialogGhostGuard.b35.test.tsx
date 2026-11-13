@@ -79,6 +79,54 @@ describe("AlterBillingDialog duplicate rows (B35)", () => {
     expect(sent[0]!.totalAmount).toBe("$37,000.00")
   })
 
+  // B35fix (H1): money moved between ML1 and OH1 before Keep is a real change.
+  const keepButton = () => [...document.querySelectorAll("button")].find((b) => b.textContent === "Keep the current rows")
+  function typeAmount(rowLabelIndex: number, value: string) {
+    const trigger = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "ooh")
+    if (trigger && trigger.getAttribute("aria-expanded") !== "true") act(() => trigger.click())
+    const inputs = [...document.querySelectorAll("input")] as HTMLInputElement[]
+    const input = inputs[rowLabelIndex]!
+    act(() => {
+      input.focus()
+      input.value = value
+      input.blur()
+    })
+  }
+
+  it.each([
+    ["OH1 down to $20,000, ML1 up to $54,000", "$20,000.00", "$54,000.00", "$20,000.00"],
+    ["OH1 up to $54,000, ML1 down to $20,000", "$54,000.00", "$20,000.00", "$54,000.00"],
+  ])("switch on: %s, then Keep: Save stays stopped against the total as opened", (_label, oh1, ml1, kept) => {
+    const onSave = vi.fn()
+    act(() => {
+      root.render(<AlterBillingDialog open onOpenChange={() => {}} initialMonths={months} mbaNumber="malay004" onSave={onSave} />)
+    })
+    // Rows in schedule order: ML1 first, OH1 second.
+    typeAmount(1, oh1)
+    typeAmount(0, ml1)
+    expect(document.body.textContent).toMatch(/Current total:\s*\$74,000\.00/)
+    act(() => keepButton()!.click())
+    expect(document.querySelector('[data-billing-alias-duplicates="modal"]')).toBeNull()
+    expect(document.body.textContent).toMatch(/Original total:\s*\$37,000\.00/)
+    expect(document.body.textContent).toMatch(new RegExp(`Current total:\\s*\\${kept.replace(/[.]/g, "\\.")}`))
+    expect(document.querySelector("[data-alter-billing-original-rebased]")?.textContent).toContain(
+      "Opened at $74,000.00, less $37,000.00 counted twice",
+    )
+    expect(saveButton()?.disabled).toBe(true)
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it("switch on: ML1 zeroed and its money put on OH1 (no pair left) is stopped too", () => {
+    act(() => {
+      root.render(<AlterBillingDialog open onOpenChange={() => {}} initialMonths={months} mbaNumber="malay004" onSave={vi.fn()} />)
+    })
+    typeAmount(0, "$0.00")
+    typeAmount(1, "$74,000.00")
+    expect(document.querySelector('[data-billing-alias-duplicates="modal"]')).toBeNull()
+    expect(document.body.textContent).toMatch(/Original total:\s*\$37,000\.00/)
+    expect(saveButton()?.disabled).toBe(true)
+  })
+
   it("switch off: no notice and Save is not stopped by the pair", () => {
     switches.on = false
     act(() => {

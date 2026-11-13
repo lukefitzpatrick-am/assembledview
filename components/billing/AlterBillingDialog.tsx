@@ -33,6 +33,7 @@ import {
 import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
 import {
+  alterBillingOriginalTotal,
   billingAliasGhostFinanceMessage,
   keepCurrentRowsForAlterBilling,
 } from "@/lib/billing/billingAliasGhostFinanceGuard"
@@ -103,14 +104,18 @@ export function AlterBillingDialog({
   layer = "modal",
 }: Props) {
   const [months, setMonths] = useState<BillingMonth[]>([])
-  const [originalGrandTotal, setOriginalGrandTotal] = useState(0)
+  // B35fix (H1): the schedule as opened. The original total is always worked
+  // out from it, never from rows as edited.
+  const [openedMonths, setOpenedMonths] = useState<BillingMonth[]>([])
+  const [openedGrandTotal, setOpenedGrandTotal] = useState(0)
   const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     const cloned = deepCloneMonths(initialMonths)
     setMonths(cloned)
-    setOriginalGrandTotal(computeGrandTotal(cloned))
+    setOpenedMonths(deepCloneMonths(initialMonths))
+    setOpenedGrandTotal(computeGrandTotal(cloned))
     setValidationError(null)
   }, [open, initialMonths])
 
@@ -128,11 +133,20 @@ export function AlterBillingDialog({
   )
   const ghostTotal = billingAliasGhostTotal(ghostPairs)
   const handleKeepCurrentRows = () => {
-    const kept = keepCurrentRowsForAlterBilling(months, mbaNumber, originalGrandTotal)
-    setMonths(kept.months)
-    setOriginalGrandTotal(kept.originalGrandTotal)
+    setMonths(keepCurrentRowsForAlterBilling(months, mbaNumber).months)
     setValidationError(null)
   }
+  // Switch off: the opened total, as before. On: less the old rows' amounts as
+  // opened once no pair is left, so moving money onto or off an old row before
+  // Keep can't pass the equal-total rule.
+  const originalTotal = useMemo(
+    () =>
+      ghostGuardOn
+        ? alterBillingOriginalTotal({ openedMonths, currentMonths: months, mbaNumber, openedGrandTotal })
+        : { originalGrandTotal: openedGrandTotal, doubledAsOpened: 0, rebased: false },
+    [ghostGuardOn, openedMonths, months, mbaNumber, openedGrandTotal]
+  )
+  const originalGrandTotal = originalTotal.originalGrandTotal
 
   const mediaKeys = useMemo(() => collectMediaKeys(months), [months])
   const currentGrandTotal = useMemo(() => computeGrandTotal(months), [months])
@@ -239,7 +253,7 @@ export function AlterBillingDialog({
                 total={ghostTotal}
                 variant="modal"
                 onKeepCurrentRows={isSaving ? undefined : handleKeepCurrentRows}
-                keepHint={`Removes the old-id rows from this edit and moves the original total down by ${formatBillingCurrency(ghostTotal)}. Nothing is saved until you choose Save Billing Changes.`}
+                keepHint={`Removes the old-id rows from this edit and moves the original total down by ${formatBillingCurrency(originalTotal.doubledAsOpened)}, the old rows as opened. Nothing is saved until you choose Save Billing Changes.`}
               />
             ) : null}
             <Accordion type="multiple" className="w-full">
@@ -471,6 +485,12 @@ export function AlterBillingDialog({
                 Original total:{" "}
                 <span className="font-semibold">{formatBillingCurrency(originalGrandTotal)}</span>
               </div>
+              {originalTotal.rebased ? (
+                <div className="text-muted-foreground" data-alter-billing-original-rebased>
+                  Opened at {formatBillingCurrency(openedGrandTotal)}, less{" "}
+                  {formatBillingCurrency(originalTotal.doubledAsOpened)} counted twice (old-id rows as opened)
+                </div>
+              ) : null}
               <div>
                 Current total:{" "}
                 <span
