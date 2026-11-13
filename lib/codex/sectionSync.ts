@@ -51,6 +51,61 @@ export async function lockTaskProject(tx: DbExecutor, taskId: number): Promise<v
   `)
 }
 
+/** P3 (PACK3fix): the task's project changed under every try of `lockTaskAndProject`. */
+export class TaskProjectChangedError extends Error {
+  constructor(readonly taskId: number) {
+    super("The task moved to a project while this was saved. Try again.")
+    this.name = "TaskProjectChangedError"
+  }
+}
+
+class ProjectMovedRetry extends Error {}
+
+/** How many times `lockTaskAndProject` takes its locks before it gives up. */
+export const LOCK_TASK_AND_PROJECT_TRIES = 3
+
+/**
+ * P3 (PACK3fix): lock task `taskId`'s project (if any), then the task row, and
+ * agree on the project. A writer that copies a task into a new one (Ask for
+ * help, recurring) needs the project the source is in when it commits, not
+ * when it was read: a board move can put a task that is in no project onto a
+ * private board between the project lock (none to take) and the write. The
+ * row lock waits for that move; when the row then names another project, a
+ * savepoint rollback releases both locks and they are taken again in order
+ * (project, then task). `found` is false when the row is gone or deleted.
+ * Before 0118: nothing is locked and the project is null.
+ */
+export async function lockTaskAndProject(
+  tx: DbExecutor,
+  taskId: number
+): Promise<{ found: boolean; projectId: number | null }> {
+  if (!(await isProjectsMigrationApplied(tx))) return { found: true, projectId: null }
+  for (let attempt = 0; attempt < LOCK_TASK_AND_PROJECT_TRIES; attempt++) {
+    try {
+      return await tx.transaction(async (sp) => {
+        const locked = executeRows(
+          await sp.execute(sql`
+            SELECT p.id FROM public.codex_projects p
+             WHERE p.id = (SELECT t.project_id FROM public.tasks t WHERE t.id = ${taskId})
+               FOR UPDATE OF p
+          `)
+        )[0]
+        const lockedId = locked == null ? null : Number(locked.id)
+        const row = executeRows(
+          await sp.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId} AND deleted_at IS NULL FOR UPDATE`)
+        )[0]
+        if (!row) return { found: false, projectId: null }
+        const projectId = row.project_id == null ? null : Number(row.project_id)
+        if (projectId !== lockedId) throw new ProjectMovedRetry()
+        return { found: true, projectId }
+      })
+    } catch (err) {
+      if (!(err instanceof ProjectMovedRetry)) throw err
+    }
+  }
+  throw new TaskProjectChangedError(taskId)
+}
+
 /** After `status` was written to task `taskId` in this transaction: move it by the section rule. */
 export async function followSectionRule(
   tx: DbExecutor,

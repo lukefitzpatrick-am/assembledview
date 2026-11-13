@@ -115,13 +115,14 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     if (error instanceof CodexHelpError) {
       const code =
-        error.status === 404
+        error.code ??
+        (error.status === 404
           ? "not_found"
           : error.status === 409
             ? "helper_no_access"
             : error.message === HELP_ON_DONE_MESSAGE
               ? "invalid"
-              : "bad_request"
+              : "bad_request")
       return NextResponse.json(
         { error: code, message: error.message },
         { status: error.status }

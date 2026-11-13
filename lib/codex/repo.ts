@@ -57,7 +57,7 @@ import {
   hiddenTaskIds,
   taskVisibilityCondition,
 } from "@/lib/codex/taskVisibility"
-import { followSectionRule, lockTaskProject } from "@/lib/codex/sectionSync"
+import { followSectionRule, lockTaskAndProject, lockTaskProject, TaskProjectChangedError } from "@/lib/codex/sectionSync"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
   ChecklistItem,
@@ -1275,13 +1275,6 @@ export function helpNoAccessMessage(helper: string): string {
   return `${helper} is not a member of this private project. Add them to the project first, or ask someone who is.`
 }
 
-/** The task's project (raw SQL: not mirrored, C-210). Null before 0118 or for no project. */
-async function taskProjectId(database: DbExecutor, id: number): Promise<number | null> {
-  if (!(await isProjectsMigrationApplied(database))) return null
-  const [row] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${id}`))
-  return row?.project_id == null ? null : Number(row.project_id)
-}
-
 export type RequestHelpInput = {
   assigneeEmail: string
   ask: string
@@ -1325,8 +1318,13 @@ export async function requestHelp(
   }
 
   return database.transaction(async (tx) => {
-    // C-220 (B42): the parent's project first, as every section writer.
-    await lockTaskProject(tx, parentId)
+    // C-220 (B42): the parent's project first, as every section writer. P3
+    // (PACK3fix): then the parent row, re-reading its project, so a board move
+    // committing in between cannot leave the help task outside the project.
+    const locked = await lockTaskAndProject(tx, parentId).catch((err: unknown) => {
+      if (err instanceof TaskProjectChangedError) throw new CodexHelpError(err.message, 409, "task_changed")
+      throw err
+    })
     const [parent] = await tx
       .select()
       .from(tasks)
@@ -1356,7 +1354,7 @@ export async function requestHelp(
     // F1 (B42fix): the help task lives in the parent's project, so a private
     // project's privacy covers its title and the ask. The helper must be able
     // to see that project (membership is the access rule, F5).
-    const projectId = await taskProjectId(tx, parent.id)
+    const projectId = locked.projectId
     if (projectId != null) {
       const [refused] = await emailsWithoutProjectAccess(tx, projectId, [assigneeEmail])
       if (refused) throw new CodexHelpError(helpNoAccessMessage(member.name || assigneeEmail), 409)

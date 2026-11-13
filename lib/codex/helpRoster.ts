@@ -2,10 +2,13 @@ import type { TeamMember } from "@/lib/codex/types"
 
 export class CodexHelpError extends Error {
   readonly status: number
-  constructor(message: string, status = 400) {
+  /** The route's error code when it is not the default for the status (P3: `task_changed`). */
+  readonly code: string | undefined
+  constructor(message: string, status = 400, code?: string) {
     super(message)
     this.name = "CodexHelpError"
     this.status = status
+    this.code = code
   }
 }
 
