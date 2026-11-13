@@ -208,6 +208,10 @@ for (const key of ["codex_progress_field", "codex_my_work"]) {
   })
 }
 
+test("codex_progress_field's description names the 409 progress_conflict refusal it turns on (PACK3 review P5)", () => {
+  assert.match(featureDefinition("codex_progress_field")!.description, /409 progress_conflict/)
+})
+
 test("B42 getters need codex_projects and codex_v2 as well as their own switch", async () => {
   const { isCodexMyWorkEnabled, isCodexProgressFieldEnabled } = await import("../../codex/flag.js")
   const rows = (on: string[]) =>
