@@ -109,6 +109,12 @@ test("every container save transform spreads mapFormToApi of its own config", ()
     const src = readFileSync(path.join(process.cwd(), file), "utf8")
     assert.match(src, re, file)
     assert.doesNotMatch(src, /\bnoadserving:\s*(true|false)\b/, `${file} must not hard-code the box`)
+    // B35fix (B35 review N2): nothing after the spread sets the box again.
+    const spread = re.exec(src)!
+    const after = src.slice(spread.index + spread[0].length)
+    const literal = after.slice(0, after.search(/\n\s*\}\)?;?\s*\n/))
+    assert.ok(literal.includes("bursts:"), `${file}: read the transform's object literal`)
+    assert.doesNotMatch(literal, /\b(no_adserving|noAdserving|noadserving)\b/, `${file} overrides the box after the spread`)
   }
 })
 
