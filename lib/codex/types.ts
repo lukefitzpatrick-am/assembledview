@@ -110,6 +110,13 @@ export type CodexTask = {
   children?: HelpChildSummary[]
   /** Detail: parent snapshot when this row is a help child. */
   parent?: HelpParentSummary | null
+  /** Project board (B39, after 0118): the task's project, section and order in it. */
+  project_id?: number | null
+  section_id?: number | null
+  sort_order?: number | null
+  /** Project board cards: live subtasks (task_type subtask) and comments. */
+  subtask_count?: number
+  comment_count?: number
 }
 
 export type HelpChildSummary = {

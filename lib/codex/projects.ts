@@ -19,7 +19,7 @@ import type {
   CodexProjectStatus,
   CodexSectionStatusCategory,
 } from "@/db/schema/codex"
-import type { TaskStatus } from "@/lib/codex/types"
+import { TASK_TITLE_MAX, type TaskStatus } from "@/lib/codex/types"
 
 export const PROJECT_KINDS = ["campaign", "retainer", "onboarding", "pitch", "internal", "ops"] as const satisfies readonly CodexProjectKind[]
 export const PROJECT_STATUSES = ["active", "on_hold", "closed"] as const satisfies readonly CodexProjectStatus[]
@@ -550,13 +550,26 @@ export function parseReorderInput(body: unknown): ParseResult<number[]> {
   return { ok: true, value: ids }
 }
 
-export type MoveTaskInput = { task_id: number; sort_order: number | null }
+/**
+ * `after_task_id` (B39, the board): absent places by `sort_order` or last;
+ * null places first; an id places right after that task in the section.
+ */
+export type MoveTaskInput = { task_id: number; sort_order: number | null; after_task_id?: number | null }
 
 export function parseMoveTaskInput(body: unknown): ParseResult<MoveTaskInput> {
   if (!body || typeof body !== "object" || Array.isArray(body)) return fail("invalid_body", "Send a JSON object.")
   const b = body as Record<string, unknown>
   const taskId = parseId(b.task_id)
   if (taskId == null) return fail("invalid_task_id", "task_id must be a task id.")
+  if ("after_task_id" in b) {
+    if (b.sort_order !== undefined && b.sort_order !== null) {
+      return fail("invalid_placement", "Send sort_order or after_task_id, not both.")
+    }
+    if (b.after_task_id === null) return { ok: true, value: { task_id: taskId, sort_order: null, after_task_id: null } }
+    const after = parseId(b.after_task_id)
+    if (after == null || after === taskId) return fail("invalid_after_task_id", "after_task_id must be another task id or null.")
+    return { ok: true, value: { task_id: taskId, sort_order: null, after_task_id: after } }
+  }
   let sortOrder: number | null = null
   if (b.sort_order !== undefined && b.sort_order !== null) {
     if (typeof b.sort_order !== "number" || !Number.isInteger(b.sort_order) || b.sort_order < 0 || b.sort_order > INT4_MAX) {
@@ -565,4 +578,131 @@ export function parseMoveTaskInput(body: unknown): ParseResult<MoveTaskInput> {
     sortOrder = b.sort_order
   }
   return { ok: true, value: { task_id: taskId, sort_order: sortOrder } }
+}
+
+// ---------------------------------------------------------------------------
+// B39: status changes from the Tasks list, bulk and board on a project task
+// ---------------------------------------------------------------------------
+
+export type StatusChangePlan =
+  | { ok: true; inProject: false }
+  | (Extract<SectionMovePlan, { ok: true }> & { inProject: true })
+  | { ok: false; reason: "no_section_for_status"; message: string }
+
+const STATUS_WORDS: Record<string, string> = {
+  backlog: "Backlog",
+  todo: "To do",
+  in_progress: "In progress",
+  waiting: "Waiting",
+  done: "Done",
+}
+
+/**
+ * A status change on a task (PATCH, bulk, the Tasks board drag). A task in
+ * no project changes as before. A task in a project changes status only by
+ * moving section (plan 5.2):
+ * - its section already has that category: it stays;
+ * - done: the first done section (planCompleteInProject);
+ * - else the first section in board order with that category;
+ * - no such section (backlog never has one): refused, nothing changes.
+ */
+export function planStatusChangeInProject(
+  task: TaskPlacement,
+  sections: readonly Pick<CodexSection, "id" | "project_id" | "sort_order" | "status_category">[],
+  status: string
+): StatusChangePlan {
+  if (task.project_id == null) return { ok: true, inProject: false }
+  const noSection = {
+    ok: false as const,
+    reason: "no_section_for_status" as const,
+    message: `No section in this task's project has the ${STATUS_WORDS[status] ?? status} status. Move the task on the project board.`,
+  }
+  const ordered = sortSections(sections)
+  const current = ordered.find((s) => s.id === task.section_id)
+  let target: (typeof ordered)[number] | undefined
+  if (current && statusForSectionCategory(current.status_category) === status) {
+    target = current
+  } else if (status === "done") {
+    target = firstDoneSection(ordered) ?? undefined
+  } else {
+    target = ordered.find((s) => statusForSectionCategory(s.status_category) === status)
+  }
+  if (!target) return noSection
+  const plan = planSectionMove(task, target)
+  if (!plan.ok) return noSection
+  return { ...plan, inProject: true }
+}
+
+/**
+ * Card order inside a section after placing `taskId` right after
+ * `afterTaskId` (null: first). `orderedIds` is the section's live tasks in
+ * board order and may or may not hold `taskId` already. Null when the anchor
+ * is not in the section.
+ */
+export function orderAfterPlacement(
+  orderedIds: readonly number[],
+  taskId: number,
+  afterTaskId: number | null
+): number[] | null {
+  const rest = orderedIds.filter((id) => id !== taskId)
+  if (afterTaskId == null) return [taskId, ...rest]
+  if (afterTaskId === taskId) return null
+  const at = rest.indexOf(afterTaskId)
+  if (at < 0) return null
+  return [...rest.slice(0, at + 1), taskId, ...rest.slice(at + 1)]
+}
+
+// ---------------------------------------------------------------------------
+// B39: bulk paste and inline add
+// ---------------------------------------------------------------------------
+
+/** Most lines one paste may create (plan 4.2, the rebuild). */
+export const BULK_PASTE_MAX = 200
+
+export type PastedTitles = {
+  /** Trimmed, inner whitespace collapsed, blank lines dropped, in order. */
+  titles: string[]
+  /** Blank lines ignored. */
+  blank: number
+  /** 1-based line numbers longer than TASK_TITLE_MAX. */
+  tooLong: number[]
+  /** More than BULK_PASTE_MAX titles: refused as a whole, never cut. */
+  overCap: boolean
+}
+
+/** One line per task. Used by the paste preview and the server. */
+export function parsePastedTaskTitles(text: string): PastedTitles {
+  const titles: string[] = []
+  const tooLong: number[] = []
+  let blank = 0
+  const lines = String(text ?? "").split(/\r\n|\r|\n/)
+  lines.forEach((raw, i) => {
+    const title = raw.trim().replace(/\s+/g, " ")
+    if (!title) {
+      blank += 1
+      return
+    }
+    if (title.length > TASK_TITLE_MAX) tooLong.push(i + 1)
+    titles.push(title)
+  })
+  // A trailing newline is not a blank line someone typed.
+  if (lines.length > 0 && lines[lines.length - 1].trim() === "" && blank > 0) blank -= 1
+  return { titles, blank, tooLong, overCap: titles.length > BULK_PASTE_MAX }
+}
+
+export type CreateSectionTasksInput = { titles: string[] }
+
+/** `{ titles: [...] }`, 1 to BULK_PASTE_MAX non-blank titles of TASK_TITLE_MAX or fewer. */
+export function parseCreateSectionTasksInput(body: unknown): ParseResult<CreateSectionTasksInput> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return fail("invalid_body", "Send a JSON object.")
+  const raw = (body as Record<string, unknown>).titles
+  if (!Array.isArray(raw)) return fail("invalid_titles", "titles must be a list of task titles.")
+  if (raw.some((t) => typeof t !== "string")) return fail("invalid_titles", "Each title must be text.")
+  const parsed = parsePastedTaskTitles((raw as string[]).map((t) => t.replace(/[\r\n]+/g, " ")).join("\n"))
+  if (parsed.titles.length === 0) return fail("invalid_titles", "Send at least one task title.")
+  if (parsed.overCap) return fail("too_many_titles", `Paste up to ${BULK_PASTE_MAX} tasks at a time.`)
+  if (parsed.tooLong.length > 0) {
+    return fail("invalid_titles", `Each title must be ${TASK_TITLE_MAX} characters or fewer.`)
+  }
+  return { ok: true, value: { titles: parsed.titles } }
 }
