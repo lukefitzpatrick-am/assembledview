@@ -10,12 +10,13 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
+import { ArrowDown, ArrowUp, FolderKanban, Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
 import { isValid, parseISO } from "date-fns"
 import { formatDueYmd, isOverdueYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { useUser } from "@/components/AuthWrapper"
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
+import { ProjectsPanel } from "@/components/tasks/ProjectsPanel"
 import { TaskBoard, visibleBoardStatuses } from "@/components/tasks/TaskBoard"
 import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
 import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
@@ -469,9 +470,11 @@ export function TasksPageClient({
   const { toast } = useToast()
   const { user, isLoading: sessionLoading } = useUser()
   const urlFilters = parseTasksFilterParams(seededSearchParams)
+  /** Projects tab (B39): only with codex_projects on; `?tab=projects` opens it. */
+  const projectsOn = clientFeatureOn("codex_projects")
   const [mainTab, setMainTab] = useState<
-    "tasks" | "team" | "templates" | "inbox"
-  >("tasks")
+    "tasks" | "team" | "templates" | "inbox" | "projects"
+  >(() => (projectsOn && seededSearchParams.get("tab") === "projects" ? "projects" : "tasks"))
 
   type InboxProposalRow = {
     id: number
@@ -2882,7 +2885,8 @@ export function TasksPageClient({
             v === "tasks" ||
             v === "team" ||
             v === "templates" ||
-            v === "inbox"
+            v === "inbox" ||
+            (v === "projects" && projectsOn)
           ) {
             setMainTab(v)
           }
@@ -2906,6 +2910,14 @@ export function TasksPageClient({
               ) : null}
             </span>
           </TabsTrigger>
+          {projectsOn ? (
+            <TabsTrigger value="projects">
+              <span className="inline-flex items-center gap-1.5">
+                <FolderKanban className="h-3.5 w-3.5" aria-hidden />
+                Projects
+              </span>
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="templates">
             <span className="inline-flex items-center gap-1.5">
               <LayoutTemplate className="h-3.5 w-3.5" aria-hidden />
@@ -3450,6 +3462,12 @@ export function TasksPageClient({
             )}
           </ViewStateBoundary>
         </TabsContent>
+
+        {projectsOn ? (
+          <TabsContent value="projects" className="mt-6 space-y-6">
+            <ProjectsPanel active={mainTab === "projects"} teamMembers={teamMembers} meEmail={meEmail} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="team" className="mt-6 space-y-6">
           <Auth0RosterSyncButton onComplete={() => void fetchTeam()} />
