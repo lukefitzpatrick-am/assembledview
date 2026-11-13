@@ -43,6 +43,14 @@ export function asapOffered(projectsOn: boolean, projectsReady: boolean, current
   return projectsOn && projectsReady
 }
 
+/**
+ * The link to a task's parent on Tasks cards and list rows: a subtask names
+ * its parent, anything else with a parent is a help request (B40fix).
+ */
+export function parentLinkLabel(taskType: string | null | undefined): string {
+  return taskType === "subtask" ? "Subtask of" : "Help for:"
+}
+
 export function isTaskType(value: unknown): value is TaskType {
   return typeof value === "string" && (TASK_TYPES as readonly string[]).includes(value)
 }
@@ -77,9 +85,20 @@ export function checkTaskDates(startOn: string | null, dueOn: string | null): { 
 
 export type TypeChangeFailure = { ok: false; reason: "task_type_fixed"; message: string }
 
-/** Task to milestone and back. A subtask, help or approval task keeps its type. */
-export function checkTaskTypeChange(current: string, next: EditableTaskType): { ok: true } | TypeChangeFailure {
+/**
+ * Task to milestone and back. A subtask, help or approval task keeps its
+ * type. A help child (a `task` with a parent, B40fix) never becomes a
+ * milestone: it is a request to someone, not a marker on the project.
+ */
+export function checkTaskTypeChange(
+  current: string,
+  next: EditableTaskType,
+  opts: { helpChild?: boolean } = {}
+): { ok: true } | TypeChangeFailure {
   if (current === next) return { ok: true }
+  if (opts.helpChild && next === "milestone") {
+    return { ok: false, reason: "task_type_fixed", message: "A help request cannot become a milestone." }
+  }
   if (current === "task" || current === "milestone") return { ok: true }
   return {
     ok: false,

@@ -94,6 +94,14 @@ describe("TaskProjectPanelView", () => {
     expect(none).toContain("Not set")
   })
 
+  it("B40fix (F10): a help child has no milestone switch; a plain task does", () => {
+    const help = renderToStaticMarkup(
+      <TaskProjectPanelView {...props({ data: { ...DATA, task: { ...DATA.task, task_type: "task", parent_task_id: 6 } } })} />
+    )
+    expect(help).not.toContain('aria-label="Milestone"')
+    expect(renderToStaticMarkup(<TaskProjectPanelView {...props()} />)).toContain('aria-label="Milestone"')
+  })
+
   it("a subtask: links to its parent, no section, no milestone switch, no subtasks of its own", () => {
     const html = renderToStaticMarkup(
       <TaskProjectPanelView

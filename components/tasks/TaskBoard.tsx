@@ -33,6 +33,7 @@ import {
 } from "@/lib/codex/projectBoard"
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
+import { parentLinkLabel } from "@/lib/codex/taskDetail"
 import {
   isTaskStatus,
   taskPriorityLabel,
@@ -121,7 +122,7 @@ function TaskBoardCardFace({
           className="mt-1 inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
         >
           <span className="truncate">
-            {task.task_type === "subtask" ? "Subtask of" : "Help for:"} {task.parent_title}
+            {parentLinkLabel(task.task_type)} {task.parent_title}
           </span>
         </Link>
       ) : null}

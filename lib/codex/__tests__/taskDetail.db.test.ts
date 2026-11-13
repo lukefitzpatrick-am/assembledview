@@ -357,6 +357,22 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       assert.equal((await taskRow(taskId)).due_on, "2026-11-21")
     })
 
+    it("B40fix (F10): a help child cannot become a milestone; the Tasks list says Subtask of with the switch off too", async () => {
+      const parent = await newTask("Help parent F10")
+      const help = await newTask("Help: F10", { parent })
+      const refused = await updateTaskThroughSections(help, {}, OWNER, database, { task_type: "milestone" })
+      assert.equal(!refused.ok && refused.reason, "task_type_fixed")
+      assert.equal((await taskRow(help)).task_type, "task", "nothing changed")
+      const sub = await newTask("Sub F10", { parent, type: "subtask" })
+      await client`UPDATE public.tasks SET client_id = 42 WHERE id IN (${parent}, ${help}, ${sub})`
+      const listed = await listTasks({ q: "F10", sort: "due_asc" }, database)
+      const byId = new Map(listed.items.map((t) => [Number(t.id), t]))
+      assert.equal(byId.get(sub)?.task_type, "subtask", "the plain list (switch off) marks the subtask")
+      assert.equal(byId.get(sub)?.parent_title, "Help parent F10")
+      assert.equal(byId.get(help)?.task_type ?? null, null, "a help child is left as it was")
+      assert.equal(byId.get(help)?.parent_title, "Help parent F10")
+    })
+
     it("type: task to milestone and back; a subtask stays a subtask", async () => {
       const r = await updateTaskThroughSections(taskId, {}, OWNER, database, { task_type: "milestone" })
       assert.ok(r.ok)
@@ -616,6 +632,10 @@ describe("codex help flows before 0118 (live today): no 0118 column is named", {
     assert.equal(Number(asked.child.parent?.id), parentId, "the help child shows its parent")
     assert.deepEqual((await getTask(parentId, database))?.children?.map((c) => Number(c.id)), [helpId])
     assert.equal(Number((await getTask(helpId, database))?.parent?.id), parentId)
+    const listed = await listTasks({ q: "Book radio" }, database)
+    assert.equal(listed.items.find((t) => Number(t.id) === helpId)?.parent_title, "Book radio", "the list names the help parent")
+    assert.equal(listed.items.find((t) => Number(t.id) === helpId)?.task_type ?? null, null)
+
 
     await updateTask(helpId, { status: "done" }, MIA, database)
     assert.equal(await statusOf(parentId), "in_progress", "the last help child done restores the parent")

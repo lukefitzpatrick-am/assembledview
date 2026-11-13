@@ -454,11 +454,35 @@ async function attachParentTitles(
     .from(tasks)
     .where(inArray(tasks.id, parentIds))
   const titleById = new Map(rows.map((r) => [Number(r.id), r.title]))
+  const subtasks = await subtaskIdsAmong(
+    database,
+    items.filter((t) => t.parent_task_id != null && t.task_type == null).map((t) => Number(t.id))
+  )
   return items.map((t) =>
     t.parent_task_id != null
-      ? { ...t, parent_title: titleById.get(t.parent_task_id) ?? null }
+      ? {
+          ...t,
+          parent_title: titleById.get(t.parent_task_id) ?? null,
+          ...(subtasks.has(Number(t.id)) ? { task_type: "subtask" } : {}),
+        }
       : t
   )
+}
+
+/**
+ * B40fix: which of these child rows are subtasks, so a list row or card
+ * says "Subtask of" and not "Help for" with codex_projects off too (the
+ * B40 enrichment runs only with it on). Nothing is read before 0118.
+ */
+async function subtaskIdsAmong(database: DbExecutor, ids: readonly number[]): Promise<Set<number>> {
+  const valid = ids.filter((id) => Number.isSafeInteger(id) && id > 0)
+  if (valid.length === 0 || !(await isProjectsMigrationApplied(database))) return new Set()
+  const rows = executeRows(
+    await database.execute(
+      sql`SELECT id FROM public.tasks WHERE id IN (${sql.join(valid.map((id) => sql`${id}`), sql`, `)}) AND task_type = 'subtask'`
+    )
+  )
+  return new Set(rows.map((r) => Number(r.id)))
 }
 
 function templateRowToApi(row: typeof taskTemplates.$inferSelect): TaskTemplate {

@@ -124,6 +124,7 @@ import {
   type TeamMember,
   isTaskStatus,
 } from "@/lib/codex/types"
+import { parentLinkLabel } from "@/lib/codex/taskDetail"
 import type { TeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
 
 function teamTasksHref(email: string, kind: "open" | "overdue"): string {
@@ -2407,7 +2408,7 @@ export function TasksPageClient({
                 className="inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 <span className="truncate">
-                  Help for: {row.original.parent_title}
+                  {parentLinkLabel(row.original.task_type)} {row.original.parent_title}
                 </span>
               </Link>
             ) : null}

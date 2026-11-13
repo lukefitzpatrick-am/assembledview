@@ -185,7 +185,7 @@ export function TaskProjectPanelView(props: TaskProjectPanelViewProps) {
           </p>
         </div>
 
-        {!isSubtask ? (
+        {task.parent_task_id == null ? (
           <label className="flex items-center gap-2 text-sm">
             <Switch
               checked={task.task_type === "milestone"}

@@ -658,13 +658,14 @@ type TaskPlacementRow = {
   start_on: string | null
   due_on: string | null
   custom_values: CustomValues
+  parent_task_id: number | null
 }
 
 async function lockLiveTask(database: DbExecutor, taskId: number): Promise<TaskPlacementRow | null> {
   const rows = executeRows(
     await database.execute(sql`
       SELECT id, status, project_id, section_id, sort_order, task_type,
-             start_on::text AS start_on, due_on::text AS due_on, custom_values
+             start_on::text AS start_on, due_on::text AS due_on, custom_values, parent_task_id
         FROM public.tasks
        WHERE id = ${taskId} AND deleted_at IS NULL
        FOR UPDATE
@@ -683,6 +684,7 @@ async function lockLiveTask(database: DbExecutor, taskId: number): Promise<TaskP
     start_on: r.start_on == null ? null : String(r.start_on),
     due_on: r.due_on == null ? null : String(r.due_on),
     custom_values: readStoredValues(r.custom_values),
+    parent_task_id: num(r.parent_task_id),
   }
 }
 
@@ -1340,7 +1342,9 @@ async function writeTaskInTx(
   }
 
   if (details.task_type !== undefined) {
-    const typeRule = checkTaskTypeChange(task.task_type, details.task_type)
+    const typeRule = checkTaskTypeChange(task.task_type, details.task_type, {
+      helpChild: task.parent_task_id != null && task.task_type !== "subtask",
+    })
     if (!typeRule.ok) return typeRule
   }
   if (details.start_on !== undefined || details.due_on !== undefined || patch.dueDate !== undefined) {

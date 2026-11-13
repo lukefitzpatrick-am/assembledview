@@ -14,6 +14,7 @@ import {
   checkTaskDates,
   checkTaskTypeChange,
   hasTaskDetailKeys,
+  parentLinkLabel,
   parseCreateSubtaskInput,
   parseTaskDetailPatch,
   SUBTASKS_PER_TASK_MAX,
@@ -64,6 +65,13 @@ test("type: task and milestone switch; a subtask, help or approval keeps its typ
   assert.deepEqual(checkTaskTypeChange("milestone", "task"), { ok: true })
   assert.deepEqual(checkTaskTypeChange("subtask", "subtask" as never), { ok: true })
   assert.equal((checkTaskTypeChange("subtask", "task") as { reason: string }).reason, "task_type_fixed")
+  // B40fix (F10): a help child never becomes a milestone; a plain task still can.
+  assert.equal((checkTaskTypeChange("task", "milestone", { helpChild: true }) as { reason: string }).reason, "task_type_fixed")
+  assert.deepEqual(checkTaskTypeChange("task", "task", { helpChild: true }), { ok: true })
+  assert.deepEqual(checkTaskTypeChange("task", "milestone", { helpChild: false }), { ok: true })
+  assert.equal(parentLinkLabel("subtask"), "Subtask of")
+  assert.equal(parentLinkLabel("task"), "Help for:")
+  assert.equal(parentLinkLabel(undefined), "Help for:")
   assert.equal((checkTaskTypeChange("help", "milestone") as { reason: string }).reason, "task_type_fixed")
   assert.equal(taskTypeBadge("milestone"), "Milestone")
   assert.equal(taskTypeBadge("task"), null)
