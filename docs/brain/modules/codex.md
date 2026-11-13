@@ -95,7 +95,7 @@ Routes under `app/api/codex/`:
 
 | Method | Path | Repo |
 |---|---|---|
-| GET, POST | `/api/codex/tasks` | `listTasks`, `createTask` |
+| GET, POST | `/api/codex/tasks` | `listTasks`, `createTask`. With `codex_projects` on, GET rows carry the B40 fields (`attachTaskS1Fields`) and the body adds `projects_ready` (0118 applied; the page offers ASAP only then, B40fix) |
 | POST | `/api/codex/tasks/[id]/dismiss-auto` | `dismissAutoCreatedTask` — auto-created meeting tasks only |
 | POST | `/api/codex/tasks/bulk` | `bulkUpdateTasks` / `bulkSoftDeleteTasks`: 1 to 200 ids; status, assignee, due, priority, category, or delete |
 | GET | `/api/codex/tasks/status-counts` | `countTasksByStatus`: board column counts for the same filters as the list (unknown statuses count as To do) |
