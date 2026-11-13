@@ -42,6 +42,18 @@ export async function isCodexProjectsEnabled(): Promise<boolean> {
   return codex && projects
 }
 
+/** Codex progress field (B42, plan 4.2): codex_progress_field, which needs codex_projects and codex_v2. */
+export async function isCodexProgressFieldEnabled(): Promise<boolean> {
+  const [projects, progress] = await Promise.all([isCodexProjectsEnabled(), isFeatureOn("codex_progress_field")])
+  return projects && progress
+}
+
+/** Codex My Work tabs (B42, plan 3.2): codex_my_work, which needs codex_projects and codex_v2. */
+export async function isCodexMyWorkEnabled(): Promise<boolean> {
+  const [projects, myWork] = await Promise.all([isCodexProjectsEnabled(), isFeatureOn("codex_my_work")])
+  return projects && myWork
+}
+
 /**
  * Codex notifications (B41): codex_notifications, which needs codex_projects
  * and codex_v2. Off: no bell, no notifications written, the cron skips.

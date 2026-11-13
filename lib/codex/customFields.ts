@@ -229,7 +229,7 @@ export function parseUpdateFieldInput(body: unknown): FieldParse<UpdateFieldInpu
 
 export type FieldRuleFailure = {
   ok: false
-  reason: "option_in_use" | "field_has_values" | "unknown_option" | "invalid_done_option" | "too_many_fields"
+  reason: "option_in_use" | "field_has_values" | "unknown_option" | "invalid_done_option" | "too_many_fields" | "progress_field_invalid"
   message: string
 }
 
@@ -454,4 +454,51 @@ export function visibleCardFields(
 ): CodexCustomField[] {
   const hidden = new Set(settings.filter((s) => !s.show).map((s) => s.key))
   return fields.filter((f) => !hidden.has(cardFieldKey(f.id)))
+}
+
+// ---------------------------------------------------------------------------
+// The progress field (B42, plan 4.2, the SEO rule)
+// ---------------------------------------------------------------------------
+
+/** A project's linked progress field and its done option (both live). */
+export type ProgressRule = { fieldId: number; doneOption: string }
+
+/**
+ * The rule a linked field gives, or null when it gives none: only a
+ * single-select field whose done option is a live option (a removed option,
+ * kept in the jsonb as `removed: true`, never counts; B40fix).
+ */
+export function progressRuleFromField(field: {
+  id: number
+  field_type: string
+  options: unknown
+  done_option: string | null
+}): ProgressRule | null {
+  if (field.field_type !== "single_select" || !field.done_option) return null
+  const live = readStoredOptions(field.options)
+  return live.some((o) => o.id === field.done_option) ? { fieldId: Number(field.id), doneOption: field.done_option } : null
+}
+
+/** Why a field cannot be linked as the progress field, or null when it can. */
+export function checkProgressFieldLink(field: { field_type: string; options: unknown; done_option: string | null } | null): FieldRuleFailure | null {
+  if (!field) return { ok: false, reason: "progress_field_invalid", message: "That field is not in this project." }
+  if (field.field_type !== "single_select") {
+    return { ok: false, reason: "progress_field_invalid", message: "The progress field must be a single-select field." }
+  }
+  if (!progressRuleFromField({ id: 0, ...field })) {
+    return { ok: false, reason: "progress_field_invalid", message: "Pick a done option for this field first." }
+  }
+  return null
+}
+
+/** Setting the field to its done option completes the task. */
+export function valuesCompleteTask(rule: ProgressRule | null, values: CustomValues | null | undefined): boolean {
+  return rule != null && values != null && values[String(rule.fieldId)] === rule.doneOption
+}
+
+/** Completing a task sets the field to the done option: the values after, or null when already set. */
+export function valuesOnComplete(rule: ProgressRule, values: CustomValues | null | undefined): CustomValues | null {
+  const current = values ?? {}
+  if (current[String(rule.fieldId)] === rule.doneOption) return null
+  return { ...current, [String(rule.fieldId)]: rule.doneOption }
 }

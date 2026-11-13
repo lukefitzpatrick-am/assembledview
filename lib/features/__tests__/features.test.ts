@@ -196,6 +196,43 @@ test("codex_notifications (B41): new switch, default off, no env fallback, needs
   assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
 })
 
+for (const key of ["codex_progress_field", "codex_my_work"]) {
+  test(`${key} (B42): new switch, default off, no env fallback, needs codex_projects, sent to the browser`, () => {
+    const def = featureDefinition(key)!
+    assert.equal(def.defaultOn, false)
+    assert.equal(def.envName, undefined)
+    assert.deepEqual(def.requires, ["codex_projects"])
+    assert.equal(def.clientVisible, true)
+    assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes(key))
+    assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+  })
+}
+
+test("B42 getters need codex_projects and codex_v2 as well as their own switch", async () => {
+  const { isCodexMyWorkEnabled, isCodexProgressFieldEnabled } = await import("../../codex/flag.js")
+  const rows = (on: string[]) =>
+    new Map(
+      ["codex_v2", "codex_projects", "codex_progress_field", "codex_my_work"].map((k) => [
+        k,
+        { key: k, enabled: on.includes(k), updatedAt: null, updatedBy: null, updatedByName: null, note: null },
+      ])
+    )
+  for (const [on, progress, myWork] of [
+    [["codex_v2", "codex_projects", "codex_progress_field", "codex_my_work"], true, true],
+    [["codex_v2", "codex_progress_field", "codex_my_work"], false, false],
+    [["codex_projects", "codex_progress_field", "codex_my_work"], false, false],
+    [["codex_v2", "codex_projects"], false, false],
+  ] as Array<[string[], boolean, boolean]>) {
+    setFeatureRowReaderForTests(async () => rows(on))
+    try {
+      assert.equal(await isCodexProgressFieldEnabled(), progress, on.join(","))
+      assert.equal(await isCodexMyWorkEnabled(), myWork, on.join(","))
+    } finally {
+      setFeatureRowReaderForTests(null)
+    }
+  }
+})
+
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {
   let enabled = false
   try {

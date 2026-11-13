@@ -586,6 +586,13 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
           const next = [...cardSettings.filter((c) => c.key !== key), { key, show }]
           void sectionRequest(`${base}/card-fields`, { method: "PUT", body: JSON.stringify({ card_fields: next }) }, "Card setting not saved")
         }}
+        progressFieldId={data.project.progress_field_id ?? null}
+        onProgressField={
+          clientFeatureOn("codex_progress_field")
+            ? (fieldId) =>
+                void sectionRequest(`${base}/progress-field`, { method: "PUT", body: JSON.stringify({ field_id: fieldId }) }, "Progress field not saved")
+            : undefined
+        }
       />
 
       <SectionDialog

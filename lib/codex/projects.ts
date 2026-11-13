@@ -52,6 +52,8 @@ export type CodexProject = {
   created_at: string
   updated_at: string
   members: string[]
+  /** B42 (plan 4.2): the linked progress field, or null. */
+  progress_field_id?: number | null
 }
 
 export type CodexSection = {

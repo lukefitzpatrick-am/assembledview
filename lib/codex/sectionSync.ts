@@ -36,6 +36,7 @@ import { sql } from "drizzle-orm"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { planStatusChangeInProject, type CodexSection } from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
+import { markProgressDone } from "@/lib/codex/progressRule"
 import type { DbExecutor } from "@/lib/codex/repo"
 
 export type SectionRuleOutcome = "not_in_project" | "stayed" | "moved" | "no_section_for_status" | "project_busy"
@@ -105,6 +106,8 @@ export async function followSectionRule(
   const sectionId = task.section_id == null ? null : Number(task.section_id)
   const plan = planStatusChangeInProject({ project_id: projectId, section_id: sectionId, status }, sections, status)
   if (!plan.ok) return "no_section_for_status"
+  // B42 (codex_progress_field): a project task that became done gets its progress field set.
+  if (status === "done") await markProgressDone(tx, taskId, actorEmail)
   if (!plan.inProject || plan.section_id === sectionId) return "stayed"
   const next = executeRows(
     await tx.execute(sql`

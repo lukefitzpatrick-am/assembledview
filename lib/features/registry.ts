@@ -456,6 +456,30 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_projects"],
   },
   {
+    key: "codex_progress_field",
+    label: "Tasks: project progress field",
+    description:
+      "Codex progress field (B42, plan 4.2, the SEO rule): in a project's Fields settings the owner or any staff member who can see the project links one single-select field that has a done option as the project's progress field. Then completing a task in that project (from any path: the board, Mark complete, the Tasks list, bulk, Ask for help or the relabel auto-close) sets that field to the done option, and setting the field to the done option completes the task (it moves to the project's first done section). One fixed behaviour, not a rules engine. A removed option never counts; a field with no done option, or a deleted field, does nothing. Needs Tasks: projects and sections on and migration 0118. Off: no Progress field setting, the link answers 404, and an existing link does nothing (tasks complete and fields change as before).",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_projects"],
+  },
+  {
+    key: "codex_my_work",
+    label: "Tasks: My Work tabs",
+    description:
+      "Codex My Work (B42, plan 3.2): three tabs above the Tasks list and board: Assigned to me, Assigned by me (tasks you gave someone else, recorded from B40) and Following (tasks you follow: the creator and assignee unless they unfollowed, and anyone who followed). Board grouped by status or list, with the usual filters, and saved views keep the tab. Private projects stay private (only tasks you can see). Needs Tasks: projects and sections on and migration 0118 (before it Assigned by me and Following say they need a database update). Off: no tabs; My Tasks works as before.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_projects"],
+  },
+  {
     key: "unmapped_delivery",
     label: "Unmapped delivery",
     description:

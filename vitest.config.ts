@@ -67,6 +67,7 @@ export default defineConfig({
       "components/tasks/__tests__/ProjectListView.render.test.tsx",
       "components/tasks/__tests__/NotificationBell.render.test.tsx",
       "components/tasks/__tests__/TaskCollab.render.test.tsx",
+      "components/tasks/__tests__/ProgressField.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/__tests__/clientHeroExpected.test.tsx",
       "components/dashboard/__tests__/HomeStatTile.platformDelivery.test.tsx",

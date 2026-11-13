@@ -54,6 +54,7 @@ import {
 import { projectBoardScope } from "@/lib/codex/projectBoard"
 import {
   applyCustomValuesPatch,
+  valuesCompleteTask,
   readCardFields,
   readStoredOptions,
   readStoredValues,
@@ -84,6 +85,7 @@ export {
   isProjectsMigrationApplied,
   resetProjectsMarkerCacheForTests,
 } from "@/lib/codex/projectsMarker"
+import { loadProgressRule, markProgressDone } from "@/lib/codex/progressRule"
 
 export class ProjectsUnavailableError extends Error {
   readonly code = "PROJECTS_UNAVAILABLE"
@@ -130,6 +132,8 @@ export type ProjectFailureReason =
   // B41fix
   | "not_on_roster"
   | "ambiguous_address"
+  // B42
+  | "progress_field_invalid"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -219,6 +223,7 @@ export function projectRowToApi(row: ProjectRow, members: readonly string[]): Co
     created_at: row.createdAt,
     updated_at: row.updatedAt,
     members: [...members].sort(),
+    progress_field_id: row.progressFieldId == null ? null : Number(row.progressFieldId),
   }
 }
 
@@ -837,6 +842,8 @@ async function placeTask(
       after: side(plan.project_id, plan.section_id),
     })
   }
+  // B42 (codex_progress_field): a task placed in a done section is complete, so its progress field is set.
+  if (plan.status === "done") await markProgressDone(tx, task.id, viewerEmail || null)
   return {
     ok: true,
     task: { id: task.id, status: plan.status, project_id: plan.project_id, section_id: plan.section_id, sort_order: order },
@@ -1211,6 +1218,8 @@ export async function createTasksInSection(
         `)
       )
       const ids = inserted.map((r) => Number(r.id))
+      // B42: pasted straight into a done section counts as completing them (the progress field).
+      if (status === "done") for (const tid of ids) await markProgressDone(tx, tid, viewerEmail)
       const created = await loadBoardCards(tx, ids, viewerEmail)
       if (created.length > 0) {
         await tx.insert(codexActivity).values(
@@ -1387,22 +1396,29 @@ async function writeTaskInTx(
     if (!applied.ok) return applied
     values = applied.values
   }
+  // B42 (codex_progress_field): setting the progress field to its done option completes the task.
+  let effective = patch
+  if (values != null && !hasStatus(patch) && task.status !== "done" && valuesCompleteTask(await loadProgressRule(tx, task.project_id), values)) {
+    effective = { ...patch, status: "done" }
+  }
   let plan: Extract<ReturnType<typeof planStatusChangeInProject>, { inProject: true }> | null = null
   let sections: CodexSection[] = []
-  if (hasStatus(patch) && task.project_id != null && task.task_type !== "subtask") {
+  if (hasStatus(effective) && task.project_id != null && task.task_type !== "subtask") {
     sections = await loadSections(tx, task.project_id)
-    const planned = planStatusChangeInProject(task, sections, patch.status)
+    const planned = planStatusChangeInProject(task, sections, effective.status)
     if (!planned.ok) return planned
     if (planned.inProject) plan = planned
   }
 
   await writeTaskDetails(tx, task, details, values, actorEmail)
   let updated: CodexTask | null = null
-  if (hasBaseChanges(patch)) {
-    updated = await updateTaskInTx(tx, id, patch, actorEmail)
+  if (hasBaseChanges(effective)) {
+    updated = await updateTaskInTx(tx, id, effective, actorEmail)
     if (!updated) return { ok: true, task: null }
   }
   if (plan) await placeTask(tx, task, plan, sections, { kind: "end" }, null, actorEmail ?? "", isPrivate)
+  // B42: completing sets the progress field (placeTask covers a section move; a subtask or a task already in its done section lands here).
+  if (effective.status === "done") await markProgressDone(tx, id, actorEmail)
   const [fresh] = await loadBoardCards(tx, [id], actorEmail)
   return { ok: true, task: fresh ?? updated }
 }

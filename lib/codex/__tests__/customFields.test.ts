@@ -213,3 +213,37 @@ test("card chips: every field shows unless set to hide; input is { key, show } o
   assert.equal(parseCardFieldsInput({ card_fields: [{ key: "field:8", show: false }, { key: "field:8", show: true }] }).ok, false)
   assert.equal(parseCardFieldsInput({}).ok, false)
 })
+
+// ---------------------------------------------------------------------------
+// B42: the progress field (plan 4.2)
+// ---------------------------------------------------------------------------
+
+test("progress rule: only a single-select with a live done option gives a rule", async () => {
+  const { progressRuleFromField, checkProgressFieldLink } = await import("../customFields.js")
+  const opts = [{ id: "o1", label: "To do" }, { id: "o2", label: "Done" }]
+  assert.deepEqual(progressRuleFromField({ id: 4, field_type: "single_select", options: opts, done_option: "o2" }), { fieldId: 4, doneOption: "o2" })
+  assert.equal(progressRuleFromField({ id: 4, field_type: "multi_select", options: opts, done_option: "o2" }), null)
+  assert.equal(progressRuleFromField({ id: 4, field_type: "single_select", options: opts, done_option: null }), null)
+  assert.equal(
+    progressRuleFromField({ id: 4, field_type: "single_select", options: [opts[0], { ...opts[1], removed: true }], done_option: "o2" }),
+    null,
+    "a removed option never counts (B40fix keeps it in the jsonb)"
+  )
+  assert.equal(checkProgressFieldLink(null)?.reason, "progress_field_invalid")
+  assert.equal(checkProgressFieldLink({ field_type: "multi_select", options: opts, done_option: "o2" })?.reason, "progress_field_invalid")
+  assert.equal(checkProgressFieldLink({ field_type: "single_select", options: opts, done_option: null })?.reason, "progress_field_invalid")
+  assert.equal(checkProgressFieldLink({ field_type: "single_select", options: opts, done_option: "o2" }), null)
+})
+
+test("progress rule: the done option completes; completing sets it once", async () => {
+  const { valuesCompleteTask, valuesOnComplete } = await import("../customFields.js")
+  const rule = { fieldId: 4, doneOption: "o2" }
+  assert.equal(valuesCompleteTask(rule, { "4": "o2" }), true)
+  assert.equal(valuesCompleteTask(rule, { "4": "o1" }), false)
+  assert.equal(valuesCompleteTask(rule, { "5": "o2" }), false, "another field's same id")
+  assert.equal(valuesCompleteTask(null, { "4": "o2" }), false)
+  assert.deepEqual(valuesOnComplete(rule, { "5": ["a"] }), { "5": ["a"], "4": "o2" })
+  assert.deepEqual(valuesOnComplete(rule, { "4": "o1" }), { "4": "o2" })
+  assert.equal(valuesOnComplete(rule, { "4": "o2" }), null, "already set: nothing to write")
+  assert.deepEqual(valuesOnComplete(rule, null), { "4": "o2" })
+})

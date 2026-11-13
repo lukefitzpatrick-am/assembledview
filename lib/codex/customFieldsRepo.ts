@@ -14,6 +14,7 @@ import { and, eq, sql } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import {
+  checkProgressFieldLink,
   checkDeleteField,
   checkFieldCount,
   planFieldUpdate,
@@ -41,7 +42,13 @@ const { codexCustomFields, codexBoardConfigs } = schema
 const NOT_FOUND: ProjectFailure = { ok: false, reason: "not_found", message: "Project not found." }
 const FIELD_NOT_FOUND: ProjectFailure = { ok: false, reason: "not_found", message: "Field not found." }
 
-export type ProjectFields = { ok: true; fields: CodexCustomField[]; card_fields: CardFieldSetting[] }
+export type ProjectFields = {
+  ok: true
+  fields: CodexCustomField[]
+  card_fields: CardFieldSetting[]
+  /** B42: the project's linked progress field (plan 4.2), or null. */
+  progress_field_id: number | null
+}
 
 export async function listProjectFields(
   projectId: number,
@@ -49,13 +56,57 @@ export async function listProjectFields(
   database: Db = db
 ): Promise<ProjectFields | ProjectFailure> {
   return guarded(database, async () => {
-    if (!(await loadVisibleProject(database, projectId, viewerEmail))) return NOT_FOUND
+    const p = await loadVisibleProject(database, projectId, viewerEmail)
+    if (!p) return NOT_FOUND
     return {
       ok: true as const,
       fields: await loadProjectFields(database, projectId),
       card_fields: await loadProjectCardFields(database, projectId),
+      progress_field_id: p.row.progressFieldId == null ? null : Number(p.row.progressFieldId),
     }
   })
+}
+
+/**
+ * B42 (plan 4.2, `codex_progress_field`): link one single-select field with
+ * a live done option as the project's progress field, or unlink (null).
+ * Anyone who can see the project may set it (as for fields). A field of
+ * another project, a multi-select, or one without a done option is 409
+ * `progress_field_invalid`. Deleting the field unlinks it (FK set null).
+ */
+export async function setProgressField(
+  projectId: number,
+  viewerEmail: string,
+  fieldId: number | null,
+  database: Db = db
+): Promise<{ ok: true; progress_field_id: number | null } | ProjectFailure> {
+  return guarded(database, () =>
+    database.transaction(async (tx) => {
+      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+      if (!p) return NOT_FOUND
+      if (fieldId != null) {
+        const field = (await loadProjectFields(tx, projectId)).find((f) => f.id === fieldId) ?? null
+        const refused = checkProgressFieldLink(field)
+        if (refused) return refused
+      }
+      const before = p.row.progressFieldId == null ? null : Number(p.row.progressFieldId)
+      await tx
+        .update(schema.codexProjects)
+        .set({ progressFieldId: fieldId, updatedAt: new Date().toISOString() })
+        .where(eq(schema.codexProjects.id, projectId))
+      if (before !== fieldId) {
+        await appendActivity(tx, {
+          entityType: "codex_project",
+          entityId: projectId,
+          actorEmail: viewerEmail,
+          action: "progress_field",
+          before: { progress_field_id: before },
+          after: { progress_field_id: fieldId },
+        })
+      }
+      return { ok: true as const, progress_field_id: fieldId }
+    })
+  )
 }
 
 export async function createCustomField(

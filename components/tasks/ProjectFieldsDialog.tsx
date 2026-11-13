@@ -184,6 +184,55 @@ export type ProjectFieldsEditorProps = {
   onUpdate: (fieldId: number, patch: UpdateFieldInput) => Promise<boolean>
   onDelete: (fieldId: number) => void
   onToggleCard: (fieldId: number, show: boolean) => void
+  /** B42 (codex_progress_field): the linked progress field; the picker shows only when `onProgressField` is set. */
+  progressFieldId?: number | null
+  onProgressField?: (fieldId: number | null) => void
+}
+
+/** Fields that can be the progress field: single-select with a done option that is still an option. */
+export function progressFieldChoices(fields: readonly CodexCustomField[]): CodexCustomField[] {
+  return fields.filter((f) => f.field_type === "single_select" && f.done_option != null && f.options.some((o) => o.id === f.done_option))
+}
+
+/** Presentational (render-tested): link one single-select field as the project's progress field. */
+export function ProgressFieldPicker({
+  fields,
+  value,
+  busy,
+  onChange,
+}: {
+  fields: readonly CodexCustomField[]
+  value: number | null
+  busy: boolean
+  onChange: (fieldId: number | null) => void
+}) {
+  const choices = progressFieldChoices(fields)
+  const linked = fields.find((f) => f.id === value) ?? null
+  const inactive = linked != null && !choices.some((f) => f.id === linked.id)
+  return (
+    <div className="space-y-2 rounded-card border border-border p-3">
+      <h3 className="text-sm font-semibold">Progress field</h3>
+      <p className="text-xs text-muted-foreground">
+        Completing a task sets this field to its done option, and setting the done option completes the task.
+      </p>
+      <Select value={value == null ? NONE : String(value)} onValueChange={(v) => onChange(v === NONE ? null : Number(v))} disabled={busy}>
+        <SelectTrigger className="w-64" aria-label="Progress field">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>No progress field</SelectItem>
+          {choices.map((f) => (
+            <SelectItem key={f.id} value={String(f.id)}>
+              {f.name}
+            </SelectItem>
+          ))}
+          {inactive && linked ? <SelectItem value={String(linked.id)}>{linked.name}</SelectItem> : null}
+        </SelectContent>
+      </Select>
+      {inactive ? <p className="text-xs text-muted-foreground">This field has no done option now, so the rule does nothing until you pick one.</p> : null}
+      {choices.length === 0 ? <p className="text-xs text-muted-foreground">Add a single-select field and pick its done option first.</p> : null}
+    </div>
+  )
 }
 
 /** Presentational (render-tested). */
@@ -223,6 +272,9 @@ export function ProjectFieldsEditor(props: ProjectFieldsEditorProps) {
           ))}
         </ul>
       )}
+      {props.onProgressField ? (
+        <ProgressFieldPicker fields={fields} value={props.progressFieldId ?? null} busy={busy} onChange={props.onProgressField} />
+      ) : null}
       <div className="space-y-2 rounded-card border border-dashed border-border p-3">
         <h3 className="text-sm font-semibold">Add a field</h3>
         <div className="flex flex-wrap gap-2">

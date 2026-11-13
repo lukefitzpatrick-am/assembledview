@@ -42,6 +42,8 @@ export const PROJECT_FAILURE_STATUS: Record<ProjectFailureReason, number> = {
   // B41fix
   not_on_roster: 400,
   ambiguous_address: 400,
+  // B42
+  progress_field_invalid: 409,
 }
 
 /** True for the store's "migration 0118 not applied" error, without importing the store. */
