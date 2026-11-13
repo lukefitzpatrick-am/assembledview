@@ -153,6 +153,26 @@ test("keepZeroQuantityPackageBurstsOnApply: other buy types, $0 generated lines 
   assert.deepEqual(out.map((b) => day(b.startDate)), ["2026-01-05", "2026-01-26"])
 })
 
+// STACKfix (stack review L6): the overlap is inclusive at both edge days. A
+// typed burst that starts the day the zero burst ends (or ends the day it
+// starts) shares that day, so the typed quantity takes the zero burst's
+// place; a typed burst the day after shares nothing, so the zero burst stays.
+test("L6: one shared edge day counts as overlap; the next day does not", () => {
+  const zero = burst("$750.00", 5, 11, 0)
+  const typed = (from: number, to: number) => [{ ...burst("$500.00", from, to, 2), budget: "500" }]
+  // Typed burst starts on the zero burst's last day: overlap, zero burst replaced.
+  assert.deepEqual(keepZeroQuantityPackageBurstsOnApply(typed(11, 17), [zero], "package").map((b) => b.budget), ["500"])
+  // Typed burst ends on the zero burst's first day: overlap, zero burst replaced.
+  const lateZero = burst("$750.00", 18, 24, 0)
+  assert.deepEqual(keepZeroQuantityPackageBurstsOnApply(typed(12, 18), [lateZero], "package").map((b) => b.budget), ["500"])
+  // One day clear either side: no overlap, the zero burst is kept.
+  assert.deepEqual(keepZeroQuantityPackageBurstsOnApply(typed(12, 17), [zero], "package").map((b) => b.budget), ["$750.00", "500"])
+  assert.deepEqual(keepZeroQuantityPackageBurstsOnApply(typed(12, 17), [lateZero], "package").map((b) => b.budget), ["500", "$750.00"])
+  // A one-day zero burst on the typed burst's first day: overlap.
+  const oneDay = burst("$750.00", 12, 12, 0)
+  assert.deepEqual(keepZeroQuantityPackageBurstsOnApply(typed(12, 17), [oneDay], "package").map((b) => b.budget), ["500"])
+})
+
 // L4: the zero-package skip is for package rows only.
 function lumpRow(buyType: string) {
   return {
