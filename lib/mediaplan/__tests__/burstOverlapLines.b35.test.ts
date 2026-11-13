@@ -10,7 +10,6 @@ import test from "node:test"
 
 import {
   burstOverlapBuilderIssues,
-  burstOverlapRailText,
   findLinesWithOverlappingBursts,
 } from "@/lib/mediaplan/burstOverlapLines"
 
@@ -91,20 +90,20 @@ test("builder issues are warnings naming the line and first overlap; the rail co
     issue!.detail,
     "Bursts 1 and 2 overlap from 1 Apr 2026 to 15 Apr 2026 (15 days). And 2 more overlapping pairs. Check the dates. Does not block save.",
   )
-  assert.equal(burstOverlapRailText(lines), "1 line has overlapping bursts (buxton004DD7). Check the dates; saving is not blocked.")
-  assert.equal(burstOverlapRailText([]), null)
   const many = ["a", "b", "c", "d", "e"].map((id) => ({ lineLabel: id, channel: "ooh", overlaps: lines[0]!.overlaps }))
-  assert.equal(burstOverlapRailText(many), "5 lines have overlapping bursts (a, b, c and 2 more). Check the dates; saving is not blocked.")
+  assert.equal(burstOverlapBuilderIssues(many).length, 5)
   assert.deepEqual(burstOverlapBuilderIssues([]), [])
 })
 
-test("twin pages: both read the switch, list the lines in builder issues and on the rail, never as an error", () => {
+test("twin pages: both read the switch, list the lines in builder issues once (no rail text too), never as an error", () => {
   for (const file of ["app/mediaplans/create/page.tsx", "app/mediaplans/mba/[mba_number]/edit/page.tsx"]) {
     const page = readFileSync(path.join(process.cwd(), file), "utf8")
     assert.match(page, /const burstOverlapWarningOn = clientFeatureOn\("burst_overlap_warning"\)/, file)
     assert.match(page, /burstOverlapWarningOn\s*\?\s*findLinesWithOverlappingBursts\(\{/, file)
     assert.match(page, /issues\.push\(\.\.\.burstOverlapBuilderIssues\(burstOverlapLines\)\)/, file)
-    assert.match(page, /const burstOverlapRail = burstOverlapRailText\(burstOverlapLines\)\n\s+if \(burstOverlapRail\) extraProblemTexts\.push\(burstOverlapRail\)/, file)
+    // B35fix (N1): counted once in the rail heading (builder issues only).
+    assert.equal(page.match(/burstOverlapBuilderIssues\(/g)?.length, 1, file)
+    assert.doesNotMatch(page, /extraProblemTexts\.push\([^)]*[Oo]verlap/, file)
     for (const key of ["television", "radio", "newspaper", "magazines", "ooh", "cinema", "digiDisplay", "digiAudio", "digiVideo", "bvod", "integration", "search", "socialMedia", "progDisplay", "progVideo", "progBvod", "progAudio", "progOoh", "influencers", "production"]) {
       const start = page.indexOf("findLinesWithOverlappingBursts({")
       const block = page.slice(start, page.indexOf("})", start))

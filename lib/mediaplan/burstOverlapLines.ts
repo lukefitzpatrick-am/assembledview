@@ -77,11 +77,3 @@ export function burstOverlapBuilderIssues(lines: readonly BurstOverlapLine[]): B
     }
   })
 }
-
-/** Save rail line, or null when no line overlaps. */
-export function burstOverlapRailText(lines: readonly BurstOverlapLine[]): string | null {
-  if (lines.length === 0) return null
-  const named = lines.slice(0, 3).map((l) => l.lineLabel).join(", ")
-  const more = lines.length > 3 ? ` and ${lines.length - 3} more` : ""
-  return `${lines.length === 1 ? "1 line has" : `${lines.length} lines have`} overlapping bursts (${named}${more}). Check the dates; saving is not blocked.`
-}

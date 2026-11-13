@@ -390,7 +390,6 @@ import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   burstOverlapBuilderIssues,
-  burstOverlapRailText,
   findLinesWithOverlappingBursts,
 } from "@/lib/mediaplan/burstOverlapLines"
 import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
@@ -6673,8 +6672,8 @@ const handleSaveAll = async (opts?: {
   if (missingBurstDateLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
-  const burstOverlapRail = burstOverlapRailText(burstOverlapLines)
-  if (burstOverlapRail) extraProblemTexts.push(burstOverlapRail)
+  // B35fix (B35 review N1): overlapping bursts show once, as builder issues
+  // (one warning per line). No rail text as well, so the heading counts each once.
 
   const wizardStatusPanel = (
     <PlanWizardSaveMessages
