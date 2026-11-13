@@ -485,13 +485,14 @@ async function attachParentTitles(
     ),
   ]
   if (parentIds.length === 0) return items
-  const rows = await database
+  // B42: a parent in a private project the viewer cannot see lends no title (never read).
+  const hidden = await hiddenTaskIds(database, parentIds, viewerEmail)
+  const shown = parentIds.filter((id) => !hidden.has(id))
+  const rows = shown.length === 0 ? [] : await database
     .select({ id: tasks.id, title: tasks.title })
     .from(tasks)
-    .where(inArray(tasks.id, parentIds))
-  // B42: a parent in a private project the viewer cannot see lends no title.
-  const hidden = await hiddenTaskIds(database, parentIds, viewerEmail)
-  const titleById = new Map(rows.filter((r) => !hidden.has(Number(r.id))).map((r) => [Number(r.id), r.title]))
+    .where(inArray(tasks.id, shown))
+  const titleById = new Map(rows.map((r) => [Number(r.id), r.title]))
   const subtasks = await subtaskIdsAmong(
     database,
     items.filter((t) => t.parent_task_id != null && t.task_type == null).map((t) => Number(t.id))
