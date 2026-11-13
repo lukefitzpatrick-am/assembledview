@@ -515,5 +515,65 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
       assert.deepEqual(failures, [])
       assert.deepEqual(mismatches, [], "a task in a section has that section's status")
     })
+
+    it("C-222 (B42): a task that joins a project mid-batch is refused before its project is locked; the batch rolls back", async () => {
+      const p1 = await lanesProject("Join P1")
+      const p2 = await lanesProject("Join P2")
+      const [y] = await pasteInto(p1, ["held"])
+      const [row] = await conc`INSERT INTO public.tasks (title, status, client_id) VALUES ('joins late', 'todo', 42) RETURNING id`
+      const x = Number(row.id)
+      // A second connection holds task y, so the bulk (which locks p1 first)
+      // waits at y. Meanwhile x joins p2 and commits; then y is let go.
+      const holder = postgres(BOARD_URL!, { max: 1, onnotice: () => {} })
+      try {
+        let release: () => void = () => {}
+        const held = new Promise<void>((r) => (release = r))
+        let locked: () => void = () => {}
+        const isLocked = new Promise<void>((r) => (locked = r))
+        const hold = holder.begin(async (h) => {
+          await h`SELECT id FROM public.tasks WHERE id = ${y} FOR UPDATE`
+          locked()
+          await held
+        })
+        await isLocked
+        const bulk = bulkUpdateTasksThroughSections([y, x], { status: "in_progress" }, OWNER, cdb).then(
+          (v) => ({ ok: true as const, v }),
+          (e: unknown) => ({ ok: false as const, e })
+        )
+        await new Promise((r) => setTimeout(r, 150))
+        await conc`UPDATE public.tasks SET project_id = ${p2.id}, section_id = ${p2.sec["To do"]}, sort_order = 0 WHERE id = ${x}`
+        // p2 stays locked by a third party: a late lock on it would block (the old behaviour waited here).
+        const p2Holder = postgres(BOARD_URL!, { max: 1, onnotice: () => {} })
+        try {
+          let p2Release: () => void = () => {}
+          const p2Held = new Promise<void>((r) => (p2Release = r))
+          let p2Locked: () => void = () => {}
+          const p2IsLocked = new Promise<void>((r) => (p2Locked = r))
+          const p2Hold = p2Holder.begin(async (h) => {
+            await h`SELECT id FROM public.codex_projects WHERE id = ${p2.id} FOR UPDATE`
+            p2Locked()
+            await p2Held
+          })
+          await p2IsLocked
+          release()
+          await hold
+          const outcome = await Promise.race([bulk, new Promise((r) => setTimeout(() => r("blocked"), 3000))])
+          p2Release()
+          await p2Hold
+          assert.notEqual(outcome, "blocked", "the batch never waits for a project it did not lock first")
+          const res = outcome as { ok: boolean; e?: { taskId?: number; statusCode?: number; message?: string } }
+          assert.equal(res.ok, false)
+          assert.equal(res.e?.taskId, x)
+          assert.equal(res.e?.statusCode, 409)
+          assert.match(String(res.e?.message), /moved project/)
+        } finally {
+          await p2Holder.end({ timeout: 5 })
+        }
+        const rows = await conc`SELECT id, status FROM public.tasks WHERE id IN (${y}, ${x}) ORDER BY id`
+        assert.deepEqual(rows.map((r) => r.status), ["todo", "todo"], "rolled back whole")
+      } finally {
+        await holder.end({ timeout: 5 })
+      }
+    })
   })
 })

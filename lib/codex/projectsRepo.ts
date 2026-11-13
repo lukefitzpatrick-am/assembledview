@@ -1337,13 +1337,21 @@ async function writeTaskInTx(
   id: number,
   patch: UpdateTaskInput,
   actorEmail: string | null,
-  details: TaskDetailPatch
+  details: TaskDetailPatch,
+  /**
+   * Bulk (C-222, B42): the projects the batch locked first, in id order. A
+   * task now in a project outside that set joined it mid-batch; it is
+   * refused (`task_changed`) before its project is locked, so a batch never
+   * locks a project out of id order.
+   */
+  batchLocked?: ReadonlySet<number>
 ): Promise<StatusChangeOutcome> {
   const peek = executeRows(
     await tx.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${id} AND deleted_at IS NULL`)
   )[0]
   if (!peek) return { ok: true, task: null }
   const projectId = peek.project_id == null ? null : Number(peek.project_id)
+  if (batchLocked && projectId != null && !batchLocked.has(projectId)) return TASK_JOINED_PROJECT
   let isPrivate = false
   if (projectId != null) {
     const locked = executeRows(
@@ -1399,6 +1407,13 @@ async function writeTaskInTx(
   return { ok: true, task: fresh ?? updated }
 }
 
+/** C-222: a task that moved into a project after the batch locked its projects. */
+const TASK_JOINED_PROJECT: ProjectFailure = {
+  ok: false,
+  reason: "task_changed",
+  message: "The task moved project while saving. Reload and try again.",
+}
+
 function hasStatus(patch: UpdateTaskInput): patch is UpdateTaskInput & { status: string } {
   return typeof patch.status === "string"
 }
@@ -1445,20 +1460,25 @@ export async function bulkUpdateTasksThroughSections(
   if ((!hasStatus(patch) && patch.dueDate === undefined) || !(await isProjectsMigrationApplied(database))) return null
   return database.transaction(async (tx) => {
     // Lock every project in the batch first, in id order, so two bulk edits
-    // over the same projects queue instead of deadlocking.
+    // over the same projects queue instead of deadlocking. A task that joins
+    // another project after this is refused, never locked late (C-222).
+    const batchLocked = new Set<number>()
     if (ids.length > 0) {
-      await tx.execute(sql`
-        SELECT p.id FROM public.codex_projects p
-         WHERE p.id IN (SELECT DISTINCT t.project_id FROM public.tasks t WHERE t.id IN (${idList(ids)}) AND t.project_id IS NOT NULL)
-         ORDER BY p.id
-         FOR UPDATE OF p
-      `)
+      const locked = executeRows(
+        await tx.execute(sql`
+          SELECT p.id FROM public.codex_projects p
+           WHERE p.id IN (SELECT DISTINCT t.project_id FROM public.tasks t WHERE t.id IN (${idList(ids)}) AND t.project_id IS NOT NULL)
+           ORDER BY p.id
+           FOR UPDATE OF p
+        `)
+      )
+      for (const r of locked) batchLocked.add(Number(r.id))
     }
     const updated: CodexTask[] = []
     for (const id of ids) {
       let outcome: StatusChangeOutcome
       try {
-        outcome = await writeTaskInTx(tx, id, patch, actorEmail, {})
+        outcome = await writeTaskInTx(tx, id, patch, actorEmail, {}, batchLocked)
       } catch (error) {
         // As the plain bulk path: a failure that is not a refusal is 400 naming the task.
         throw bulkFailure(id, error)
