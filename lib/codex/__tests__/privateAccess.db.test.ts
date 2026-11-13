@@ -61,6 +61,7 @@ import { loadRosterPeople } from "../rosterRead.js"
 import { searchCodex } from "../searchRepo.js"
 import { listBell, loadDigestBatch } from "../notificationsRepo.js"
 import { loadWorkload } from "../workloadRepo.js"
+import { loadVisibleTask } from "../notify.js"
 import { getTeamWeekTimeSummary } from "../../myhours/timeSummary.js"
 import { acceptProposal } from "../../fireflies/proposalRepo.js"
 
@@ -188,7 +189,11 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     assert.ok(!(await listIds(MIA)).includes(id), "team@ is held by two people: it is no one")
     assert.ok(!(await listIds(GONE)).includes(id), "an inactive member's alias resolves to no one")
     assert.ok(!(await listIds(OUT)).includes(id))
+    // The TS rule on a task (followers, comments, attachments, notification recipients) agrees.
+    assert.ok(await loadVisibleTask(database, id, JOSH), "loadVisibleTask: Josh")
+    assert.equal(await loadVisibleTask(database, id, MIA), null, "loadVisibleTask: not by a shared alias")
     aliases(false)
+    assert.equal(await loadVisibleTask(database, id, JOSH), null, "loadVisibleTask off: compared as stored")
     assert.ok(!(await listIds(JOSH)).includes(id), "off: compared as stored")
     assert.ok((await listIds(JOSH_ALIAS)).includes(id), "off: the stored alias itself still matches")
   })
@@ -398,11 +403,15 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     await task("Wombat audit", priv, { section: sec["priv:To do"] })
     const propose = async () =>
       Number((await client`INSERT INTO public.ava_task_proposals (proposed_title, proposed_mba_number, client_id) VALUES ('Wombat audit', ${MBA}, 42) RETURNING id`)[0].id)
+    // Each accepted task is removed again, so only the private task can flag a duplicate.
+    const forget = (id: number) => client`UPDATE public.tasks SET deleted_at = now() WHERE id = ${id}`
     const out = await acceptProposal(await propose(), OUT, null, database)
     assert.ok(out.ok)
+    await forget(out.taskId)
     assert.equal(out.possibleDuplicate, false)
     const mia = await acceptProposal(await propose(), MIA, null, database)
     assert.ok(mia.ok)
+    await forget(mia.taskId)
     assert.equal(mia.possibleDuplicate, true)
   })
 })

@@ -261,5 +261,6 @@ test("F7 (B42fix): progressPatchDecision: a status decides; disagreeing with the
   assert.equal(kind(progressPatchDecision(rule, { "4": null }, "done", "todo")), "progress_conflict", "clearing it while completing")
   assert.equal(kind(progressPatchDecision(rule, { "4": "o2" }, "done", "todo")), "none")
   assert.equal(kind(progressPatchDecision(rule, { "4": "o1" }, "in_progress", "todo")), "none")
+  assert.equal(kind(progressPatchDecision(rule, { "5": "x" }, "done", "todo")), "none", "completing while setting another field: no conflict")
   assert.equal(kind(progressPatchDecision(null, { "4": "o2" }, "todo", "todo")), "none", "no rule (switch off or no link)")
 })
