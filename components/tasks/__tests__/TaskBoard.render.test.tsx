@@ -55,8 +55,8 @@ describe("TaskBoard (B39 generic over the column source)", () => {
         source={{ kind: "sections", sections: SECTIONS }}
         columns={{
           "section:10": [
-            task(3, "Second by sort", { section_id: 10, subtask_count: 2, comment_count: 1, due_date: "2020-01-02" }),
-            task(1, "First by sort", { section_id: 10 }),
+            task(3, "Second by sort", { section_id: 10, subtask_count: 2, comment_count: 1, due_date: "2099-01-02" }),
+            task(1, "First by sort", { section_id: 10, due_date: "2020-01-02" }),
           ],
           "section:20": [],
           "section:30": [],
@@ -78,7 +78,7 @@ describe("TaskBoard (B39 generic over the column source)", () => {
     expect(html).toContain("Inbound")
     expect(html).toContain("This week")
     expect(html).toContain("In progress")
-    // Server order kept: no re-sort by due date.
+    // Server order kept: no re-sort by due date (a due-date sort would put the 2020 card first).
     expect(html.indexOf("Second by sort")).toBeLessThan(html.indexOf("First by sort"))
     expect(html).toContain("Overdue")
     expect(html).toContain('title="2 subtasks"')
