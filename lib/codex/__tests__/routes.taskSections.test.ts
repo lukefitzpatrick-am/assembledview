@@ -29,6 +29,8 @@ class CodexBulkError extends Error {
 }
 
 const TASK = { id: 7, title: "t", status: "waiting", client_id: 0 }
+/** B41: the follow and notification hooks, kept apart from the store calls. */
+const hooks: Array<{ fn: string; args: unknown[] }> = []
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/auth0", {
@@ -55,6 +57,15 @@ if (supportsMockModule()) {
       parseStatusFilter: () => undefined,
       bulkUpdateTasks: record("bulkUpdateTasks", () => [TASK]),
       bulkSoftDeleteTasks: record("bulkSoftDeleteTasks", () => [7]),
+    },
+  })
+  await mock.module!("@/lib/codex/notify", {
+    namedExports: {
+      beforeTaskWrite: async (...args: unknown[]) => {
+        hooks.push({ fn: "beforeTaskWrite", args })
+        return new Map([[7, { id: 7, status: "todo", assignee_email: null, due: null }]])
+      },
+      afterTaskWrite: async (...args: unknown[]) => void hooks.push({ fn: "afterTaskWrite", args }),
     },
   })
   await mock.module!("@/lib/codex/projectsRepo", {
@@ -285,5 +296,43 @@ test("GET list: rows carry the B40 fields only with the switch on", { skip }, as
   mode = "unavailable"
   const before = await withProjects(true, () => list.GET(new Request("http://l/api/codex/tasks")))
   assert.equal(((await before.json()) as { projects_ready?: boolean }).projects_ready, false, "before 0118: no ASAP")
+  mode = "ok"
+})
+
+test("B41: PATCH, bulk and create record follows and notifications after the write, only with the switch on and only when it saved", { skip }, async () => {
+  const patch = await import("../../../app/api/codex/tasks/[id]/route.js")
+  const bulk = await import("../../../app/api/codex/tasks/bulk/route.js")
+  const create = await import("../../../app/api/codex/tasks/route.js")
+  mode = "ok"
+  hooks.length = 0
+  await withProjects(false, () => patch.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { assignee_email: "mia@x.au" }), ctx))
+  await withProjects(false, () => bulk.POST(json("POST", "http://l/api/codex/tasks/bulk", { ids: [7], patch: { status: "done" } })))
+  await withProjects(false, () => create.POST(json("POST", "http://l/api/codex/tasks", { title: "x", client_id: 4, assignee_email: "mia@x.au" })))
+  assert.equal(hooks.length, 0, "switch off: nothing read or written")
+
+  await withProjects(true, () => patch.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { assignee_email: "mia@x.au" }), ctx))
+  assert.deepEqual(hooks.map((h) => h.fn), ["beforeTaskWrite", "afterTaskWrite"])
+  assert.deepEqual(hooks[0]!.args, [[7]])
+  assert.equal(hooks[1]!.args[0], "luke@x.au")
+  assert.equal((hooks[1]!.args[1] as Map<number, unknown>).get(7) != null, true, "the state read before the write is passed on")
+  assert.deepEqual(hooks[1]!.args[2], [7])
+
+  hooks.length = 0
+  await withProjects(true, () => bulk.POST(json("POST", "http://l/api/codex/tasks/bulk", { ids: [7, 8], patch: { status: "done" } })))
+  assert.deepEqual(hooks.map((h) => [h.fn, h.args.at(-1)]), [["beforeTaskWrite", [7, 8]], ["afterTaskWrite", [7, 8]]])
+
+  hooks.length = 0
+  await withProjects(true, () => create.POST(json("POST", "http://l/api/codex/tasks", { title: "x", client_id: 4, assignee_email: "mia@x.au" })))
+  assert.deepEqual(hooks.map((h) => h.fn), ["afterTaskWrite"])
+  assert.deepEqual(hooks[0]!.args.slice(2), [[7], { created: true }])
+
+  hooks.length = 0
+  mode = "refused"
+  const refused = await withProjects(true, () => patch.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { status: "backlog" }), ctx))
+  assert.equal(refused.status, 409)
+  assert.deepEqual(hooks.map((h) => h.fn), ["beforeTaskWrite"], "a refused save records nothing")
+  hooks.length = 0
+  await withProjects(true, () => bulk.POST(json("POST", "http://l/api/codex/tasks/bulk", { ids: [7], patch: { status: "backlog" } })))
+  assert.deepEqual(hooks.map((h) => h.fn), ["beforeTaskWrite"])
   mode = "ok"
 })

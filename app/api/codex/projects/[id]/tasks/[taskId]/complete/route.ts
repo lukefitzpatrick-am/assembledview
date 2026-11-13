@@ -24,8 +24,12 @@ export async function POST(request: Request, context: RouteContext) {
   const taskId = parseId(params.taskId)
   if (id == null || taskId == null) return jsonError(404, "not_found")
   try {
+    // B41: followers are told the task was completed (codex_notifications).
+    const notify = await import("@/lib/codex/notify")
+    const before = await notify.beforeTaskWrite([taskId])
     const result = await completeProjectTask(id, taskId, email)
     if (!result.ok) return projectFailureResponse(result)
+    await notify.afterTaskWrite(email, before, [taskId])
     return NextResponse.json({ task: result.task })
   } catch (error) {
     return projectsErrorResponse(error, "complete task")

@@ -41,6 +41,9 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const result = await createSubtask(id, email, input)
     if (!result.ok) return projectFailureResponse(result)
+    // B41: the subtask's creator and assignee follow; its assignee is told (codex_notifications).
+    const { afterTaskWrite } = await import("@/lib/codex/notify")
+    await afterTaskWrite(email, new Map(), [Number(result.subtask.id)], { created: true })
     return NextResponse.json({ subtask: result.subtask }, { status: 201 })
   } catch (error) {
     return projectsErrorResponse(error, "create subtask")

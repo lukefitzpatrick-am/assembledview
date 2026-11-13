@@ -268,6 +268,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     // Assigned by is the server's (never in the body): with the switch on, an
     // assignee change records who gave the task to someone else.
     if (projectsOn) patch.trackAssignedBy = true
+    // codex_projects (B41): the task's state before the write, for follows and
+    // (codex_notifications) notifications after it. Loaded only with the switch on.
+    const notify = projectsOn ? await import("@/lib/codex/notify") : null
+    const before = notify ? await notify.beforeTaskWrite([id]) : new Map()
     let task
     try {
       // codex_projects (B39, B40): a status change on a project task moves it to the
@@ -309,6 +313,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!task) {
       return NextResponse.json({ error: "not_found" }, { status: 404 })
     }
+    if (notify) await notify.afterTaskWrite(actor, before, [id])
     return NextResponse.json(task)
   } catch (error) {
     console.error("Failed to patch codex task:", error)

@@ -171,7 +171,12 @@ export async function POST(request: Request) {
       if (assignee.resolved) patch.assigneeName = assignee.name
     }
     // codex_projects (B40): assignee changes record who assigned (server side).
-    if (await isCodexProjectsEnabled()) patch.trackAssignedBy = true
+    const projectsOn = await isCodexProjectsEnabled()
+    if (projectsOn) patch.trackAssignedBy = true
+    // codex_projects (B41): the states before the write, for follows and
+    // (codex_notifications) notifications after it. Loaded only with the switch on.
+    const notify = projectsOn ? await import("@/lib/codex/notify") : null
+    const before = notify ? await notify.beforeTaskWrite(ids) : new Map()
     // codex_projects (B39): a status change moves project tasks by section; one
     // refused task is 409 and the whole batch is rolled back.
     // The projects store loads only with the switch on.
@@ -180,6 +185,7 @@ export async function POST(request: Request) {
         ? await (await import("@/lib/codex/projectsRepo")).bulkUpdateTasksThroughSections(ids, patch, actor)
         : null
     const tasks = throughSections ?? (await bulkUpdateTasks(ids, patch, actor))
+    if (notify) await notify.afterTaskWrite(actor, before, ids)
     return NextResponse.json({ tasks })
   } catch (error) {
     if (error instanceof CodexBulkError) {

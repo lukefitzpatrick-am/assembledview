@@ -70,7 +70,11 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = parseMoveTaskInput(await request.json().catch(() => null))
   if (!parsed.ok) return jsonError(400, parsed.error, parsed.message)
   try {
+    // B41: a move into a done section completes the task; followers are told (codex_notifications).
+    const notify = await import("@/lib/codex/notify")
+    const before = await notify.beforeTaskWrite([parsed.value.task_id])
     const result = await moveTaskToSection(id, sectionId, email, parsed.value)
+    if (result.ok) await notify.afterTaskWrite(email, before, [parsed.value.task_id])
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ task: result.task })
   } catch (error) {

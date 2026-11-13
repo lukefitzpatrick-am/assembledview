@@ -116,6 +116,10 @@
     {
       "path": "/api/cron/creative-previews",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/codex-notifications",
+      "schedule": "30 21,22 * * *"
     }
   ]
 }

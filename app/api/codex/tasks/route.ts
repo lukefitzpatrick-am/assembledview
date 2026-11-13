@@ -318,6 +318,12 @@ export async function POST(request: Request) {
       throw err
     }
 
+    // codex_projects (B41): the creator and assignee follow; with
+    // codex_notifications the assignee is told. Loaded only with the switch on.
+    if (task && (await isCodexProjectsEnabled())) {
+      const { afterTaskWrite } = await import("@/lib/codex/notify")
+      await afterTaskWrite(createdByEmail, new Map(), [Number(task.id)], { created: true })
+    }
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     console.error("Failed to create codex task:", error)
