@@ -431,6 +431,49 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     assert.deepEqual(await notes(id), [`${JOSH}:reassigned`])
   })
 
+  it("unassigning tells the one taken off it \"unassigned\", not \"reassigned\" (F5)", async () => {
+    const id = await newTask("Hand back", { project: publicProject, creator: OWNER, assignee: MIA })
+    const before = await captureTaskStates([id], database)
+    await updateTask(id, { assigneeEmail: null }, JOSH, database)
+    await recordTaskChanges(JOSH, before, [id], { notify: true }, database)
+    assert.deepEqual(await notes(id), [`${MIA}:unassigned`])
+    const bell = await listBell(MIA, 30, database)
+    assert.equal(bell.items.find((i) => i.task_id === id)!.text, 'Josh Patel unassigned you from "Hand back"')
+  })
+
+  it("an assignee who unfollowed hears no comments, due changes, attachments or completion, but still gets what is addressed to them (F6)", async () => {
+    const id = await newTask("Quiet assignee", { project: publicProject, creator: OWNER, assignee: MIA })
+    await unfollowTask(id, MIA, database)
+    await comment(id, JOSH, "progress update")
+    let before = await captureTaskStates([id], database)
+    await client`UPDATE public.tasks SET due_on = '2026-12-02' WHERE id = ${id}`
+    await recordTaskChanges(JOSH, before, [id], { notify: true }, database)
+    await createAttachment(id, JOSH, [], { kind: "link", name: "Brief", url: "https://x.sharepoint.com/b" }, { notify: true }, database)
+    before = await captureTaskStates([id], database)
+    await updateTask(id, { status: "done" }, JOSH, database)
+    await recordTaskChanges(JOSH, before, [id], { notify: true }, database)
+    const told = await notes(id)
+    assert.equal(told.some((n) => n.startsWith(`${MIA}:`)), false, `the assignee who unfollowed: ${told.join(", ")}`)
+    assert.deepEqual(told.filter((n) => n.startsWith(`${OWNER}:`)).sort(), [
+      `${OWNER}:attachment_added`,
+      `${OWNER}:commented`,
+      `${OWNER}:completed`,
+      `${OWNER}:due_changed`,
+    ])
+    await client`DELETE FROM public.codex_notifications`
+    await comment(id, JOSH, "@mia.tran one question")
+    assert.deepEqual(await notes(id), [`${MIA}:mentioned`, `${OWNER}:commented`], "a mention still reaches them (and brings them back)")
+  })
+
+  it("an outsider assigned on a private project does not become a follower (A20)", async () => {
+    const id = await newTask("Private assign", { project: privateProject, creator: OWNER, assignee: null })
+    const before = await captureTaskStates([id], database)
+    await updateTask(id, { assigneeEmail: OUT }, MIA, database)
+    await recordTaskChanges(MIA, before, [id], { notify: true }, database)
+    assert.equal((await client`SELECT count(*)::int AS n FROM public.task_followers WHERE task_id = ${id} AND email = ${OUT}`)[0].n, 0)
+    assert.deepEqual(await notes(id), [], "and is not told")
+  })
+
   it("private project task changes reach only people who can see it", async () => {
     const id = await newTask("Private change", { project: privateProject, creator: OWNER, assignee: MIA })
     await client`INSERT INTO public.task_followers (task_id, email, reason) VALUES (${id}, ${OUT}, 'manual')`
@@ -463,6 +506,32 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     const [row] = await client`SELECT actor_email FROM public.codex_notifications WHERE task_id = ${late}`
     assert.equal(row.actor_email, null)
     void tomorrow
+  })
+
+  it("overdue is once per task and due date: a moved due date is reminded again (F4)", async () => {
+    await client`UPDATE public.tasks SET deleted_at = now() WHERE deleted_at IS NULL`
+    const day = (d: number) => new Date(Date.UTC(2026, 10, d - 1, 21, 30)) // 08:30 Melbourne on 2026-11-<d>
+    const id = await newTask("Moving target", { assignee: MIA, due: "2026-11-06" })
+    assert.equal((await generateDueReminders(day(13), database)).overdue, 1, "13 Nov: overdue for 6 Nov")
+    assert.equal((await generateDueReminders(day(13), database)).overdue, 0, "the same run again: nothing")
+    await client`UPDATE public.tasks SET due_on = '2026-11-13' WHERE id = ${id}`
+    assert.equal((await generateDueReminders(day(14), database)).overdue, 1, "14 Nov: overdue again for the new date")
+    assert.equal((await generateDueReminders(day(15), database)).overdue, 0, "15 Nov: already told for 13 Nov")
+    await client`UPDATE public.tasks SET due_on = '2026-11-06' WHERE id = ${id}`
+    assert.equal((await generateDueReminders(day(13), database)).overdue, 0, "back to 6 Nov: already told for that date")
+    await client`UPDATE public.tasks SET assignee_email = ${ELLIE} WHERE id = ${id}`
+    assert.equal((await generateDueReminders(day(13), database)).overdue, 1, "a new assignee is told once for the same date")
+    assert.equal((await generateDueReminders(day(13), database)).overdue, 0)
+    assert.deepEqual(await notes(id), [`${MIA}:overdue`, `${MIA}:overdue`, `${ELLIE}:overdue`])
+    const log = await client`SELECT action, actor_kind, after->>'recipient' AS r, after->>'due_on' AS d FROM public.codex_activity
+      WHERE entity_type = 'task_reminder' AND entity_id = ${id} ORDER BY id`
+    assert.deepEqual(log.map((l) => `${l.action}:${l.actor_kind}:${l.r}:${l.d}`), [
+      `overdue:system:${MIA}:2026-11-06`,
+      `overdue:system:${MIA}:2026-11-13`,
+      `overdue:system:${ELLIE}:2026-11-06`,
+    ])
+    const feed = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${id}`
+    assert.equal(feed[0].n, 0, "the task's own activity feed is untouched")
   })
 
   it("daily run: the reminders written in a run are in that run's digest, on one clock (F1)", async () => {

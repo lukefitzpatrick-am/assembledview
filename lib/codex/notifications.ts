@@ -1,9 +1,9 @@
 /**
  * Codex notifications (B41, plan 5.3). Pure: client-safe, no database.
  *
- * Events: assigned, reassigned, mentioned, comment on a followed task, due
- * date changed, attachment added, added as follower, completed, due tomorrow
- * and overdue (the last two from the daily cron).
+ * Events: assigned, reassigned, unassigned, mentioned, comment on a followed
+ * task, due date changed, attachment added, added as follower, completed, due
+ * tomorrow and overdue (the last two from the daily cron).
  *
  * Rules (`recipientsFor`):
  * - Never the actor: nobody is told about their own action.
@@ -21,6 +21,11 @@
  * unfollowed. So tasks made before B41 still reach their creator and assignee
  * without a backfill.
  *
+ * Unfollow stops the follower notices (commented, due date changed,
+ * attachment added, completed), for the assignee too. Notices addressed to
+ * the person stay: assigned, reassigned, unassigned, mentioned, added as
+ * follower, and the due tomorrow and overdue reminders for a task they hold.
+ *
  * Email digest: one email a day per person, of the notifications that are
  * still unread and were not in an earlier digest. Never in quiet hours
  * (18:00 to 08:00 Melbourne unless the person's row says otherwise).
@@ -31,6 +36,7 @@ import { resolveRosterAddress, type RosterPerson } from "./rosterResolve"
 export const NOTIFICATION_KINDS = [
   "assigned",
   "reassigned",
+  "unassigned",
   "mentioned",
   "commented",
   "due_changed",
@@ -134,12 +140,13 @@ export type Recipient = { email: string; kind: NotificationKind }
 
 /** Who is told what for one event, before the actor and visibility filters. */
 function candidates(event: NotifyEvent, facts: NotifyFacts): Recipient[] {
-  const everyone = (kind: NotificationKind) => [...facts.followers, facts.assignee_email ?? ""].map((email) => ({ email, kind }))
+  // Follower notices: followers only (the assignee follows unless they unfollowed).
+  const everyone = (kind: NotificationKind) => facts.followers.map((email) => ({ email, kind }))
   switch (event.kind) {
     case "assignment": {
       const out: Recipient[] = []
       if (event.to) out.push({ email: event.to, kind: "assigned" })
-      if (event.from && norm(event.from) !== norm(event.to)) out.push({ email: event.from, kind: "reassigned" })
+      if (event.from && norm(event.from) !== norm(event.to)) out.push({ email: event.from, kind: event.to ? "reassigned" : "unassigned" })
       return out
     }
     case "comment":
@@ -214,6 +221,7 @@ export function taskChangeEvents(before: TaskNotifyState | null, after: TaskNoti
 const VERB: Record<NotificationKind, string> = {
   assigned: "assigned you",
   reassigned: "reassigned",
+  unassigned: "unassigned you from",
   mentioned: "mentioned you on",
   commented: "commented on",
   due_changed: "changed the due date of",

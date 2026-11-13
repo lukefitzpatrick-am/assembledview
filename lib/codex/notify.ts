@@ -37,7 +37,7 @@ import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
 
-const { codexNotifications, taskFollowers, codexProjects, codexProjectMembers } = schema
+const { codexNotifications, codexActivity, taskFollowers, codexProjects, codexProjectMembers } = schema
 
 // ---------------------------------------------------------------------------
 // Task facts
@@ -192,6 +192,14 @@ export type WriteNotificationsOptions = {
    * kind for the task created on or after this Melbourne date (YYYY-MM-DD).
    */
   onceSinceMelbourneDate?: string
+  /**
+   * Overdue: write a row only when the same person was never reminded of this
+   * task with this due date (YYYY-MM-DD). Each reminder written is recorded as
+   * a `codex_activity` row (`task_reminder`, system, the kind as the action,
+   * `{ recipient, due_on, notification_id }`), so a task whose due date moves
+   * is reminded again for the new date.
+   */
+  oncePerDueOn?: string
   /** Facts already loaded in this transaction (else read here). */
   task?: TaskFacts
 }
@@ -211,7 +219,30 @@ export async function writeNotifications(database: DbExecutor, event: NotifyEven
   const actor = normaliseEmail(event.actor) || null
   let written = 0
   for (const r of recipients) {
-    if (opts.onceSinceMelbourneDate) {
+    if (opts.oncePerDueOn) {
+      const told = executeRows(
+        await database.execute(sql`
+          SELECT 1 FROM public.codex_activity a
+           WHERE a.entity_type = 'task_reminder' AND a.entity_id = ${task.id}::bigint AND a.action = ${r.kind}
+             AND a.after->>'recipient' = ${r.email} AND a.after->>'due_on' = ${opts.oncePerDueOn}
+           LIMIT 1
+        `)
+      )
+      if (told.length > 0) continue
+      const [row] = await database
+        .insert(codexNotifications)
+        .values({ recipientEmail: r.email, kind: r.kind, taskId: task.id, actorEmail: actor })
+        .returning({ id: codexNotifications.id })
+      await database.insert(codexActivity).values({
+        entityType: "task_reminder",
+        entityId: task.id,
+        actorEmail: null,
+        actorKind: "system",
+        action: r.kind,
+        after: { recipient: r.email, due_on: opts.oncePerDueOn, notification_id: Number(row?.id) },
+      })
+      written += 1
+    } else if (opts.onceSinceMelbourneDate) {
       const rows = executeRows(
         await database.execute(sql`
           INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email)

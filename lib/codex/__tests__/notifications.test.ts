@@ -29,13 +29,13 @@ const facts = (over: Partial<NotifyFacts> = {}): NotifyFacts => ({
 })
 const who = (r: Array<{ email: string; kind: string }>) => r.map((x) => `${x.email}:${x.kind}`)
 
-test("assigned: the new assignee; reassigned: the one taken off it", () => {
+test("assigned: the new assignee; reassigned: the one taken off it; unassigned when no one takes it (F5)", () => {
   assert.deepEqual(who(recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: null, to: "mia@x.au" }, facts())), ["mia@x.au:assigned"])
   assert.deepEqual(who(recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: "old@x.au", to: "mia@x.au" }, facts())), [
     "mia@x.au:assigned",
     "old@x.au:reassigned",
   ])
-  assert.deepEqual(who(recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: "old@x.au", to: null }, facts())), ["old@x.au:reassigned"])
+  assert.deepEqual(who(recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: "old@x.au", to: null }, facts())), ["old@x.au:unassigned"])
 })
 
 test("mentioned beats commented; followers hear about comments", () => {
@@ -43,11 +43,31 @@ test("mentioned beats commented; followers hear about comments", () => {
   assert.deepEqual(who(r), ["assignee@x.au:mentioned", "new@x.au:mentioned", "creator@x.au:commented"])
 })
 
-test("due changed, attachment and completed go to followers and the assignee", () => {
+test("due changed, attachment and completed go to followers (the assignee follows unless they unfollowed)", () => {
   for (const kind of ["due_changed", "attachment_added", "completed"] as const) {
-    const r = recipientsFor({ kind, taskId: 1, actor: A }, facts({ followers: ["fan@x.au"] }))
+    const r = recipientsFor({ kind, taskId: 1, actor: A }, facts({ followers: ["fan@x.au", "assignee@x.au"] }))
     assert.deepEqual(who(r), [`fan@x.au:${kind}`, `assignee@x.au:${kind}`], kind)
   }
+})
+
+test("an assignee who unfollowed: no follower notices, but what is addressed to them still comes (F6)", () => {
+  const followers = effectiveFollowers([{ email: "assignee@x.au", reason: "unfollowed" }], {
+    created_by_email: "creator@x.au",
+    assignee_email: "assignee@x.au",
+  }).map((f) => f.email)
+  assert.deepEqual(followers, ["creator@x.au"])
+  const f = facts({ followers })
+  for (const kind of ["due_changed", "attachment_added", "completed"] as const) {
+    assert.deepEqual(who(recipientsFor({ kind, taskId: 1, actor: A }, f)), [`creator@x.au:${kind}`], kind)
+  }
+  assert.deepEqual(who(recipientsFor({ kind: "comment", taskId: 1, actor: A, mentioned: [] }, f)), ["creator@x.au:commented"])
+  assert.deepEqual(who(recipientsFor({ kind: "comment", taskId: 1, actor: A, mentioned: ["assignee@x.au"] }, f)), [
+    "assignee@x.au:mentioned",
+    "creator@x.au:commented",
+  ])
+  assert.deepEqual(who(recipientsFor({ kind: "overdue", taskId: 1, actor: null }, f)), ["assignee@x.au:overdue"])
+  assert.deepEqual(who(recipientsFor({ kind: "due_tomorrow", taskId: 1, actor: null }, f)), ["assignee@x.au:due_tomorrow"])
+  assert.deepEqual(who(recipientsFor({ kind: "assignment", taskId: 1, actor: A, from: "assignee@x.au", to: null }, f)), ["assignee@x.au:unassigned"])
 })
 
 test("added as follower goes to the people added", () => {
@@ -193,6 +213,7 @@ test("digest: per person, per task, newest task first, lines in order", () => {
 test("words for every kind; digest on by default", () => {
   assert.equal(notificationText("assigned", "Mia", "T"), 'Mia assigned you "T"')
   assert.equal(notificationText("reassigned", "Mia", "T"), 'Mia reassigned "T" to someone else')
+  assert.equal(notificationText("unassigned", "Mia", "T"), 'Mia unassigned you from "T"')
   assert.equal(notificationText("follower_added", "Josh", "T"), 'Josh added you as a follower on "T"')
   assert.equal(notificationText("due_tomorrow", "x", "T"), '"T" is due tomorrow')
   assert.equal(digestEnabled(null), true)

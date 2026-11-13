@@ -176,7 +176,8 @@ export type ReminderResult = { due_tomorrow: number; overdue: number; tasks: num
 /**
  * Due tomorrow (due on the Melbourne day after today) and overdue (due in the
  * 7 days before today), for live tasks that are not done. Once per task and
- * person: due tomorrow once per day, overdue once per due date. Each task in
+ * person: due tomorrow once per day, overdue once per due date (keyed on the
+ * task and the due date, so a moved due date is reminded again). Each task in
  * its own transaction through the one write path.
  */
 export async function generateDueReminders(now: Date, database: Db = db): Promise<ReminderResult> {
@@ -198,7 +199,11 @@ export async function generateDueReminders(now: Date, database: Db = db): Promis
       const written = await database.transaction(async (tx) => {
         const task = await loadTaskFacts(tx, id)
         if (!task) return 0
-        return writeNotifications(tx, { kind, taskId: id, actor: null }, { task, onceSinceMelbourneDate: kind === "due_tomorrow" ? d.today : dueOn })
+        return writeNotifications(
+          tx,
+          { kind, taskId: id, actor: null },
+          kind === "due_tomorrow" ? { task, onceSinceMelbourneDate: d.today } : { task, oncePerDueOn: dueOn }
+        )
       })
       out[kind] += written
     }
