@@ -60,9 +60,10 @@ if (supportsMockModule()) {
       unfollowTask: fn("unfollowTask", () => outcome({ ...FOLLOWERS, following: false })),
       listAttachments: fn("listAttachments", () => outcome({ ok: true, attachments: [ATT] })),
       checkCanAttach: fn("checkCanAttach", () => outcome({ ok: true })),
-      createAttachment: fn("createAttachment", () =>
-        createMode === "ok" ? outcome({ ok: true, attachment: ATT }) : { ok: false, reason: createMode, message: "m" }
-      ),
+      createAttachment: fn("createAttachment", () => {
+        if (createMode === "throw") throw new Error("row write failed")
+        return createMode === "ok" ? outcome({ ok: true, attachment: ATT }) : { ok: false, reason: createMode, message: "m" }
+      }),
       deleteAttachment: fn("deleteAttachment", () => outcome({ ok: true, blobPathname: "codex/tasks/7/a-x.pdf" })),
       getAttachmentFile: fn("getAttachmentFile", () => outcome({ ok: true, pathname: "codex/tasks/7/a-x.pdf", name: "a \"b\".pdf", contentType: "application/pdf" })),
       listCommentsWithMentions: fn("listCommentsWithMentions", () => outcome({ ok: true, items: [{ id: 1, mentions: [] }] })),
@@ -339,6 +340,16 @@ test("upload: one file, type and size checked before Blob, visibility and count 
   createMode = "too_many_attachments"
   assert.equal((await post([{ name: "late.pdf", bytes: 3 }])).status, 409)
   assert.deepEqual(blobs.del, ["codex/tasks/7/late.pdf-rnd"])
+  createMode = "ok"
+  blobs.del.length = 0
+
+  // The row write throws after the file is stored: the file is removed and the answer is a plain 500 (A13).
+  blobs.put.length = 0
+  createMode = "throw"
+  const thrown = await post([{ name: "boom.pdf", bytes: 3 }])
+  assert.equal(thrown.status, 500)
+  assert.doesNotMatch(await thrown.text(), /row write failed/)
+  assert.deepEqual(blobs.del, ["codex/tasks/7/boom.pdf-rnd"])
   createMode = "ok"
   blobs.del.length = 0
 

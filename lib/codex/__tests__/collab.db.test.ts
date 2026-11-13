@@ -626,6 +626,48 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     assert.ok(left[0].n >= 1, "a failed send leaves the rows for the next run")
   })
 
+  it("digest: someone removed from a private project gets no email about its tasks (W12)", async () => {
+    const pub = await newTask("Digest open", { project: publicProject })
+    const priv = await newTask("Digest secret", { project: privateProject })
+    await writeNotifications(database, { kind: "follower_added", taskId: pub, actor: JOSH, added: [MIA] })
+    await writeNotifications(database, { kind: "follower_added", taskId: priv, actor: JOSH, added: [MIA] })
+    assert.equal((await notes(priv)).length, 1, "told while a member")
+    await client`DELETE FROM public.codex_project_members WHERE project_id = ${privateProject} AND email = ${MIA}`
+    try {
+      const sent: Array<{ to: string; html: string }> = []
+      const r = await runDigest(new Date(Date.now() + 60_000), async (m) => void sent.push(m), (d) => d.tasks.map((t) => t.title).join("|"), database)
+      assert.deepEqual(sent.map((m) => [m.to, m.html]), [[MIA, "Digest open"]])
+      assert.equal(r.notifications, 1)
+      const [left] = await client`SELECT email_digest_at FROM public.codex_notifications WHERE task_id = ${priv}`
+      assert.equal(left.email_digest_at, null, "the hidden row is not marked as sent")
+    } finally {
+      await client`INSERT INTO public.codex_project_members (project_id, email) VALUES (${privateProject}, ${MIA})`
+    }
+  })
+
+  it("the write path writes nothing for a deleted task, whoever calls it (R9)", async () => {
+    const id = await newTask("Deleted", { project: publicProject, creator: OWNER, assignee: MIA })
+    await client`UPDATE public.tasks SET deleted_at = now() WHERE id = ${id}`
+    assert.equal(await writeNotifications(database, { kind: "completed", taskId: id, actor: JOSH }), 0)
+    assert.equal(await writeNotifications(database, { kind: "overdue", taskId: id, actor: null }, { oncePerDueOn: "2026-11-06" }), 0)
+    assert.deepEqual(await notes(id), [])
+  })
+
+  it("a file is served only through its own task: the task id filter and the folder check each hold alone (A2, A3)", async () => {
+    const a = await newTask("Folder A", { project: publicProject })
+    const b = await newTask("Folder B", { project: publicProject })
+    // Rows the store would never write, to test each check on its own.
+    const [onB] = await client`INSERT INTO public.task_attachments (task_id, kind, name, blob_pathname, uploaded_by_email)
+      VALUES (${b}, 'blob', 'x.pdf', ${`codex/tasks/${a}/x.pdf`}, ${MIA}) RETURNING id`
+    const [outside] = await client`INSERT INTO public.task_attachments (task_id, kind, name, blob_pathname, uploaded_by_email)
+      VALUES (${a}, 'blob', 'y.pdf', ${`codex/tasks/${b}/y.pdf`}, ${MIA}) RETURNING id`
+    const viaOtherTask = await getAttachmentFile(a, Number(onB.id), MIA, database)
+    assert.equal(viaOtherTask.ok ? "" : viaOtherTask.reason, "not_found", "another task's row, even with a path in this folder")
+    const outsideFolder = await getAttachmentFile(a, Number(outside.id), MIA, database)
+    assert.equal(outsideFolder.ok ? "" : outsideFolder.reason, "not_found", "this task's row with a path outside its folder")
+    await client`DELETE FROM public.task_attachments WHERE id IN (${onB.id}, ${outside.id})`
+  })
+
   it("before 0118 every store call is 503 (ProjectsUnavailableError)", async () => {
     await client`DELETE FROM public.migration_markers WHERE key = '0118_codex_s1_projects'`
     resetProjectsMarkerCacheForTests()
