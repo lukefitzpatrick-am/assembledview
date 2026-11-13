@@ -88,6 +88,8 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
   let database: Db
   let projectId = 0
   let privateId = 0
+  /** The private project's first section: private cases must pass a section that exists, so only visibility can refuse them. */
+  let privateSection = 0
   const sec: Record<string, number> = {}
 
   async function taskRow(id: number) {
@@ -137,6 +139,7 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     }, database)
     assert.ok(p.ok)
     privateId = p.project.id
+    privateSection = p.sections[0].id
   })
 
   after(async () => {
@@ -167,8 +170,11 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
   })
 
   it("bulk paste into another person's private project is not found", async () => {
-    const r = await createTasksInSection(privateId, sec["Inbound"], OTHER, ["x"], database)
+    // A section of the private project itself, so the section check passes and only visibility refuses.
+    const r = await createTasksInSection(privateId, privateSection, OTHER, ["x"], database)
     assert.equal(!r.ok && r.reason, "not_found")
+    const [none] = await client`SELECT count(*)::int AS n FROM public.tasks WHERE project_id = ${privateId}`
+    assert.equal(none.n, 0, "nothing was written")
     const wrongSection = await createTasksInSection(projectId, 999999, OWNER, ["x"], database)
     assert.equal(!wrongSection.ok && wrongSection.reason, "not_found")
   })
@@ -192,6 +198,14 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.equal(shown.columns[String(sec["Inbound"])].total, 4)
   })
 
+  it("the board of another person's private project is not found; its owner sees it", async () => {
+    const hidden = await loadProjectBoard(privateId, OTHER, { hideCompleted: null }, database)
+    assert.equal(!hidden.ok && hidden.reason, "not_found")
+    const mine = await loadProjectBoard(privateId, OWNER, { hideCompleted: null }, database)
+    assert.ok(mine.ok)
+    assert.equal(mine.sections[0].id, privateSection)
+  })
+
   it("card fields: subtask and comment counts where the data exists", async () => {
     const b = await loadProjectBoard(projectId, OWNER, { hideCompleted: true }, database)
     assert.ok(b.ok)
@@ -212,8 +226,11 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.ok(r.ok)
     assert.deepEqual(r.items.map((t) => t.title), ["C", "D"])
     assert.equal(r.total, 4)
-    const hidden = await listSectionTasks(privateId, sec["Inbound"], OTHER, { hideCompleted: true, offset: 0 }, database)
+    // A section of the private project itself, so the section check passes and only visibility refuses.
+    const hidden = await listSectionTasks(privateId, privateSection, OTHER, { hideCompleted: true, offset: 0 }, database)
     assert.equal(!hidden.ok && hidden.reason, "not_found")
+    const owner = await listSectionTasks(privateId, privateSection, OWNER, { hideCompleted: true, offset: 0 }, database)
+    assert.ok(owner.ok, "the owner loads the same section")
   })
 
   it("within a section: after_task_id reorders and renumbers 0..n-1 without touching the others' updated_at", async () => {
