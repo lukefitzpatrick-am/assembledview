@@ -152,6 +152,11 @@ test("meeting snippet text: summary and action items, no JSON keys, escapes or b
   assert.equal(meetingSearchText('{"summary": "", "action_items": "Call Sam"}'), "Call Sam")
   assert.equal(meetingSearchText("plain **notes**"), "plain notes")
   assert.equal(meetingSearchText("[1, 2]"), "[1, 2]")
+  // STACKfix (stack review N1): a JSON object with neither key keeps its raw
+  // text (never an empty snippet); one key alone is enough to use the keys.
+  assert.equal(meetingSearchText('{"notes": "Call **Sam**"}'), '{"notes": "Call Sam"}')
+  assert.equal(meetingSearchText('{"summary": "Budget agreed", "other": "x"}'), "Budget agreed")
+  assert.equal(meetingSearchText('{"summary": "", "action_items": ""}'), null)
   assert.equal(meetingSearchText("   "), null)
   assert.equal(meetingSearchText(null), null)
   const snippet = codexSearchSnippet(meetingSearchText(body), "report")!
