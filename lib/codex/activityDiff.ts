@@ -17,6 +17,13 @@ const FIELD_LABELS: Record<string, string> = {
   description: "description",
   client_visible: "client visible",
   deleted_at: "deleted",
+  // B40 (project tasks)
+  start_on: "start date",
+  due_on: "due date",
+  task_type: "type",
+  assigned_by_email: "assigned by",
+  custom_values: "fields",
+  section: "section",
 }
 
 const SKIP_KEYS = new Set([
@@ -32,6 +39,14 @@ const SKIP_KEYS = new Set([
   "help_prior_status",
   "children",
   "parent",
+  // B40: ids and order behind the labelled `section`; list counts
+  "project_id",
+  "section_id",
+  "sort_order",
+  "subtask_count",
+  "comment_count",
+  "checklist_done",
+  "checklist_total",
 ])
 
 function displayValue(value: unknown): string {

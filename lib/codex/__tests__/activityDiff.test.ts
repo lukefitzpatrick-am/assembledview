@@ -56,3 +56,18 @@ test("formatActivityDiff keeps asked-for-help action copy", () => {
     ["help from Bea done"]
   )
 })
+
+test("B40: project task changes read as words; ids and order are not shown", () => {
+  assert.deepEqual(
+    formatActivityDiff({
+      action: "move_section",
+      before: { project_id: 5, section: "Inbound", section_id: 10 },
+      after: { project_id: 5, section: "Done", section_id: 30 },
+    }),
+    ["section: Inbound → Done"]
+  )
+  assert.deepEqual(
+    formatActivityDiff({ action: "update", before: { start_on: null, task_type: "task" }, after: { start_on: "2026-11-16", task_type: "milestone" } }),
+    ["start date: — → 2026-11-16", "type: task → milestone"]
+  )
+})
