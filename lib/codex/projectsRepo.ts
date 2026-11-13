@@ -1206,6 +1206,16 @@ export async function bulkUpdateTasksThroughSections(
 ): Promise<CodexTask[] | null> {
   if (!hasStatus(patch) || !(await isProjectsMigrationApplied(database))) return null
   return database.transaction(async (tx) => {
+    // Lock every project in the batch first, in id order, so two bulk edits
+    // over the same projects queue instead of deadlocking.
+    if (ids.length > 0) {
+      await tx.execute(sql`
+        SELECT p.id FROM public.codex_projects p
+         WHERE p.id IN (SELECT DISTINCT t.project_id FROM public.tasks t WHERE t.id IN (${idList(ids)}) AND t.project_id IS NOT NULL)
+         ORDER BY p.id
+         FOR UPDATE OF p
+      `)
+    }
     const updated: CodexTask[] = []
     for (const id of ids) {
       const outcome = await statusChangeInTx(tx, id, patch, actorEmail)

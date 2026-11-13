@@ -302,6 +302,18 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.equal(await bulkUpdateTasksThroughSections([plain], { priority: "high" }, OWNER, database), null, "no status: the plain bulk path")
   })
 
+  it("bulk across two projects locks both and moves each task in its own project", async () => {
+    const priv = await createTasksInSection(privateId, (await loadProjectBoard(privateId, OWNER, { hideCompleted: true }, database) as { sections: { id: number }[] }).sections[0].id, OWNER, ["P1"], database)
+    assert.ok(priv.ok)
+    const ids = Object.fromEntries((await client`SELECT id, title FROM public.tasks WHERE project_id = ${projectId}`).map((r) => [r.title, Number(r.id)]))
+    const done = await bulkUpdateTasksThroughSections([Number(priv.tasks[0].id), ids.A], { status: "done" }, OWNER, database)
+    assert.equal(done?.length, 2)
+    const p1 = await taskRow(Number(priv.tasks[0].id))
+    assert.equal(p1.status, "done")
+    assert.equal(p1.project_id, privateId)
+    assert.equal((await taskRow(ids.A)).section_id, sec["Done"])
+  })
+
   it("hide completed is stored per person and project, and read back as stored", async () => {
     const set = await setBoardHideCompleted(projectId, OWNER, false, database)
     assert.ok(set.ok)
