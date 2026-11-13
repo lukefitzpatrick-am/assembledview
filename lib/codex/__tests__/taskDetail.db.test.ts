@@ -300,6 +300,28 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
       assert.equal(await softDeleteTask(loose, OWNER, database), true)
       assert.ok((await taskRow(s1)).deleted_at, "the subtask is deleted with its parent")
     })
+
+    it("B40fix (F4): help children stay as standalone tasks when the parent is deleted", async () => {
+      const parent = await newTask("Asked then deleted", { status: "waiting" })
+      await client`UPDATE public.tasks SET help_prior_status = 'in_progress' WHERE id = ${parent}`
+      const help = await newTask("Help: Asked then deleted", { parent, status: "in_progress" })
+      const sub = await newTask("Its subtask", { parent, type: "subtask" })
+      assert.equal(await softDeleteTask(parent, OWNER, database), true)
+      assert.ok((await taskRow(sub)).deleted_at, "the subtask goes")
+      const kept = await taskRow(help)
+      assert.equal(kept.deleted_at, null, "the help child stays: the helper may be working on it")
+      assert.equal(kept.status, "in_progress", "its status is untouched")
+      assert.equal(kept.parent_task_id, parent, "the link stays (the parent is soft-deleted, not gone)")
+      assert.equal((await getTask(help, database))?.parent ?? null, null, "its detail shows no parent")
+      await updateTask(help, { status: "done" }, MIA, database)
+      assert.equal((await taskRow(help)).status, "done", "it can still be completed")
+      const gone = await taskRow(parent)
+      assert.equal(gone.status, "waiting", "completing it never touches the deleted parent")
+      assert.ok(gone.deleted_at)
+      const [{ n }] = await client`SELECT count(*)::int AS n FROM public.codex_activity
+        WHERE entity_type = 'task' AND entity_id = ${parent} AND action LIKE 'help from %'`
+      assert.equal(n, 0, "and writes no help activity on it")
+    })
   })
 
   describe("details through PATCH (B40-03)", () => {
