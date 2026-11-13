@@ -57,6 +57,8 @@ import {
 } from "@/lib/codex/estimateParse"
 import { TaskChecklist } from "@/components/tasks/TaskChecklist"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
+import { TaskProjectPanel } from "@/components/tasks/TaskProjectPanel"
+import { clientFeatureOn } from "@/lib/features/client"
 
 type ClientOption = {
   id: number
@@ -129,6 +131,8 @@ export function TaskDetailClient({ taskId }: Props) {
   const { toast } = useToast()
   const { user } = useUser()
   const meEmail = (user?.email ?? "").trim().toLowerCase() || null
+  /** Project details, subtasks, fields and ASAP (B40): codex_projects on. */
+  const projectsOn = clientFeatureOn("codex_projects")
 
   const [task, setTask] = useState<CodexTask | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -943,6 +947,7 @@ export function TaskDetailClient({ taskId }: Props) {
                   {p.label}
                 </SelectItem>
               ))}
+              {projectsOn ? <SelectItem value="asap">ASAP</SelectItem> : null}
             </SelectContent>
           </Select>
         </div>
@@ -1132,6 +1137,16 @@ export function TaskDetailClient({ taskId }: Props) {
           </p>
         </div>
       </div>
+
+      {projectsOn ? (
+        <TaskProjectPanel
+          taskId={Number(task.id)}
+          members={teamMembers}
+          meEmail={meEmail}
+          reloadKey={task.updated_at}
+          onChanged={() => void loadAll()}
+        />
+      ) : null}
 
       <section className="space-y-4 rounded-card border border-border bg-card p-4 shadow-e1">
         <h2 className="text-sm font-semibold">Series</h2>
