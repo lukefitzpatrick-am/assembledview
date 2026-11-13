@@ -451,13 +451,16 @@ async function attachHelpGraph(
   const children = allChildren.filter((c) => !hidden.has(c.id))
   let parent: HelpParentSummary | null = null
   let parentTitle: string | null = api.parent_title ?? null
-  if (api.parent_task_id != null && hidden.has(api.parent_task_id)) {
+  // P2 (PACK3fix): the read below takes only an id that passed the rule.
+  const visibleParentId =
+    api.parent_task_id != null && !hidden.has(api.parent_task_id) ? api.parent_task_id : null
+  if (api.parent_task_id != null && visibleParentId == null) {
     parentTitle = null
-  } else if (api.parent_task_id != null && !(await isSubtaskRow(database, id))) {
+  } else if (visibleParentId != null && !(await isSubtaskRow(database, id))) {
     const [row] = await database
       .select()
       .from(tasks)
-      .where(and(eq(tasks.id, api.parent_task_id), isNull(tasks.deletedAt)))
+      .where(and(eq(tasks.id, visibleParentId), isNull(tasks.deletedAt)))
       .limit(1)
     if (row) {
       parent = helpParentSummary(row)

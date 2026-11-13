@@ -16,7 +16,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { test } from "node:test"
 
-import { checkReaders, findTaskReads, type ReaderEntry, type TaskRead } from "./taskReaders.js"
+import { checkReaders, findTaskReads, taskRelations, type ReaderEntry, type TaskRead } from "./taskReaders.js"
 
 const ROOT = process.cwd()
 /** Every source root: a reader anywhere is found. */
@@ -134,14 +134,30 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/pacing/relabel/autoClose.ts#runCloseUntouchedRelabelTasks": { rule: "exempt", reason: SYSTEM },
 }
 
+/** Views and functions over task tables in the Postgres migrations (P2): a read of one is a read of task data. */
+const MIGRATIONS = path.join(ROOT, "db/migrations")
+const RELATIONS = taskRelations(
+  fs.readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).map((f) => fs.readFileSync(path.join(MIGRATIONS, f), "utf8"))
+)
+
 function scanAll(): TaskRead[] {
-  return SOURCE_ROOTS.flatMap((r) => walk(path.join(ROOT, r))).flatMap((f) => findTaskReads(rel(f), fs.readFileSync(f, "utf8")))
+  return SOURCE_ROOTS.flatMap((r) => walk(path.join(ROOT, r))).flatMap((f) => findTaskReads(rel(f), fs.readFileSync(f, "utf8"), RELATIONS))
 }
 
 test("every task-table read is classified, per function, and every shared read applies the rule", () => {
   const reads = scanAll()
   assert.ok(reads.length > 100, `the scan found the readers (${reads.length})`)
   assert.deepEqual(checkReaders(reads, READERS, source), [])
+})
+
+test("the allowlist: 79 readers (17 shared, 12 project, 50 exempt), and no view or function over task tables yet", () => {
+  const count = (rule: string) => Object.values(READERS).filter((e) => e.rule === rule).length
+  assert.deepEqual(
+    { all: Object.keys(READERS).length, shared: count("shared"), project: count("project"), exempt: count("exempt") },
+    { all: 79, shared: 17, project: 12, exempt: 50 }
+  )
+  // A new view or set-returning function over a task table joins RELATIONS and its readers must be listed.
+  assert.deepEqual(RELATIONS, [])
 })
 
 /** The review's nine probes (F3), plus a shared reader that forgets the rule (F2's shape). Each must fail. */
@@ -162,13 +178,88 @@ const PROBES: Array<{ name: string; file: string; src: string }> = [
   },
 ]
 
-test("the probe readers are all caught (review F3): each is found and fails the check", () => {
+/** A view and a set-returning function over tasks, as a migration would write them (P2). */
+const PROBE_MIGRATION = `
+CREATE OR REPLACE VIEW public.open_tasks_v AS SELECT * FROM public.tasks WHERE deleted_at IS NULL;
+CREATE FUNCTION public.codex_open_tasks() RETURNS SETOF public.tasks LANGUAGE sql STABLE AS $$ SELECT * FROM open_tasks_v $$;
+CREATE FUNCTION public.codex_task_titles(p bigint) RETURNS TABLE (title text) LANGUAGE sql AS $fn$ SELECT title FROM "tasks" WHERE id = p $fn$;
+CREATE FUNCTION public.codex_dynamic_tasks() RETURNS SETOF public.tasks LANGUAGE plpgsql AS $$ BEGIN RETURN QUERY EXECUTE format('SELECT * FROM %I', 'x'); END $$;
+CREATE FUNCTION public.touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM 1 FROM tasks; RETURN NEW; END $$;
+CREATE VIEW public.clients_v AS SELECT * FROM public.clients;
+`
+const PROBE_RELATIONS = taskRelations([PROBE_MIGRATION])
+
+/** The PACK3 review's missed shapes (P2): each is found and fails the check. */
+const P2_PROBES: Array<{ name: string; file: string; src: string }> = [
+  { name: "a local bound to a table", file: "lib/probe/p1.ts", src: `import { schema } from "@/db"\nexport async function p(db: any) { const t = schema.tasks; return db.select().from(t) }` },
+  {
+    name: "a helper wrapping .from(t)",
+    file: "lib/probe/p2.ts",
+    src: `import { tasks } from "@/db/schema"\nfunction readAll(db: any, t: any) { return db.select().from(t) }\nexport async function p(db: any) { return readAll(db, tasks) }`,
+  },
+  { name: "a namespace import under another name", file: "lib/probe/p3.ts", src: `import * as s from "@/db/schema"\nexport async function p(db: any) { return db.select().from(s.tasks) }` },
+  { name: 'schema["tasks"]', file: "lib/probe/p4.ts", src: `import { schema } from "@/db"\nexport async function p(db: any) { return db.select().from(schema["tasks"]) }` },
+  { name: "a table re-exported from another module", file: "lib/probe/p5.ts", src: `import { tasks } from "@/lib/codex/tables"\nexport async function p(db: any) { return db.select().from(tasks) }` },
+  { name: "sql.raw with the table in a const", file: "lib/probe/p6.ts", src: 'const T = "public.tasks"\nexport async function p(db: any) { return db.execute(sql.raw(`SELECT * FROM ${T}`)) }' },
+  { name: "sql.join of SELECT and a raw FROM piece", file: "lib/probe/p7.ts", src: 'export async function p(db: any) { return db.execute(sql.join([sql`SELECT id`, sql.raw(" FROM public.tasks")], sql` `)) }' },
+  { name: "string concatenation", file: "lib/probe/p8.ts", src: 'export async function p(db: any) { return db.execute(sql.raw("SELECT title " + "FROM tasks")) }' },
+  { name: "a view over tasks", file: "lib/probe/p9.ts", src: "export async function p(db: any) { return db.execute(sql`SELECT * FROM open_tasks_v`) }" },
+  { name: "a set-returning function over tasks", file: "lib/probe/p10.ts", src: "export async function p(db: any) { return db.execute(sql`SELECT * FROM public.codex_open_tasks()`) }" },
+  { name: "a set-returning function typed SETOF tasks", file: "lib/probe/p10b.ts", src: "export async function p(db: any) { return db.execute(sql`SELECT id FROM codex_dynamic_tasks()`) }" },
+  { name: "supabase-js .from(\"tasks\")", file: "lib/probe/p11.ts", src: 'export async function p(sb: any) { return sb.from("tasks").select("*") }' },
+  { name: "supabase-js .rpc of a function over tasks", file: "lib/probe/p12.ts", src: 'export async function p(sb: any) { return sb.rpc("codex_task_titles", { p: 1 }) }' },
+  {
+    name: "a listed shared reader whose rule name is only in an if guard",
+    file: "lib/fireflies/proposalRepo.ts",
+    src: `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any, viewer: string) {\n  if ((await hiddenTaskIds(database, [1], viewer)).size === 0) {\n    return database.select().from(schema.tasks).where(eq(schema.tasks.mbaNumber, mba))\n  }\n  return []\n}`,
+  },
+  {
+    name: "a listed shared reader whose rule name is only in a comment",
+    file: "lib/fireflies/proposalRepo.ts",
+    src: `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any) {\n  return database.select().from(schema.tasks) /* taskVisibleSql */ .where(eq(schema.tasks.mbaNumber, mba))\n}`,
+  },
+  {
+    name: "a listed shared reader whose rule name is in a sibling call",
+    file: "lib/fireflies/proposalRepo.ts",
+    src: `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any, viewer: string) {\n  const [rows] = await Promise.all([database.select().from(schema.tasks).where(eq(schema.tasks.mbaNumber, mba)), hiddenTaskIds(database, [], viewer)])\n  return rows\n}`,
+  },
+  {
+    name: "a listed shared reader whose rule name is only an object key",
+    file: "lib/fireflies/proposalRepo.ts",
+    src: `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any) {\n  return database.select().from(schema.tasks).where(build({ taskVisibleSql: false, mba }))\n}`,
+  },
+  {
+    name: "a listed shared reader whose rule is only in a string",
+    file: "lib/fireflies/proposalRepo.ts",
+    src: `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any) {\n  return database.select().from(schema.tasks).where(eq(schema.tasks.mbaNumber, "taskVisibilityCondition"))\n}`,
+  },
+]
+
+test("the probe readers are all caught (review F3, PACK3 review P2): each is found and fails the check", () => {
   assert.ok(SOURCE_ROOTS.includes("src"), "src/ is scanned")
-  for (const probe of PROBES) {
-    const reads = findTaskReads(probe.file, probe.src)
+  for (const probe of [...PROBES, ...P2_PROBES]) {
+    const reads = findTaskReads(probe.file, probe.src, PROBE_RELATIONS)
     assert.ok(reads.length > 0, `${probe.name}: found`)
     const problems = checkReaders(reads, READERS, () => probe.src).filter((p) => !p.startsWith("stale entry"))
     assert.ok(problems.length > 0, `${probe.name}: fails the check`)
+  }
+})
+
+test("views and set-returning functions over task tables are relations; trigger functions and other views are not", () => {
+  assert.deepEqual(PROBE_RELATIONS, ["codex_dynamic_tasks", "codex_open_tasks", "codex_task_titles", "open_tasks_v"])
+})
+
+test("a shared read passes only with the rule in its own expression (directly, through a local, or a via parameter)", () => {
+  const file = "lib/fireflies/proposalRepo.ts"
+  const ok = [
+    `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any, viewer: string) {\n  return database.select().from(schema.tasks).where(and(eq(schema.tasks.mbaNumber, mba), await taskVisibilityCondition(database, viewer)))\n}`,
+    `import { schema } from "@/db"\nasync function listOpenTasksForMba(mba: string, database: any, viewer: string) {\n  const visible = await taskVisibilityCondition(database, viewer)\n  const where = and(eq(schema.tasks.mbaNumber, mba), visible)\n  return database.select().from(schema.tasks).where(where)\n}`,
+    "async function listOpenTasksForMba(mba: string, database: any, viewer: string) {\n  const visible = await taskVisibleSql(database, viewer)\n  return database.execute(sql`SELECT id FROM public.tasks t WHERE t.mba_number = ${mba} AND ${visible}`)\n}",
+  ]
+  for (const src of ok) {
+    const reads = findTaskReads(file, src)
+    assert.ok(reads.length > 0)
+    assert.deepEqual(checkReaders(reads, READERS, () => src).filter((p) => !p.startsWith("stale entry")), [], src)
   }
 })
 
