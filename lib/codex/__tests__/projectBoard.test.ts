@@ -23,6 +23,7 @@ import {
   parseCompletedParam,
   planBoardDrop,
   projectBoardScope,
+  reloadAfterMove,
   reorderForMove,
   resolveHideCompleted,
   sectionColumnKey,
@@ -177,6 +178,31 @@ describe("drag rules (plan 5.4)", () => {
     const thrown = await commitBoardMove(start, move, async () => { throw new Error("offline") }, () => {})
     assert.equal(thrown.state, start)
     assert.match(thrown.error ?? "", /back where it was/)
+  })
+
+  it("B39fix: a 500 rolls back too; only a 409 (stale view) and a move to another column reload the board", async () => {
+    const start = board()
+    const across = planBoardDrop(start, SOURCE, 2, "section:10", { columnKey: "section:30", overTaskId: null })!
+    const within = planBoardDrop(start, SOURCE, 1, "section:10", { columnKey: "section:10", overTaskId: 3 })!
+    assert.ok(across && within)
+
+    const shown: BoardState[] = []
+    const failed = await commitBoardMove(start, across, async () => ({ ok: false, status: 500, message: "Server error." }), (s) => shown.push(s))
+    assert.equal(failed.state, start, "a 500 does not keep the optimistic card")
+    assert.equal(failed.error, "Server error.")
+    assert.equal(shown[shown.length - 1], start)
+    assert.equal(failed.reload, false)
+
+    const stale = await commitBoardMove(start, within, async () => ({ ok: false, status: 409, message: "Reload the board." }), () => {})
+    assert.equal(stale.state, start)
+    assert.equal(stale.reload, true, "a 409 reloads after the rollback")
+
+    assert.equal((await commitBoardMove(start, within, async () => ({ ok: true }), () => {})).reload, false, "a reorder keeps the loaded cards")
+    assert.equal((await commitBoardMove(start, across, async () => ({ ok: true }), () => {})).reload, true)
+    assert.equal((await commitBoardMove(start, across, async () => { throw new Error("offline") }, () => {})).reload, false)
+
+    assert.equal(reloadAfterMove(within, { ok: false, status: 400, message: "x" }), false)
+    assert.equal(reloadAfterMove(within, { ok: false, status: 404, message: "x" }), false)
   })
 })
 

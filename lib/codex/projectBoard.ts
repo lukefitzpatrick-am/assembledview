@@ -199,8 +199,21 @@ export function applyBoardMove(state: BoardState, move: BoardMove, options: { hi
 export type MoveResult = { ok: true } | { ok: false; status: number; message: string }
 
 /**
+ * Whether the board loads again after a move. A move to another column does
+ * (its counts and the cards around it come from the server). A 409 does too,
+ * after the rollback: the server refused because this view is stale (a card
+ * moved, an anchor left the section), so the next drag needs fresh columns.
+ * Other failures (network, 500) only roll back.
+ */
+export function reloadAfterMove(move: BoardMove, result: MoveResult): boolean {
+  if (result.ok) return move.fromKey !== move.toKey
+  return result.status === 409
+}
+
+/**
  * Optimistic move: show the move at once, send it, and put the board back
  * as it was when the server refuses (409 and anything else not OK).
+ * `reload` says whether the caller loads the board again (reloadAfterMove).
  */
 export async function commitBoardMove(
   state: BoardState,
@@ -208,7 +221,7 @@ export async function commitBoardMove(
   send: (move: BoardMove) => Promise<MoveResult>,
   show: (next: BoardState) => void,
   options: { hideCompleted?: boolean } = {}
-): Promise<{ state: BoardState; error: string | null }> {
+): Promise<{ state: BoardState; error: string | null; reload: boolean }> {
   const optimistic = applyBoardMove(state, move, options)
   show(optimistic)
   let result: MoveResult
@@ -217,9 +230,10 @@ export async function commitBoardMove(
   } catch {
     result = { ok: false, status: 0, message: "Could not reach the server. The card is back where it was." }
   }
-  if (result.ok) return { state: optimistic, error: null }
+  const reload = reloadAfterMove(move, result)
+  if (result.ok) return { state: optimistic, error: null, reload }
   show(state)
-  return { state, error: result.message }
+  return { state, error: result.message, reload }
 }
 
 // ---------------------------------------------------------------------------

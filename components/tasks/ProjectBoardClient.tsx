@@ -2,7 +2,8 @@
 
 /**
  * /tasks/projects/[id] (B39): loads the project board and owns its requests.
- * Card moves are optimistic and roll back when the server refuses (409).
+ * Card moves are optimistic and roll back when the server refuses; after a
+ * 409 the board loads again so the next drag starts from fresh columns.
  * Behind codex_projects; before migration 0118 it says the database needs
  * an update and nothing else is requested.
  */
@@ -195,11 +196,9 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   const onCardMove = useCallback(
     async (_task: CodexTask, move: BoardMove) => {
       const result = await commitBoardMove(boardRef.current, move, sendMove, setBoard, { hideCompleted })
-      if (result.error) {
-        fail("Card moved back", result.error)
-        return
-      }
-      if (move.fromKey !== move.toKey) reload()
+      if (result.error) fail("Card moved back", result.error)
+      // A move to another column, or a 409 (this view was stale): load the board again.
+      if (result.reload) reload()
     },
     [sendMove, hideCompleted, fail, reload]
   )
