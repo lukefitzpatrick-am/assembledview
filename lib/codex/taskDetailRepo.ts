@@ -17,7 +17,7 @@ import { db, type Db } from "@/db"
 import type { CodexCustomField, CustomValues } from "@/lib/codex/customFields"
 import { readStoredValues } from "@/lib/codex/customFields"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { normaliseEmail, type CodexProject, type CodexSection } from "@/lib/codex/projects"
+import { assigneeNoAccessMessage, normaliseEmail, type CodexProject, type CodexSection } from "@/lib/codex/projects"
 import {
   appendActivity,
   guarded,
@@ -34,6 +34,7 @@ import {
   checkSubtaskParent,
   type CreateSubtaskInput,
 } from "@/lib/codex/taskDetail"
+import { emailsWithoutProjectAccess } from "@/lib/codex/taskVisibility"
 
 const TASK_NOT_FOUND: ProjectFailure = { ok: false, reason: "task_not_found", message: "Task not found." }
 
@@ -194,6 +195,9 @@ export async function createSubtask(
       )
       const rule = checkSubtaskParent({ ...parent, subtask_count: Number(countRow?.n ?? 0) || 0 })
       if (!rule.ok) return rule
+      // F5 (B42fix): a subtask of a private project's task goes only to someone who can see the project.
+      const [refused] = await emailsWithoutProjectAccess(tx, parent.project_id, [input.assignee_email])
+      if (refused) return { ok: false as const, reason: "assignee_no_access" as const, message: assigneeNoAccessMessage(refused) }
       const creator = normaliseEmail(viewerEmail)
       const assignedBy = assignedByAfterAssign(input.assignee_email, creator)
       const [inserted] = executeRows(

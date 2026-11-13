@@ -50,7 +50,12 @@ import {
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
-import { hiddenTaskIds, taskVisibilityCondition } from "@/lib/codex/taskVisibility"
+import { AssigneeNoAccessError } from "@/lib/codex/projects"
+import {
+  assertAssigneeCanSeeTask,
+  hiddenTaskIds,
+  taskVisibilityCondition,
+} from "@/lib/codex/taskVisibility"
 import { followSectionRule, lockTaskProject } from "@/lib/codex/sectionSync"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
@@ -1117,6 +1122,11 @@ async function updateLiveTask(
   {
     const [before] = await tx.select().from(tasks).where(eq(tasks.id, id)).limit(1)
     if (!before || before.deletedAt) return null
+    // F5 (B42fix): a task in a private project goes only to someone who can see the project.
+    if (patch.assigneeEmail !== undefined) {
+      const next = patch.assigneeEmail?.trim().toLowerCase() || null
+      if (next && assigneeChanged(before.assigneeEmail, next)) await assertAssigneeCanSeeTask(tx, id, next)
+    }
 
     if (patch.templateId !== undefined && patch.templateId != null) {
       const [tpl] = await tx
@@ -1613,6 +1623,8 @@ export async function softDeleteTask(
  */
 export function bulkFailure(id: number, error: unknown): CodexBulkError {
   if (error instanceof CodexBulkError) return error
+  // F5 (B42fix): a refusal, not a bad request.
+  if (error instanceof AssigneeNoAccessError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`)
   const message = error instanceof Error ? error.message : String(error)
   return new CodexBulkError(id, 400, message)
 }

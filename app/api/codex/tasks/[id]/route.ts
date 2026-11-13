@@ -6,6 +6,7 @@ import { isCodexProjectsEnabled } from "@/lib/codex/flag"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
 import { isProjectsUnavailable, PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
+import { AssigneeNoAccessError } from "@/lib/codex/projects"
 import { hasTaskDetailKeys, parseTaskDetailPatch, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import {
   isTaskCategory,
@@ -300,6 +301,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         task = await updateTask(id, patch, actor)
       }
     } catch (err) {
+      // F5 (B42fix): a private project's task goes only to someone who can see the project.
+      if (err instanceof AssigneeNoAccessError) {
+        return NextResponse.json({ error: "assignee_no_access", message: err.message }, { status: 409 })
+      }
       if (isProjectsUnavailable(err)) {
         return NextResponse.json(
           { error: "migration_not_applied", message: "This needs migration 0118 (codex_s1_projects)." },

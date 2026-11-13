@@ -34,15 +34,23 @@ import type { Db } from "@/db"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
-import { listTasks } from "../repo.js"
+import {
+  bulkUpdateTasks,
+  listTasks,
+  updateTask,
+} from "../repo.js"
 import {
   addProjectMembers,
+  bulkUpdateTasksThroughSections,
   createProject,
   getProject,
   listProjects,
+  moveTaskToSection,
   removeProjectMember,
   resetProjectsMarkerCacheForTests,
+  updateTaskThroughSections,
 } from "../projectsRepo.js"
+import { createSubtask } from "../taskDetailRepo.js"
 import { buildAccessIdentity, canSeeProject } from "../projects.js"
 import { hiddenTaskIds, loadAccessIdentity, taskVisibleSql } from "../taskVisibility.js"
 import { loadRosterPeople } from "../rosterRead.js"
@@ -234,5 +242,59 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
     } finally {
       await client`UPDATE public.codex_projects SET owner_email = ${OLIVE} WHERE id = ${legacy}`
     }
+  })
+
+  it("F5: PATCH refuses an assignee outside the private project, nothing changed; members and public projects are fine", async () => {
+    const id = await task("assign", priv, { section: sec["priv:To do"], assignee: null })
+    await assert.rejects(updateTask(id, { assigneeEmail: OUT, title: "changed" }, OLIVE, database), (e: Error) => e.name === "AssigneeNoAccessError" && /not a member of this private project/.test(e.message))
+    const [r] = await client`SELECT assignee_email, title FROM public.tasks WHERE id = ${id}`
+    assert.deepEqual({ a: r.assignee_email, t: r.title }, { a: null, t: "assign" })
+    assert.ok(await updateTask(id, { assigneeEmail: MIA }, OLIVE, database))
+    assert.ok(await updateTask(id, { assigneeEmail: OLIVE }, OLIVE, database), "the creator")
+    await assert.rejects(updateTaskThroughSections(id, { status: "done", assigneeEmail: OUT }, OLIVE, database), (e: Error) => e.name === "AssigneeNoAccessError")
+    assert.equal((await client`SELECT status FROM public.tasks WHERE id = ${id}`)[0].status, "todo", "the section path rolled back too")
+    const open = await task("open", pub, { section: sec["pub:To do"], assignee: null })
+    assert.ok(await updateTask(open, { assigneeEmail: OUT }, OLIVE, database), "a public project: anyone")
+    // An alias of a member counts as the member (aliases on).
+    aliases(true)
+    assert.ok(await updateTask(id, { assigneeEmail: MIA_ALIAS }, OLIVE, database))
+  })
+
+  it("F5: an unchanged assignee who lost access is not refused on another edit", async () => {
+    const id = await task("legacy assignee", priv, { section: sec["priv:To do"], assignee: OUT })
+    assert.ok(await updateTask(id, { assigneeEmail: OUT, title: "renamed" }, OLIVE, database))
+    assert.ok(await updateTask(id, { title: "renamed again" }, OLIVE, database))
+  })
+
+  it("F5: bulk refuses the whole batch (409 naming the task), both paths", async () => {
+    const a = await task("bulk open", pub, { section: sec["pub:To do"], assignee: null })
+    const b = await task("bulk secret", priv, { section: sec["priv:To do"], assignee: null })
+    await assert.rejects(bulkUpdateTasks([a, b], { assigneeEmail: OUT }, OLIVE, database), (e: Error & { statusCode?: number; taskId?: number }) => e.name === "CodexBulkError" && e.statusCode === 409 && e.taskId === b)
+    await assert.rejects(
+      bulkUpdateTasksThroughSections([a, b], { status: "done", assigneeEmail: OUT }, OLIVE, database),
+      (e: Error & { statusCode?: number; taskId?: number }) => e.name === "CodexBulkError" && e.statusCode === 409 && e.taskId === b
+    )
+    const rows = await client`SELECT assignee_email, status FROM public.tasks WHERE id IN (${a}, ${b})`
+    assert.ok(rows.every((r) => r.assignee_email == null && r.status === "todo"), "rolled back whole")
+  })
+
+  it("F5: a subtask of a private project's task goes only to someone who can see it", async () => {
+    const parent = await task("subtask parent", priv, { section: sec["priv:To do"] })
+    const refused = await createSubtask(parent, OLIVE, { title: "sub", assignee_email: OUT, start_on: null, due_on: null }, database)
+    assert.equal(refused.ok ? "ok" : refused.reason, "assignee_no_access")
+    assert.ok((await createSubtask(parent, OLIVE, { title: "sub", assignee_email: ELLIE, start_on: null, due_on: null }, database)).ok)
+    assert.ok((await createSubtask(parent, OLIVE, { title: "sub", assignee_email: null, start_on: null, due_on: null }, database)).ok)
+  })
+
+  it("F5: a task (or its help task) assigned outside a private project cannot join it; a public project takes it", async () => {
+    const mine = await task("join outsider", null, { assignee: OUT })
+    const moved = await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: mine, sort_order: null }, database)
+    assert.equal(moved.ok ? "ok" : moved.reason, "assignee_no_access")
+    assert.deepEqual(await projectOf(mine), { project: null, section: null })
+    const parent = await task("join with helper", null, { assignee: MIA })
+    await task("Help: join with helper", null, { parent, assignee: OUT })
+    const again = await moveTaskToSection(priv, sec["priv:To do"], OLIVE, { task_id: parent, sort_order: null }, database)
+    assert.equal(again.ok ? "ok" : again.reason, "assignee_no_access")
+    assert.ok((await moveTaskToSection(pub, sec["pub:To do"], OLIVE, { task_id: mine, sort_order: null }, database)).ok)
   })
 })

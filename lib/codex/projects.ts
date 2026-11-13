@@ -129,6 +129,26 @@ export function canonicalEmail(value: string | null | undefined, identity: Acces
   return identity.get(email) ?? email
 }
 
+/** The message when a task in a private project is given to someone who cannot see the project (F5). */
+export function assigneeNoAccessMessage(email: string): string {
+  return `${email} is not a member of this private project. Add them to the project first, then assign the task.`
+}
+
+/**
+ * F5 (B42fix): membership is the access rule for a private project, so a
+ * task in one is never assigned to someone who cannot see the project. The
+ * write is refused (409 `assignee_no_access`) with nothing changed.
+ */
+export class AssigneeNoAccessError extends Error {
+  readonly code = "assignee_no_access"
+  readonly email: string
+  constructor(email: string) {
+    super(assigneeNoAccessMessage(email))
+    this.name = "AssigneeNoAccessError"
+    this.email = email
+  }
+}
+
 /** Owner or creator: the people who decide who can see the project. */
 export function isProjectOwner(project: ProjectAccessFacts, viewerEmail: string, identity: AccessIdentity = NO_ALIASES): boolean {
   const viewer = canonicalEmail(viewerEmail, identity)

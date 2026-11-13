@@ -69,7 +69,15 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/codex/repo", {
     namedExports: {
       getTask: rec("getTask", TASK),
-      updateTask: rec("updateTask", TASK),
+      updateTask: async (...args: unknown[]) => {
+        // B42fix (F5): the store refuses an outsider on a private project's task.
+        const patch = args[1] as { assigneeEmail?: string }
+        if (patch?.assigneeEmail === "out.sider@x.au") {
+          const { AssigneeNoAccessError } = await import("../projects.js")
+          throw new AssigneeNoAccessError("out.sider@x.au")
+        }
+        return rec("updateTask", TASK)(...args)
+      },
       softDeleteTask: rec("softDeleteTask", TASK),
       listTaskActivity: rec("listTaskActivity", []),
       listChecklistItems: rec("listChecklistItems", []),

@@ -497,7 +497,11 @@ describe("codex comments, followers, attachments and notifications on Postgres (
   it("an outsider assigned on a private project does not become a follower (A20)", async () => {
     const id = await newTask("Private assign", { project: privateProject, creator: OWNER, assignee: null })
     const before = await captureTaskStates([id], database)
-    await updateTask(id, { assigneeEmail: OUT }, MIA, database)
+    // F5 (B42fix): the assignment itself is refused now, nothing written.
+    await assert.rejects(updateTask(id, { assigneeEmail: OUT }, MIA, database), (e: Error) => e.name === "AssigneeNoAccessError")
+    assert.equal((await client`SELECT assignee_email FROM public.tasks WHERE id = ${id}`)[0].assignee_email, null)
+    // An assignee who lost access another way (written before F5, or the project made private later): still no follow.
+    await client`UPDATE public.tasks SET assignee_email = ${OUT} WHERE id = ${id}`
     await recordTaskChanges(MIA, before, [id], { notify: true }, database)
     assert.equal((await client`SELECT count(*)::int AS n FROM public.task_followers WHERE task_id = ${id} AND email = ${OUT}`)[0].n, 0)
     assert.deepEqual(await notes(id), [], "and is not told")

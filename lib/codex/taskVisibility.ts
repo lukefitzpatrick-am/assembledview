@@ -31,7 +31,7 @@ import { sql, type SQL } from "drizzle-orm"
 
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
-import { buildAccessIdentity, canonicalEmail, NO_ALIASES, type AccessIdentity } from "@/lib/codex/projects"
+import { AssigneeNoAccessError, buildAccessIdentity, canonicalEmail, NO_ALIASES, type AccessIdentity } from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
@@ -136,4 +136,37 @@ export async function isTaskHiddenFrom(
   viewerEmail: string | null | undefined
 ): Promise<boolean> {
   return (await hiddenTaskIds(database, [id], viewerEmail)).has(id)
+}
+
+/**
+ * F5 (B42fix): the emails among `emails` who cannot see project `projectId`
+ * (a private project they are not owner, creator or member of, aliases
+ * resolved as for any viewer). No project, or before 0118: none.
+ */
+export async function emailsWithoutProjectAccess(
+  database: DbExecutor,
+  projectId: number | null,
+  emails: readonly (string | null | undefined)[],
+  identity?: AccessIdentity
+): Promise<string[]> {
+  const clean = [...new Set(emails.map((e) => (e ?? "").trim().toLowerCase()).filter(Boolean))]
+  if (projectId == null || clean.length === 0 || !(await isProjectsMigrationApplied(database))) return []
+  const ids = identity ?? (await loadAccessIdentity(database))
+  const out: string[] = []
+  for (const email of clean) {
+    const [row] = executeRows(
+      await database.execute(sql`SELECT ${taskVisibleSql(sql`${projectId}::bigint`, email, ids)} AS ok`)
+    )
+    if (row?.ok !== true && row?.ok !== "t") out.push(email)
+  }
+  return out
+}
+
+/** F5: throw AssigneeNoAccessError when `email` cannot see the project task `taskId` is in. */
+export async function assertAssigneeCanSeeTask(database: DbExecutor, taskId: number, email: string | null | undefined): Promise<void> {
+  if (!(email ?? "").trim() || !(await isProjectsMigrationApplied(database))) return
+  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
+  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
+  const [refused] = await emailsWithoutProjectAccess(database, projectId, [email])
+  if (refused) throw new AssigneeNoAccessError(refused)
 }

@@ -22,6 +22,7 @@ import { db, schema, type Db } from "@/db"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
+  assigneeNoAccessMessage,
   canonicalEmail,
   canSeeProject,
   checkDeleteSection,
@@ -137,6 +138,8 @@ export type ProjectFailureReason =
   | "ambiguous_address"
   // B42
   | "progress_field_invalid"
+  // B42fix
+  | "assignee_no_access"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -878,11 +881,33 @@ export async function moveTaskToSection(
       const task = await lockLiveTask(tx, input.task_id)
       if (!task) return TASK_NOT_FOUND
       if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
+      if (task.project_id !== projectId && p.row.isPrivate) {
+        // F5 (B42fix): the task and its children join the project, so each assignee must be able to see it.
+        const refused = await joiningAssigneeWithoutAccess(tx, task.id, p)
+        if (refused) return { ok: false, reason: "assignee_no_access", message: assigneeNoAccessMessage(refused) }
+      }
       const plan = planSectionMove(task, section)
       if (!plan.ok) return plan
       return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail, Boolean(p.row.isPrivate))
     })
   )
+}
+
+/** F5 (B42fix): the first assignee of the task or its live children who cannot see project `p`, or null. */
+async function joiningAssigneeWithoutAccess(tx: DbExecutor, taskId: number, p: VisibleProject): Promise<string | null> {
+  const rows = executeRows(
+    await tx.execute(sql`
+      SELECT DISTINCT lower(assignee_email) AS email FROM public.tasks
+       WHERE (id = ${taskId} OR parent_task_id = ${taskId}) AND deleted_at IS NULL AND assignee_email IS NOT NULL
+       ORDER BY 1
+    `)
+  )
+  const facts = ownerFacts(p)
+  for (const r of rows) {
+    const email = String(r.email ?? "")
+    if (email && !canSeeProject(facts, email, p.identity)) return email
+  }
+  return null
 }
 
 /** Complete a task of this project: it moves to the project's first done section. */
