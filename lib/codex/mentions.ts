@@ -141,7 +141,7 @@ export function resolveCommentMentions<T extends RosterPerson>(
 /** One line for the author about each token that stayed plain text. */
 export function unresolvedMentionMessage(u: UnresolvedMention): string {
   if (u.reason === "ambiguous") {
-    return `${u.token} matches ${u.count ?? 2} people, so it stays as text. Use their email or full name.`
+    return `${u.token} matches ${u.count ?? 2} people, so it stays as text. Use their email, or their full name without spaces (@MiaTran).`
   }
   if (u.reason === "no_access") {
     return `${u.name ?? u.token} cannot see this private project, so ${u.token} stays as text and they are not notified.`

@@ -49,6 +49,7 @@ test("ambiguous and unknown tokens stay text and are reported; inactive people n
     { token: "@gone", reason: "unknown" },
   ])
   assert.match(unresolvedMentionMessage(r.unresolved[0]!), /matches 2 people/)
+  assert.match(unresolvedMentionMessage(r.unresolved[0]!), /without spaces/, "a token stops at a space, so the advice says so (review F8)")
   assert.match(unresolvedMentionMessage(r.unresolved[2]!), /not on the team list/)
 })
 
