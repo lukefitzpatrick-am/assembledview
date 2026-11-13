@@ -20,7 +20,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
-import { createTask, getTask, softDeleteTask, updateTask } from "../repo.js"
+import { createTask, getTask, requestHelp, softDeleteTask, updateTask } from "../repo.js"
 import { CodexBulkError } from "../repo.js"
 import {
   bulkUpdateTasksThroughSections,
@@ -43,13 +43,13 @@ import { createSubtask, getTaskProjectDetail, reorderSubtasks } from "../taskDet
 
 const RAW_URL = process.env.CODEX_PROJECTS_TEST_DATABASE_URL?.trim() ?? ""
 
-function detailUrl(url: string): string | null {
+function detailUrl(url: string, suffix = "_detail_codex_test"): string | null {
   if (!url || !classifyTestDatabaseUrl(url).ok) return null
   try {
     const u = new URL(url)
     const name = u.pathname.replace(/^\//, "")
     if (!name.endsWith("_codex_test")) return null
-    u.pathname = `/${name.replace(/_codex_test$/, "_detail_codex_test")}`
+    u.pathname = `/${name.replace(/_codex_test$/, suffix)}`
     return u.toString()
   } catch {
     return null
@@ -57,6 +57,8 @@ function detailUrl(url: string): string | null {
 }
 
 const DETAIL_URL = detailUrl(RAW_URL)
+/** B40fix (F1): a second sibling database that never gets 0118, as live is today. */
+const PRE_URL = detailUrl(RAW_URL, "_pre0118_codex_test")
 const skip = DETAIL_URL ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"
 
 export const BASE_SQL = `
@@ -89,6 +91,18 @@ INSERT INTO public.clients (id) VALUES (42);
 const OWNER = "owner@assembledmedia.com.au"
 const MIA = "mia@assembledmedia.com.au"
 
+async function siblingDatabase(url: string): Promise<void> {
+  const admin = postgres(RAW_URL, { max: 1, onnotice: () => {} })
+  const name = new URL(url).pathname.slice(1)
+  try {
+    await admin.unsafe(`CREATE DATABASE "${name}"`)
+  } catch (err) {
+    if ((err as { code?: string }).code !== "42P04") throw err
+  } finally {
+    await admin.end({ timeout: 5 })
+  }
+}
+
 describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
   let client: ReturnType<typeof postgres>
   let database: Db
@@ -108,15 +122,7 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
   }
 
   before(async () => {
-    const admin = postgres(RAW_URL, { max: 1, onnotice: () => {} })
-    const name = new URL(DETAIL_URL!).pathname.slice(1)
-    try {
-      await admin.unsafe(`CREATE DATABASE "${name}"`)
-    } catch (err) {
-      if ((err as { code?: string }).code !== "42P04") throw err
-    } finally {
-      await admin.end({ timeout: 5 })
-    }
+    await siblingDatabase(DETAIL_URL!)
     client = postgres(DETAIL_URL!, { max: 2, onnotice: () => {} })
     await client.unsafe(BASE_SQL)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
@@ -440,5 +446,81 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
 
   it("project fixture exists", () => {
     assert.ok(projectId > 0 && sec["Done"] > 0)
+  })
+})
+
+/**
+ * B40fix (F1): live has no 0118 today, and the help paths in repo.ts run
+ * with codex_projects off. Before 0118 they must send nothing that names a
+ * 0118 column: the help request, Waiting on, done, reopen and delete of a
+ * help child, a tracked assignee change and a parent delete. Every query is
+ * recorded; a 0118 column would also fail here with 42703.
+ */
+const S1_COLUMNS = /\b(task_type|assigned_by_email|start_on|due_on|custom_values|project_id|section_id|sort_order|completed_at)\b/
+
+describe("codex help flows before 0118 (live today): no 0118 column is named", { skip: PRE_URL ? false : skip }, () => {
+  let client: ReturnType<typeof postgres>
+  let database: Db
+  const queries: string[] = []
+
+  async function statusOf(id: number): Promise<string> {
+    const [row] = await client`SELECT status FROM public.tasks WHERE id = ${id}`
+    return String(row.status)
+  }
+
+  before(async () => {
+    await siblingDatabase(PRE_URL!)
+    const setup = postgres(PRE_URL!, { max: 1, onnotice: () => {} })
+    await setup.unsafe(BASE_SQL)
+    await setup.unsafe(`CREATE TABLE public.team_members (id bigint generated always as identity primary key, email text not null unique,
+      name text not null, role_title text, active boolean not null default true, capacity_notes text, working_style text,
+      default_client_ids bigint[] not null default '{}', created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(), email_aliases jsonb not null default '[]'::jsonb, auth0_user_id text unique,
+      roster_source text default 'manual', last_login_at timestamptz);
+      INSERT INTO public.team_members (email, name) VALUES ('${MIA}', 'Mia');`)
+    await setup.end({ timeout: 5 })
+    client = postgres(PRE_URL!, { max: 2, onnotice: () => {}, debug: (_conn, query) => void queries.push(query) })
+    database = drizzle(client, { schema }) as unknown as Db
+    resetProjectsMarkerCacheForTests()
+  })
+
+  after(async () => {
+    resetProjectsMarkerCacheForTests()
+    await client?.end({ timeout: 5 })
+  })
+
+  it("help request, Waiting on, done, reopen, delete, assignee change and parent delete", async () => {
+    queries.length = 0
+    const parent = await createTask(
+      { title: "Book radio", clientId: 42, status: "in_progress", assigneeEmail: MIA, createdByEmail: OWNER, trackAssignedBy: true },
+      OWNER,
+      database
+    )
+    const parentId = Number(parent.id)
+    assert.equal(parent.assigned_by_email ?? null, null, "nothing to record before 0118")
+    const asked = await requestHelp(parentId, { assigneeEmail: MIA, ask: "Can you check the spots?" }, { email: OWNER }, database)
+    const helpId = Number(asked.child.id)
+    assert.equal(await statusOf(parentId), "waiting")
+    assert.deepEqual(asked.parent.children?.map((c) => Number(c.id)), [helpId], "Waiting on lists the help child")
+    assert.equal(Number(asked.child.parent?.id), parentId, "the help child shows its parent")
+    assert.deepEqual((await getTask(parentId, database))?.children?.map((c) => Number(c.id)), [helpId])
+    assert.equal(Number((await getTask(helpId, database))?.parent?.id), parentId)
+
+    await updateTask(helpId, { status: "done" }, MIA, database)
+    assert.equal(await statusOf(parentId), "in_progress", "the last help child done restores the parent")
+    await updateTask(helpId, { status: "todo" }, MIA, database)
+    assert.equal(await statusOf(parentId), "waiting", "reopening it puts the parent back in waiting")
+    assert.equal(await softDeleteTask(helpId, OWNER, database), true)
+    assert.equal(await statusOf(parentId), "in_progress", "deleting the open help child restores the parent")
+
+    const reassigned = await updateTask(parentId, { assigneeEmail: OWNER, trackAssignedBy: true }, MIA, database)
+    assert.equal(reassigned?.assignee_email, OWNER)
+    assert.equal(reassigned?.assigned_by_email ?? null, null)
+    assert.equal(await softDeleteTask(parentId, OWNER, database), true)
+
+    assert.ok(queries.length > 10, `queries were recorded (${queries.length})`)
+    const named = queries.filter((q) => S1_COLUMNS.test(q))
+    assert.deepEqual(named, [], "no query names a 0118 column")
+    assert.ok(queries.some((q) => /migration_markers/.test(q)), "the marker was asked")
   })
 })
