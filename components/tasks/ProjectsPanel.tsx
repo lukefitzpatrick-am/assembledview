@@ -5,8 +5,11 @@
  * see (private ones only when you own, created or are a member of them) and
  * New project. A new project starts with To do, In progress and Done (the
  * B38 default). Before migration 0118 it says the database needs an update.
+ * New project takes an optional client (B39fix) from the clients list the
+ * Tasks page already loads (no FK, plan section 10; the server checks it
+ * exists), so pasted and inline-added tasks get the client and MBA.
  */
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Lock, PlusCircle } from "lucide-react"
@@ -14,6 +17,7 @@ import { Lock, PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox, ComboboxModalProvider, type ComboboxOption } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -59,20 +63,39 @@ type ListState =
 export type NewProjectDraft = {
   name: string
   kind: ProjectKind
+  /** Client id as text; "" is no client. */
+  client_id: string
   mba_number: string
   is_private: boolean
   owner_email: string
 }
 
+/** A client the New project picker offers (from the Tasks page's clients list). */
+export type ProjectClientChoice = { id: number; name: string }
+
+/** The picker value for "no client" (a Combobox option needs a non-empty value). */
+export const NO_CLIENT = "none"
+
 /** The POST body for a new project. Sections are left to the server default. */
 export function newProjectBody(draft: NewProjectDraft): Record<string, unknown> {
+  const clientId = Number(draft.client_id)
   return {
     name: draft.name.trim(),
     kind: draft.kind,
+    ...(draft.client_id && Number.isSafeInteger(clientId) && clientId > 0 ? { client_id: clientId } : {}),
     ...(draft.mba_number.trim() ? { mba_number: draft.mba_number.trim() } : {}),
     is_private: draft.is_private,
     ...(draft.owner_email ? { owner_email: draft.owner_email } : {}),
   }
+}
+
+/** Client picker options: "No client" first, then the clients by name. */
+export function projectClientOptions(clients: readonly ProjectClientChoice[]): ComboboxOption[] {
+  const sorted = [...clients].sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id)
+  return [
+    { value: NO_CLIENT, label: "No client" },
+    ...sorted.map((c) => ({ value: String(c.id), label: c.name || `Client ${c.id}`, keywords: String(c.id) })),
+  ]
 }
 
 /**
@@ -87,6 +110,12 @@ export function defaultProjectOwner(meEmail: string | null, activeMembers: reado
   const member = activeMembers.find((m) => m.email.trim().toLowerCase() === me)
   // The same value the picker's items use (m.email.toLowerCase()).
   return member ? member.email.toLowerCase() : ""
+}
+
+const NO_CLIENTS: ProjectClientChoice[] = []
+
+function emptyDraft(owner: string): NewProjectDraft {
+  return { name: "", kind: "campaign", client_id: "", mba_number: "", is_private: false, owner_email: owner }
 }
 
 export function ProjectsTable({ items, nameFor }: { items: CodexProject[]; nameFor: (email: string | null) => string }) {
@@ -136,10 +165,12 @@ export function ProjectsPanel({
   active,
   teamMembers,
   meEmail,
+  clients = NO_CLIENTS,
 }: {
   active: boolean
   teamMembers: TeamMember[]
   meEmail: string | null
+  clients?: ProjectClientChoice[]
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -147,7 +178,8 @@ export function ProjectsPanel({
   const [tick, setTick] = useState(0)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [draft, setDraft] = useState<NewProjectDraft>({ name: "", kind: "campaign", mba_number: "", is_private: false, owner_email: "" })
+  const [draft, setDraft] = useState<NewProjectDraft>(() => emptyDraft(""))
+  const clientOptions = useMemo(() => projectClientOptions(clients), [clients])
 
   useEffect(() => {
     if (!active) return
@@ -211,13 +243,7 @@ export function ProjectsPanel({
           <Button
             type="button"
             onClick={() => {
-              setDraft({
-                name: "",
-                kind: "campaign",
-                mba_number: "",
-                is_private: false,
-                owner_email: defaultProjectOwner(meEmail, activeMembers),
-              })
+              setDraft(emptyDraft(defaultProjectOwner(meEmail, activeMembers)))
               setOpen(true)
             }}
           >
@@ -241,86 +267,104 @@ export function ProjectsPanel({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
-            <DialogDescription>It starts with To do, In progress and Done. Add or rename sections on the board.</DialogDescription>
+            <DialogDescription>
+              It starts with To do, In progress and Done. Add or rename sections on the board. Tasks added on the board take
+              the project&apos;s client and MBA.
+            </DialogDescription>
           </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void create()
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="codex-project-name">Name</Label>
-              <Input
-                id="codex-project-name"
-                autoFocus
-                maxLength={PROJECT_NAME_MAX}
-                value={draft.name}
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+          <ComboboxModalProvider>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void create()
+              }}
+            >
               <div className="space-y-1.5">
-                <Label htmlFor="codex-project-kind">Kind</Label>
-                <Select value={draft.kind} onValueChange={(v) => (isProjectKind(v) ? setDraft((d) => ({ ...d, kind: v })) : undefined)}>
-                  <SelectTrigger id="codex-project-kind">
-                    <SelectValue />
+                <Label htmlFor="codex-project-name">Name</Label>
+                <Input
+                  id="codex-project-name"
+                  autoFocus
+                  maxLength={PROJECT_NAME_MAX}
+                  value={draft.name}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="codex-project-kind">Kind</Label>
+                  <Select value={draft.kind} onValueChange={(v) => (isProjectKind(v) ? setDraft((d) => ({ ...d, kind: v })) : undefined)}>
+                    <SelectTrigger id="codex-project-kind">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_KINDS.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {KIND_LABEL[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="codex-project-mba">MBA (optional)</Label>
+                  <Input
+                    id="codex-project-mba"
+                    maxLength={MBA_NUMBER_MAX}
+                    value={draft.mba_number}
+                    onChange={(e) => setDraft((d) => ({ ...d, mba_number: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="codex-project-client">Client (optional)</Label>
+                <Combobox
+                  id="codex-project-client"
+                  options={clientOptions}
+                  preserveOrder
+                  value={draft.client_id || NO_CLIENT}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, client_id: v === NO_CLIENT ? "" : v }))}
+                  placeholder="No client"
+                  searchPlaceholder="Search clients…"
+                  emptyText="No clients found."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="codex-project-owner">Owner</Label>
+                <Select value={draft.owner_email} onValueChange={(v) => setDraft((d) => ({ ...d, owner_email: v }))}>
+                  <SelectTrigger id="codex-project-owner">
+                    <SelectValue placeholder="You" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PROJECT_KINDS.map((k) => (
-                      <SelectItem key={k} value={k}>
-                        {KIND_LABEL[k]}
+                    {activeMembers.map((m) => (
+                      <SelectItem key={m.email} value={m.email.toLowerCase()}>
+                        {rosterDisplayName({ name: m.name, email: m.email })}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="codex-project-mba">MBA (optional)</Label>
-                <Input
-                  id="codex-project-mba"
-                  maxLength={MBA_NUMBER_MAX}
-                  value={draft.mba_number}
-                  onChange={(e) => setDraft((d) => ({ ...d, mba_number: e.target.value }))}
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={draft.is_private}
+                  onCheckedChange={(v) => setDraft((d) => ({ ...d, is_private: v === true }))}
+                  aria-label="Private project"
                 />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="codex-project-owner">Owner</Label>
-              <Select value={draft.owner_email} onValueChange={(v) => setDraft((d) => ({ ...d, owner_email: v }))}>
-                <SelectTrigger id="codex-project-owner">
-                  <SelectValue placeholder="You" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeMembers.map((m) => (
-                    <SelectItem key={m.email} value={m.email.toLowerCase()}>
-                      {rosterDisplayName({ name: m.name, email: m.email })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={draft.is_private}
-                onCheckedChange={(v) => setDraft((d) => ({ ...d, is_private: v === true }))}
-                aria-label="Private project"
-              />
-              Private: only the owner, you and members see the project
-            </label>
-            {draft.is_private ? (
-              <p className="text-xs text-muted-foreground">Its tasks still show in the Tasks list and search for now (C-211).</p>
-            ) : null}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!draft.name.trim() || saving}>
-                Create project
-              </Button>
-            </DialogFooter>
-          </form>
+                Private: only the owner, you and members see the project
+              </label>
+              {draft.is_private ? (
+                <p className="text-xs text-muted-foreground">Its tasks still show in the Tasks list and search for now (C-211).</p>
+              ) : null}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!draft.name.trim() || saving}>
+                  Create project
+                </Button>
+              </DialogFooter>
+            </form>
+          </ComboboxModalProvider>
         </DialogContent>
       </Dialog>
     </div>

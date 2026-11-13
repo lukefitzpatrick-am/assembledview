@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import type { CodexProject } from "@/lib/codex/projects"
 
-import { defaultProjectOwner, newProjectBody, ProjectsTable } from "../ProjectsPanel"
+import { defaultProjectOwner, NO_CLIENT, newProjectBody, projectClientOptions, ProjectsTable } from "../ProjectsPanel"
 
 const P = (id: number, name: string, extra: Partial<CodexProject> = {}): CodexProject => ({
   id,
@@ -46,18 +46,44 @@ describe("Projects tab (B39)", () => {
   })
 
   it("the create body: trimmed name, kind, optional MBA, private, owner; no sections (server default)", () => {
-    expect(newProjectBody({ name: " SEO ", kind: "retainer", mba_number: " ", is_private: true, owner_email: "clay@x.au" })).toEqual({
+    expect(newProjectBody({ name: " SEO ", kind: "retainer", client_id: "", mba_number: " ", is_private: true, owner_email: "clay@x.au" })).toEqual({
       name: "SEO",
       kind: "retainer",
       is_private: true,
       owner_email: "clay@x.au",
     })
-    expect(newProjectBody({ name: "Sinch", kind: "campaign", mba_number: "sinch001", is_private: false, owner_email: "" })).toEqual({
+    expect(newProjectBody({ name: "Sinch", kind: "campaign", client_id: "", mba_number: "sinch001", is_private: false, owner_email: "" })).toEqual({
       name: "Sinch",
       kind: "campaign",
       mba_number: "sinch001",
       is_private: false,
     })
+  })
+
+  it("B39fix F5: the client is optional; a picked client goes as a number so board tasks take it", () => {
+    const base = { name: "Sinch", kind: "campaign" as const, mba_number: "sinch001", is_private: false, owner_email: "" }
+    expect(newProjectBody({ ...base, client_id: "42" })).toEqual({
+      name: "Sinch",
+      kind: "campaign",
+      client_id: 42,
+      mba_number: "sinch001",
+      is_private: false,
+    })
+    expect(newProjectBody({ ...base, client_id: "" })).not.toHaveProperty("client_id")
+    expect(newProjectBody({ ...base, client_id: NO_CLIENT })).not.toHaveProperty("client_id")
+    expect(newProjectBody({ ...base, client_id: "0" })).not.toHaveProperty("client_id")
+  })
+
+  it("B39fix F5: client options are No client first, then the clients by name", () => {
+    const options = projectClientOptions([
+      { id: 9, name: "Treasury" },
+      { id: 4, name: "Assembled" },
+      { id: 7, name: "" },
+    ])
+    expect(options.map((o) => o.value)).toEqual([NO_CLIENT, "7", "4", "9"])
+    expect(options[0].label).toBe("No client")
+    expect(options[1].label).toBe("Client 7")
+    expect(projectClientOptions([])).toEqual([{ value: NO_CLIENT, label: "No client" }])
   })
 
   it("B39fix F10: the owner picker starts on you as the roster's lowercased value, else empty (the You placeholder)", () => {

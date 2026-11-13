@@ -3465,7 +3465,12 @@ export function TasksPageClient({
 
         {projectsOn ? (
           <TabsContent value="projects" className="mt-6 space-y-6">
-            <ProjectsPanel active={mainTab === "projects"} teamMembers={teamMembers} meEmail={meEmail} />
+            <ProjectsPanel
+              active={mainTab === "projects"}
+              teamMembers={teamMembers}
+              meEmail={meEmail}
+              clients={clients.map((c) => ({ id: c.id, name: getClientDisplayName(c) || `Client ${c.id}` }))}
+            />
           </TabsContent>
         ) : null}
 
