@@ -6585,7 +6585,7 @@
           "name": "idx_client_notes_body_fts",
           "columns": [
             {
-              "expression": "to_tsvector('english'::regconfig, coalesce(\"body\", ''))",
+              "expression": "to_tsvector('english'::regconfig, regexp_replace(coalesce(\"body\", ''), '\"(summary|action_items)\"\\s*:|\\\\[nrt]', ' ', 'g'))",
               "asc": true,
               "isExpression": true,
               "nulls": "last"

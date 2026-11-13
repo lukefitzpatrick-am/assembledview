@@ -3,7 +3,7 @@
  * row mapping. No database: the executor is a fake.
  */
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { test } from "node:test"
 import { PgDialect } from "drizzle-orm/pg-core"
@@ -129,7 +129,13 @@ test("meeting body expression: blanks the JSON keys and escapes, and is byte for
   assert.ok(read("sql/supabase/2026-11-13_0116_codex_search_index_SUPABASE.sql").includes(indexSql), "run file 0116")
   const quoted = CLIENT_NOTES_BODY_FTS_EXPRESSION.replace("coalesce(body,", 'coalesce("body",')
   assert.ok(read("db/drizzle/0026_codex_search_index.sql").includes(`USING gin (${quoted})`), "drizzle 0026 SQL")
-  for (const snap of ["db/drizzle/meta/0026_snapshot.json", "db/drizzle/meta/0027_snapshot.json"]) {
+  // Every snapshot from 0026 on, so a later snapshot generated from an older base fails here.
+  const snaps = readdirSync(path.join(ROOT, "db/drizzle/meta"))
+    .filter((f) => /^\d{4}_snapshot\.json$/.test(f) && Number(f.slice(0, 4)) >= 26)
+    .sort()
+    .map((f) => `db/drizzle/meta/${f}`)
+  assert.ok(snaps.includes("db/drizzle/meta/0028_snapshot.json"), snaps.join(", "))
+  for (const snap of snaps) {
     const json = JSON.parse(read(snap)) as {
       tables: Record<string, { indexes: Record<string, { columns: Array<{ expression: string }> }> }>
     }
