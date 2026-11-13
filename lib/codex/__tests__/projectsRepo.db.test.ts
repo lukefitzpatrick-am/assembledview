@@ -291,6 +291,130 @@ describe("codex projects store on Postgres (0118 applied)", { skip }, () => {
     assert.ok(ok.ok)
     assert.equal((await taskRow(id)).section_id, null, "ON DELETE SET NULL on the soft-deleted task")
   })
+  // ---- STACKfix (stack review L1, L3, L5) --------------------------------------
+
+  it("L1: a member who is not the owner or creator cannot remove a member; the member stays", async () => {
+    const added = await addProjectMembers(privateId, OWNER, [OTHER], database)
+    assert.ok(added.ok && added.project.members.includes(OTHER))
+    const refused = await removeProjectMember(privateId, MEMBER, OTHER, database)
+    assert.equal(!refused.ok && refused.reason, "not_owner")
+    const after = await getProject(privateId, OWNER, database)
+    assert.ok(after.ok && after.project.members.includes(OTHER), "still a member")
+    const [m] = await client`SELECT count(*)::int AS n FROM public.codex_project_members WHERE project_id = ${privateId} AND lower(email) = ${OTHER}`
+    assert.equal(m.n, 1)
+    const [a] = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'codex_project' AND entity_id = ${privateId} AND action = 'members_remove' AND actor_email = ${MEMBER}`
+    assert.equal(a.n, 0, "no activity for a refused remove")
+    // A member removing themselves is refused the same way (owner or creator only).
+    const self = await removeProjectMember(privateId, MEMBER, MEMBER, database)
+    assert.equal(!self.ok && self.reason, "not_owner")
+  })
+
+  let creatorPrivateId = 0
+  it("L5 (D9): a private project's creator who is not its owner sees it in the list and can manage members", async () => {
+    const r = await createProject(OTHER, {
+      name: "Created by other", kind: "internal", client_id: null, mba_number: null, owner_email: OWNER, is_private: true,
+      start_on: null, due_on: null, members: [], sections: undefined,
+    }, database)
+    assert.ok(r.ok)
+    creatorPrivateId = r.project.id
+    assert.equal(r.project.owner_email, OWNER)
+    assert.equal(r.project.created_by_email, OTHER)
+    const ids = async (who: string) => (await listProjects(who, {}, database)).map((p) => p.id)
+    assert.ok((await ids(OTHER)).includes(creatorPrivateId), "creator sees it in the list")
+    assert.ok((await ids(OTHER.toUpperCase())).includes(creatorPrivateId), "case-insensitive")
+    assert.ok((await ids(OWNER)).includes(creatorPrivateId), "owner sees it")
+    assert.ok(!(await ids(MEMBER)).includes(creatorPrivateId), "anyone else does not")
+    assert.ok((await getProject(creatorPrivateId, OTHER, database)).ok)
+    const add = await addProjectMembers(creatorPrivateId, OTHER, [MEMBER], database)
+    assert.ok(add.ok)
+    const removed = await removeProjectMember(creatorPrivateId, OTHER, MEMBER, database)
+    assert.ok(removed.ok && !removed.project.members.includes(MEMBER), "the creator removes a member")
+  })
+
+  it("L5 (D10): a task moved to another section with no sort_order goes last there, not at its old place", async () => {
+    const r = await createProject(OWNER, {
+      name: "Moves", kind: "ops", client_id: null, mba_number: null, owner_email: null, is_private: false,
+      start_on: null, due_on: null, members: [], sections: undefined,
+    }, database)
+    assert.ok(r.ok)
+    const [todo, doing] = r.sections
+    const t1 = await newTask("t1")
+    const t2 = await newTask("t2")
+    await moveTaskToSection(r.project.id, todo.id, OWNER, { task_id: t1, sort_order: 7 }, database)
+    assert.equal((await taskRow(t1)).sort_order, 7)
+    await moveTaskToSection(r.project.id, doing.id, OWNER, { task_id: t2, sort_order: null }, database)
+    assert.equal((await taskRow(t2)).sort_order, 0)
+    const moved = await moveTaskToSection(r.project.id, doing.id, OWNER, { task_id: t1, sort_order: null }, database)
+    assert.ok(moved.ok && moved.task.sort_order === 1)
+    assert.equal((await taskRow(t1)).sort_order, 1, "last in the new section, not 7")
+    // Moved again into the same section with no sort_order: it keeps its place.
+    await moveTaskToSection(r.project.id, doing.id, OWNER, { task_id: t1, sort_order: null }, database)
+    assert.equal((await taskRow(t1)).sort_order, 1)
+  })
+
+  it("L5 (D13): the project row lock serialises section changes (the last done section race)", async () => {
+    const r = await createProject(OWNER, {
+      name: "Lock", kind: "ops", client_id: null, mba_number: null, owner_email: null, is_private: false,
+      start_on: null, due_on: null, members: [],
+      sections: [{ name: "Doing", status_category: "in_progress" }, { name: "Done", status_category: "done" }, { name: "Shipped", status_category: "done" }],
+    }, database)
+    assert.ok(r.ok)
+    const [, doneA, doneB] = r.sections
+    assert.deepEqual([doneA.status_category, doneB.status_category], ["done", "done"])
+    const holder = postgres(RAW_URL, { max: 1, onnotice: () => {} })
+    let settled = false
+    let pending: Promise<unknown> = Promise.resolve()
+    try {
+      await holder.begin(async (tx) => {
+        // Another writer holds the project row and deletes the other done section.
+        await tx`SELECT id FROM public.codex_projects WHERE id = ${r.project.id} FOR UPDATE`
+        pending = deleteSection(r.project.id, doneA.id, OWNER, database).finally(() => { settled = true })
+        await new Promise((res) => setTimeout(res, 400))
+        assert.equal(settled, false, "deleteSection waits for the project row")
+        await tx`DELETE FROM public.codex_sections WHERE id = ${doneB.id}`
+      })
+      const result = (await pending) as { ok: boolean; reason?: string }
+      assert.equal(!result.ok && result.reason, "last_done_section", "re-checked after the lock, so the last done section stays")
+      const left = await listSections(r.project.id, OWNER, database)
+      assert.ok(left.ok)
+      assert.deepEqual(left.sections.filter((s) => s.status_category === "done").map((s) => s.id), [doneA.id])
+    } finally {
+      await pending.catch(() => {})
+      await holder.end({ timeout: 5 })
+    }
+  })
+
+  const DEC5_UTC = Date.UTC(2026, 11, 5) / 1000
+
+  it("L3 (D1): an INSERT with due_on only writes due_date as 00:00 UTC of that day, in any session time zone", async () => {
+    for (const tz of ["UTC", "Australia/Sydney", "America/Los_Angeles"]) {
+      const [row] = await client.begin(async (tx) => {
+        await tx.unsafe(`SET LOCAL TimeZone = '${tz}'`)
+        return tx`INSERT INTO public.tasks (title, due_on) VALUES (${`due_on only ${tz}`}, '2026-12-05')
+                  RETURNING extract(epoch FROM due_date)::bigint AS epoch, due_on::text AS due_on`
+      })
+      assert.equal(Number(row.epoch), DEC5_UTC, tz)
+      assert.equal(row.due_on, "2026-12-05", tz)
+    }
+  })
+
+  it("L3 (D2): editing an already done task keeps its completed_at; re-done after reopen sets a new one", async () => {
+    const [ins] = await client`INSERT INTO public.tasks (title, status, completed_at) VALUES ('done earlier', 'done', '2026-01-02T03:04:05Z')
+                               RETURNING id, extract(epoch FROM completed_at)::bigint AS c`
+    const id = Number(ins.id)
+    const t0 = Date.UTC(2026, 0, 2, 3, 4, 5) / 1000
+    assert.equal(Number(ins.c), t0, "an INSERT keeps a given completed_at")
+    await client`UPDATE public.tasks SET title = 'done earlier, renamed' WHERE id = ${id}`
+    await client`UPDATE public.tasks SET status = 'done', priority = 'high' WHERE id = ${id}`
+    const [kept] = await client`SELECT extract(epoch FROM completed_at)::bigint AS c FROM public.tasks WHERE id = ${id}`
+    assert.equal(Number(kept.c), t0, "other edits of a done task leave completed_at alone")
+    await client`UPDATE public.tasks SET status = 'todo' WHERE id = ${id}`
+    assert.equal((await taskRow(id)).completed_at, null)
+    await client`UPDATE public.tasks SET status = 'done' WHERE id = ${id}`
+    const [again] = await client`SELECT extract(epoch FROM completed_at)::bigint AS c FROM public.tasks WHERE id = ${id}`
+    assert.ok(Number(again.c) > t0, "done again: a new completed_at")
+  })
+
   // ---- STACKfix (stack review L4) ------------------------------------------------
 
   it("L4: one write that sets both due columns to different Sydney days is refused; the same day is kept as written", async () => {
