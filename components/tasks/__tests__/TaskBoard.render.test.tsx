@@ -49,6 +49,37 @@ describe("TaskBoard (B39 generic over the column source)", () => {
     expect(html.indexOf("Shipped")).toBeGreaterThan(html.indexOf('data-column="done"'))
   })
 
+  it("status source sorts each column's cards (B39fix F4): due date by default, priority when asked, not the given order", () => {
+    const columns = {
+      backlog: [],
+      todo: [
+        task(1, "Due later", { due_date: "2099-03-01", priority: "high" }),
+        task(2, "Due sooner", { due_date: "2099-01-01", priority: "low" }),
+        task(3, "No due date", { priority: "normal" }),
+      ],
+      in_progress: [],
+      waiting: [],
+      done: [],
+    }
+    const props = {
+      columns,
+      counts: { backlog: 0, todo: 3, in_progress: 0, waiting: 0, done: 0 },
+      onLoadMore: noop,
+      clientNameById: new Map<number, string>(),
+      onOpenTask: noop,
+      onStatusChange: noop,
+      teamMembers: [],
+      meEmail: null,
+    }
+    const byDue = renderToStaticMarkup(<TaskBoard {...props} />)
+    const due = positions(byDue, ["Due sooner", "Due later", "No due date"])
+    expect(due.every((x) => x >= 0)).toBe(true)
+    expect([...due].sort((a, b) => a - b)).toEqual(due)
+    const byPriority = renderToStaticMarkup(<TaskBoard {...props} sort="priority_desc" />)
+    const pri = positions(byPriority, ["Due later", "No due date", "Due sooner"])
+    expect([...pri].sort((a, b) => a - b)).toEqual(pri)
+  })
+
   it("sections source: sections in sort_order with their status, cards in the given order, card counts, menu and footer slots", () => {
     const html = renderToStaticMarkup(
       <GenericTaskBoard

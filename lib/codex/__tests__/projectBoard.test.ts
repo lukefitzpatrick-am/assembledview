@@ -341,6 +341,15 @@ describe("status change on a project task (PATCH, bulk, Tasks board)", () => {
     assert.equal(waiting.ok && waiting.inProject && waiting.statusChanges, true)
   })
 
+  it("two sections with the status: the first in board order wins, not the last (B39fix R03)", () => {
+    // "Later" is first in the array and last on the board: only board order picks "This week".
+    const sections = [S(60, "Later", 5, "in_progress"), ...SECTIONS]
+    const r = planStatusChangeInProject(task(10), sections, "in_progress")
+    assert.equal(r.ok && r.inProject && r.section_id, 20)
+    const w = planStatusChangeInProject(task(10), [...SECTIONS, S(26, "Parked", 9, "waiting")], "waiting")
+    assert.equal(w.ok && w.inProject && w.section_id, 25)
+  })
+
   it("no section for the status (backlog, or no waiting section) is refused", () => {
     const backlog = planStatusChangeInProject(task(10), SECTIONS, "backlog")
     assert.equal(backlog.ok, false)

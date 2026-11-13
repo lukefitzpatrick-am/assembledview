@@ -233,6 +233,23 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     assert.ok(owner.ok, "the owner loads the same section")
   })
 
+  it("load more follows hide completed for a done card in a section that is not done (B39fix U03)", async () => {
+    // A status writer outside the section rule (C-220) can leave a done task in a todo section.
+    await client`UPDATE public.tasks SET status = 'done' WHERE section_id = ${sec["Inbound"]} AND title = 'C'`
+    try {
+      const hidden = await listSectionTasks(projectId, sec["Inbound"], OWNER, { hideCompleted: true, offset: 0 }, database)
+      assert.ok(hidden.ok)
+      assert.deepEqual(hidden.items.map((t) => t.title), ["A", "B", "D"])
+      assert.equal(hidden.total, 3)
+      const shown = await listSectionTasks(projectId, sec["Inbound"], OWNER, { hideCompleted: false, offset: 0 }, database)
+      assert.ok(shown.ok)
+      assert.deepEqual(shown.items.map((t) => t.title), ["A", "B", "C", "D"])
+      assert.equal(shown.total, 4)
+    } finally {
+      await client`UPDATE public.tasks SET status = 'todo' WHERE section_id = ${sec["Inbound"]} AND title = 'C'`
+    }
+  })
+
   it("within a section: after_task_id reorders and renumbers 0..n-1 without touching the others' updated_at", async () => {
     const ids = Object.fromEntries((await client`SELECT id, title FROM public.tasks WHERE section_id = ${sec["Inbound"]}`).map((r) => [r.title, Number(r.id)]))
     const bBefore = (await taskRow(ids.B)).updated_at
