@@ -127,6 +127,18 @@ describe("AlterBillingDialog duplicate rows (B35)", () => {
     expect(saveButton()?.disabled).toBe(true)
   })
 
+  it("switch off: clearing the pair by hand keeps the opened total (no rebase), as before B35", () => {
+    switches.on = false
+    act(() => {
+      root.render(<AlterBillingDialog open onOpenChange={() => {}} initialMonths={months} mbaNumber="malay004" onSave={vi.fn()} />)
+    })
+    typeAmount(0, "$0.00")
+    expect(document.body.textContent).toMatch(/Current total:\s*\$37,000\.00/)
+    expect(document.body.textContent).toMatch(/Original total:\s*\$74,000\.00/)
+    expect(document.querySelector("[data-alter-billing-original-rebased]")).toBeNull()
+    expect(saveButton()?.disabled).toBe(true)
+  })
+
   it("switch off: no notice and Save is not stopped by the pair", () => {
     switches.on = false
     act(() => {
