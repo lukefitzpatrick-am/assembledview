@@ -54,6 +54,7 @@ export default defineConfig({
       "components/pacing/channel/__tests__/LinePacingCard.fixedCostFrom.b23.test.tsx",
       "components/pacing/channel/__tests__/ChannelLayoutToggle.test.tsx",
       "components/pacing/detail/__tests__/CampaignDetailModal.test.tsx",
+      "components/pacing/detail/__tests__/CampaignAskHelpContained.test.tsx",
       "components/pacing/relabel/__tests__/RelabelsClient.test.tsx",
       "components/pacing/scenario/__tests__/ScenarioPlannerPanel.test.tsx",
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",

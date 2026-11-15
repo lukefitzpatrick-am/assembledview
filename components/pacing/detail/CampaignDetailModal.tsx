@@ -40,6 +40,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
+import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
+import { buildTasksComposeHref } from "@/lib/codex/composeLink"
 import { CampaignBurstsTab } from "./CampaignBurstsTab"
 import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/shared/relabelPageUrl"
 
@@ -169,6 +171,8 @@ export function CampaignDetailModal({
   const [metric, setMetric] = useState<CampaignDetailMetric>("spend")
   const [lineFilter, setLineFilter] = useState("all")
   const [helpOpen, setHelpOpen] = useState(false)
+  /** B44 (C-200): with codex_contained_writes on, Ask for help opens Tasks instead of writing here. */
+  const containedWrites = codexContainedWritesOn()
   const [note, setNote] = useState("")
   const [savingNote, setSavingNote] = useState(false)
   const [burstDailyWindow, setBurstDailyWindow] = useState<CampaignDetailDailyWindow | undefined>(undefined)
@@ -633,9 +637,25 @@ export function CampaignDetailModal({
                   <Button type="button" size="sm" onClick={() => void addNote()} disabled={savingNote || !note.trim()}>
                     Add note
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setHelpOpen(true)}>
-                    Ask for help
-                  </Button>
+                  {containedWrites ? (
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <a
+                        href={buildTasksComposeHref({
+                          compose: "help",
+                          title: row?.campaignName ?? mba,
+                          clientId: payload?.clientId ?? null,
+                          mbaNumber: mba,
+                          category: "pacing",
+                        })}
+                      >
+                        Ask for help in Tasks
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setHelpOpen(true)}>
+                      Ask for help
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
@@ -650,7 +670,7 @@ export function CampaignDetailModal({
           ) : null}
         </div>
       </div>
-      <CampaignAskHelpDialog mba={mba} open={helpOpen} onOpenChange={setHelpOpen} />
+      {containedWrites ? null : <CampaignAskHelpDialog mba={mba} open={helpOpen} onOpenChange={setHelpOpen} />}
     </div>
   )
 }
