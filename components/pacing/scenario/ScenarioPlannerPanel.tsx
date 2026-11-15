@@ -23,6 +23,8 @@ import {
 } from "@/lib/pacing/scenario/savedScenarios"
 import type { ScenarioLevers, ScenarioLine, ScenarioResult } from "@/lib/pacing/scenario/types"
 import { cn } from "@/lib/utils"
+import { buildTasksComposeHref, tasksForMbaHref } from "@/lib/codex/composeLink"
+import { ScenarioRelatedTasks } from "./ScenarioRelatedTasks"
 
 function money(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—"
@@ -66,6 +68,13 @@ export type ScenarioPlannerPanelProps = {
   onSave?: (input: ScenarioPlannerSaveInput) => Promise<SavedScenario | void>
   onDraftNote?: (payload: DraftChangeNotePayload) => void
   onCreateTask?: (draft: ReturnType<typeof buildCodexTaskDraft>) => Promise<void>
+  /**
+   * B44 (C-200, switch `codex_contained_writes`): set by the caller with the
+   * switch on. The planner then shows the campaign's tasks read only and links
+   * into /tasks (New task in Tasks, filled in from the scenario; Open in Tasks)
+   * in place of Create Codex task. Unset: as before.
+   */
+  containedTasks?: { clientId: number | null }
   initialLineItemId?: string
   initialBurstStart?: string
   initialBurstEnd?: string
@@ -83,6 +92,7 @@ export function ScenarioPlannerPanel({
   onSave,
   onDraftNote,
   onCreateTask,
+  containedTasks,
   initialLineItemId,
   initialBurstStart,
   initialBurstEnd,
@@ -173,6 +183,19 @@ export function ScenarioPlannerPanel({
   const compared = localSaved.find((row) => row.id === compareId)
   const compare = compared ? compareSavedToLive(compared.result, live) : null
   const burst = result.lines.find((line) => line.burst)?.burst
+
+  /** B44: the scenario's task, filled in on /tasks (the same draft Create Codex task posts with the switch off). */
+  function scenarioTaskHref(clientId: number | null): string {
+    const draft = buildCodexTaskDraft({ mba, campaignName, lines, levers, result })
+    return buildTasksComposeHref({
+      compose: "task",
+      title: draft.title,
+      description: draft.description,
+      clientId,
+      mbaNumber: draft.mba_number,
+      category: draft.category,
+    })
+  }
 
   function togglePause(id: string) {
     setPauses((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
@@ -440,17 +463,28 @@ export function ScenarioPlannerPanel({
             <Button type="button" onClick={() => onDraftNote?.(buildDraftChangeNote({ mba, campaignName, lines, levers, result }))}>
               Draft change note
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                void onCreateTask?.(
-                  buildCodexTaskDraft({ mba, campaignName, lines, levers, result }),
-                )
-              }
-            >
-              Create Codex task
-            </Button>
+            {containedTasks ? (
+              <>
+                <Button type="button" variant="outline" asChild>
+                  <a href={scenarioTaskHref(containedTasks.clientId)}>New task in Tasks</a>
+                </Button>
+                <Button type="button" variant="ghost" asChild>
+                  <a href={tasksForMbaHref(mba)}>Open in Tasks</a>
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  void onCreateTask?.(
+                    buildCodexTaskDraft({ mba, campaignName, lines, levers, result }),
+                  )
+                }
+              >
+                Create Codex task
+              </Button>
+            )}
             <Input
               name="scenario-name"
               placeholder="Scenario name"
@@ -485,6 +519,7 @@ export function ScenarioPlannerPanel({
               Save scenario
             </Button>
           </div>
+          {containedTasks ? <ScenarioRelatedTasks mba={mba} /> : null}
           {localSaved.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs uppercase text-muted-foreground">Saved scenarios</p>

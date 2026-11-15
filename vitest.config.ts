@@ -57,6 +57,7 @@ export default defineConfig({
       "components/pacing/detail/__tests__/CampaignAskHelpContained.test.tsx",
       "components/pacing/relabel/__tests__/RelabelsClient.test.tsx",
       "components/pacing/scenario/__tests__/ScenarioPlannerPanel.test.tsx",
+      "components/pacing/scenario/__tests__/ScenarioContained.test.tsx",
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/tasks/__tests__/SavedViewsMenu.render.test.tsx",

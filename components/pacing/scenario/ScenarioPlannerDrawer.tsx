@@ -8,6 +8,7 @@ import { scenarioLinesFromDetail } from "@/lib/pacing/scenario/fromLineCard"
 import type { SavedScenario } from "@/lib/pacing/scenario/savedScenarios"
 import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 import { ScenarioPlannerPanel } from "./ScenarioPlannerPanel"
+import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
 
 function melbourneDate(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date())
@@ -38,6 +39,8 @@ export function ScenarioPlannerDrawer({
   const [saved, setSaved] = useState<SavedScenario[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** B44 (C-200): with codex_contained_writes on, the planner links into /tasks instead of posting a task. */
+  const containedWrites = codexContainedWritesOn()
 
   useEffect(() => {
     if (mba) {
@@ -133,7 +136,8 @@ export function ScenarioPlannerDrawer({
         saved={saved}
         onRequestCampaign={setActiveMba}
         onDraftNote={(draft) => onDraftNote?.(draft.message)}
-        onCreateTask={async (draft) => {
+        containedTasks={containedWrites ? { clientId: payload.clientId ?? null } : undefined}
+        onCreateTask={containedWrites ? undefined : async (draft) => {
           if (!payload.clientId) return
           const teamRes = await fetch("/api/codex/team", { credentials: "include" })
           const team = teamRes.ok ? ((await teamRes.json()) as { meEmail?: string }) : {}
