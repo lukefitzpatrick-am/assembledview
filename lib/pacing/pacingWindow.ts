@@ -1,19 +1,12 @@
+import { getMelbourneTodayISO as melbourneTodayISO } from "@/lib/dates/melbourne"
+
 /**
- * Today (calendar date) in Australia/Melbourne as ISO yyyy-MM-dd.
+ * Today (calendar date) in Australia/Melbourne as ISO yyyy-MM-dd. B43: one
+ * helper family, `lib/dates/melbourne.ts` (same output, pinned by
+ * `dateHelpers.b43.test.ts`).
  */
 export function getMelbourneTodayISO(): string {
-  const now = new Date()
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-  const parts = formatter.formatToParts(now)
-  const year = parts.find((p) => p.type === "year")?.value ?? ""
-  const month = parts.find((p) => p.type === "month")?.value ?? ""
-  const day = parts.find((p) => p.type === "day")?.value ?? ""
-  return `${year}-${month}-${day}`
+  return melbourneTodayISO(new Date())
 }
 
 /**

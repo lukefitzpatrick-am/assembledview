@@ -1,6 +1,17 @@
+/**
+ * The one Melbourne date helper family (B34, B43). `lib/pacing/pacingWindow`,
+ * `lib/pacing/maths` (`getAsOfDate`, `getMelbourneYesterdayISO`) and
+ * `resolveMonthLocks.currentSydneyMonth` delegate here. Sydney and Melbourne
+ * share one zone (AEST/AEDT, the same daylight saving dates), pinned by
+ * `dateHelpers.b43.test.ts` over a 3-year sweep.
+ */
 import { toMelbourneDateString } from "@/lib/timezone"
 
-function addDaysISO(isoDate: string, days: number): string {
+/**
+ * One civil date (`YYYY-MM-DD`) moved by `days` calendar days, in UTC
+ * arithmetic (no zone, so no daylight saving step).
+ */
+export function shiftISODate(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split("-").map((v) => Number(v))
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
   dt.setUTCDate(dt.getUTCDate() + days)
@@ -34,7 +45,7 @@ export function getMelbourneMonthISO(reference: Date = new Date()): string {
  */
 export function getMelbourneYesterdayISO(reference: Date = new Date()): string {
   const today = getMelbourneTodayISO(reference)
-  return addDaysISO(today, -1)
+  return shiftISODate(today, -1)
 }
 
 function utcMillisFromISODate(iso: string): number | null {

@@ -12,6 +12,7 @@
 
 import { addMonthKeys, defaultMonthLock, isMonthKey } from "./planBillingRevision"
 import type { LockReason, MonthKey, MonthLock } from "./types"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 export type LockFinanceRecord = {
   invoiceKey: string | null
@@ -83,16 +84,13 @@ export function toMonthKey(raw: string | null | undefined): MonthKey | null {
   return null
 }
 
-/** Current civil month in Australia/Sydney (AEST/AEDT). */
+/**
+ * Current civil month in Australia/Sydney (AEST/AEDT). Sydney and Melbourne
+ * share one zone, so this is `getMelbourneMonthISO` (B43, one helper family;
+ * pinned equal over a 3-year sweep in `dateHelpers.b43.test.ts`).
+ */
 export function currentSydneyMonth(now: Date): MonthKey {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(now)
-  const y = parts.find((p) => p.type === "year")?.value
-  const m = parts.find((p) => p.type === "month")?.value
-  return `${y}-${m}`
+  return getMelbourneMonthISO(now)
 }
 
 export function resolveMonthLocks(input: ResolveMonthLocksInput): ResolvedMonthLocks {

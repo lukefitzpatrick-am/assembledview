@@ -1,5 +1,6 @@
 import { PACING_STATUS_THRESHOLDS, projectionVarianceBounds } from "@/lib/pacing/status"
 import { div0 } from "./div0"
+import { getMelbourneTodayISO, shiftISODate } from "@/lib/dates/melbourne"
 import { roas as purchaseRoas } from "@/lib/delivery/conversions/rules"
 
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
@@ -91,14 +92,12 @@ export function computeDaysRemaining(startYmd: string, endYmd: string, asOfYmd: 
   return Math.max(0, campaignDays - daysPassed)
 }
 
-/** Melbourne calendar date (YYYY-MM-DD) for "today", matching the view's as_of_date. */
+/**
+ * Melbourne calendar date (YYYY-MM-DD) for "today", matching the view's
+ * as_of_date. B43: `lib/dates/melbourne.ts` (one helper family).
+ */
 export function getAsOfDate(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
+  return getMelbourneTodayISO(now)
 }
 
 /**
@@ -111,13 +110,8 @@ export function getAsOfDate(now: Date = new Date()): string {
  */
 export function getMelbourneYesterdayISO(asOfDate?: string): string {
   const today = asOfDate ?? getAsOfDate()
-  const ms = Date.parse(today + "T00:00:00Z")
-  if (!Number.isFinite(ms)) throw new Error(`Invalid asOfDate: ${today}`)
-  const yesterday = new Date(ms - 86_400_000)
-  const yyyy = yesterday.getUTCFullYear()
-  const mm = String(yesterday.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(yesterday.getUTCDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
+  if (!Number.isFinite(Date.parse(today + "T00:00:00Z"))) throw new Error(`Invalid asOfDate: ${today}`)
+  return shiftISODate(today, -1)
 }
 
 export function computeExpectedPct(daysPassed: number, campaignDays: number): number {
