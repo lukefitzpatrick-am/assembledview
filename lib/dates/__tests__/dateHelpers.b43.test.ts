@@ -99,31 +99,38 @@ function sweep(): Date[] {
 
 const INSTANTS = sweep()
 
+/** The old outputs, computed once per instant (the old bodies build a formatter per call, which is slow). */
+const OLD = INSTANTS.map((d) => ({ d, day: oldGetAsOfDate(d), sydneyDay: sydneyDay(d), sydneyMonth: oldCurrentSydneyMonth(d) }))
+
+function same(actual: string, expected: string, what: string, d: Date): void {
+  if (actual !== expected) assert.fail(`${what} at ${d.toISOString()}: ${actual} !== ${expected}`)
+}
+
 test("the sweep is three years plus the edges", () => {
   assert.ok(INSTANTS.length > 26_000 + 48 * 240, String(INSTANTS.length))
 })
 
 test("Sydney and Melbourne are one zone over the whole sweep (day and month)", () => {
-  for (const d of INSTANTS) {
-    assert.equal(sydneyDay(d), oldGetAsOfDate(d), d.toISOString())
-    assert.equal(oldCurrentSydneyMonth(d), oldGetAsOfDate(d).slice(0, 7), d.toISOString())
+  for (const o of OLD) {
+    same(o.sydneyDay, o.day, "Sydney day", o.d)
+    same(o.sydneyMonth, o.day.slice(0, 7), "Sydney month", o.d)
   }
 })
 
 test("currentSydneyMonth, getAsOfDate and lib/dates give the old outputs at every instant", () => {
-  for (const d of INSTANTS) {
-    assert.equal(currentSydneyMonth(d), oldCurrentSydneyMonth(d), d.toISOString())
-    assert.equal(getAsOfDate(d), oldGetAsOfDate(d), d.toISOString())
-    assert.equal(getMelbourneTodayISO(d), oldGetAsOfDate(d), d.toISOString())
-    assert.equal(getMelbourneMonthISO(d), oldCurrentSydneyMonth(d), d.toISOString())
+  for (const o of OLD) {
+    same(currentSydneyMonth(o.d), o.sydneyMonth, "currentSydneyMonth", o.d)
+    same(getAsOfDate(o.d), o.day, "getAsOfDate", o.d)
+    same(getMelbourneTodayISO(o.d), o.day, "getMelbourneTodayISO", o.d)
+    same(getMelbourneMonthISO(o.d), o.sydneyMonth, "getMelbourneMonthISO", o.d)
   }
 })
 
 test("maths getMelbourneYesterdayISO (with a date) gives the old output for every day of the sweep, and lib/dates agrees", () => {
-  for (const d of INSTANTS) {
-    const today = oldGetAsOfDate(d)
-    assert.equal(mathsYesterday(today), oldMathsYesterday(today), today)
-    assert.equal(datesYesterday(d), oldMathsYesterday(today), d.toISOString())
+  for (const o of OLD) {
+    const want = oldMathsYesterday(o.day)
+    same(mathsYesterday(o.day), want, "maths yesterday", o.d)
+    same(datesYesterday(o.d), want, "lib/dates yesterday", o.d)
   }
   assert.equal(shiftISODate("2028-03-01", -1), "2028-02-29")
   assert.equal(shiftISODate("2026-12-31", 1), "2027-01-01")
