@@ -226,4 +226,86 @@ describe("the progress field rule (Postgres, 0118 applied)", { skip }, () => {
     await updateTaskThroughSections(a, { status: "done" }, OWNER, database)
     assert.equal((await state(a)).value, null)
   })
+
+  it("C-263 (B43): linking sets the done option on tasks already done, in the link's transaction; open, deleted and other projects' tasks are left", async () => {
+    const p = await createProject(
+      OWNER,
+      {
+        name: "Linked late", kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: false, start_on: null, due_on: null, members: [],
+        sections: [
+          { name: "To do", status_category: "todo" },
+          { name: "Done", status_category: "done" },
+        ],
+      },
+      database
+    )
+    assert.ok(p.ok)
+    const pid = p.project.id
+    const f = await createCustomField(
+      pid,
+      OWNER,
+      { name: "Progress", field_type: "single_select", options: [{ id: "a", label: "Started" }, { id: "b", label: "Done" }], done_option: "b" },
+      database
+    )
+    assert.ok(f.ok)
+    const key = String(f.field.id)
+    const add = async (title: string, status: string, values: Record<string, unknown> = {}, deleted = false) => {
+      const [r] = await client`INSERT INTO public.tasks (title, status, client_id, project_id, created_by_email, custom_values, deleted_at)
+        VALUES (${title}, ${status}, 42, ${pid}, ${OWNER}, ${JSON.stringify(values)}::jsonb, ${deleted ? new Date().toISOString() : null}) RETURNING id`
+      return Number(r.id)
+    }
+    const doneEmpty = await add("done, no value", "done")
+    const doneOther = await add("done, another option", "done", { [key]: "a", keep: "x" })
+    const doneAlready = await add("done, done option", "done", { [key]: "b" })
+    const open = await add("open", "in_progress", { [key]: "a" })
+    const gone = await add("deleted done", "done", {}, true)
+    const [elsewhere] = await client`INSERT INTO public.tasks (title, status, client_id, project_id, created_by_email)
+      VALUES ('other project done', 'done', 42, ${otherProject}, ${OWNER}) RETURNING id`
+    const values = async (id: number) => {
+      const [r] = await client`SELECT custom_values FROM public.tasks WHERE id = ${id}`
+      return (r.custom_values ?? {}) as Record<string, unknown>
+    }
+    const activity = async () => {
+      const rows = await client`SELECT entity_id::int AS id, actor_email, actor_kind FROM public.codex_activity
+        WHERE entity_type = 'task' AND action = 'update' AND entity_id IN (${doneEmpty}, ${doneOther}, ${doneAlready}, ${open}, ${gone})
+        ORDER BY entity_id`
+      return rows.map((r) => [r.id, r.actor_email, r.actor_kind])
+    }
+
+    switches(false)
+    assert.deepEqual(await setProgressField(pid, OWNER, f.field.id, database), { ok: true, progress_field_id: f.field.id })
+    assert.deepEqual(await values(doneEmpty), {}, "switch off: nothing set")
+    assert.deepEqual(await activity(), [])
+
+    switches(true)
+    assert.equal((await setProgressField(pid, OWNER, null, database)).ok, true, "unlinking sets nothing")
+    assert.deepEqual(await values(doneEmpty), {})
+    assert.deepEqual(await setProgressField(pid, OWNER, f.field.id, database), { ok: true, progress_field_id: f.field.id })
+    assert.deepEqual(await values(doneEmpty), { [key]: "b" })
+    assert.deepEqual(await values(doneOther), { [key]: "b", keep: "x" }, "other values kept")
+    assert.deepEqual(await values(doneAlready), { [key]: "b" })
+    assert.deepEqual(await values(open), { [key]: "a" }, "an open task is left")
+    assert.deepEqual(await values(gone), {}, "a deleted task is left")
+    assert.deepEqual(await values(Number(elsewhere.id)), {}, "another project's task is left")
+    assert.deepEqual(await activity(), [
+      [doneEmpty, OWNER, "user"],
+      [doneOther, OWNER, "user"],
+    ], "one activity row each, by the person who linked it; none for a task already holding it")
+    const [st] = await client`SELECT status FROM public.tasks WHERE id = ${doneEmpty}`
+    assert.equal(st.status, "done")
+
+    // Linking again (the same field) finds nothing new and writes nothing.
+    assert.equal((await setProgressField(pid, OWNER, f.field.id, database)).ok, true)
+    assert.equal((await activity()).length, 2)
+  })
+
+  it("C-263: a refused link sets nothing", async () => {
+    const before = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task'`
+    await client`UPDATE public.codex_projects SET progress_field_id = NULL WHERE id = ${projectId}`
+    const t = await task("done before a refused link", "Published", "done")
+    assert.equal((await setProgressField(projectId, OWNER, noDone, database)).ok, false)
+    assert.equal((await state(t)).value, null)
+    const afterRows = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task'`
+    assert.equal(afterRows[0].n, before[0].n)
+  })
 })

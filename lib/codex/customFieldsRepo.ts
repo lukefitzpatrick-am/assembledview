@@ -27,6 +27,7 @@ import {
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { normaliseEmail } from "@/lib/codex/projects"
 import { projectBoardScope } from "@/lib/codex/projectBoard"
+import { markDoneTasksOnLink } from "@/lib/codex/progressRule"
 import {
   appendActivity,
   guarded,
@@ -104,6 +105,8 @@ export async function setProgressField(
           after: { progress_field_id: fieldId },
         })
       }
+      // C-263 (B43): tasks already done get the done option now, in this transaction.
+      if (fieldId != null) await markDoneTasksOnLink(tx, projectId, viewerEmail)
       return { ok: true as const, progress_field_id: fieldId }
     })
   )

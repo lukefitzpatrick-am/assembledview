@@ -128,6 +128,7 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/codex/sectionSync.ts#lockTaskProject": { rule: "exempt", reason: WRITER },
   "lib/codex/sectionSync.ts#lockTaskAndProject": { rule: "exempt", reason: `${WRITER}; the project id for a copy, no data out (P3)` },
   "lib/codex/progressRule.ts#markProgressDone": { rule: "exempt", reason: WRITER },
+  "lib/codex/progressRule.ts#markDoneTasksOnLink": { rule: "exempt", reason: "C-263: the progress field link's own write over the project's done tasks, after loadVisibleProject in the same transaction; no row goes to a person" },
   "lib/codex/taskVisibility.ts#shareTaskProject": { rule: "exempt", reason: "the F5 check itself: the task's project id, to lock it (C-258)" },
   "lib/codex/seedTasks.ts#findExistingSeededTask": { rule: "exempt", reason: SYSTEM },
   "lib/fireflies/proposalRepo.ts#insertProposalsFromNote": { rule: "exempt", reason: `${SYSTEM}: meeting ingest dedupe keys and titles` },
@@ -151,11 +152,11 @@ test("every task-table read is classified, per function, and every shared read a
   assert.deepEqual(checkReaders(reads, READERS, source), [])
 })
 
-test("the allowlist: 80 readers (18 shared, 12 project, 50 exempt), and no view or function over task tables yet", () => {
+test("the allowlist: 81 readers (18 shared, 12 project, 51 exempt), and no view or function over task tables yet", () => {
   const count = (rule: string) => Object.values(READERS).filter((e) => e.rule === rule).length
   assert.deepEqual(
     { all: Object.keys(READERS).length, shared: count("shared"), project: count("project"), exempt: count("exempt") },
-    { all: 80, shared: 18, project: 12, exempt: 50 }
+    { all: 81, shared: 18, project: 12, exempt: 51 }
   )
   // A new view or set-returning function over a task table joins RELATIONS and its readers must be listed.
   assert.deepEqual(RELATIONS, [])
