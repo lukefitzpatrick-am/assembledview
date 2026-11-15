@@ -62,6 +62,7 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/pacing/detail/notes.ts#listMbaTaskComments": { rule: "shared", reason: "pacing campaign notes (no viewer: public only)" },
   "lib/codex/workloadRepo.ts#loadWorkload": { rule: "shared", reason: "the workload" },
   "lib/codex/taskVisibility.ts#hiddenTaskIds": { rule: "shared", reason: "the rule's own id check" },
+  "lib/codex/taskVisibility.ts#openTasksHiddenFromAssignee": { rule: "shared", reason: "C-258: the rule with each task's assignee as the viewer; ids only" },
 
   // Inside one project or task, after a TS visibility check in the same function
   "lib/codex/collabRepo.ts#listCommentsWithMentions": { rule: "project", reason: "comments of a task the viewer may see (loadVisibleTask)" },
@@ -127,7 +128,7 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/codex/sectionSync.ts#lockTaskProject": { rule: "exempt", reason: WRITER },
   "lib/codex/sectionSync.ts#lockTaskAndProject": { rule: "exempt", reason: `${WRITER}; the project id for a copy, no data out (P3)` },
   "lib/codex/progressRule.ts#markProgressDone": { rule: "exempt", reason: WRITER },
-  "lib/codex/taskVisibility.ts#assertAssigneeCanSeeTask": { rule: "exempt", reason: "the F5 check itself" },
+  "lib/codex/taskVisibility.ts#shareTaskProject": { rule: "exempt", reason: "the F5 check itself: the task's project id, to lock it (C-258)" },
   "lib/codex/seedTasks.ts#findExistingSeededTask": { rule: "exempt", reason: SYSTEM },
   "lib/fireflies/proposalRepo.ts#insertProposalsFromNote": { rule: "exempt", reason: `${SYSTEM}: meeting ingest dedupe keys and titles` },
   "lib/fireflies/proposalRepo.ts#getTask": { rule: "exempt", reason: "dismiss-auto, behind hiddenTaskGuard" },
@@ -150,11 +151,11 @@ test("every task-table read is classified, per function, and every shared read a
   assert.deepEqual(checkReaders(reads, READERS, source), [])
 })
 
-test("the allowlist: 79 readers (17 shared, 12 project, 50 exempt), and no view or function over task tables yet", () => {
+test("the allowlist: 80 readers (18 shared, 12 project, 50 exempt), and no view or function over task tables yet", () => {
   const count = (rule: string) => Object.values(READERS).filter((e) => e.rule === rule).length
   assert.deepEqual(
     { all: Object.keys(READERS).length, shared: count("shared"), project: count("project"), exempt: count("exempt") },
-    { all: 79, shared: 17, project: 12, exempt: 50 }
+    { all: 80, shared: 18, project: 12, exempt: 50 }
   )
   // A new view or set-returning function over a task table joins RELATIONS and its readers must be listed.
   assert.deepEqual(RELATIONS, [])

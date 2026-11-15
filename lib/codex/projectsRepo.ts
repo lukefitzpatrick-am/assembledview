@@ -68,7 +68,7 @@ import {
 } from "@/lib/codex/customFields"
 import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import { followSectionRule } from "@/lib/codex/sectionSync"
-import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
+import { loadAccessIdentity, openTasksHiddenFromAssignee, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
   bulkFailure,
@@ -142,6 +142,8 @@ export type ProjectFailureReason =
   // B42fix
   | "assignee_no_access"
   | "progress_conflict"
+  // B43
+  | "open_tasks_lose_access"
 
 export type ProjectFailure = { ok: false; reason: ProjectFailureReason; message: string }
 
@@ -320,6 +322,64 @@ export async function appendActivity(
 }
 
 // ---------------------------------------------------------------------------
+// Access changes that would strand an assignee (C-258, B43)
+// ---------------------------------------------------------------------------
+
+function tasksPhrase(n: number): string {
+  return n === 1 ? "1 open task" : `${n} open tasks`
+}
+
+/** The refusal when removing `email` would leave their open tasks in this private project out of their sight. */
+export function memberHasOpenTasksMessage(email: string, n: number): string {
+  return `${email} still has ${tasksPhrase(n)} in this private project. Reassign or close them first, then remove them.`
+}
+
+/** The refusal when making the project private, or changing its owner, would leave assignees unable to see their tasks. */
+export function assigneesLoseAccessMessage(n: number, change: "private" | "owner"): string {
+  const then = change === "private" ? "make the project private" : "change the owner"
+  return `${tasksPhrase(n)} in this project would be assigned to someone who cannot see it. Add them as members, or reassign the tasks, then ${then}.`
+}
+
+class AccessChangeRefused extends Error {
+  constructor(readonly failure: ProjectFailure) {
+    super(failure.message)
+    this.name = "AccessChangeRefused"
+  }
+}
+
+/**
+ * C-258 (B43): run `change` (a membership, privacy or owner write on project
+ * `projectId`, whose row the caller holds FOR UPDATE) and refuse it, rolled
+ * back whole, when it leaves an open task in the project assigned to someone
+ * who can no longer see it. Tasks already in that state before the change
+ * (older rows) never block it; only tasks the change itself strands count.
+ */
+async function refuseIfAssigneesLoseAccess<T>(
+  tx: DbExecutor,
+  projectId: number,
+  identity: AccessIdentity,
+  change: () => Promise<T>,
+  message: (n: number) => string
+): Promise<T> {
+  const before = new Set(await openTasksHiddenFromAssignee(tx, projectId, identity))
+  const out = await change()
+  const stranded = (await openTasksHiddenFromAssignee(tx, projectId, identity)).filter((taskId) => !before.has(taskId))
+  if (stranded.length > 0) {
+    throw new AccessChangeRefused({ ok: false, reason: "open_tasks_lose_access", message: message(stranded.length) })
+  }
+  return out
+}
+
+async function returningRefusal<T>(run: () => Promise<T>): Promise<T | ProjectFailure> {
+  try {
+    return await run()
+  } catch (err) {
+    if (err instanceof AccessChangeRefused) return err.failure
+    throw err
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
 
@@ -439,7 +499,7 @@ export async function updateProject(
   database: Db = db
 ): Promise<{ ok: true; project: CodexProject } | ProjectFailure> {
   return guarded(database, () =>
-    database.transaction(async (tx) => {
+    returningRefusal(() => database.transaction(async (tx) => {
       const p = await loadVisibleProject(tx, id, viewerEmail, true)
       if (!p) return NOT_FOUND
       if (touchesProjectAccess(patch) && !isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
@@ -448,12 +508,17 @@ export async function updateProject(
       if (patch.status !== undefined) set.status = patch.status
       if (patch.is_private !== undefined) set.isPrivate = patch.is_private
       if (patch.owner_email !== undefined) set.ownerEmail = patch.owner_email ? canonicalEmail(patch.owner_email, p.identity) : patch.owner_email
-      const [row] = await tx.update(codexProjects).set(set).where(eq(codexProjects.id, id)).returning()
+      const write = async () => (await tx.update(codexProjects).set(set).where(eq(codexProjects.id, id)).returning())[0]
+      // C-258 (B43): going private, or a new owner, never leaves an open task's assignee unable to see it.
+      const goesPrivate = patch.is_private === true && !p.row.isPrivate
+      const row = touchesProjectAccess(patch)
+        ? await refuseIfAssigneesLoseAccess(tx, id, p.identity, write, (n) => assigneesLoseAccessMessage(n, goesPrivate ? "private" : "owner"))
+        : await write()
       const before = projectRowToApi(p.row, p.members)
       const after = projectRowToApi(row, p.members)
       await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "update", before, after })
       return { ok: true as const, project: after }
-    })
+    }))
   )
 }
 
@@ -495,7 +560,7 @@ export async function removeProjectMember(
   database: Db = db
 ): Promise<{ ok: true; project: CodexProject } | ProjectFailure> {
   return guarded(database, () =>
-    database.transaction(async (tx) => {
+    returningRefusal(() => database.transaction(async (tx) => {
       const p = await loadVisibleProject(tx, id, viewerEmail, true)
       if (!p) return NOT_FOUND
       if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
@@ -503,13 +568,21 @@ export async function removeProjectMember(
       const target = canonicalEmail(email, p.identity)
       const rows = p.members.filter((m) => canonicalEmail(m, p.identity) === target)
       if (rows.length > 0) {
-        await tx
-          .delete(codexProjectMembers)
-          .where(and(eq(codexProjectMembers.projectId, id), inArray(sql`lower(${codexProjectMembers.email})`, rows)))
+        // C-258 (B43): never while they hold open tasks here they would no longer see (a private project, not owner or creator).
+        await refuseIfAssigneesLoseAccess(
+          tx,
+          id,
+          p.identity,
+          () =>
+            tx
+              .delete(codexProjectMembers)
+              .where(and(eq(codexProjectMembers.projectId, id), inArray(sql`lower(${codexProjectMembers.email})`, rows))),
+          (n) => memberHasOpenTasksMessage(target, n)
+        )
         await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_remove", before: { members: rows } })
       }
       return { ok: true as const, project: projectRowToApi(p.row, p.members.filter((m) => !rows.includes(m))) }
-    })
+    }))
   )
 }
 

@@ -165,8 +165,58 @@ export async function emailsWithoutProjectAccess(
 /** F5: throw AssigneeNoAccessError when `email` cannot see the project task `taskId` is in. */
 export async function assertAssigneeCanSeeTask(database: DbExecutor, taskId: number, email: string | null | undefined): Promise<void> {
   if (!(email ?? "").trim() || !(await isProjectsMigrationApplied(database))) return
-  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
-  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
+  const projectId = await shareTaskProject(database, taskId)
   const [refused] = await emailsWithoutProjectAccess(database, projectId, [email])
   if (refused) throw new AssigneeNoAccessError(refused)
+}
+
+/**
+ * C-258 (B43): take the task's project row FOR SHARE and return its id (null
+ * when the task is in no project). A member removal, a switch to private and
+ * an owner change hold the row FOR UPDATE, so an assignment and those changes
+ * wait for each other and each check reads the other's committed rows. A task
+ * can only join a project (never leave one for another), so when it joined
+ * one between the lock and the read, that project is locked too.
+ */
+async function shareTaskProject(database: DbExecutor, taskId: number): Promise<number | null> {
+  const locked = executeRows(
+    await database.execute(sql`
+      SELECT p.id FROM public.codex_projects p
+       WHERE p.id = (SELECT t.project_id FROM public.tasks t WHERE t.id = ${taskId})
+         FOR SHARE OF p
+    `)
+  )[0]
+  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
+  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
+  if (projectId != null && projectId !== (locked == null ? null : Number(locked.id))) {
+    await database.execute(sql`SELECT p.id FROM public.codex_projects p WHERE p.id = ${projectId} FOR SHARE OF p`)
+  }
+  return projectId
+}
+
+/**
+ * C-258 (B43): the live open tasks (not done) in project `projectId` whose
+ * assignee cannot see the project, read as the rows stand in this
+ * transaction. The assignee is the viewer of the shared rule, aliases
+ * resolved through `identity`. Subtasks and help tasks count (they carry the
+ * project). Before 0118: none.
+ */
+export async function openTasksHiddenFromAssignee(
+  database: DbExecutor,
+  projectId: number,
+  identity: AccessIdentity
+): Promise<number[]> {
+  if (!(await isProjectsMigrationApplied(database))) return []
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT t.id FROM public.tasks t
+       WHERE t.project_id = ${projectId}
+         AND t.deleted_at IS NULL
+         AND t.status <> 'done'
+         AND nullif(btrim(t.assignee_email), '') IS NOT NULL
+         AND NOT ${taskVisibleSql(sql`t.project_id`, sql`btrim(t.assignee_email)`, identity)}
+       ORDER BY t.id
+    `)
+  )
+  return rows.map((r) => Number(r.id))
 }
