@@ -108,6 +108,7 @@ import {
   serializeTasksFilterParams,
   taskDetailHref,
   taskListHref,
+  projectsReadyFromResponses,
   writeStoredTasksLayout,
   type MyWorkTab,
   type TaskSortKey,
@@ -1321,10 +1322,11 @@ export function TasksPageClient({
               if (!response.ok) {
                 throw new Error("Failed to fetch tasks")
               }
-              const data = (await response.json()) as CodexPagedResponse<CodexTask>
+              const data = (await response.json()) as CodexPagedResponse<CodexTask> & { projects_ready?: boolean }
               return [
                 status,
                 Array.isArray(data.items) ? data.items : [],
+                data,
               ] as const
             })
           ),
@@ -1340,6 +1342,8 @@ export function TasksPageClient({
         for (const [status, items] of columns) {
           nextColumns[status] = items
         }
+        // C-266 (B43): the board reads projects_ready too, so the My Work hint and ASAP follow 0118 here as on the list.
+        const columnBodies = columns.map(([, , body]) => body)
         // A counts failure must not blank the board: show the loaded columns
         // with their own sizes and keep going.
         let nextCounts: Record<TaskStatus, number>
@@ -1353,6 +1357,7 @@ export function TasksPageClient({
         if (controller.signal.aborted || gen !== boardGen.current) return
         setBoardColumns(nextColumns)
         setStatusCounts(nextCounts)
+        setProjectsReady((prev) => projectsReadyFromResponses(columnBodies, prev))
         setBoardPages({
           backlog: 1,
           todo: 1,
@@ -3020,7 +3025,7 @@ export function TasksPageClient({
           {myWorkOn ? (
             <MyWorkTabs
               value={myWork}
-              projectsReady={tasksLayout !== "list" || projectsReady}
+              projectsReady={projectsReady}
               onChange={(tab) => {
                 // A tab replaces My tasks, My week, the assignee and Unassigned.
                 commitFilters({ ...filterState(), myWork: tab, myWeek: false, mine: true, assigneeEmail: "", unassigned: false })
