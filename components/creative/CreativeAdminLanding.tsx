@@ -12,6 +12,7 @@ import { AvaCreativeSkillActions } from "@/components/ava/AvaSkillActionSets"
 import { CreativeCampaignPicker } from "@/components/creative/CreativeCampaignPicker"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
+import { buildTasksComposeHref } from "@/lib/codex/composeLink"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Label } from "@/components/ui/label"
@@ -107,12 +108,54 @@ function buildScreenshotsTitle(clientName: string, campaignName: string): string
   return `Screenshots requested: ${client}/${campaign}`
 }
 
+/** The screenshot task's fields, for the dialog (switch off) and the /tasks link (switch on, B44). */
+export function buildScreenshotTaskPrefill(input: {
+  clientName: string
+  campaignLabel: string
+  clientId: number
+  mbaNumber: string
+}) {
+  const { clientName, campaignLabel, clientId, mbaNumber } = input
+  return {
+    title: buildScreenshotsTitle(clientName, campaignLabel),
+    client_id: clientId || undefined,
+    mba_number: mbaNumber || undefined,
+    category: "creative" as const,
+    description: [
+      "Screenshot request from Creative landing.",
+      clientName ? `Client: ${clientName}` : null,
+      campaignLabel ? `Campaign: ${campaignLabel}` : null,
+      mbaNumber ? `MBA: ${mbaNumber}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  }
+}
+
+/** B44 (C-200): the /tasks link for the screenshot task. */
+export function screenshotTaskComposeHref(prefill: ReturnType<typeof buildScreenshotTaskPrefill>): string {
+  return buildTasksComposeHref({
+    compose: "task",
+    title: prefill.title,
+    description: prefill.description,
+    clientId: prefill.client_id ?? null,
+    mbaNumber: prefill.mba_number ?? null,
+    category: prefill.category,
+  })
+}
+
 type CreativeAdminLandingProps = {
   /** Server-read `CODEX_V2` flag — when false, T3 ships process copy only. */
   codexEnabled: boolean
+  /**
+   * B44 (C-200): server-read `codex_contained_writes` (needs codex_v2). On:
+   * Create Codex task becomes a New task in Tasks link filled in from the
+   * client and campaign; this page writes nothing. Off: the dialog, as before.
+   */
+  containedWrites?: boolean
 }
 
-export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps) {
+export function CreativeAdminLanding({ codexEnabled, containedWrites = false }: CreativeAdminLandingProps) {
   const { toast } = useToast()
   const [panel, setPanel] = useState<TileId | null>(null)
   const [showUpload, setShowUpload] = useState(false)
@@ -136,7 +179,7 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
           fetch("/api/clients"),
           fetch("/api/mediaplans"),
         ]
-        if (codexEnabled) {
+        if (codexEnabled && !containedWrites) {
           fetches.push(fetch("/api/codex/team?active=0&per_page=100"))
         }
         const [clientsRes, plansRes, teamRes] = await Promise.all(fetches)
@@ -156,7 +199,7 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
           setPlans([])
         }
 
-        if (codexEnabled && teamRes?.ok) {
+        if (codexEnabled && !containedWrites && teamRes?.ok) {
           const data = (await teamRes.json()) as unknown
           const list =
             data &&
@@ -185,7 +228,7 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
     return () => {
       cancelled = true
     }
-  }, [codexEnabled])
+  }, [codexEnabled, containedWrites])
 
   const clientOptions = useMemo(() => {
     const seen = new Set<string>()
@@ -246,24 +289,13 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
   )
 
   const createPrefill = useMemo(
-    () => ({
-      title: buildScreenshotsTitle(clientName, selectedCampaignLabel),
-      client_id: selectedClientId || undefined,
-      mba_number: mbaNumber || undefined,
-      category: "creative" as const,
-      description: [
-        "Screenshot request from Creative landing.",
-        clientName ? `Client: ${clientName}` : null,
-        selectedCampaignLabel
-          ? `Campaign: ${selectedCampaignLabel}`
-          : null,
-        mbaNumber ? `MBA: ${mbaNumber}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    }),
+    () => buildScreenshotTaskPrefill({ clientName, campaignLabel: selectedCampaignLabel, clientId: selectedClientId, mbaNumber }),
     [clientName, mbaNumber, selectedCampaignLabel, selectedClientId]
   )
+
+  /** B44: the screenshot task, filled in on /tasks (same prefill the dialog gets with the switch off). */
+  const tasksComposeHref = screenshotTaskComposeHref(createPrefill)
+  const composeReady = selectedClientId > 0 && Boolean(mbaNumber.trim())
 
   const openTile = (id: TileId) => {
     if (id === "upload") {
@@ -490,9 +522,21 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
           <div className="mt-auto space-y-3 border-t border-border pt-5">
             {codexEnabled ? (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={handleOpenCodexTask}>
-                  Create Codex task
-                </Button>
+                {containedWrites ? (
+                  composeReady ? (
+                    <Button type="button" asChild>
+                      <a href={tasksComposeHref}>New task in Tasks</a>
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={handleOpenCodexTask}>
+                      New task in Tasks
+                    </Button>
+                  )
+                ) : (
+                  <Button type="button" onClick={handleOpenCodexTask}>
+                    Create Codex task
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -512,7 +556,7 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
         </div>
       </SlideOver>
 
-      {codexEnabled ? (
+      {codexEnabled && !containedWrites ? (
         <TaskFormDialog
           open={taskDialogOpen}
           onOpenChange={setTaskDialogOpen}
