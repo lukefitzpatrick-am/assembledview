@@ -399,7 +399,7 @@ export const FEATURE_DEFINITIONS = [
     key: "codex_roster_aliases",
     label: "Tasks: find people by email alias",
     description:
-      "Tasks (Codex) finds a person by any of their email aliases as well as their main email (F16, C-193). On: quick-add @mentions match an alias (@alex, alex@); saving a task, a bulk edit or Ask for help with an alias stores that person's main email and name; an address two people share (samantha@ today) is refused with both names and assigns no one. An address no one holds saves as before. Private projects count an alias login, or a member added by an alias, as that person's main email, and members and owners are stored by main email (B42fix). Fix the roster first on the Team tab: a shared alias, and Josh Plumridge's own address as an alias. Needs Tasks (Codex) on. Off: only main emails match, as before.",
+      "Tasks (Codex) finds a person by any of their email aliases as well as their main email (F16, C-193). On: quick-add @mentions match an alias (@alex, alex@); saving a task, a bulk edit or Ask for help with an alias stores that person's main email and name; an address two people share (samantha@ today) is refused with both names and assigns no one. An address no one holds saves as before. Private projects count an alias login, or a member added by an alias, as that person's main email, and members and owners are stored by main email (B42fix). The bell, its unread count, mark read and the email digest switch treat an alias login as that person (B43). Fix the roster first on the Team tab: a shared alias, and Josh Plumridge's own address as an alias. Needs Tasks (Codex) on. Off: only main emails match, as before.",
     area: "platform",
     defaultOn: false,
     clientVisible: true,

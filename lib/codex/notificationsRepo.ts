@@ -27,6 +27,8 @@ import {
   type NotificationKind,
 } from "@/lib/codex/notifications"
 import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
+import { primaryEmailFor } from "@/lib/codex/collabRepo"
+import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
 import { normaliseEmail } from "@/lib/codex/projects"
 import { guarded } from "@/lib/codex/projectsRepo"
 import { displayNameFromEmail, looksLikeEmail } from "@/lib/codex/rosterResolve"
@@ -55,6 +57,24 @@ export type BellItem = {
 }
 
 export type BellPayload = { items: BellItem[]; unread: number; email_digest: boolean }
+
+/**
+ * C-265 (B43): the person the bell, mark read and the digest switch act for.
+ * Notifications and prefs are stored by primary email (B41fix), so with
+ * `codex_roster_aliases` on a login is resolved through the roster to its
+ * primary email, as My Work and follow do (`primaryEmailFor`; no unique
+ * active match: the login). Off, or a failed switch read: the login as typed
+ * (lower case), as before.
+ */
+export async function bellPerson(database: Db, login: string): Promise<string> {
+  let aliases = false
+  try {
+    aliases = await isCodexRosterAliasesEnabled()
+  } catch {
+    aliases = false
+  }
+  return aliases ? primaryEmailFor(database, login, true) : normaliseEmail(login)
+}
 
 /**
  * SQL: notification `n` on live task `t` that `recipient` may see. The
@@ -91,9 +111,9 @@ function bellItem(r: Record<string, unknown>): BellItem | null {
 
 /** The viewer's bell: newest first, the unread count and their digest switch. */
 export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, database: Db = db): Promise<BellPayload> {
-  const viewer = normaliseEmail(viewerEmail)
   const take = Math.min(Math.max(1, Math.trunc(limit) || BELL_LIMIT_DEFAULT), BELL_LIMIT_MAX)
   return guarded(database, async () => {
+    const viewer = await bellPerson(database, viewerEmail)
     const identity = await loadAccessIdentity(database)
     const rows = executeRows(
       await database.execute(sql`
@@ -134,9 +154,9 @@ export async function markNotificationsRead(
   target: { ids: readonly number[] } | { all: true },
   database: Db = db
 ): Promise<number> {
-  const viewer = normaliseEmail(viewerEmail)
   return guarded(database, async () => {
     if ("ids" in target && target.ids.length === 0) return 0
+    const viewer = await bellPerson(database, viewerEmail)
     const which =
       "ids" in target
         ? sql`AND id IN (${sql.join(
@@ -157,8 +177,8 @@ export async function markNotificationsRead(
 
 /** The person's daily email switch (default on). */
 export async function setEmailDigest(viewerEmail: string, on: boolean, database: Db = db): Promise<boolean> {
-  const viewer = normaliseEmail(viewerEmail)
   return guarded(database, async () => {
+    const viewer = await bellPerson(database, viewerEmail)
     await database.execute(sql`
       INSERT INTO public.codex_notification_prefs (email, prefs)
       VALUES (${viewer}, jsonb_build_object('email_digest', ${on}::boolean))

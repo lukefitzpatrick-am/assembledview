@@ -20,6 +20,8 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
+import { setFeatureRowReaderForTests } from "../../features/server.js"
+import type { FeatureRow } from "../../features/registry.js"
 import { updateTask } from "../repo.js"
 import { createProject, ProjectsUnavailableError, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
 import {
@@ -36,7 +38,15 @@ import {
   unfollowTask,
 } from "../collabRepo.js"
 import { captureTaskStates, recordTaskChanges, writeNotifications } from "../notify.js"
-import { generateDueReminders, listBell, markNotificationsRead, runDailyNotifications, runDigest, setEmailDigest } from "../notificationsRepo.js"
+import {
+  bellPerson,
+  generateDueReminders,
+  listBell,
+  markNotificationsRead,
+  runDailyNotifications,
+  runDigest,
+  setEmailDigest,
+} from "../notificationsRepo.js"
 
 /** The live tasks replica, as in taskDetail.db.test.ts (copied: importing a test file would run its suite). */
 const BASE_SQL = `
@@ -690,6 +700,62 @@ describe("codex comments, followers, attachments and notifications on Postgres (
       assert.equal(left.email_digest_at, null, "the hidden row is not marked as sent")
     } finally {
       await client`INSERT INTO public.codex_project_members (project_id, email) VALUES (${privateProject}, ${MIA})`
+    }
+  })
+
+  it("C-265 (B43): the bell, mark read and the digest switch resolve an alias login to the primary email with codex_roster_aliases on; off, the login as typed", async () => {
+    const featureRow = (key: string, enabled: boolean): FeatureRow => ({ key, enabled, updatedAt: null, updatedBy: null, updatedByName: null, note: null })
+    const aliasesSwitch = (on: boolean | "fail") =>
+      setFeatureRowReaderForTests(async () => {
+        if (on === "fail") throw new Error("feature store down")
+        return new Map([
+          ["codex_v2", featureRow("codex_v2", true)],
+          ["codex_roster_aliases", featureRow("codex_roster_aliases", on)],
+        ])
+      })
+    const pub = await newTask("Bell by alias", { project: publicProject })
+    const priv = await newTask("Bell by alias, private", { project: privateProject })
+    await writeNotifications(database, { kind: "follower_added", taskId: pub, actor: JOSH, added: [ELLIE] })
+    await writeNotifications(database, { kind: "follower_added", taskId: priv, actor: JOSH, added: [ELLIE] })
+    await client`DELETE FROM public.codex_notification_prefs WHERE email IN (${ELLIE}, ${ELLIE_ALIAS}, ${STUDIO})`
+    try {
+      aliasesSwitch(false)
+      assert.equal(await bellPerson(database, " E.Ward@AssembledMedia.com.au "), ELLIE_ALIAS, "off: the login as typed")
+      let bell = await listBell(ELLIE_ALIAS, 30, database)
+      assert.deepEqual([bell.items.length, bell.unread], [0, 0], "off: the alias is its own address, so an empty bell")
+      assert.equal(await markNotificationsRead(ELLIE_ALIAS, { all: true }, database), 0)
+      await setEmailDigest(ELLIE_ALIAS, false, database)
+      const [offRow] = await client`SELECT email FROM public.codex_notification_prefs WHERE email = ${ELLIE_ALIAS}`
+      assert.ok(offRow, "off: the switch is stored against the alias, as before")
+      await client`DELETE FROM public.codex_notification_prefs WHERE email = ${ELLIE_ALIAS}`
+
+      aliasesSwitch("fail")
+      assert.equal(await bellPerson(database, ELLIE_ALIAS), ELLIE_ALIAS, "a failed switch read counts as off")
+
+      aliasesSwitch(true)
+      assert.equal(await bellPerson(database, ELLIE_ALIAS), ELLIE)
+      assert.equal(await bellPerson(database, STUDIO), STUDIO, "a shared alias is no one: the login")
+      assert.equal(await bellPerson(database, OUT), OUT)
+      bell = await listBell(ELLIE_ALIAS, 30, database)
+      assert.deepEqual(
+        bell.items.map((i) => i.task_title).sort(),
+        ["Bell by alias", "Bell by alias, private"],
+        "on: Ellie's own bell, private project included (she is a member)"
+      )
+      const unread = bell.unread
+      assert.ok(unread >= 2)
+      assert.deepEqual(await listBell(ELLIE_ALIAS, 30, database), await listBell(ELLIE, 30, database), "the same bell as her primary login")
+      assert.equal(await markNotificationsRead(ELLIE_ALIAS, { ids: [bell.items[0]!.id] }, database), 1, "marks her own row read")
+      assert.equal((await listBell(ELLIE, 30, database)).unread, unread - 1)
+      assert.equal(await markNotificationsRead(STUDIO, { all: true }, database), 0, "a shared alias marks nothing")
+      await setEmailDigest(ELLIE_ALIAS, false, database)
+      const prefs = await client`SELECT email FROM public.codex_notification_prefs WHERE email IN (${ELLIE}, ${ELLIE_ALIAS}) ORDER BY email`
+      assert.deepEqual(prefs.map((r) => r.email), [ELLIE], "on: the switch is stored against the primary email, which the digest reads")
+      assert.equal((await listBell(ELLIE_ALIAS, 30, database)).email_digest, false)
+      assert.equal(await markNotificationsRead(ELLIE_ALIAS, { all: true }, database), unread - 1)
+    } finally {
+      setFeatureRowReaderForTests(null)
+      await client`DELETE FROM public.codex_notification_prefs WHERE email IN (${ELLIE}, ${ELLIE_ALIAS})`
     }
   })
 
