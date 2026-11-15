@@ -66,3 +66,13 @@ export async function isCodexNotificationsEnabled(): Promise<boolean> {
   ])
   return codex && projects && notifications
 }
+
+/**
+ * Codex containment (C-200, B44): codex_contained_writes, which needs codex_v2.
+ * On: pages outside /tasks link into /tasks to write, and /tasks reads the
+ * link's prefill. Off: every page writes as before and /tasks ignores it.
+ */
+export async function isCodexContainedWritesEnabled(): Promise<boolean> {
+  const [codex, contained] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_contained_writes")])
+  return codex && contained
+}

@@ -491,6 +491,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_projects"],
   },
   {
+    key: "codex_contained_writes",
+    label: "Tasks: write tasks only in Tasks",
+    description:
+      "Codex containment (C-200, decision 3 B): pages outside Tasks stop writing tasks and link into Tasks instead. Pacing campaign detail: Ask for help becomes an Ask for help in Tasks link that opens Tasks with Ask for help on the campaign's task (or, with no task on that MBA, a new task) filled in from the campaign. Scenario planner: Create Codex task becomes New task in Tasks (filled in from the scenario) and Open in Tasks, with the campaign's tasks listed read only (only tasks you can see; private project tasks stay hidden). Creative admin landing: Create Codex task becomes New task in Tasks, filled in from the client and campaign. Tasks reads the link's details (title, description, client, MBA, category) only with this switch on: it checks each one, leaves out an unknown client or MBA with a note, and never saves on load (the person still presses Save or Send). The relabel writers stay (server side, they record system:relabel). Needs Tasks (Codex) on. Off: each page keeps its own dialog and writes as before, and Tasks ignores the link details.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    requires: ["codex_v2"],
+  },
+  {
     key: "unmapped_delivery",
     label: "Unmapped delivery",
     description:

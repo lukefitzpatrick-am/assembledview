@@ -212,6 +212,55 @@ test("codex_progress_field's description names the 409 progress_conflict refusal
   assert.match(featureDefinition("codex_progress_field")!.description, /409 progress_conflict/)
 })
 
+test("codex_contained_writes (B44, C-200): new switch, default off, no env fallback, needs codex_v2, sent to the browser", () => {
+  const def = featureDefinition("codex_contained_writes")!
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.deepEqual(def.requires, ["codex_v2"])
+  assert.equal(def.clientVisible, true)
+  assert.equal(def.area, "platform")
+  assert.equal(def.toggleRole, "admin")
+  assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("codex_contained_writes"))
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+  assert.match(def.description, /C-200/)
+  assert.match(def.description, /never saves on load/)
+  assert.match(def.description, /Off: each page keeps its own dialog and writes as before/)
+})
+
+test("codex_contained_writes: the server getter needs codex_v2; the browser value is folded off without it", async () => {
+  const { isCodexContainedWritesEnabled } = await import("../../codex/flag.js")
+  const { foldContainedWritesRequires } = await import("../../codex/containedWrites.js")
+  const rows = (on: string[]) =>
+    new Map(
+      ["codex_v2", "codex_contained_writes"].map((k) => [
+        k,
+        { key: k, enabled: on.includes(k), updatedAt: null, updatedBy: null, updatedByName: null, note: null },
+      ])
+    )
+  for (const [on, expected] of [
+    [["codex_v2", "codex_contained_writes"], true],
+    [["codex_contained_writes"], false],
+    [["codex_v2"], false],
+    [[], false],
+  ] as Array<[string[], boolean]>) {
+    setFeatureRowReaderForTests(async () => rows(on))
+    try {
+      assert.equal(await isCodexContainedWritesEnabled(), expected, on.join(","))
+    } finally {
+      setFeatureRowReaderForTests(null)
+    }
+  }
+  assert.deepEqual(foldContainedWritesRequires({ codex_contained_writes: true, codex_search: true }, false), {
+    codex_contained_writes: false,
+    codex_search: true,
+  })
+  const on = { codex_contained_writes: true }
+  assert.equal(foldContainedWritesRequires(on, true), on)
+  const off = { codex_contained_writes: false }
+  assert.equal(foldContainedWritesRequires(off, false), off)
+  assert.equal(foldContainedWritesRequires(null, true), null)
+})
+
 test("B42 getters need codex_projects and codex_v2 as well as their own switch", async () => {
   const { isCodexMyWorkEnabled, isCodexProgressFieldEnabled } = await import("../../codex/flag.js")
   const rows = (on: string[]) =>

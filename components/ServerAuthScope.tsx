@@ -4,6 +4,7 @@ import { getUserClientSlugs, getUserRoles, type UserRole } from "@/lib/rbac"
 import { publishedWebSearchSlugs } from "@/lib/webReport/visibility"
 import ClientRoot from "@/components/ClientRoot"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
+import { foldContainedWritesRequires } from "@/lib/codex/containedWrites"
 import { readClientFeatureSnapshot, type ClientFeatureSnapshot } from "@/lib/features/server"
 import type { ViewAsClientInfo } from "@/contexts/AuthContext"
 
@@ -39,6 +40,8 @@ export default async function ServerAuthScope({ children }: { children: React.Re
   let codexEnabled = false
   try {
     ;[features, codexEnabled] = await Promise.all([readClientFeatureSnapshot(), isCodexV2Enabled()])
+    // codex_contained_writes needs codex_v2: the browser reads one value (C-200).
+    features = foldContainedWritesRequires(features, codexEnabled)
   } catch {
     features = null
     codexEnabled = false
