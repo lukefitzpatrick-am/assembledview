@@ -180,6 +180,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "finance_melbourne_month",
+    label: "Finance: the current month is the Melbourne month",
+    description:
+      "Finance (B43, B34 Q3). Today the finance \"now\" is the server's month, which is UTC on Vercel: for the first 10 hours of each month (11 in daylight saving) the Finance pages still treat the month before as current. On: the current-month billing tile on the Finance summary, the scope's current month on the Publishers tabs, and the default range (current financial year, ending at the current month) on the Finance summary, Publishers, client pays and investment cut views and the Finance hub's scope bar use the Melbourne month, and 1 July starts the new financial year at Melbourne midnight. Only those first hours of a month differ; the rest of the month is the same either way. Billing months, invoices, Xero, true-up and accruals are not changed. Nothing needs to be in place first. Off: the server's month, as before.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "billing_balancer",
     label: "Billing balancer",
     description: "Manual billing edits keep the line total by moving the difference into a balancer month.",

@@ -17,8 +17,8 @@
 import { sql, type SQL } from "drizzle-orm"
 import { getDb } from "@/db"
 import {
-  australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
+  currentFinanceFyStartYear,
   getCurrentBillingMonth,
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
@@ -252,12 +252,15 @@ export function normalizeSummaryQuery(input: {
   to?: string
   clients?: number[]
   today?: Date
+  /** Switch `finance_melbourne_month` (B43): the default FY and range end on the Melbourne month. */
+  melbourneMonth?: boolean
 }): FinanceSectionsSummaryQuery {
   const today = input.today ?? new Date()
-  const currentFy = australianFyStartYearForDate(today)
+  const monthOpts = { melbourne: input.melbourneMonth === true }
+  const currentFy = currentFinanceFyStartYear(today, monthOpts)
   const fy = input.fy && input.fy >= 2000 && input.fy <= 2100 ? input.fy : currentFy
   const fyMonths = billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fy))
-  const currentMonth = getCurrentBillingMonth(today)
+  const currentMonth = getCurrentBillingMonth(today, monthOpts)
   let from = input.from?.trim() || fyMonths[0]!
   let to = input.to?.trim() || (fy === currentFy ? currentMonth : fyMonths[fyMonths.length - 1]!)
   const normalised = normaliseToFy(fy, { from, to })
@@ -271,13 +274,14 @@ export function normalizeSummaryQuery(input: {
 
 export async function fetchFinanceSectionsSummary(
   input: FinanceSectionsSummaryQuery,
-  options?: { includeDebugSql?: boolean },
+  options?: { includeDebugSql?: boolean; melbourneMonth?: boolean; now?: Date },
 ): Promise<FinanceSectionsSummaryPayload> {
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
   const toExclusive = monthEndExclusive(q.to)
-  const currentMonth = getCurrentBillingMonth()
+  // The current-month billing tile: the Melbourne month with finance_melbourne_month on (B43), else the host month.
+  const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const currentMonthStart = monthStartDate(currentMonth)
   const currentMonthEndEx = monthEndExclusive(currentMonth)
   const clientSql = clientFilterSql(q.clientIds)

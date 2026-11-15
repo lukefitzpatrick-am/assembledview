@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   fetchFinanceCostsSummary,
   normalizeCostsQuery,
@@ -41,6 +42,8 @@ export async function GET(request: NextRequest) {
       fy = parsed
     }
 
+    // B43: finance_melbourne_month on: the default range and current month are the Melbourne month.
+    const melbourneMonth = await isFeatureOn("finance_melbourne_month")
     const query = normalizeCostsQuery({
       fy,
       from: sp.get("from") ?? undefined,
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
       clients: parseClientIds(sp.get("clients")),
       channels: parseCsv(sp.get("channels")),
       publishers: parseCsv(sp.get("publishers")),
+      melbourneMonth,
     })
 
     // Same debug-payload convention as GET /api/finance/forecast (`?debug=1`).
@@ -56,7 +60,7 @@ export async function GET(request: NextRequest) {
     const includeDebugSql =
       debugParam === "1" || debugParam === "true" || debugParam === "yes"
 
-    const payload = await fetchFinanceCostsSummary(query, { includeDebugSql })
+    const payload = await fetchFinanceCostsSummary(query, { includeDebugSql, melbourneMonth })
     return NextResponse.json(payload)
   } catch (error) {
     console.error("[finance/sections/costs/summary]", error)

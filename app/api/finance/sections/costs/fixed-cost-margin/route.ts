@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   fetchFinanceFixedCostMargin,
   normalizeFixedCostMarginQuery,
@@ -37,11 +38,14 @@ export async function GET(request: NextRequest) {
       fy = parsed
     }
 
+    // B43: finance_melbourne_month on: the default range and current month are the Melbourne month.
+    const melbourneMonth = await isFeatureOn("finance_melbourne_month")
     const query = normalizeFixedCostMarginQuery({
       fy,
       from: sp.get("from") ?? undefined,
       to: sp.get("to") ?? undefined,
       clients: parseClientIds(sp.get("clients")),
+      melbourneMonth,
     })
 
     const payload = await fetchFinanceFixedCostMargin(query)

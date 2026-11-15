@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   fetchFinanceClientPays,
   normalizeClientPaysQuery,
@@ -41,15 +42,18 @@ export async function GET(request: NextRequest) {
       fy = parsed
     }
 
+    // B43: finance_melbourne_month on: the default range and current month are the Melbourne month.
+    const melbourneMonth = await isFeatureOn("finance_melbourne_month")
     const query = normalizeClientPaysQuery({
       fy,
       from: sp.get("from") ?? undefined,
       to: sp.get("to") ?? undefined,
       clients: parseClientIds(sp.get("clients")),
       channels: parseCsv(sp.get("channels")),
+      melbourneMonth,
     })
 
-    const payload = await fetchFinanceClientPays(query)
+    const payload = await fetchFinanceClientPays(query, { melbourneMonth })
     return NextResponse.json(payload)
   } catch (error) {
     console.error("[finance/sections/costs/client-pays]", error)

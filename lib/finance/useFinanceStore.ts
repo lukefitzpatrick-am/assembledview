@@ -6,7 +6,8 @@ import type {
   FinanceFilters,
 } from "@/lib/types/financeBilling"
 import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
-import { getCurrentBillingMonth, australianFyStartYearForDate } from "@/lib/finance/months"
+import { clientFeatureOn } from "@/lib/features/client"
+import { currentFinanceFyStartYear, getCurrentBillingMonth } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 
 export type FinanceHubTab =
@@ -165,8 +166,10 @@ interface FinanceStore {
   updateLineItem: (recordId: number, lineItemId: number, updates: Partial<BillingLineItem>) => void
 }
 
-const defaultMonth = getCurrentBillingMonth()
-const defaultFinancialYear = australianFyStartYearForDate()
+// B43: switch finance_melbourne_month: the default month and FY are the Melbourne month's.
+const financeMonthOpts = { melbourne: clientFeatureOn("finance_melbourne_month") }
+const defaultMonth = getCurrentBillingMonth(new Date(), financeMonthOpts)
+const defaultFinancialYear = currentFinanceFyStartYear(new Date(), financeMonthOpts)
 
 const defaultFilters: FinanceFilters = {
   selectedClients: [],

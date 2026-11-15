@@ -122,6 +122,8 @@ export function normalizeClientPaysQuery(input: {
   clients?: number[]
   channels?: string[]
   today?: Date
+  /** Switch `finance_melbourne_month` (B43). */
+  melbourneMonth?: boolean
 }): FinanceClientPaysQuery {
   const base = normalizeCostsQuery({
     fy: input.fy,
@@ -130,6 +132,7 @@ export function normalizeClientPaysQuery(input: {
     clients: input.clients,
     channels: input.channels,
     today: input.today,
+    melbourneMonth: input.melbourneMonth,
   })
   return {
     fy: base.fy,
@@ -141,13 +144,14 @@ export function normalizeClientPaysQuery(input: {
 }
 
 export async function fetchFinanceClientPays(
-  input: FinanceClientPaysQuery
+  input: FinanceClientPaysQuery,
+  options?: { melbourneMonth?: boolean; now?: Date }
 ): Promise<FinanceClientPaysPayload> {
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
   const toExclusive = monthEndExclusive(q.to)
-  const currentMonth = getCurrentBillingMonth()
+  const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const clientSql = clientFilterSql(q.clientIds)
   const channelSql = channelFilterSql(q.channels)
   const lineJoin = sql.raw(SCHEDULE_LINE_JOIN_SQL)

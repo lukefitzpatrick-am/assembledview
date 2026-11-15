@@ -6,6 +6,7 @@
  */
 
 import { create } from "zustand"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   buildDefaultFinanceScope,
   normaliseToFy,
@@ -33,7 +34,12 @@ export type FinanceScopeState = {
   isDirty: () => boolean
 }
 
-const initial = buildDefaultFinanceScope()
+/** B43: switch `finance_melbourne_month`: the default FY and range end on the Melbourne month. Read at each use. */
+function monthOpts() {
+  return { melbourne: clientFeatureOn("finance_melbourne_month") }
+}
+
+const initial = buildDefaultFinanceScope(new Date(), monthOpts())
 
 export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
   applied: cloneScope(initial),
@@ -65,8 +71,8 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
   setDraftFy: (fy) => {
     set((state) => {
       const today = new Date()
-      const currentFy = buildDefaultFinanceScope(today).fy
-      const rebuilt = buildDefaultFinanceScope(new Date(fy, 6, 15))
+      const currentFy = buildDefaultFinanceScope(today, monthOpts()).fy
+      const rebuilt = buildDefaultFinanceScope(new Date(fy, 6, 15), monthOpts())
       let monthRange = rebuilt.monthRange
       if (fy < currentFy) {
         monthRange = normaliseToFy(fy, { from: `${fy}-07`, to: `${fy + 1}-06` })
@@ -96,7 +102,7 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
   },
 
   reset: () => {
-    const next = buildDefaultFinanceScope()
+    const next = buildDefaultFinanceScope(new Date(), monthOpts())
     set((state) => ({
       applied: cloneScope(next),
       draft: cloneScope(next),
@@ -105,7 +111,7 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
   },
 
   hydrateFromUrl: (params, opts) => {
-    const next = parseScopeFromParams(params)
+    const next = parseScopeFromParams(params, new Date(), monthOpts())
     set((state) => ({
       applied: cloneScope(next),
       draft: cloneScope(next),

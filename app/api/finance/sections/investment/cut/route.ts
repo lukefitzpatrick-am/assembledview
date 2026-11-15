@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   fetchInvestmentCut,
   normalizeInvestmentCutRequest,
@@ -47,15 +48,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const normalized = normalizeInvestmentCutRequest({
-      fy: raw.fy,
-      monthRange: raw.monthRange,
-      basis: raw.basis,
-      dimensions: Array.isArray(raw.dimensions) ? raw.dimensions : [],
-      measures: Array.isArray(raw.measures) ? raw.measures : [],
-      filters: raw.filters,
-      presetId: typeof raw.presetId === "string" ? raw.presetId : null,
-    })
+    // B43: finance_melbourne_month on: the default range ends on the Melbourne month.
+    const melbourneMonth = await isFeatureOn("finance_melbourne_month")
+    const normalized = normalizeInvestmentCutRequest(
+      {
+        fy: raw.fy,
+        monthRange: raw.monthRange,
+        basis: raw.basis,
+        dimensions: Array.isArray(raw.dimensions) ? raw.dimensions : [],
+        measures: Array.isArray(raw.measures) ? raw.measures : [],
+        filters: raw.filters,
+        presetId: typeof raw.presetId === "string" ? raw.presetId : null,
+      },
+      new Date(),
+      { melbourne: melbourneMonth }
+    )
 
     if ("error" in normalized) {
       const status =

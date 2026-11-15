@@ -16,10 +16,11 @@
 import { sql, type SQL } from "drizzle-orm"
 import { getDb } from "@/db"
 import {
-  australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
+  currentFinanceFyStartYear,
   getCurrentBillingMonth,
   referenceDateForFyStartYear,
+  type FinanceMonthOptions,
 } from "@/lib/finance/months"
 import { BILLING_AGENCY_AA } from "@/lib/finance/billingAgency"
 import { normaliseToFy } from "@/lib/finance/sections/defaultScope"
@@ -117,7 +118,9 @@ export type NormalizeInvestmentCutResult =
 
 export function normalizeInvestmentCutRequest(
   input: InvestmentCutRequest,
-  today: Date = new Date()
+  today: Date = new Date(),
+  /** Switch `finance_melbourne_month` (B43): the default FY and range end on the Melbourne month. */
+  monthOpts: FinanceMonthOptions = {}
 ): NormalizeInvestmentCutResult {
   if (input.basis !== "billing" && input.basis !== "delivery") {
     return {
@@ -126,11 +129,11 @@ export function normalizeInvestmentCutRequest(
     }
   }
 
-  const currentFy = australianFyStartYearForDate(today)
+  const currentFy = currentFinanceFyStartYear(today, monthOpts)
   const fy =
     input.fy && input.fy >= 2000 && input.fy <= 2100 ? input.fy : currentFy
   const fyMonths = billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fy))
-  const currentMonth = getCurrentBillingMonth(today)
+  const currentMonth = getCurrentBillingMonth(today, monthOpts)
   let from = input.monthRange?.from?.trim() || fyMonths[0]!
   let to =
     input.monthRange?.to?.trim() ||

@@ -455,6 +455,31 @@ test("B35: billing_ghost_row_finance_guard is off by default, a finance switch a
   }
 })
 
+test("B43: finance_melbourne_month is off by default, a finance switch admins toggle, sent to the browser, no env", async () => {
+  const key = "finance_melbourne_month" as const
+  const def = featureDefinition(key)!
+  assert.ok(def, key)
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.source, "switch")
+  assert.equal(def.toggleRole, "admin")
+  assert.equal(def.area, "finance")
+  assert.equal(def.clientVisible, true)
+  assert.equal(def.requires, undefined)
+  assert.match(def.description, /first 10 hours of each month \(11 in daylight saving\)/)
+  assert.match(def.description, /Off: the server's month, as before\./)
+  setClientFeatureSnapshot(null)
+  assert.equal(clientFeatureOn(key), false, "no snapshot: the default")
+  try {
+    setFeatureRowReaderForTests(async () => new Map())
+    assert.equal(await isFeatureOn(key, {}), false, "no row")
+    setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), true, "a row on")
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})
+
 test("B35: burst_overlap_warning is off by default, a planning switch sent to the browser, no env", async () => {
   const key = "burst_overlap_warning" as const
   const def = featureDefinition(key)!

@@ -198,6 +198,8 @@ export function normalizeCostsQuery(input: {
   channels?: string[]
   publishers?: string[]
   today?: Date
+  /** Switch `finance_melbourne_month` (B43). */
+  melbourneMonth?: boolean
 }): FinanceCostsQuery {
   const base = normalizeSummaryQuery({
     fy: input.fy,
@@ -205,6 +207,7 @@ export function normalizeCostsQuery(input: {
     to: input.to,
     clients: input.clients,
     today: input.today,
+    melbourneMonth: input.melbourneMonth,
   })
   const channels = (input.channels ?? [])
     .map((c) => c.trim())
@@ -260,13 +263,13 @@ function publisherFilterPass(label: string, filters: string[]): boolean {
 
 export async function fetchFinanceCostsSummary(
   input: FinanceCostsQuery,
-  options?: { includeDebugSql?: boolean },
+  options?: { includeDebugSql?: boolean; melbourneMonth?: boolean; now?: Date },
 ): Promise<FinanceCostsSummaryPayload> {
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
   const toExclusive = monthEndExclusive(q.to)
-  const currentMonth = getCurrentBillingMonth()
+  const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const clientSql = clientFilterSql(q.clientIds)
   const channelSql = channelFilterSql(q.channels)
   const lineJoin = sql.raw(SCHEDULE_LINE_JOIN_SQL)

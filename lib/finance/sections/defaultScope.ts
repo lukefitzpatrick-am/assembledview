@@ -4,10 +4,11 @@
  */
 
 import {
-  australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
+  currentFinanceFyStartYear,
   getCurrentBillingMonth,
   referenceDateForFyStartYear,
+  type FinanceMonthOptions,
 } from "@/lib/finance/months"
 import type { MonthRange } from "@/lib/finance/monthRange"
 
@@ -42,11 +43,12 @@ export function normaliseToFy(fy: number, range: MonthRange): MonthRange {
 export function clampToCurrentMonth(
   fy: number,
   range: MonthRange,
-  today: Date = new Date()
+  today: Date = new Date(),
+  opts: FinanceMonthOptions = {}
 ): MonthRange {
-  const currentFy = australianFyStartYearForDate(today)
+  const currentFy = currentFinanceFyStartYear(today, opts)
   if (fy !== currentFy) return { from: range.from, to: range.to }
-  const currentMonth = getCurrentBillingMonth(today)
+  const currentMonth = getCurrentBillingMonth(today, opts)
   let { from, to } = range
   if (to > currentMonth) to = currentMonth
   if (from > to) from = to
@@ -54,13 +56,14 @@ export function clampToCurrentMonth(
 }
 
 /** Melbourne-ish calendar parts via local Date (hub FY helpers use the same shape). */
-export function buildDefaultFinanceScope(today: Date = new Date()): FinanceScopeValues {
-  const fy = australianFyStartYearForDate(today)
+export function buildDefaultFinanceScope(today: Date = new Date(), opts: FinanceMonthOptions = {}): FinanceScopeValues {
+  const fy = currentFinanceFyStartYear(today, opts)
   const fyMonths = billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fy))
   const monthRange = clampToCurrentMonth(
     fy,
     normaliseToFy(fy, { from: fyMonths[0]!, to: fyMonths[fyMonths.length - 1]! }),
-    today
+    today,
+    opts
   )
   return {
     fy,

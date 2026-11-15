@@ -1,5 +1,17 @@
-/** Current calendar month as `YYYY-MM` (billing_month). */
-export function getCurrentBillingMonth(today: Date = new Date()): string {
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
+
+/** Options for the finance "now": `melbourne` is the `finance_melbourne_month` switch (B43), read by the caller. */
+export type FinanceMonthOptions = { melbourne?: boolean }
+
+/**
+ * Current calendar month as `YYYY-MM` (billing_month). Off (the default):
+ * the host's local month, as before (UTC on Vercel, so the first 10 or 11
+ * hours of each Melbourne month still read the month before). With
+ * `melbourne` (switch `finance_melbourne_month` on): the Melbourne month
+ * (`getMelbourneMonthISO`).
+ */
+export function getCurrentBillingMonth(today: Date = new Date(), opts: FinanceMonthOptions = {}): string {
+  if (opts.melbourne) return getMelbourneMonthISO(today)
   const y = today.getFullYear()
   const m = today.getMonth()
   return `${y}-${String(m + 1).padStart(2, "0")}`
@@ -22,6 +34,18 @@ export function getCurrentAndNextBillingMonths(today: Date = new Date()): [strin
 export function australianFyStartYearForDate(date: Date = new Date()): number {
   const y = date.getFullYear()
   const m = date.getMonth() + 1
+  return m >= 7 ? y : y - 1
+}
+
+/**
+ * The current Australian FY start year for the finance defaults. Off: the
+ * host's local date (`australianFyStartYearForDate`), as before. With
+ * `melbourne`: from the Melbourne month, so 1 July turns the FY at Melbourne
+ * midnight, the same instant the current month turns.
+ */
+export function currentFinanceFyStartYear(today: Date = new Date(), opts: FinanceMonthOptions = {}): number {
+  if (!opts.melbourne) return australianFyStartYearForDate(today)
+  const [y, m] = getMelbourneMonthISO(today).split("-").map(Number)
   return m >= 7 ? y : y - 1
 }
 

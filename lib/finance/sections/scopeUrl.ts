@@ -4,6 +4,7 @@ import {
   type FinanceBasisDefault,
   type FinanceScopeValues,
 } from "@/lib/finance/sections/defaultScope"
+import type { FinanceMonthOptions } from "@/lib/finance/months"
 
 export function cloneScope(s: FinanceScopeValues): FinanceScopeValues {
   return {
@@ -36,9 +37,10 @@ function parseClientsParam(raw: string | null): number[] {
 
 export function parseScopeFromParams(
   params: URLSearchParams,
-  today: Date = new Date()
+  today: Date = new Date(),
+  opts: FinanceMonthOptions = {}
 ): FinanceScopeValues {
-  const defaults = buildDefaultFinanceScope(today)
+  const defaults = buildDefaultFinanceScope(today, opts)
   const fyRaw = params.get("fy")
   let fy = defaults.fy
   if (fyRaw != null && fyRaw.trim() !== "") {

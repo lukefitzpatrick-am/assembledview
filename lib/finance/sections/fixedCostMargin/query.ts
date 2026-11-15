@@ -144,6 +144,8 @@ export function normalizeFixedCostMarginQuery(input: {
   to?: string
   clients?: number[]
   today?: Date
+  /** Switch `finance_melbourne_month` (B43): the default FY and range end on the Melbourne month. */
+  melbourneMonth?: boolean
 }): FinanceFixedCostMarginQuery {
   const base = normalizeCostsQuery({
     fy: input.fy,
@@ -151,6 +153,7 @@ export function normalizeFixedCostMarginQuery(input: {
     to: input.to,
     clients: input.clients,
     today: input.today,
+    melbourneMonth: input.melbourneMonth,
   })
   return { fy: base.fy, from: base.from, to: base.to, clientIds: base.clientIds }
 }
