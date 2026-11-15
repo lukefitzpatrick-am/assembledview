@@ -77,6 +77,19 @@ export async function bellPerson(database: Db, login: string): Promise<string> {
 }
 
 /**
+ * SQL: notification `n` (or the bare table) is addressed to `person`: their
+ * primary email, or (aliases on) any alias `identity` maps to them, so a row
+ * written to an alias before B41fix still reaches them. Off: the address alone.
+ */
+function addressedTo(column: SQL, person: string, identity: AccessIdentity): SQL {
+  const addresses = [person, ...[...identity].filter(([, primary]) => primary === person).map(([alias]) => alias)]
+  return sql`${column} IN (${sql.join(
+    addresses.map((a) => sql`${a}`),
+    sql`, `
+  )})`
+}
+
+/**
  * SQL: notification `n` on live task `t` that `recipient` may see. The
  * private-project rule is the shared one (`taskVisibleSql`, B42), with the
  * alias map (F4).
@@ -122,7 +135,7 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
           LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
-         WHERE n.recipient_email = ${viewer} AND ${visibleToRecipient(sql`${viewer}`, identity)}
+         WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND ${visibleToRecipient(sql`${viewer}`, identity)}
          ORDER BY n.created_at DESC, n.id DESC
          LIMIT ${take}
       `)
@@ -132,7 +145,7 @@ export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, 
         SELECT count(*)::int AS n
           FROM public.codex_notifications n
           JOIN public.tasks t ON t.id = n.task_id
-         WHERE n.recipient_email = ${viewer} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`, identity)}
+         WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`, identity)}
       `)
     )
     const prefs = await database
@@ -157,6 +170,7 @@ export async function markNotificationsRead(
   return guarded(database, async () => {
     if ("ids" in target && target.ids.length === 0) return 0
     const viewer = await bellPerson(database, viewerEmail)
+    const identity = await loadAccessIdentity(database)
     const which =
       "ids" in target
         ? sql`AND id IN (${sql.join(
@@ -167,7 +181,7 @@ export async function markNotificationsRead(
     const rows = executeRows(
       await database.execute(sql`
         UPDATE public.codex_notifications SET read_at = now()
-         WHERE recipient_email = ${viewer} AND read_at IS NULL ${which}
+         WHERE ${addressedTo(sql`recipient_email`, viewer, identity)} AND read_at IS NULL ${which}
         RETURNING id
       `)
     )

@@ -753,6 +753,27 @@ describe("codex comments, followers, attachments and notifications on Postgres (
       assert.deepEqual(prefs.map((r) => r.email), [ELLIE], "on: the switch is stored against the primary email, which the digest reads")
       assert.equal((await listBell(ELLIE_ALIAS, 30, database)).email_digest, false)
       assert.equal(await markNotificationsRead(ELLIE_ALIAS, { all: true }, database), unread - 1)
+      // A row written to the alias before B41fix stored primaries reaches her too (on), by either login.
+      await client`INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email) VALUES (${ELLIE_ALIAS}, 'assigned', ${pub}, ${JOSH})`
+      assert.equal((await listBell(ELLIE, 30, database)).unread, 1)
+      assert.ok((await listBell(ELLIE_ALIAS, 30, database)).items.some((i) => i.kind === "assigned" && i.task_id === pub))
+      aliasesSwitch(false)
+      assert.equal((await listBell(ELLIE, 30, database)).unread, 0, "off: only rows addressed to the login")
+      assert.equal(await markNotificationsRead(ELLIE, { all: true }, database), 0)
+      aliasesSwitch(true)
+      assert.equal(await markNotificationsRead(ELLIE, { all: true }, database), 1, "on: the alias row is hers")
+      // Someone else's alias is never hers.
+      const JOSH_ALIAS = "j.patel@assembledmedia.com.au"
+      await client`UPDATE public.team_members SET email_aliases = ${JSON.stringify([JOSH_ALIAS])}::jsonb WHERE email = ${JOSH}`
+      try {
+        await client`INSERT INTO public.codex_notifications (recipient_email, kind, task_id, actor_email) VALUES (${JOSH_ALIAS}, 'assigned', ${pub}, ${MIA})`
+        assert.equal((await listBell(ELLIE, 30, database)).unread, 0, "Josh's alias row is not Ellie's")
+        assert.equal(await markNotificationsRead(ELLIE, { all: true }, database), 0)
+        assert.equal((await listBell(JOSH_ALIAS, 30, database)).items.filter((i) => i.task_id === pub && i.kind === "assigned").length, 1)
+      } finally {
+        await client`UPDATE public.team_members SET email_aliases = '[]'::jsonb WHERE email = ${JOSH}`
+        await client`DELETE FROM public.codex_notifications WHERE recipient_email = ${JOSH_ALIAS}`
+      }
     } finally {
       setFeatureRowReaderForTests(null)
       await client`DELETE FROM public.codex_notification_prefs WHERE email IN (${ELLIE}, ${ELLIE_ALIAS})`
