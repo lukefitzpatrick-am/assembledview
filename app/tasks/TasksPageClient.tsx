@@ -22,6 +22,9 @@ import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
 import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
+import { TasksComposeFromLink } from "@/components/tasks/TasksComposeFromLink"
+import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
+import { withoutComposeParams } from "@/lib/codex/composeLink"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TasksFilterBar } from "@/components/tasks/TasksFilterBar"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
@@ -693,6 +696,16 @@ export function TasksPageClient({
   }, [deleteTemplateTarget])
 
   const meEmail = (user?.email ?? "").trim().toLowerCase() || null
+  /**
+   * B44 (C-200, switch codex_contained_writes): a link from another page opens
+   * a new task or Ask for help here, filled in (`?compose=`). Read once, on
+   * load; never saved on load. Off: the params are ignored, as before.
+   */
+  const [composeParams] = useState<URLSearchParams | null>(() =>
+    codexContainedWritesOn() && seededSearchParams.get("compose")
+      ? new URLSearchParams(seededSearchParams.toString())
+      : null
+  )
   const meName =
     teamMembers.find((m) => m.email.toLowerCase() === meEmail)?.name ??
     (typeof user?.name === "string" ? user.name : null)
@@ -3760,6 +3773,23 @@ export function TasksPageClient({
           void fetchTasks()
         }}
       />
+
+      {composeParams ? (
+        <TasksComposeFromLink
+          params={composeParams}
+          clients={clients}
+          teamMembers={teamMembers}
+          templates={templates}
+          meEmail={meEmail}
+          onSaved={() => {
+            void fetchTasks()
+          }}
+          onConsumed={() => {
+            const qs = withoutComposeParams(window.location.search)
+            router.replace(qs ? `${pathname || "/tasks"}?${qs}` : pathname || "/tasks", { scroll: false })
+          }}
+        />
+      ) : null}
 
       <TeamMemberFormDialog
         open={teamDialogOpen}

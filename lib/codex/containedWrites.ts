@@ -6,7 +6,13 @@
  * when `codex_v2` is off, so browser code reads one value that already holds
  * its requirement (the server getter is `isCodexContainedWritesEnabled`).
  */
+import { clientFeatureOn } from "@/lib/features/client"
 import type { ClientFeatureKey } from "@/lib/features/registry"
+
+/** Browser read: pages outside /tasks link into /tasks instead of writing, and /tasks reads the link. */
+export function codexContainedWritesOn(): boolean {
+  return clientFeatureOn("codex_contained_writes")
+}
 
 /** The browser snapshot with `codex_contained_writes` off unless Codex itself is on. */
 export function foldContainedWritesRequires<S extends Partial<Record<ClientFeatureKey, boolean>>>(
