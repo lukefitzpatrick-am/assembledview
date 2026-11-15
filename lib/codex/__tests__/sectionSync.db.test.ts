@@ -20,7 +20,8 @@ import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { requestHelp, updateTask, updateTaskFollowingSections } from "../repo.js"
-import { createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { SYSTEM_ACTORS } from "../systemActors.js"
+import { appendActivity, createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
 
 const URL_ = siblingUrl(RAW_URL, "sections")
 const skip = URL_ ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"
@@ -137,15 +138,31 @@ describe("C-220: other status writers follow the section rule (Postgres, 0118 ap
   it("relabel auto-close: a project task goes to the first done section, last in it", async () => {
     const other = await task("Already done", seo, sec["Done"], "done")
     const id = await task("Relabel BVOD", seo, sec["To do"])
-    await updateTaskFollowingSections(id, { status: "done" }, "system", database)
+    await updateTaskFollowingSections(id, { status: "done" }, SYSTEM_ACTORS.relabel, database)
     assert.equal(await where(id), `done@${sec["Done"]}`)
+    // C-264 (B43): every row the auto-close writes names it, kind system; none is a person called "system".
+    const acts = await client`SELECT action, actor_email, actor_kind FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${id} ORDER BY id`
+    assert.deepEqual(
+      acts.map((a) => [a.action, a.actor_email, a.actor_kind]),
+      [
+        ["update", "system:relabel", "system"],
+        ["move_section", "system:relabel", "system"],
+      ]
+    )
     const [r] = await client`SELECT sort_order, completed_at FROM public.tasks WHERE id = ${id}`
     const [o] = await client`SELECT sort_order FROM public.tasks WHERE id = ${other}`
     assert.ok(Number(r.sort_order) > Number(o.sort_order))
     assert.ok(r.completed_at)
     const loose = (await client`INSERT INTO public.tasks (title, status, created_by_email) VALUES ('loose', 'todo', ${OWNER}) RETURNING id`)[0]
-    const res = await updateTaskFollowingSections(Number(loose.id), { status: "done" }, "system", database)
+    const res = await updateTaskFollowingSections(Number(loose.id), { status: "done" }, SYSTEM_ACTORS.relabel, database)
     assert.equal(res?.status, "done", "a task in no project: the plain update")
+    const [looseAct] = await client`SELECT actor_email, actor_kind FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${Number(loose.id)}`
+    assert.deepEqual([looseAct.actor_email, looseAct.actor_kind], ["system:relabel", "system"])
+    // The projects store's activity writer maps a system actor the same way (a person stays a user).
+    await appendActivity(database, { entityType: "codex_project", entityId: seo, actorEmail: SYSTEM_ACTORS.recurring, action: "probe" })
+    await appendActivity(database, { entityType: "codex_project", entityId: seo, actorEmail: " Olive@X.au ", action: "probe" })
+    const probes = await client`SELECT actor_email, actor_kind FROM public.codex_activity WHERE action = 'probe' ORDER BY id`
+    assert.deepEqual(probes.map((p) => [p.actor_email, p.actor_kind]), [["system:recurring", "system"], ["olive@x.au", "user"]])
   })
 
   it("a private project's move rows name no section", async () => {

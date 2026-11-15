@@ -23,6 +23,7 @@ import { progressRuleFromField, readStoredValues, valuesOnComplete, type Progres
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isCodexProgressFieldEnabled } from "@/lib/codex/flag"
 import type { DbExecutor } from "@/lib/codex/repo"
+import { activityActor } from "@/lib/codex/systemActors"
 
 /** The project's rule, or null (switch off, no link, or a field without a live done option). */
 export async function loadProgressRule(tx: DbExecutor, projectId: number | null): Promise<ProgressRule | null> {
@@ -62,7 +63,7 @@ export async function markProgressDone(tx: DbExecutor, taskId: number, actorEmai
   await tx.execute(sql`UPDATE public.tasks SET custom_values = ${JSON.stringify(after)}::jsonb, updated_at = now() WHERE id = ${taskId}`)
   await tx.execute(sql`
     INSERT INTO public.codex_activity (entity_type, entity_id, actor_email, actor_kind, action, before, after)
-    VALUES ('task', ${taskId}, ${actorEmail?.toLowerCase() ?? null}, ${actorEmail ? "user" : "system"}, 'update',
+    VALUES ('task', ${taskId}, ${activityActor(actorEmail, { noActorKind: "system" }).actorEmail}, ${activityActor(actorEmail, { noActorKind: "system" }).actorKind}, 'update',
             ${JSON.stringify({ custom_values: before })}::jsonb, ${JSON.stringify({ custom_values: after })}::jsonb)
   `)
   return true
@@ -96,7 +97,7 @@ export async function markDoneTasksOnLink(tx: DbExecutor, projectId: number, act
     await tx.execute(sql`UPDATE public.tasks SET custom_values = ${JSON.stringify(after)}::jsonb, updated_at = now() WHERE id = ${taskId}`)
     await tx.execute(sql`
       INSERT INTO public.codex_activity (entity_type, entity_id, actor_email, actor_kind, action, before, after)
-      VALUES ('task', ${taskId}, ${actorEmail?.toLowerCase() ?? null}, ${actorEmail ? "user" : "system"}, 'update',
+      VALUES ('task', ${taskId}, ${activityActor(actorEmail, { noActorKind: "system" }).actorEmail}, ${activityActor(actorEmail, { noActorKind: "system" }).actorKind}, 'update',
               ${JSON.stringify({ custom_values: before })}::jsonb, ${JSON.stringify({ custom_values: after })}::jsonb)
     `)
     changed += 1

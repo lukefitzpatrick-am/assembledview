@@ -186,7 +186,7 @@ Every handler: `codexFlagGuard()`, then its own switch where it has one (`codex_
 3. Session but role outside `CODEX_SHADOW_ROLES` → **403** `{ error: "forbidden" }`.
 4. Admin (shadow allowlist) → handler runs.
 
-Middleware only authenticates; tenant/role is per-route. Writes stamp email identity (lowercased/trimmed) and append `codex_activity` **in the same `db.transaction` as the mutation** (Stage 0 hardening). `client_id` on create/PATCH is app-checked via `codexClientExists` (no DB FK until T6 — DI-12).
+Middleware only authenticates; tenant/role is per-route. Writes stamp email identity (lowercased/trimmed) and append `codex_activity` **in the same `db.transaction` as the mutation** (Stage 0 hardening). A writer with no person behind it stores a named system actor in `actor_email` with `actor_kind 'system'` (`lib/codex/systemActors.ts`, C-264): `system:relabel`, `system:recurring`, `system:reminders`. `client_id` on create/PATCH is app-checked via `codexClientExists` (no DB FK until T6 — DI-12).
 
 ---
 

@@ -36,6 +36,7 @@ import { canSeeProject, normaliseEmail, NO_ALIASES, type AccessIdentity, type Pr
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
+import { SYSTEM_ACTORS } from "@/lib/codex/systemActors"
 import { loadAccessIdentity } from "@/lib/codex/taskVisibility"
 
 const { codexNotifications, codexActivity, taskFollowers, codexProjects, codexProjectMembers } = schema
@@ -241,7 +242,7 @@ export async function writeNotifications(database: DbExecutor, event: NotifyEven
       await database.insert(codexActivity).values({
         entityType: "task_reminder",
         entityId: task.id,
-        actorEmail: null,
+        actorEmail: SYSTEM_ACTORS.reminders, // C-264 (B43)
         actorKind: "system",
         action: r.kind,
         after: { recipient: r.email, due_on: opts.oncePerDueOn, notification_id: Number(row?.id) },

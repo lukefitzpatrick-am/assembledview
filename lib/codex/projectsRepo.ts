@@ -68,6 +68,7 @@ import {
 } from "@/lib/codex/customFields"
 import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import { followSectionRule } from "@/lib/codex/sectionSync"
+import { activityActor } from "@/lib/codex/systemActors"
 import { loadAccessIdentity, openTasksHiddenFromAssignee, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
@@ -310,11 +311,12 @@ export async function appendActivity(
   database: DbExecutor,
   args: { entityType: string; entityId: number; actorEmail: string; action: string; before?: unknown; after?: unknown }
 ): Promise<void> {
+  const who = activityActor(args.actorEmail) // C-264 (B43): a system actor is stored as itself, kind system
   await database.insert(codexActivity).values({
     entityType: args.entityType,
     entityId: args.entityId,
-    actorEmail: normaliseEmail(args.actorEmail) || null,
-    actorKind: "user",
+    actorEmail: who.actorEmail,
+    actorKind: who.actorKind,
     action: args.action,
     before: args.before ?? null,
     after: args.after ?? null,

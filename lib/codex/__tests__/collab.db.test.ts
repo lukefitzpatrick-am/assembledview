@@ -581,13 +581,13 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     assert.equal((await generateDueReminders(day(13), database)).overdue, 1, "a new assignee is told once for the same date")
     assert.equal((await generateDueReminders(day(13), database)).overdue, 0)
     assert.deepEqual(await notes(id), [`${MIA}:overdue`, `${MIA}:overdue`, `${ELLIE}:overdue`])
-    const log = await client`SELECT action, actor_kind, after->>'recipient' AS r, after->>'due_on' AS d FROM public.codex_activity
+    const log = await client`SELECT action, actor_kind, actor_email, after->>'recipient' AS r, after->>'due_on' AS d FROM public.codex_activity
       WHERE entity_type = 'task_reminder' AND entity_id = ${id} ORDER BY id`
-    assert.deepEqual(log.map((l) => `${l.action}:${l.actor_kind}:${l.r}:${l.d}`), [
-      `overdue:system:${MIA}:2026-11-06`,
-      `overdue:system:${MIA}:2026-11-13`,
-      `overdue:system:${ELLIE}:2026-11-06`,
-    ])
+    assert.deepEqual(log.map((l) => `${l.action}:${l.actor_kind}:${l.actor_email}:${l.r}:${l.d}`), [
+      `overdue:system:system:reminders:${MIA}:2026-11-06`,
+      `overdue:system:system:reminders:${MIA}:2026-11-13`,
+      `overdue:system:system:reminders:${ELLIE}:2026-11-06`,
+    ], "C-264 (B43): named system:reminders")
     const feed = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${id}`
     assert.equal(feed[0].n, 0, "the task's own activity feed is untouched")
   })

@@ -141,8 +141,11 @@ describe("a task made from another task keeps its project (Postgres, 0118 applie
       assert.deepEqual(await placeOf(copy), { project: priv, section: sec["priv:To do"] }, "the seed's project, section by the rule for to do")
       assert.ok(!(await listIds(OUT)).includes(copy), "the copy's title is hidden from an outsider")
       assert.ok((await listIds(MIA)).includes(copy), "a member (the assignee) sees it")
-      const [act] = await client`SELECT actor_kind, after FROM public.codex_activity WHERE entity_id = ${copy} AND action = 'move_section'`
+      const [act] = await client`SELECT actor_kind, actor_email, after FROM public.codex_activity WHERE entity_id = ${copy} AND action = 'move_section'`
       assert.equal(act?.actor_kind, "system")
+      assert.equal(act?.actor_email, "system:recurring", "C-264: named")
+      const [made] = await client`SELECT actor_kind, actor_email FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${copy} AND action = 'create'`
+      assert.deepEqual([made?.actor_email, made?.actor_kind], ["system:recurring", "system"])
       assert.equal(act?.after?.section, undefined, "a private project's activity row keeps ids only")
       const [items] = await client`SELECT count(*)::int AS n FROM public.task_checklist_items WHERE task_id = ${copy}`
       assert.equal(items.n, 1, "the template checklist is still copied")

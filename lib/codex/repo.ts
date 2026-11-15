@@ -50,6 +50,7 @@ import {
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
+import { activityActor, isSystemActor, SYSTEM_ACTORS } from "@/lib/codex/systemActors"
 import { AssigneeNoAccessError } from "@/lib/codex/projects"
 import {
   assertAssigneeCanSeeTask,
@@ -594,11 +595,15 @@ async function appendActivity(
     actorKind?: CodexActorKind
   }
 ): Promise<void> {
+  // C-264 (B43): a named system actor (`system:relabel`, ...) is stored as itself with kind system.
+  const who = isSystemActor(args.actorEmail)
+    ? activityActor(args.actorEmail)
+    : { actorEmail: args.actorEmail, actorKind: args.actorKind ?? "user" }
   await database.insert(codexActivity).values({
     entityType: args.entityType,
     entityId: args.entityId,
-    actorEmail: args.actorEmail,
-    actorKind: args.actorKind ?? "user",
+    actorEmail: who.actorEmail,
+    actorKind: who.actorKind,
     action: args.action,
     before: args.before ?? null,
     after: args.after ?? null,
@@ -3049,7 +3054,7 @@ export async function createGeneratedRecurringTask(
     if (seed.projectId != null) {
       // Raw SQL: project_id is not mirrored (C-210). In no section, then the section rule for to do.
       await tx.execute(sql`UPDATE public.tasks SET project_id = ${seed.projectId} WHERE id = ${row.id}`)
-      await followSectionRule(tx, row.id, "todo", null)
+      await followSectionRule(tx, row.id, "todo", SYSTEM_ACTORS.recurring)
     }
 
     const api = taskRowToApi(row)
@@ -3067,7 +3072,7 @@ export async function createGeneratedRecurringTask(
     await appendActivity(tx, {
       entityType: "task",
       entityId: row.id,
-      actorEmail: null,
+      actorEmail: SYSTEM_ACTORS.recurring,
       actorKind: "system",
       action: "create",
       after: {

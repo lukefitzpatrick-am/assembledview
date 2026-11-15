@@ -38,6 +38,7 @@ import { planStatusChangeInProject, type CodexSection } from "@/lib/codex/projec
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { markProgressDone } from "@/lib/codex/progressRule"
 import type { DbExecutor } from "@/lib/codex/repo"
+import { activityActor } from "@/lib/codex/systemActors"
 
 export type SectionRuleOutcome = "not_in_project" | "stayed" | "moved" | "no_section_for_status" | "project_busy"
 
@@ -179,7 +180,7 @@ export async function followSectionRule(
     isPrivate ? { project_id: projectId, section_id: id } : { project_id: projectId, section: name(id), section_id: id }
   await tx.execute(sql`
     INSERT INTO public.codex_activity (entity_type, entity_id, actor_email, actor_kind, action, before, after)
-    VALUES ('task', ${taskId}, ${actorEmail?.toLowerCase() ?? null}, ${actorEmail ? "user" : "system"}, 'move_section',
+    VALUES ('task', ${taskId}, ${activityActor(actorEmail, { noActorKind: "system" }).actorEmail}, ${activityActor(actorEmail, { noActorKind: "system" }).actorKind}, 'move_section',
             ${JSON.stringify(side(sectionId))}::jsonb, ${JSON.stringify(side(plan.section_id))}::jsonb)
   `)
   return "moved"

@@ -4,6 +4,7 @@ import { and, isNull, like, ne } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { updateTaskFollowingSections } from "@/lib/codex/repo"
+import { SYSTEM_ACTORS } from "@/lib/codex/systemActors"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { shouldAutoCloseAppliedTask } from "./notify"
 
@@ -61,7 +62,8 @@ export async function runCloseUntouchedRelabelTasks(now: Date = new Date()): Pro
       asOfYmd,
       async (id) => {
         // C-220 (B42): a project task goes to its first done section.
-        await updateTaskFollowingSections(id, { status: "done" }, "system")
+        // C-264 (B43): recorded as the relabel auto-close, kind system, not a person called "system".
+        await updateTaskFollowingSections(id, { status: "done" }, SYSTEM_ACTORS.relabel)
       },
     )
   } catch (err) {

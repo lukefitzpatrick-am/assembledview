@@ -24,6 +24,7 @@ import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { requestHelp, updateTask, updateTaskFollowingSections } from "../repo.js"
+import { SYSTEM_ACTORS } from "../systemActors.js"
 import {
   bulkUpdateTasksThroughSections,
   completeProjectTask,
@@ -152,8 +153,10 @@ describe("the progress field rule (Postgres, 0118 applied)", { skip }, () => {
     assert.ok(pasted.ok)
     assert.equal((await state(Number(pasted.tasks[0].id))).value, DONE)
     const e = await task("auto-close")
-    await updateTaskFollowingSections(e, { status: "done" }, "system", database)
+    await updateTaskFollowingSections(e, { status: "done" }, SYSTEM_ACTORS.relabel, database)
     assert.equal((await state(e)).value, DONE)
+    const eActs = await client`SELECT DISTINCT actor_email, actor_kind FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${e}`
+    assert.deepEqual(eActs.map((r) => [r.actor_email, r.actor_kind]), [["system:relabel", "system"]], "C-264: update, move and progress rows name the auto-close")
     const [act] = await client`SELECT action, after FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${a} AND action = 'update' ORDER BY id DESC LIMIT 1`
     assert.deepEqual(act.after, { custom_values: { [String(progress)]: DONE } })
   })
