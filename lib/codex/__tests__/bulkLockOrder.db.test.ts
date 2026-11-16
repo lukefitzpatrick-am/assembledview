@@ -22,6 +22,9 @@
  *   Controls: the same assignment after the move commits is refused
  *   `assignee_no_access`; an in-flight edit that leaves the project as it
  *   was is waited on and the assignment commits.
+ * - R4 (PACK4fix): two projects. A section bulk (FOR UPDATE, id order) and
+ *   a plain bulk assignment (FOR SHARE) over tasks in both queue and both
+ *   commit; locking the plain batch's projects in any other order deadlocks.
  *
  * Skips unless CODEX_PROJECTS_TEST_DATABASE_URL names a LOCAL database whose
  * name ends in `_codex_test`. It works in a sibling database
@@ -46,7 +49,7 @@ import type { FeatureRow } from "../../features/registry.js"
 import { bulkFailure, bulkUpdateTasks, CodexBulkError, updateTask } from "../repo.js"
 import { AssigneeNoAccessError, TaskJoinedProjectError } from "../projects.js"
 import { assertAssigneeCanSeeTask, TaskJoinedBatchProjectError } from "../taskVisibility.js"
-import { createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { bulkUpdateTasksThroughSections, createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
 import { DATABASE_ERROR_MESSAGE, LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
 
 const URL_ = siblingUrl(RAW_URL, "bulklock")
@@ -100,12 +103,12 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
     const rows = await client`SELECT id, assignee_email FROM public.tasks WHERE id IN ${client(ids)} ORDER BY id`
     return rows.map((r) => (r.assignee_email == null ? null : String(r.assignee_email)))
   }
-  /** Resolves once some session in this database is waiting on a lock. */
-  async function someoneWaits(what: string): Promise<void> {
+  /** Resolves once `atLeast` sessions in this database are waiting on a lock. */
+  async function someoneWaits(what: string, atLeast = 1): Promise<void> {
     for (let i = 0; i < 150; i++) {
       const [w] = await client`SELECT count(*)::int AS n FROM pg_stat_activity
         WHERE datname = current_database() AND wait_event_type = 'Lock'`
-      if (w.n > 0) return
+      if (w.n >= atLeast) return
       await new Promise((r) => setTimeout(r, 20))
     }
     throw new Error(`${what} never waited`)
@@ -326,5 +329,39 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
     const settled = await duringMove(f, null, () => updateTask(f, { assigneeEmail: MIA }, OLIVE, database))
     assert.equal(settled.status, "fulfilled", String((settled as PromiseRejectedResult).reason))
     assert.deepEqual(await assignees([f]), [MIA])
+  })
+
+  it("R4: a section bulk and a plain bulk assignment over two projects queue in id order; both commit, no deadlock", async () => {
+    const p1 = await project("Lock order one")
+    const p2 = await project("Lock order two")
+    assert.ok(p1 < p2)
+    const a = await task(p1, OLIVE)
+    const b = await task(p2, OLIVE)
+    const blocker = postgres(URL_!, { max: 1, onnotice: () => {} })
+    let section: Promise<unknown> | null = null
+    let plain: Promise<unknown> | null = null
+    try {
+      await blocker.begin(async (tx) => {
+        // Hold the lower project so both batches queue on it: the section
+        // bulk first (it holds nothing yet), then the plain bulk. In id order
+        // the plain bulk also holds nothing while it waits; out of order it
+        // would hold P2 and the section bulk would then wait on it: a cycle.
+        await tx`SELECT id FROM public.codex_projects WHERE id = ${p1} FOR UPDATE`
+        section = bulkUpdateTasksThroughSections([b, a], { status: "done" }, OLIVE, database)
+        section.catch(() => {})
+        await someoneWaits("the section bulk")
+        plain = bulkUpdateTasks([b, a], { assigneeEmail: MIA }, OLIVE, database)
+        plain.catch(() => {})
+        await someoneWaits("the plain bulk", 2)
+      })
+    } finally {
+      await blocker.end({ timeout: 5 })
+    }
+    const [s1, s2] = await Promise.allSettled([section!, plain!])
+    assert.equal(s1.status, "fulfilled", `section bulk: ${String((s1 as PromiseRejectedResult).reason)}`)
+    assert.equal(s2.status, "fulfilled", `plain bulk: ${String((s2 as PromiseRejectedResult).reason)}`)
+    assert.deepEqual(await assignees([a, b]), [MIA, MIA])
+    const rows = await client`SELECT status FROM public.tasks WHERE id IN ${client([a, b])} ORDER BY id`
+    assert.deepEqual(rows.map((r) => r.status), ["done", "done"])
   })
 })

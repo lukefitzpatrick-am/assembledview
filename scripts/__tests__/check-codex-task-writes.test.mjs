@@ -205,10 +205,16 @@ test("a new writing module or writer under lib/codex fails until it is classifie
     put("lib/codex/newSql.ts", "export async function purge(db) {\n  await db.execute(sql`DELETE FROM public.codex_x WHERE id = 1`)\n}\n")
     put("lib/codex/newCaller.ts", 'import { createTask as make } from "./repo"\nasync function inner(x) {\n  return make(x)\n}\nexport async function quickAdd(x) {\n  return inner(x)\n}\nexport function readOnly() {\n  return 1\n}\n')
     put("lib/codex/newDynamic.ts", 'export async function later(x) {\n  const { createTask } = await import("@/lib/codex/repo")\n  return createTask(x)\n}\n')
+    // PACK4fix R4: a caller declared before the function it calls (needs a second pass of the fixed point),
+    // and a module whose only write is a Drizzle delete.
+    put("lib/codex/newChain.ts", 'export async function outer(x) {\n  return middle(x)\n}\nasync function middle(x) {\n  return inner(x)\n}\nasync function inner(x) {\n  return make(x)\n}\nimport { createTask as make } from "./repo"\n')
+    put("lib/codex/newDelete.ts", 'export async function removeThing(db, id) {\n  await db.delete(things).where(eq(things.id, id))\n}\n')
     put("lib/codex/notWrites.ts", 'export function strip(qs) {\n  qs.delete("task")\n  seen.delete(id)\n  return qs\n}\n')
     const found = findWriterExports(dir)
     assert.deepEqual(unclassifiedWriters(found), [
       "lib/codex/newCaller#quickAdd",
+      "lib/codex/newChain#outer",
+      "lib/codex/newDelete#removeThing",
       "lib/codex/newDrizzle#archiveThing",
       "lib/codex/newDynamic#later",
       "lib/codex/newSql#purge",
