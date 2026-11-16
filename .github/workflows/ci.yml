@@ -86,6 +86,12 @@ jobs:
       - name: Stacking layers
         run: npm run check:stacking-layers
 
+      - name: Codex tasks are written only in /tasks (C-200)
+        run: npm run check:codex-task-writes
+
+      - name: Codex containment guard self-test
+        run: npm run test:codex-task-writes
+
       - name: Lint
         run: npm run lint
 
