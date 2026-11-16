@@ -216,6 +216,20 @@ test("a planted import fails the script; the same tree without it passes", () =>
   }
 })
 
+test("a server exception allows only its named helpers", () => {
+  const dir = plantedTree({})
+  try {
+    const rel = "lib/pacing/relabel/handlers.ts"
+    const src = fs.readFileSync(path.join(dir, rel), "utf8")
+    assert.match(src, /import \{ createTask \} from "@\/lib\/codex\/repo"/)
+    fs.writeFileSync(path.join(dir, rel), src.replace('import { createTask } from "@/lib/codex/repo"', 'import { createTask, softDeleteTask } from "@/lib/codex/repo"'))
+    const problems = scanRoot(dir)
+    assert.deepEqual(problems.filter((p) => p.startsWith(rel)), [`${rel}:5 write-helper: softDeleteTask from lib/codex/repo`])
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test("a stale allowlist entry or exception fails, and the allowlist cannot outlive its switch", () => {
   const dir = plantedTree({})
   try {
