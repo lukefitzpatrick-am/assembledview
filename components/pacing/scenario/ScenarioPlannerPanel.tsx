@@ -194,6 +194,8 @@ export function ScenarioPlannerPanel({
       clientId,
       mbaNumber: draft.mba_number,
       category: draft.category,
+      // B44fix R5: a long change list is cut to fit the link, with this closing line.
+      shortenedNote: "List shortened: open the scenario planner for every change.",
     })
   }
 

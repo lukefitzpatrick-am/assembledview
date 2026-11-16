@@ -119,6 +119,11 @@ describe("Scenario planner containment (B44, C-200)", () => {
     expect(fresh!.getAttribute("href")).not.toContain("pf_client")
   })
 
+  it("source: a long change list is cut to fit the link with the scenario's closing line (B44fix R5)", () => {
+    const src = fs.readFileSync(path.join(process.cwd(), "components/pacing/scenario/ScenarioPlannerPanel.tsx"), "utf8")
+    expect(src).toContain('shortenedNote: "List shortened: open the scenario planner for every change."')
+  })
+
   it("source: both planner hosts post only with the switch off and pass containedTasks only with it on", () => {
     for (const file of ["ScenarioPlannerContext.tsx", "ScenarioPlannerDrawer.tsx"]) {
       const src = fs.readFileSync(path.join(process.cwd(), "components/pacing/scenario", file), "utf8")

@@ -19,6 +19,14 @@ export const TASKS_COMPOSE_PARAMS = ["compose", "pf_title", "pf_desc", "pf_clien
 export const COMPOSE_TITLE_MAX = TASK_TITLE_MAX
 export const COMPOSE_DESCRIPTION_MAX = 2000
 export const COMPOSE_MBA_MAX = 40
+/**
+ * The whole link, `/tasks?...` encoded, stays at or under this many characters
+ * (B44fix R5). An expired session sends the link through the login redirect as
+ * `returnTo`, which Auth0 keeps in a cookie; this keeps that well under 4 KB.
+ */
+export const COMPOSE_HREF_MAX = 1800
+/** The closing line of a description shortened to fit the link, unless the caller names its own. */
+export const COMPOSE_LIST_SHORTENED = "List shortened: open the page this came from for the full list."
 /** A value longer than this many times its cap is dropped, not shortened. */
 const HOSTILE_FACTOR = 4
 
@@ -41,6 +49,8 @@ export type TasksComposeInput = {
   clientId?: number | null
   mbaNumber?: string | null
   category?: TaskCategory | null
+  /** The closing line when the description is shortened to fit the link (default `COMPOSE_LIST_SHORTENED`). */
+  shortenedNote?: string
 }
 
 export type TasksComposePrefill = {
@@ -58,9 +68,43 @@ export type ParsedTasksCompose = {
   notes: string[]
 }
 
+/** `value.slice(0, end)` without splitting a surrogate pair. */
+function sliceSafe(value: string, end: number): string {
+  if (end > 0 && end < value.length) {
+    const code = value.charCodeAt(end - 1)
+    if (code >= 0xd800 && code <= 0xdbff) return value.slice(0, end - 1)
+  }
+  return value.slice(0, end)
+}
+
 function shorten(value: string, max: number): string {
   if (value.length <= max) return value
-  return `${value.slice(0, max - 1).trimEnd()}…`
+  return `${sliceSafe(value, max - 1).trimEnd()}…`
+}
+
+/** The largest n in [0, hi] with fits(n) true (fits is monotonic, fits(0) true). */
+function largestFitting(hi: number, fits: (n: number) => boolean): number {
+  let lo = 0
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (fits(mid)) lo = mid
+    else hi = mid - 1
+  }
+  return lo
+}
+
+/**
+ * The first `n` characters of a description, cut back to whole lines (or
+ * shortened with an ellipsis when the first line alone is longer), then a
+ * blank line and the closing note.
+ */
+function descriptionPrefix(description: string, n: number, note: string): string {
+  let head = sliceSafe(description, n)
+  const lastBreak = head.lastIndexOf("\n")
+  if (lastBreak >= 0) head = head.slice(0, lastBreak)
+  else if (head) head = `${sliceSafe(head, Math.max(0, head.length - 1)).trimEnd()}…`
+  head = head.trimEnd()
+  return head ? `${head}\n\n${note}` : note
 }
 
 function oneLine(value: string): string {
@@ -83,19 +127,45 @@ function multiLine(value: string): string {
  * parser applies, so a link built here always reads back whole.
  */
 export function buildTasksComposeHref(input: TasksComposeInput): string {
-  const qs = new URLSearchParams()
-  qs.set("compose", input.compose)
   const title = oneLine((input.title ?? "").replace(CONTROL_RE, ""))
-  if (title) qs.set("pf_title", shorten(title, COMPOSE_TITLE_MAX))
   const description = multiLine((input.description ?? "").replace(CONTROL_RE, ""))
-  if (description) qs.set("pf_desc", shorten(description, COMPOSE_DESCRIPTION_MAX))
-  if (typeof input.clientId === "number" && Number.isInteger(input.clientId) && input.clientId > 0) {
-    qs.set("pf_client", String(input.clientId))
+  const clientId =
+    typeof input.clientId === "number" && Number.isInteger(input.clientId) && input.clientId > 0 ? input.clientId : null
+  const mbaRaw = (input.mbaNumber ?? "").trim()
+  const mba = mbaRaw && mbaRaw.length <= COMPOSE_MBA_MAX && MBA_RE.test(mbaRaw) ? mbaRaw : ""
+  const category = input.category && isTaskCategory(input.category) ? input.category : null
+  const note = oneLine((input.shortenedNote ?? COMPOSE_LIST_SHORTENED).replace(CONTROL_RE, "")) || COMPOSE_LIST_SHORTENED
+
+  const href = (t: string, d: string): string => {
+    const qs = new URLSearchParams()
+    qs.set("compose", input.compose)
+    if (t) qs.set("pf_title", t)
+    if (d) qs.set("pf_desc", d)
+    if (clientId != null) qs.set("pf_client", String(clientId))
+    if (mba) qs.set("pf_mba", mba)
+    if (category) qs.set("pf_category", category)
+    return `/tasks?${qs.toString()}`
   }
-  const mba = (input.mbaNumber ?? "").trim()
-  if (mba && mba.length <= COMPOSE_MBA_MAX && MBA_RE.test(mba)) qs.set("pf_mba", mba)
-  if (input.category && isTaskCategory(input.category)) qs.set("pf_category", input.category)
-  return `/tasks?${qs.toString()}`
+
+  let t = shorten(title, COMPOSE_TITLE_MAX)
+  const full = shorten(description, COMPOSE_DESCRIPTION_MAX)
+  const whole = href(t, full)
+  if (whole.length <= COMPOSE_HREF_MAX) return whole
+
+  // B44fix R5: keep the whole link under the cap. The description goes first,
+  // to whole lines with a closing "List shortened" line; the title only if
+  // that is still not enough (a long non-ASCII title).
+  let d = full
+  if (description) {
+    const fits = (n: number) => href(t, descriptionPrefix(full, n, note)).length <= COMPOSE_HREF_MAX
+    d = fits(0) ? descriptionPrefix(full, largestFitting(full.length, fits), note) : note
+  }
+  if (href(t, d).length > COMPOSE_HREF_MAX) {
+    const fits = (n: number) => href(n > 0 ? shorten(t, n) : "", d).length <= COMPOSE_HREF_MAX
+    const n = largestFitting(t.length, fits)
+    t = n > 0 ? shorten(t, n) : ""
+  }
+  return href(t, d)
 }
 
 /** `/tasks?mba=<mba>`: the Tasks list scoped to one campaign (the existing deep link). */

@@ -8,6 +8,8 @@ import { test } from "node:test"
 
 import {
   COMPOSE_DESCRIPTION_MAX,
+  COMPOSE_HREF_MAX,
+  COMPOSE_LIST_SHORTENED,
   COMPOSE_TITLE_MAX,
   TASKS_COMPOSE_PARAMS,
   buildTasksComposeHref,
@@ -171,7 +173,10 @@ test("builder: a link built here reads back whole, and never carries what the pa
   const long = buildTasksComposeHref({ compose: "task", title: "t".repeat(900), description: "d".repeat(9000) })
   const back = fromHref(long)
   assert.equal(back.prefill.title!.length, COMPOSE_TITLE_MAX)
-  assert.equal(back.prefill.description!.length, COMPOSE_DESCRIPTION_MAX)
+  // B44fix R5: one long line is cut with an ellipsis to fit the link, then the closing line.
+  assert.ok(long.length <= COMPOSE_HREF_MAX, String(long.length))
+  assert.ok(back.prefill.description!.length < COMPOSE_DESCRIPTION_MAX)
+  assert.match(back.prefill.description!, /^d+…\n\nList shortened: open the page this came from for the full list\.$/)
   assert.deepEqual(back.notes, [])
 
   assert.equal(
@@ -190,4 +195,109 @@ test("tasksForMbaHref and withoutComposeParams", () => {
     "view=list&mba=Z",
   )
   assert.equal(withoutComposeParams(""), "")
+})
+
+/** Lines in the shape `buildCodexTaskDraft` writes (with its non-ASCII arrow). */
+function scenarioDraft(lineCount: number, platform = "Meta") {
+  const lines = Array.from({ length: lineCount }, (_, i) => {
+    const id = `BICAU002-${String(i + 1).padStart(3, "0")}-${platform.toLowerCase()}`
+    return `- ${id} (${platform}): set daily $1,${String(200 + i).padStart(3, "0")}.50 → $1,${String(450 + i).padStart(3, "0")}.75; end 2026-12-31`
+  })
+  return {
+    lines,
+    description:
+      `Apply the planned scenario on Bic Summer 2026 (BICAU002).\n\n${lines.join("\n")}\n\n` +
+      "Campaign projected finish $98,765.43 vs budget $100,000.00.",
+  }
+}
+
+const SCENARIO_NOTE = "List shortened: open the scenario planner for every change."
+
+function scenarioHref(description: string, title = "Apply scenario: Bic Summer 2026") {
+  return buildTasksComposeHref({
+    compose: "task",
+    title,
+    description,
+    clientId: 42,
+    mbaNumber: "BICAU002",
+    category: "pacing",
+    shortenedNote: SCENARIO_NOTE,
+  })
+}
+
+test("link cap (B44fix R5): 10, 20, 40 and 200 scenario lines stay under the cap and keep whole lines", () => {
+  const seen: Record<number, { href: number; kept: number; cut: boolean }> = {}
+  for (const count of [10, 20, 40, 200]) {
+    const { lines, description } = scenarioDraft(count)
+    const href = scenarioHref(description)
+    assert.ok(href.length <= COMPOSE_HREF_MAX, `${count} lines: ${href.length}`)
+    const back = fromHref(href)
+    assert.deepEqual(back.notes, [], `${count} lines read back with no note`)
+    assert.equal(back.prefill.title, "Apply scenario: Bic Summer 2026")
+    assert.equal(back.prefill.clientId, 42)
+    assert.equal(back.prefill.mbaNumber, "BICAU002")
+    assert.equal(back.prefill.category, "pacing")
+    const desc = back.prefill.description!
+    const cut = desc !== description
+    if (cut) {
+      assert.ok(desc.endsWith(`\n\n${SCENARIO_NOTE}`), desc.slice(-120))
+      // Every kept line is a whole line of the original, in order, from the top.
+      const kept = desc.slice(0, -(SCENARIO_NOTE.length + 2)).split("\n")
+      assert.deepEqual(kept, description.split("\n").slice(0, kept.length))
+      seen[count] = { href: href.length, kept: kept.filter((l) => l.startsWith("- ")).length, cut }
+    } else {
+      seen[count] = { href: href.length, kept: lines.length, cut }
+    }
+  }
+  assert.equal(seen[10].cut, false, "10 lines fit whole")
+  for (const count of [20, 40, 200]) {
+    assert.equal(seen[count].cut, true, `${count} lines are shortened`)
+    assert.ok(seen[count].kept >= 10 && seen[count].kept < count, JSON.stringify(seen[count]))
+    // The cap is used, not wasted: within one line's length of it.
+    assert.ok(seen[count].href > COMPOSE_HREF_MAX - 160, JSON.stringify(seen[count]))
+  }
+  // The same lines are kept however long the list is.
+  assert.equal(seen[40].kept, seen[200].kept)
+})
+
+test("link cap (B44fix R5): non-ASCII lines, a non-ASCII title and one huge line stay under the cap", () => {
+  // Every character encodes to 9 (three UTF-8 bytes) or 12 (four, an emoji).
+  const cjk = scenarioDraft(40, "微博广告").description
+  const href = scenarioHref(cjk)
+  assert.ok(href.length <= COMPOSE_HREF_MAX, String(href.length))
+  const back = fromHref(href)
+  assert.deepEqual(back.notes, [])
+  assert.ok(back.prefill.description!.endsWith(SCENARIO_NOTE))
+  assert.ok(back.prefill.description!.includes("微博广告"))
+
+  const emojiTitle = "🚀".repeat(150) // 300 UTF-16 units, the title cap; 1,800 encoded
+  const t = scenarioHref(cjk, emojiTitle)
+  assert.ok(t.length <= COMPOSE_HREF_MAX, String(t.length))
+  const tb = fromHref(t)
+  assert.deepEqual(tb.notes, [])
+  assert.ok(tb.prefill.title!.length < emojiTitle.length && tb.prefill.title!.endsWith("…"))
+  // No emoji is split in half (a lone half would read back as U+FFFD).
+  assert.match(tb.prefill.title!, /^(?:🚀)+…$/u)
+  assert.equal(tb.prefill.mbaNumber, "BICAU002")
+
+  for (const count of [999, 1000]) {
+    const e = scenarioHref("😀".repeat(count))
+    assert.ok(e.length <= COMPOSE_HREF_MAX, String(e.length))
+    assert.match(fromHref(e).prefill.description!, /^(?:😀)+…\n\nList shortened/u, `${count} emoji`)
+  }
+
+  const oneLine = "é".repeat(1900)
+  const o = scenarioHref(oneLine)
+  assert.ok(o.length <= COMPOSE_HREF_MAX, String(o.length))
+  const ob = fromHref(o)
+  assert.match(ob.prefill.description!, /^é+…\n\nList shortened: open the scenario planner for every change\.$/)
+})
+
+test("link cap (B44fix R5): a short link is unchanged and the default closing line is used", () => {
+  const short = buildTasksComposeHref({ compose: "task", title: "T", description: "One\nTwo" })
+  assert.equal(short, "/tasks?compose=task&pf_title=T&pf_desc=One%0ATwo")
+  const lines = Array.from({ length: 60 }, (_, i) => `Line ${i} → ${"x".repeat(30)}`).join("\n")
+  const href = buildTasksComposeHref({ compose: "task", title: "T", description: lines })
+  assert.ok(href.length <= COMPOSE_HREF_MAX)
+  assert.ok(fromHref(href).prefill.description!.endsWith(`\n\n${COMPOSE_LIST_SHORTENED}`))
 })
