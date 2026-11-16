@@ -468,6 +468,10 @@ test("B43: finance_melbourne_month is off by default, a finance switch admins to
   assert.equal(def.requires, undefined)
   assert.match(def.description, /first 10 hours of each month \(11 in daylight saving\)/)
   assert.match(def.description, /Off: the server's month, as before\./)
+  // B43fix (R8): every view the switch moves is named, fixed cost margin included.
+  for (const view of ["Finance summary", "Publishers", "client pays", "fixed cost margin", "investment cut", "scope bar"]) {
+    assert.ok(def.description.includes(view), view)
+  }
   setClientFeatureSnapshot(null)
   assert.equal(clientFeatureOn(key), false, "no snapshot: the default")
   try {
