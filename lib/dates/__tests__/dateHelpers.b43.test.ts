@@ -17,16 +17,28 @@ import { getAsOfDate, getMelbourneYesterdayISO as mathsYesterday } from "../../p
 import { currentSydneyMonth } from "../../finance/revisions/resolveMonthLocks"
 
 // ---------------------------------------------------------------------------
-// The old bodies, verbatim (before B43).
+// The old bodies (before B43). B43fix (R4): each old body built a new
+// Intl.DateTimeFormat per call (about 150k over the sweep, 3 GB peak, an OOM
+// kill beside vitest). Their options are constant, so the three formatters
+// are built once here; the bodies are otherwise verbatim and give the same
+// outputs.
 // ---------------------------------------------------------------------------
 
+const MELBOURNE_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Melbourne",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+const SYDNEY_MONTH = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+  month: "2-digit",
+})
+const SYDNEY_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" })
+
 function oldPacingToday(now: Date): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
+  const formatter = MELBOURNE_DAY
   const parts = formatter.formatToParts(now)
   const year = parts.find((p) => p.type === "year")?.value ?? ""
   const month = parts.find((p) => p.type === "month")?.value ?? ""
@@ -35,12 +47,7 @@ function oldPacingToday(now: Date): string {
 }
 
 function oldGetAsOfDate(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
+  return MELBOURNE_DAY.format(now)
 }
 
 function oldMathsYesterday(asOfDate: string): string {
@@ -55,18 +62,14 @@ function oldMathsYesterday(asOfDate: string): string {
 }
 
 function oldCurrentSydneyMonth(now: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(now)
+  const parts = SYDNEY_MONTH.formatToParts(now)
   const y = parts.find((p) => p.type === "year")?.value
   const m = parts.find((p) => p.type === "month")?.value
   return `${y}-${m}`
 }
 
 function sydneyDay(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)
+  return SYDNEY_DAY.format(now)
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +102,7 @@ function sweep(): Date[] {
 
 const INSTANTS = sweep()
 
-/** The old outputs, computed once per instant (the old bodies build a formatter per call, which is slow). */
+/** The old outputs, computed once per instant. */
 const OLD = INSTANTS.map((d) => ({ d, day: oldGetAsOfDate(d), sydneyDay: sydneyDay(d), sydneyMonth: oldCurrentSydneyMonth(d) }))
 
 function same(actual: string, expected: string, what: string, d: Date): void {

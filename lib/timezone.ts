@@ -2,18 +2,32 @@ const MELBOURNE_TZ = "Australia/Melbourne"
 
 type DateInput = Date | string | number
 
+/**
+ * B43fix (R4): one formatter per zone and options, built on first use and
+ * reused. Building an `Intl.DateTimeFormat` costs far more than formatting
+ * with one, and the options never change per call.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+function formatterFor(timeZone: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${timeZone}|${JSON.stringify(options)}`
+  let formatter = formatters.get(key)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-CA", { ...options, timeZone })
+    formatters.set(key, formatter)
+  }
+  return formatter
+}
+
+const YEAR_MONTH_DAY: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" }
+
 const getDateParts = (value: DateInput) => {
   const date = value instanceof Date ? value : new Date(value)
   if (isNaN(date.getTime())) {
     throw new Error("Invalid date input provided to timezone helper")
   }
 
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: MELBOURNE_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date)
+  const parts = formatterFor(MELBOURNE_TZ, YEAR_MONTH_DAY).formatToParts(date)
 
   const year = parts.find((p) => p.type === "year")?.value
   const month = parts.find((p) => p.type === "month")?.value
