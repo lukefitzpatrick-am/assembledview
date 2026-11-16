@@ -11,9 +11,32 @@ import type { ClientFeatureKey } from "./registry"
 import { featureDefinition, parseFeatureEnv } from "./registry"
 
 let snapshot: Partial<Record<ClientFeatureKey, boolean>> | null = null
+/** Callbacks waiting for the first snapshot (`afterClientFeatureSnapshot`). */
+let waiting: Array<() => void> = []
 
 export function setClientFeatureSnapshot(next: Partial<Record<ClientFeatureKey, boolean>> | null): void {
   snapshot = next
+  if (!next || waiting.length === 0) return
+  const run = waiting
+  waiting = []
+  for (const fn of run) {
+    try {
+      fn()
+    } catch (err) {
+      console.warn("[features] a snapshot callback failed", err)
+    }
+  }
+}
+
+/**
+ * B43fix (R3): run `fn` once when the root layout's snapshot first arrives.
+ * For module-level defaults (a store's initial state) computed before
+ * ClientRoot set the snapshot on a full page load. Nothing is queued when
+ * the snapshot is already here: the caller's read saw it.
+ */
+export function afterClientFeatureSnapshot(fn: () => void): void {
+  if (snapshot) return
+  waiting.push(fn)
 }
 
 function buildTimeFallback(key: ClientFeatureKey): boolean {

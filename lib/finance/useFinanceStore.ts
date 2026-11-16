@@ -6,7 +6,7 @@ import type {
   FinanceFilters,
 } from "@/lib/types/financeBilling"
 import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
-import { clientFeatureOn } from "@/lib/features/client"
+import { afterClientFeatureSnapshot, clientFeatureOn } from "@/lib/features/client"
 import { currentFinanceFyStartYear, getCurrentBillingMonth } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 
@@ -167,21 +167,28 @@ interface FinanceStore {
 }
 
 // B43: switch finance_melbourne_month: the default month and FY are the Melbourne month's.
-const financeMonthOpts = { melbourne: clientFeatureOn("finance_melbourne_month") }
-const defaultMonth = getCurrentBillingMonth(new Date(), financeMonthOpts)
-const defaultFinancialYear = currentFinanceFyStartYear(new Date(), financeMonthOpts)
-
-const defaultFilters: FinanceFilters = {
-  selectedClients: [],
-  selectedPublishers: [],
-  includeDrafts: false,
-  financialYear: defaultFinancialYear,
-  /** Default to current calendar month; FY switcher resets to full FY Jul–Jun. */
-  monthRange: { from: defaultMonth, to: defaultMonth },
-  billingTypes: ["media", "sow", "retainer", "payable"],
-  statuses: ["draft", "booked", "approved", "invoiced", "paid"],
-  searchQuery: "",
+// B43fix (R3): read when the defaults are built, not once at module load.
+function financeMonthOpts() {
+  return { melbourne: clientFeatureOn("finance_melbourne_month") }
 }
+
+function buildDefaultFilters(now: Date = new Date()): FinanceFilters {
+  const opts = financeMonthOpts()
+  const month = getCurrentBillingMonth(now, opts)
+  return {
+    selectedClients: [],
+    selectedPublishers: [],
+    includeDrafts: false,
+    financialYear: currentFinanceFyStartYear(now, opts),
+    /** Default to current calendar month; FY switcher resets to full FY Jul–Jun. */
+    monthRange: { from: month, to: month },
+    billingTypes: ["media", "sow", "retainer", "payable"],
+    statuses: ["draft", "booked", "approved", "invoiced", "paid"],
+    searchQuery: "",
+  }
+}
+
+const defaultFilters: FinanceFilters = buildDefaultFilters()
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   filters: defaultFilters,
@@ -283,6 +290,25 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       }),
     })),
 }))
+
+/**
+ * B43fix (R3): on a full page load this module can be evaluated before
+ * ClientRoot sets the switch snapshot, so the defaults above read the switch
+ * as off. When the snapshot arrives, rebuild them, unless the person has
+ * already changed the filters.
+ */
+afterClientFeatureSnapshot(() => {
+  if (useFinanceStore.getState().filters !== defaultFilters) return
+  const next = buildDefaultFilters()
+  if (
+    next.financialYear === defaultFilters.financialYear &&
+    next.monthRange.from === defaultFilters.monthRange.from &&
+    next.monthRange.to === defaultFilters.monthRange.to
+  ) {
+    return
+  }
+  useFinanceStore.setState({ filters: next })
+})
 
 /** Expanded `filters.monthRange` as `YYYY-MM` strings (Accrual and other multi-month views). */
 export function useAccrualMonths(): string[] {

@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand"
-import { clientFeatureOn } from "@/lib/features/client"
+import { afterClientFeatureSnapshot, clientFeatureOn } from "@/lib/features/client"
 import {
   buildDefaultFinanceScope,
   normaliseToFy,
@@ -126,6 +126,22 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
     return !scopesEqual(draft, applied)
   },
 }))
+
+/**
+ * B43fix (R3): on a full page load this module can be evaluated before
+ * ClientRoot sets the switch snapshot, so `initial` read the switch as off.
+ * When the snapshot arrives, rebuild the defaults, unless the scope was
+ * already applied, edited or read from the URL.
+ */
+const initialApplied = useFinanceScopeStore.getState().applied
+const initialDraft = useFinanceScopeStore.getState().draft
+afterClientFeatureSnapshot(() => {
+  const state = useFinanceScopeStore.getState()
+  if (state.applied !== initialApplied || state.draft !== initialDraft) return
+  const next = buildDefaultFinanceScope(new Date(), monthOpts())
+  if (scopesEqual(next, initial)) return
+  useFinanceScopeStore.setState({ applied: cloneScope(next), draft: cloneScope(next) })
+})
 
 export function useFinanceScopeApplied(): FinanceScopeValues {
   return useFinanceScopeStore((s) => s.applied)
