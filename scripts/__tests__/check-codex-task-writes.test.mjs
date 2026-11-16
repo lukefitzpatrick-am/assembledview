@@ -65,6 +65,24 @@ const CAUGHT = [
   ["components/x/A.tsx", `const url = "/api/codex/tasks"\nexport const go = () => fetch(url, { method: "POST" })`, "url-in-writing-file"],
   ["components/x/A.tsx", 'const url = `/api/codex/tasks/${id}`\nfetch(url, { method: "PUT" })', "url-in-writing-file"],
   ["components/x/A.tsx", `export const F = () => <form method="post" action="/api/codex/tasks" />`, "url-in-writing-file"],
+  // B44fix R2: the method in an options variable, shorthand, a spread, or a constant with a URL variable.
+  ["components/x/A.tsx", `const init = { method: "POST" }; fetch("/api/codex/tasks", init)`, "fetch-write"],
+  ["components/x/A.tsx", `const init: RequestInit = {\n  method: "PATCH",\n  body,\n}\nexport const go = () => fetch("/api/codex/tasks/1", init)`, "fetch-write"],
+  ["components/x/A.tsx", `const method = "POST"; fetch("/api/codex/tasks", { method, body })`, "fetch-write"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { ...POST_JSON, body })`, "fetch-write"],
+  ["components/x/A.tsx", `const POST_JSON = { method: "POST" }; fetch("/api/codex/tasks", { ...POST_JSON, body })`, "fetch-write"],
+  ["components/x/A.tsx", `const M = "POST"; const url = "/api/codex/tasks"; fetch(url, { method: M })`, "url-in-writing-file"],
+  ["components/x/A.tsx", `const M = "POST"\nconst url = "/api/codex/tasks"\nexport const go = () => fetch(url, { method: M })`, "url-in-writing-file"],
+  // Cannot be resolved here, so a literal Codex URL counts as a write.
+  ["components/x/A.tsx", `export function go(init) { return fetch("/api/codex/tasks", init) }`, "fetch-write"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", makeInit())`, "fetch-write"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { method: verb })`, "fetch-write"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { method: "GET", ...rest })`, "fetch-write"],
+  ["components/x/A.tsx", `let init = { method: "GET" }; init = { method: "POST" }; fetch("/api/codex/tasks", init)`, "fetch-write"],
+  ["components/x/A.tsx", `function a() { const init = {}; return init }\nfunction b() { const init = { method: "POST" }; return fetch("/api/codex/tasks", init) }`, "fetch-write"],
+  ["components/x/A.tsx", `const url = "/api/codex/tasks"\nexport const go = (init) => fetch(url, init)`, "url-in-writing-file"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { "method": "POST" })`, "fetch-write"],
+  ["components/x/A.tsx", `const r = new Request("/api/codex/tasks", { method: "POST" })`, "fetch-write"],
   // A zone-looking name outside the zone is still outside.
   ["components/taskstuff/A.tsx", `import { createTask } from "@/lib/codex/repo"`, "write-helper"],
   ["app/pacing/tasks-ish/page.tsx", `import { createTask } from "@/lib/codex/repo"`, "write-helper"],
@@ -78,6 +96,14 @@ const ALLOWED = [
   ["components/x/A.tsx", `fetch("/api/codex/tasks", { method: "GET" })`],
   ["components/x/A.tsx", `fetch("/api/codex/time/summary").then(r => r.json()); fetch("/api/pacing/x", { method: "POST" })`],
   ["components/x/A.tsx", `// fetch("/api/codex/tasks", { method: "POST" })`],
+  // B44fix R2: provably GET through a variable, shorthand or spread.
+  ["components/x/A.tsx", `const init = { cache: "no-store" }; fetch("/api/codex/tasks", init)`],
+  ["components/x/A.tsx", `const GET_OPTS = { method: "GET" } as const; fetch("/api/codex/tasks", { ...GET_OPTS, cache: "no-store" })`],
+  ["components/x/A.tsx", `const method = "GET"; fetch("/api/codex/tasks", { method })`],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { ...rest, method: "GET" })`],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", undefined)`],
+  ["components/x/A.tsx", `const methodName = "x"; fetch("/api/codex/tasks", { methodName, signal })`],
+  ["components/x/A.tsx", `const url = "/api/codex/tasks"\nexport const go = () => fetch(url, { cache: "no-store" })`],
   ["components/x/A.tsx", `/* import { createTask } from "@/lib/codex/repo" */`],
   ["lib/x.ts", `import { listTasks, getTask } from "@/lib/codex/repo"`],
   ["lib/x.ts", `import type { CodexTask } from "@/lib/codex/types"`],
@@ -105,6 +131,8 @@ const KNOWN_GAPS = [
   ["components/x/A.tsx", `fetch("/api/" + "codex/tasks", { method: "POST" })`],
   ["components/x/A.tsx", `import { go } from "./sender"; go("/api/codex/tasks")`],
   ["components/x/A.tsx", `const x = new XMLHttpRequest(); x.open("POST", "/api/codex/tasks")`],
+  // A file-level const shadowed by a parameter of the same name reads as the const.
+  ["components/x/A.tsx", `const init = { cache: "no-store" }\nexport function go(init) { return fetch("/api/codex/tasks", init) }`],
 ]
 
 test("every CAUGHT probe gives its hit", () => {

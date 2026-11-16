@@ -13,12 +13,17 @@
  *   2. imports the /tasks UI (`components/tasks/**`, `components/codex/**`),
  *      which writes;
  *   3. sends a write to a Codex route: a `/api/codex/` URL inside a `fetch(...)`
- *      whose `method` is not GET or HEAD (or is not a literal), or inside a
- *      call whose name says it writes (post, put, patch, delete, send, submit,
- *      mutate, write; `sendBeacon` too);
+ *      or `new Request(...)` whose method is not provably GET or HEAD, or inside
+ *      a call whose name says it writes (post, put, patch, delete, send, submit,
+ *      mutate, write; `sendBeacon` too). The method is read from the options:
+ *      an object literal (`method: "POST"`, shorthand `{ method }`, a spread),
+ *      or a `const` options object, method string or spread object in the same
+ *      file. No options is GET. Anything it cannot resolve counts as a write
+ *      (B44fix R2);
  *   4. holds a `/api/codex/` URL outside such a call in a file that sends a
- *      write method anywhere (`method: "POST"`, `method="post"`, `sendBeacon`),
- *      so a URL kept in a variable and posted later is caught.
+ *      write method anywhere (`method: "POST"`, `method="post"`, `sendBeacon`,
+ *      or any `fetch` / `new Request` whose method is not provably GET), so a
+ *      URL kept in a variable and posted later is caught.
  *
  * The zone (may write): `app/tasks/**` and `app/(group)/tasks/**`,
  * `components/tasks/**`, `components/codex/**`, `app/api/codex/**`, and
@@ -36,9 +41,10 @@
  * Not caught (no current code does this; review catches it): a URL built from
  * pieces ("/api/" + "codex"), a Codex URL handed to a helper in another file
  * that does the write, a write helper reached through another module that
- * re-exports it under a new name inside the zone, `XMLHttpRequest`, and a
- * `fetch` after JSX text with an apostrophe (the masker reads it as a string,
- * as in check-egress-guards).
+ * re-exports it under a new name inside the zone, `XMLHttpRequest`, a
+ * file-level `const` options object shadowed by a parameter of the same name,
+ * and a `fetch` after JSX text with an apostrophe (the masker reads it as a
+ * string, as in check-egress-guards).
  *
  * Self-test: `npm run test:codex-task-writes`
  * (scripts/__tests__/check-codex-task-writes.test.mjs). `--root <dir>` scans
@@ -346,18 +352,6 @@ function enclosingCallOpen(code, at) {
   return -1
 }
 
-function matchingClose(code, open) {
-  let depth = 0
-  for (let i = open; i < code.length; i++) {
-    if (code[i] === "(") depth++
-    else if (code[i] === ")") {
-      depth--
-      if (depth === 0) return i
-    }
-  }
-  return code.length
-}
-
 function calleeBefore(code, open) {
   const head = code.slice(Math.max(0, open - 80), open)
   const m = head.match(/([A-Za-z_$][\w$]*)\s*(?:\?\.)?\s*$/)
@@ -366,14 +360,177 @@ function calleeBefore(code, open) {
 
 const WRITE_CALLEE = /(post|put|patch|delete|send|submit|mutat|write)/i
 const WRITE_METHOD_LITERAL = /\bmethod\s*[:=]\s*\{?\s*(["'`])(post|put|patch|delete)\1/i
-const ANY_METHOD = /\bmethod\s*:\s*([^,}\n]+)/
+const NOT_PROVABLY_GET = "a method not provably GET"
+const IDENT = /^[A-Za-z_$][\w$]*$/
+
+/** Close index for the bracket that opens at `open` on the code mask (`(`, `[` or `{`), or -1. */
+function matchingBracket(code, open) {
+  const pairs = { "(": ")", "[": "]", "{": "}" }
+  const stack = []
+  for (let i = open; i < code.length; i++) {
+    const ch = code[i]
+    if (pairs[ch]) stack.push(pairs[ch])
+    else if (ch === ")" || ch === "]" || ch === "}") {
+      if (stack.pop() !== ch) return -1
+      if (stack.length === 0) return i
+    }
+  }
+  return -1
+}
+
+/** Top-level comma-separated ranges in [start, end): structure from the code mask, emptiness from the source. */
+function splitTopLevel(full, code, start, end) {
+  const out = []
+  let depth = 0
+  let from = start
+  for (let i = start; i < end; i++) {
+    const ch = code[i]
+    if (ch === "(" || ch === "[" || ch === "{") depth++
+    else if (ch === ")" || ch === "]" || ch === "}") depth--
+    else if (ch === "," && depth === 0) {
+      out.push([from, i])
+      from = i + 1
+    }
+  }
+  out.push([from, end])
+  return out.filter(([a, b]) => /\S/.test(full.slice(a, b)))
+}
+
+/** [a, b) without surrounding whitespace, a trailing `as const` / `as T` / `satisfies T`. */
+function trimRange(full, a, b) {
+  while (a < b && /\s/.test(full[a])) a++
+  while (b > a && /\s/.test(full[b - 1])) b--
+  const tail = full.slice(a, b).match(/\s+(?:as|satisfies)\s+[A-Za-z_$][\w$.<>]*$/)
+  if (tail) b -= tail[0].length
+  return [a, b]
+}
+
+/**
+ * Start of the initialiser of the file's one `const <name> =` (optionally
+ * typed), or -1. `let` and `var` are not trusted, and nor is a name declared
+ * twice (two scopes could hold different values).
+ */
+function constInitStart(full, code, name) {
+  const esc = name.replace(/\$/g, "\\$")
+  const re = new RegExp(`\\bconst\\s+${esc}\\s*(?::[^=;]+)?=\\s*`, "g")
+  const found = []
+  let m
+  while ((m = re.exec(full))) {
+    if (code.slice(m.index, m.index + 5) !== "const") continue // inside a string or comment
+    found.push(m.index + m[0].length)
+  }
+  const declared = (code.match(new RegExp(`\\b(?:const|let|var)\\s+${esc}\\b`, "g")) ?? []).length
+  return found.length === 1 && declared === 1 ? found[0] : -1
+}
+
+/** End of the value that starts at `at`: a top-level `;` or `,`, a closing bracket, or a line break after a complete value. */
+function valueEnd(full, code, at) {
+  let depth = 0
+  for (let i = at; i < code.length; i++) {
+    const ch = code[i]
+    if (ch === "(" || ch === "[" || ch === "{") depth++
+    else if (ch === ")" || ch === "]" || ch === "}") {
+      if (depth === 0) return i
+      depth--
+    } else if (depth === 0 && (ch === ";" || ch === ",")) return i
+    else if (depth === 0 && ch === "\n" && /\S/.test(full.slice(at, i))) {
+      const next = full.slice(i).match(/^\s*(\S)/)
+      if (!next || !/[.?:+\-*/|&]/.test(next[1])) return i
+    }
+  }
+  return code.length
+}
+
+/** The verb at [a, b): a string literal (no interpolation) or a `const` that holds one, else null. */
+function resolveVerb(full, code, a, b, depth) {
+  ;[a, b] = trimRange(full, a, b)
+  const t = full.slice(a, b)
+  const lit = t.match(/^(["'`])([^"'`$]*)\1$/)
+  if (lit) return lit[2].toUpperCase()
+  if (depth > 0 && IDENT.test(t)) {
+    const at = constInitStart(full, code, t)
+    if (at >= 0) return resolveVerb(full, code, at, valueEnd(full, code, at), depth - 1)
+  }
+  return null
+}
+
+/**
+ * What an options expression at [a, b) does to the method:
+ * `{ kind: "none" }` (sets no method), `{ kind: "verb", verb }`, or
+ * `{ kind: "unknown" }` (cannot be resolved here).
+ */
+function optionsMethod(full, code, a, b, depth = 4) {
+  ;[a, b] = trimRange(full, a, b)
+  if (a >= b) return { kind: "none" }
+  const text = full.slice(a, b)
+  if (text === "undefined") return { kind: "none" }
+  if (IDENT.test(text)) {
+    const at = depth > 0 ? constInitStart(full, code, text) : -1
+    if (at < 0) return { kind: "unknown" }
+    return optionsMethod(full, code, at, valueEnd(full, code, at), depth - 1)
+  }
+  // Only a plain object literal can be read; a call, a ternary or a merge cannot.
+  if (code[a] === "{" && matchingBracket(code, a) === b - 1) return optionsObject(full, code, a, b, depth)
+  return { kind: "unknown" }
+}
+
+/** An object literal at [a, b): later properties win, as at runtime. */
+function optionsObject(full, code, a, b, depth) {
+  let result = { kind: "none" }
+  for (const [ra, rb] of splitTopLevel(full, code, a + 1, b - 1)) {
+    const [pa, pb] = trimRange(full, ra, rb)
+    const prop = full.slice(pa, pb)
+    if (prop.startsWith("...")) {
+      const inner = depth > 0 ? optionsMethod(full, code, pa + 3, pb, depth - 1) : { kind: "unknown" }
+      if (inner.kind !== "none") result = inner
+      continue
+    }
+    if (prop === "method") {
+      // Shorthand `{ method }`: a variable called `method`.
+      const verb = resolveVerb(full, code, pa, pb, depth)
+      result = verb ? { kind: "verb", verb } : { kind: "unknown" }
+      continue
+    }
+    const key = prop.match(/^(?:(["'])method\1|method)\s*:/)
+    if (!key) continue
+    const verb = resolveVerb(full, code, pa + key[0].length, pb, depth)
+    result = verb ? { kind: "verb", verb } : { kind: "unknown" }
+  }
+  return result
+}
+
+/** The verb of a `fetch(...)` / `new Request(...)` call opened at `open`: "GET", a write verb, or NOT_PROVABLY_GET. */
+function callVerb(full, code, open) {
+  const close = matchingBracket(code, open)
+  if (close < 0) return NOT_PROVABLY_GET
+  const args = splitTopLevel(full, code, open + 1, close)
+  if (args.length < 2) return "GET"
+  const res = optionsMethod(full, code, args[1][0], args[1][1])
+  if (res.kind === "none") return "GET"
+  if (res.kind === "verb") return res.verb
+  return NOT_PROVABLY_GET
+}
+
+const READ_VERBS = new Set(["GET", "HEAD"])
+
+/** True when any `fetch(` / `new Request(` in the file sends a method that is not provably GET. */
+function fileHasNonGetFetch(full, code) {
+  const re = /\b(?:fetch|Request)\s*\(/g
+  let m
+  while ((m = re.exec(code))) {
+    const open = m.index + m[0].length - 1
+    if (!READ_VERBS.has(callVerb(full, code, open))) return true
+  }
+  return false
+}
 
 /** Writes to `/api/codex/` (rules 3 and 4). */
 export function codexWriteHits(rel, raw) {
   const code = maskNonCode(raw)
   const full = maskNonCode(raw, { keepStrings: true })
   const hits = []
-  const fileSendsWrites = WRITE_METHOD_LITERAL.test(full) || /\bsendBeacon\s*\(/.test(full)
+  const fileSendsWrites =
+    WRITE_METHOD_LITERAL.test(full) || /\bsendBeacon\s*\(/.test(full) || fileHasNonGetFetch(full, code)
   const re = /\/api\/codex\/[^\s"'`)]*/g
   let m
   while ((m = re.exec(full))) {
@@ -383,13 +540,9 @@ export function codexWriteHits(rel, raw) {
     const open = enclosingCallOpen(code, m.index)
     const callee = open >= 0 ? calleeBefore(code, open) : ""
     const line = lineOf(raw, m.index)
-    if (callee === "fetch") {
-      const span = full.slice(open, matchingClose(code, open) + 1)
-      const method = span.match(ANY_METHOD)
-      if (!method) continue // a GET: a read-only panel
-      const lit = method[1].trim().match(/^(["'`])([A-Za-z]+)\1$/)
-      const verb = lit ? lit[2].toUpperCase() : "a method that is not a literal"
-      if (lit && (verb === "GET" || verb === "HEAD")) continue
+    if (callee === "fetch" || callee === "Request") {
+      const verb = callVerb(full, code, open)
+      if (READ_VERBS.has(verb)) continue // a GET: a read-only panel
       hits.push({ rel, line, rule: "fetch-write", detail: `${verb} ${url}` })
       continue
     }
