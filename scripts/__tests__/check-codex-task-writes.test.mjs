@@ -13,12 +13,12 @@ import path from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { maskNonCode } from "../check-egress-guards.mjs"
 import {
   READ_EXPORTS,
   SERVER_EXCEPTIONS,
   SWITCH_ALLOWLIST,
   WRITE_HELPERS,
+  findWriterExports,
   inZone,
   resolveSpecifier,
   scanFile,
@@ -175,99 +175,6 @@ function exportedValues(src) {
   return [...src.matchAll(/^export (?:default )?(?:async )?(?:function\*? |const |let |var |class )([A-Za-z_$][\w$]*)/gm)].map((m) => m[1])
 }
 
-const DRIZZLE_WRITE = /\.(insert|update|delete)\(\s*[A-Za-z_$][\w$.]*\s*\)\s*\.\s*(values|set|where|returning|onConflict\w*)\s*\(/
-const SQL_WRITE = /\b(INSERT\s+INTO|UPDATE\s+[\w."]+\s+SET|DELETE\s+FROM)\b/
-
-/**
- * B44fix R3: every exported value under `lib/codex` that writes rows, by
- * module (no extension). A top-level declaration writes when its text runs a
- * Drizzle insert, update or delete, or raw INSERT / UPDATE / DELETE SQL, or
- * names another declaration that writes (same file, or imported by name,
- * statically or with `const { x } = await import(...)`), to a fixed point.
- * A lower bound: a write through an injected store is listed by hand.
- */
-function codexWriterExports(rootDir) {
-  const walkTs = (dir, out = []) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (e.name === "__tests__") continue
-      const f = path.join(dir, e.name)
-      if (e.isDirectory()) walkTs(f, out)
-      else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(f)
-    }
-    return out
-  }
-  const mods = {}
-  for (const f of walkTs(path.join(rootDir, "lib/codex"))) {
-    const rel = path.relative(rootDir, f).split(path.sep).join("/").replace(/\.tsx?$/, "")
-    const raw = fs.readFileSync(f, "utf8")
-    const full = maskNonCode(raw, { keepStrings: true })
-    const code = maskNonCode(raw)
-    const lines = full.split("\n")
-    const starts = []
-    let off = 0
-    for (const ln of lines) {
-      starts.push(off)
-      off += ln.length + 1
-    }
-    const bounds = []
-    lines.forEach((ln, i) => {
-      if (/^[A-Za-z@]/.test(ln)) bounds.push(i)
-    })
-    const decls = []
-    bounds.forEach((i, k) => {
-      const m = lines[i].match(/^(export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?\s+|const\s+|let\s+|var\s+|class\s+)([A-Za-z_$][\w$]*)/)
-      if (!m) return
-      decls.push({ name: m[2], exported: Boolean(m[1]), a: starts[i], b: k + 1 < bounds.length ? starts[bounds[k + 1]] : full.length })
-    })
-    const imports = {}
-    const addNames = (list, spec) => {
-      const target = spec.startsWith("@/")
-        ? spec.slice(2)
-        : spec.startsWith(".")
-          ? path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec))
-          : null
-      if (!target) return
-      for (const part of list.split(",")) {
-        const t = part.trim()
-        if (!t || t.startsWith("type ")) continue
-        const [orig, local] = t.split(/\s+as\s+|\s*:\s*/).map((x) => x.trim())
-        imports[local || orig] = `${target.replace(/\.(ts|tsx|js)$/, "")}#${orig}`
-      }
-    }
-    for (const m of full.matchAll(/\bimport\s+(?!type\s)\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)) addNames(m[1], m[2])
-    for (const m of full.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*(?:await\s*)?import\s*\(\s*["']([^"']+)["']\s*\)/g)) addNames(m[1], m[2])
-    mods[rel] = { full, code, decls, imports }
-  }
-  const writes = new Set()
-  for (const [rel, m] of Object.entries(mods)) {
-    for (const d of m.decls) {
-      const text = m.full.slice(d.a, d.b)
-      if (DRIZZLE_WRITE.test(text) || SQL_WRITE.test(text)) writes.add(`${rel}#${d.name}`)
-    }
-  }
-  for (let changed = true; changed; ) {
-    changed = false
-    for (const [rel, m] of Object.entries(mods)) {
-      for (const d of m.decls) {
-        if (writes.has(`${rel}#${d.name}`)) continue
-        const ids = new Set(m.code.slice(d.a, d.b).match(/[A-Za-z_$][\w$]*/g) ?? [])
-        ids.delete(d.name)
-        const hit = [...ids].some((id) => writes.has(`${rel}#${id}`) || (m.imports[id] && writes.has(m.imports[id])))
-        if (hit) {
-          writes.add(`${rel}#${d.name}`)
-          changed = true
-        }
-      }
-    }
-  }
-  const out = {}
-  for (const key of writes) {
-    const [mod, name] = key.split("#")
-    if (mods[mod].decls.some((d) => d.name === name && d.exported)) (out[mod] ??= []).push(name)
-  }
-  return out
-}
-
 function unclassifiedWriters(found) {
   const missing = []
   for (const [mod, names] of Object.entries(found)) {
@@ -277,7 +184,7 @@ function unclassifiedWriters(found) {
 }
 
 test("every module under lib/codex that writes rows is in WRITE_HELPERS, with each writer listed (B44fix R3)", () => {
-  const found = codexWriterExports(repo)
+  const found = findWriterExports(repo)
   assert.deepEqual(unclassifiedWriters(found), [], "list these in WRITE_HELPERS (and any outside caller as a named server exception)")
   // The detector sees the writers the review named.
   assert.ok(found["lib/codex/notify"]?.includes("writeNotifications"), JSON.stringify(found["lib/codex/notify"]))
@@ -299,7 +206,7 @@ test("a new writing module or writer under lib/codex fails until it is classifie
     put("lib/codex/newCaller.ts", 'import { createTask as make } from "./repo"\nasync function inner(x) {\n  return make(x)\n}\nexport async function quickAdd(x) {\n  return inner(x)\n}\nexport function readOnly() {\n  return 1\n}\n')
     put("lib/codex/newDynamic.ts", 'export async function later(x) {\n  const { createTask } = await import("@/lib/codex/repo")\n  return createTask(x)\n}\n')
     put("lib/codex/notWrites.ts", 'export function strip(qs) {\n  qs.delete("task")\n  seen.delete(id)\n  return qs\n}\n')
-    const found = codexWriterExports(dir)
+    const found = findWriterExports(dir)
     assert.deepEqual(unclassifiedWriters(found), [
       "lib/codex/newCaller#quickAdd",
       "lib/codex/newDrizzle#archiveThing",
@@ -365,7 +272,15 @@ function plantedTree(extra) {
     fs.mkdirSync(path.join(dir, path.dirname(rel)), { recursive: true })
     fs.copyFileSync(path.join(repo, rel), path.join(dir, rel))
   }
-  for (const e of SERVER_EXCEPTIONS) copy(e.file)
+  const seen = new Set()
+  const once = (rel) => {
+    if (!seen.has(rel)) copy(rel)
+    seen.add(rel)
+  }
+  for (const e of SERVER_EXCEPTIONS) {
+    once(e.file)
+    for (const callers of Object.values(e.writers)) if (callers !== "any") callers.forEach(once)
+  }
   for (const a of SWITCH_ALLOWLIST) copy(a.file)
   copy("lib/features/registry.ts")
   for (const [rel, src] of Object.entries(extra)) {
@@ -424,6 +339,71 @@ test("a stale allowlist entry or exception fails, and the allowlist cannot outli
     const gone = scanRoot(dir, { registrySource: "export const FEATURE_DEFINITIONS = []" })
     assert.ok(gone.some((p) => p.includes("the C-200 allowlist outlived its switch")), gone.join("\n"))
     assert.ok(!scanRoot(dir).some((p) => p.includes("outlived")), "the real registry still has the switch")
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("every export of an exception file that writes is listed in its writers, with no stale names (B44fix R4)", () => {
+  const found = findWriterExports(
+    repo,
+    SERVER_EXCEPTIONS.map((e) => e.file),
+  )
+  for (const e of SERVER_EXCEPTIONS) {
+    const mod = e.file.replace(/\.(ts|tsx)$/, "")
+    const writers = found[mod] ?? []
+    const missing = writers.filter((n) => !(n in e.writers))
+    assert.deepEqual(missing, [], `${e.file}: list these exports in writers with their callers`)
+    const exported = exportedValues(fs.readFileSync(path.join(repo, e.file), "utf8"))
+    const stale = Object.keys(e.writers).filter((n) => !exported.includes(n))
+    assert.deepEqual(stale, [], `${e.file}: stale writer names`)
+  }
+  // The writers the review named are pinned to their callers.
+  const fireflies = SERVER_EXCEPTIONS.find((e) => e.file === "lib/fireflies/proposalRepo.ts")
+  assert.deepEqual(fireflies.writers.acceptProposal, ["app/api/codex/proposals/[id]/accept/route.ts"])
+  assert.deepEqual(fireflies.writers.batchAcceptForNote, ["app/api/codex/proposals/route.ts"])
+  const relabel = SERVER_EXCEPTIONS.find((e) => e.file === "lib/pacing/relabel/handlers.ts")
+  assert.deepEqual(relabel.writers.runRelabelApply, ["app/api/pacing/relabels/apply/route.ts"])
+})
+
+test("an exception's writer imported by anything but its named callers fails, in the zone too (B44fix R4)", () => {
+  const dir = plantedTree({
+    "components/pacing/Accept.tsx": `import { acceptProposal } from "@/lib/fireflies/proposalRepo"\nexport const a = acceptProposal\n`,
+    "app/api/codex/proposals/other/route.ts": `import { batchAcceptForNote, listProposedInbox } from "@/lib/fireflies/proposalRepo"\nexport const b = [batchAcceptForNote, listProposedInbox]\n`,
+    "lib/x/relabel.ts": `import * as relabel from "../pacing/relabel/handlers"\nexport const r = relabel\n`,
+    "lib/x/close.ts": `export async function f() { const { runCloseUntouchedRelabelTasks: go } = await import("@/lib/pacing/relabel/autoClose"); return go }\n`,
+    "lib/x/ok.ts": `import { listProposedInbox } from "@/lib/fireflies/proposalRepo"\nimport { auth0 } from "@/lib/auth0"\nexport const ok = [listProposedInbox, auth0]\n`,
+    "lib/x/cron.ts": `import { GET } from "@/app/api/cron/codex-recurring/route"\nexport const g = GET\n`,
+  })
+  try {
+    const problems = scanRoot(dir)
+    const of = (rel) => problems.filter((p) => p.startsWith(rel))
+    assert.deepEqual(of("components/pacing/Accept.tsx"), [
+      "components/pacing/Accept.tsx:1 exception-writer-import: acceptProposal from lib/fireflies/proposalRepo.ts (only its named callers may import it)",
+    ])
+    assert.deepEqual(of("app/api/codex/proposals/other/route.ts"), [
+      "app/api/codex/proposals/other/route.ts:1 exception-writer-import: batchAcceptForNote from lib/fireflies/proposalRepo.ts (only its named callers may import it)",
+    ])
+    assert.equal(of("lib/x/relabel.ts").length, 6, of("lib/x/relabel.ts").join("\n"))
+    assert.match(of("lib/x/close.ts").join("\n"), /runCloseUntouchedRelabelTasks from lib\/pacing\/relabel\/autoClose\.ts/)
+    assert.deepEqual(of("lib/x/ok.ts"), [])
+    assert.match(of("lib/x/cron.ts").join("\n"), /GET from app\/api\/cron\/codex-recurring\/route\.ts/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a named caller that stops importing its writer is stale (B44fix R4)", () => {
+  const dir = plantedTree({})
+  try {
+    const rel = "app/api/pacing/relabels/apply/route.ts"
+    const src = fs.readFileSync(path.join(dir, rel), "utf8")
+    assert.match(src, /import \{ runRelabelApply \} from "@\/lib\/pacing\/relabel\/handlers"/)
+    fs.writeFileSync(path.join(dir, rel), src.replace(/import \{ runRelabelApply \} from "@\/lib\/pacing\/relabel\/handlers"\n/, ""))
+    assert.deepEqual(
+      scanRoot(dir).filter((p) => p.startsWith("stale named caller")),
+      ["stale named caller: app/api/pacing/relabels/apply/route.ts no longer imports runRelabelApply from lib/pacing/relabel/handlers.ts"],
+    )
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

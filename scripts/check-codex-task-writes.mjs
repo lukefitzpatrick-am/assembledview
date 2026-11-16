@@ -30,7 +30,12 @@
  * `lib/codex/**` (where the helpers live). Tests are not scanned.
  *
  * Named server exceptions (permanent, system writers, not UI): see
- * SERVER_EXCEPTIONS. Each names the file and the helpers it may import.
+ * SERVER_EXCEPTIONS. Each names the file and the helpers it may import, and
+ * `writers`: each of its own exports that writes (the self-test finds them)
+ * with the only files that may import it, anywhere in the tree, the zone
+ * included (B44fix R4). A namespace, default or whole dynamic import of an
+ * exception file counts as importing every writer. A named caller that stops
+ * importing its writer is stale and fails.
  *
  * C-200 switch allowlist: the four pages that wrote before the switch
  * `codex_contained_writes` keep their old code for switch off. They are
@@ -283,41 +288,67 @@ export const SERVER_EXCEPTIONS = [
     file: "lib/pacing/relabel/handlers.ts",
     helpers: ["createTask"],
     reason: "relabel apply, revert and block make a task for the person who acted (pacing relabels, C-200 exception)",
+    writers: {
+      defaultRelabelHandlerDeps: [],
+      runRelabelList: ["app/api/pacing/relabels/route.ts"],
+      runRelabelGet: ["app/api/pacing/relabels/[id]/route.ts"],
+      runRelabelPreview: ["app/api/pacing/relabels/preview/route.ts"],
+      runRelabelApply: ["app/api/pacing/relabels/apply/route.ts"],
+      runRelabelRevert: ["app/api/pacing/relabels/[id]/revert/route.ts"],
+    },
   },
   {
     file: "lib/pacing/relabel/autoClose.ts",
     helpers: ["updateTaskFollowingSections"],
     reason: "the relabel auto-close completes the request task as system:relabel (C-264, C-200 exception)",
+    writers: { runCloseUntouchedRelabelTasks: ["app/api/cron/pacing-digest/route.ts"] },
   },
   {
     file: "lib/fireflies/proposalRepo.ts",
     helpers: ["createTask", "softDeleteTask"],
     reason: "meeting action items: Inbox accept (reached from /api/codex/proposals) and the Fireflies sync (C-200 exception)",
+    writers: {
+      insertProposalsFromNote: ["lib/fireflies/runSync.ts"],
+      expireStaleProposals: ["app/api/codex/proposals/expire-stale/route.ts", "app/api/cron/codex-recurring/route.ts"],
+      acceptProposal: ["app/api/codex/proposals/[id]/accept/route.ts"],
+      batchAcceptForNote: ["app/api/codex/proposals/route.ts"],
+      dismissProposal: ["app/api/codex/proposals/[id]/dismiss/route.ts"],
+      dismissAllProposedForNote: ["app/api/codex/proposals/dismiss-all/route.ts"],
+      dismissAutoCreatedTask: ["app/api/codex/tasks/[id]/dismiss-auto/route.ts"],
+    },
   },
   {
     file: "app/api/cron/codex-recurring/route.ts",
     helpers: ["runCodexRecurring"],
     reason: "the recurring task cron, system:recurring (C-200 exception)",
+    // Route handlers: Next calls them; nothing imports them.
+    writers: { GET: [], POST: [] },
   },
   {
     file: "lib/auth0.ts",
     helpers: ["syncAdminRosterOnLogin"],
     reason: "an admin's login adds or refreshes their team roster row, fail soft (roster layer 1, C-200 exception, B44fix)",
+    // The write runs inside the client's login hook, fail soft; every route and
+    // the middleware import the client, and none of them can call the write.
+    writers: { auth0: "any", auth0Raw: "any" },
   },
   {
     file: "app/api/cron/auth0-roster-sync/route.ts",
     helpers: ["runAuth0RosterSync"],
     reason: "the nightly Auth0 admin roster sync writes team roster rows (C-200 exception, B44fix)",
+    writers: { GET: [], POST: [] },
   },
   {
     file: "app/api/admin/auth0-roster-sync/route.ts",
     helpers: ["runAuth0RosterSync"],
     reason: "an admin runs the same Auth0 roster sync by hand (C-200 exception, B44fix)",
+    writers: { POST: [] },
   },
   {
     file: "app/api/cron/codex-notifications/route.ts",
     helpers: ["runDailyNotifications"],
     reason: "the daily Codex cron writes due reminders and marks digests sent (C-200 exception, B44fix)",
+    writers: { GET: [], POST: [] },
   },
 ]
 
@@ -671,6 +702,125 @@ export function importHits(rel, raw) {
   return hits
 }
 
+const DRIZZLE_WRITE = /\.(insert|update|delete)\(\s*[A-Za-z_$][\w$.]*\s*\)\s*\.\s*(values|set|where|returning|onConflict\w*)\s*\(/
+const SQL_WRITE = /\b(INSERT\s+INTO|UPDATE\s+[\w."]+(?:\s+(?:AS\s+)?[A-Za-z_]\w*)?\s+SET|DELETE\s+FROM)\b/
+
+/**
+ * B44fix R3 and R4: every exported value under `lib/codex` (plus `extraFiles`,
+ * repo-relative) that writes rows, by module (no extension). A top-level declaration writes when its text runs a
+ * Drizzle insert, update or delete, or raw INSERT / UPDATE / DELETE SQL, or
+ * names another declaration that writes (same file, or imported by name,
+ * statically or with `const { x } = await import(...)`), to a fixed point.
+ * A lower bound: a write through an injected store is listed by hand.
+ */
+export function findWriterExports(rootDir, extraFiles = []) {
+  const walkTs = (dir, out = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "__tests__") continue
+      const f = path.join(dir, e.name)
+      if (e.isDirectory()) walkTs(f, out)
+      else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(f)
+    }
+    return out
+  }
+  const mods = {}
+  const sources = [...walkTs(path.join(rootDir, "lib/codex")), ...extraFiles.map((f) => path.join(rootDir, f))]
+  for (const f of sources) {
+    const rel = path.relative(rootDir, f).split(path.sep).join("/").replace(/\.tsx?$/, "")
+    const raw = fs.readFileSync(f, "utf8")
+    const full = maskNonCode(raw, { keepStrings: true })
+    const code = maskNonCode(raw)
+    const lines = full.split("\n")
+    const starts = []
+    let off = 0
+    for (const ln of lines) {
+      starts.push(off)
+      off += ln.length + 1
+    }
+    const bounds = []
+    lines.forEach((ln, i) => {
+      if (/^[A-Za-z@]/.test(ln)) bounds.push(i)
+    })
+    const decls = []
+    bounds.forEach((i, k) => {
+      const m = lines[i].match(/^(export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?\s+|const\s+|let\s+|var\s+|class\s+)([A-Za-z_$][\w$]*)/)
+      if (!m) return
+      decls.push({ name: m[2], exported: Boolean(m[1]), a: starts[i], b: k + 1 < bounds.length ? starts[bounds[k + 1]] : full.length })
+    })
+    const imports = {}
+    const addNames = (list, spec) => {
+      const target = spec.startsWith("@/")
+        ? spec.slice(2)
+        : spec.startsWith(".")
+          ? path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec))
+          : null
+      if (!target) return
+      for (const part of list.split(",")) {
+        const t = part.trim()
+        if (!t || t.startsWith("type ")) continue
+        const [orig, local] = t.split(/\s+as\s+|\s*:\s*/).map((x) => x.trim())
+        imports[local || orig] = `${target.replace(/\.(ts|tsx|js)$/, "")}#${orig}`
+      }
+    }
+    for (const m of full.matchAll(/\bimport\s+(?!type\s)\{([^}]*)\}\s*from\s*["']([^"']+)["']/g)) addNames(m[1], m[2])
+    for (const m of full.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*(?:await\s*)?import\s*\(\s*["']([^"']+)["']\s*\)/g)) addNames(m[1], m[2])
+    mods[rel] = { full, code, decls, imports }
+  }
+  const writes = new Set()
+  for (const [rel, m] of Object.entries(mods)) {
+    for (const d of m.decls) {
+      const text = m.full.slice(d.a, d.b)
+      if (DRIZZLE_WRITE.test(text) || SQL_WRITE.test(text)) writes.add(`${rel}#${d.name}`)
+    }
+  }
+  for (let changed = true; changed; ) {
+    changed = false
+    for (const [rel, m] of Object.entries(mods)) {
+      for (const d of m.decls) {
+        if (writes.has(`${rel}#${d.name}`)) continue
+        const ids = new Set(m.code.slice(d.a, d.b).match(/[A-Za-z_$][\w$]*/g) ?? [])
+        ids.delete(d.name)
+        const hit = [...ids].some((id) => writes.has(`${rel}#${id}`) || (m.imports[id] && writes.has(m.imports[id])))
+        if (hit) {
+          writes.add(`${rel}#${d.name}`)
+          changed = true
+        }
+      }
+    }
+  }
+  const out = {}
+  for (const key of writes) {
+    const [mod, name] = key.split("#")
+    if (mods[mod].decls.some((d) => d.name === name && d.exported)) (out[mod] ??= []).push(name)
+  }
+  return out
+}
+
+/** The exception whose file this repo path (no extension) is, if any. */
+function exceptionFor(target) {
+  return SERVER_EXCEPTIONS.find((e) => e.file.replace(/\.(ts|tsx|js|mjs)$/, "") === target)
+}
+
+/** Imports of an exception file's own writers (R4), anywhere but the file itself and tests. */
+export function exceptionImportHits(rel, raw) {
+  if (isTestPath(rel)) return []
+  const full = maskNonCode(raw, { keepStrings: true })
+  const hits = []
+  for (const imp of findImports(full)) {
+    const target = resolveSpecifier(rel, imp.spec)
+    const e = target ? exceptionFor(target) : null
+    if (!e || e.file === rel) continue
+    const line = lineOf(raw, imp.index)
+    const names = imp.whole ? Object.keys(e.writers) : imp.names.filter((n) => n in e.writers)
+    for (const name of names) {
+      const allowed = e.writers[name]
+      if (allowed === "any") continue
+      hits.push({ rel, line, rule: "exception-writer-import", detail: `${name} from ${e.file}`, name, exception: e })
+    }
+  }
+  return hits
+}
+
 function allowedByException(hit) {
   if (hit.rule !== "write-helper") return false
   const name = hit.detail.split(" from ")[0]
@@ -704,9 +854,18 @@ export function scanRoot(rootDir, { registrySource } = {}) {
   const failures = []
   const usedExceptions = new Set()
   const usedAllow = new Set()
+  const usedCallers = new Set()
   for (const file of files) {
     const rel = posix(path.relative(rootDir, file))
-    for (const hit of scanFile(rel, fs.readFileSync(file, "utf8"))) {
+    const raw = fs.readFileSync(file, "utf8")
+    for (const hit of exceptionImportHits(rel, raw)) {
+      if (hit.exception.writers[hit.name].includes(rel)) {
+        usedCallers.add(`${hit.exception.file}#${hit.name}#${rel}`)
+        continue
+      }
+      failures.push(`${hit.rel}:${hit.line} ${hit.rule}: ${hit.detail} (only its named callers may import it)`)
+    }
+    for (const hit of scanFile(rel, raw)) {
       if (allowedByException(hit)) {
         usedExceptions.add(`${hit.rel}#${hit.detail.split(" from ")[0]}`)
         continue
@@ -723,6 +882,14 @@ export function scanRoot(rootDir, { registrySource } = {}) {
   for (const e of SERVER_EXCEPTIONS) {
     for (const h of e.helpers) {
       if (!usedExceptions.has(`${e.file}#${h}`)) problems.push(`stale server exception: ${e.file} no longer imports ${h}`)
+    }
+  }
+  for (const e of SERVER_EXCEPTIONS) {
+    for (const [name, callers] of Object.entries(e.writers)) {
+      if (callers === "any") continue
+      for (const c of callers) {
+        if (!usedCallers.has(`${e.file}#${name}#${c}`)) problems.push(`stale named caller: ${c} no longer imports ${name} from ${e.file}`)
+      }
     }
   }
   SWITCH_ALLOWLIST.forEach((a, i) => {
