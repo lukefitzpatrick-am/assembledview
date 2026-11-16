@@ -34,6 +34,7 @@ describe("progress field (B42)", () => {
     const html = renderToStaticMarkup(<ProgressFieldPicker fields={FIELDS} value={2} busy={false} onChange={() => {}} />)
     expect(html).toContain("Progress field")
     expect(html).toContain("Completing a task sets this field to its done option")
+    expect(html).toContain("Linking a field, or changing its done option, also sets it on tasks already done.")
     expect(html).toContain("no done option now")
     const none = renderToStaticMarkup(<ProgressFieldPicker fields={[FIELDS[1]]} value={null} busy={false} onChange={() => {}} />)
     expect(none).toContain("pick its done option first")

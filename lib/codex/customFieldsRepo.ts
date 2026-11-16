@@ -106,7 +106,8 @@ export async function setProgressField(
         })
       }
       // C-263 (B43): tasks already done get the done option now, in this transaction.
-      if (fieldId != null) await markDoneTasksOnLink(tx, projectId, viewerEmail)
+      // R5 (B43fix): only when the link changes; re-saving the same link rewrites nothing.
+      if (fieldId != null && before !== fieldId) await markDoneTasksOnLink(tx, projectId, viewerEmail)
       return { ok: true as const, progress_field_id: fieldId }
     })
   )
@@ -164,7 +165,8 @@ export async function updateCustomField(
 ): Promise<{ ok: true; field: CodexCustomField } | ProjectFailure> {
   return guarded(database, () =>
     database.transaction(async (tx) => {
-      if (!(await loadVisibleProject(tx, projectId, viewerEmail, true))) return NOT_FOUND
+      const project = await loadVisibleProject(tx, projectId, viewerEmail, true)
+      if (!project) return NOT_FOUND
       const before = (await loadProjectFields(tx, projectId)).find((f) => f.id === fieldId)
       if (!before) return FIELD_NOT_FOUND
       // Removed options stay in the jsonb so a new option never takes their id (B40fix).
@@ -191,6 +193,11 @@ export async function updateCustomField(
         before,
         after: plan.field,
       })
+      // R5 (B43fix): a new done option on the linked progress field reaches tasks already done, as a link does.
+      const linked = project.row.progressFieldId != null && Number(project.row.progressFieldId) === fieldId
+      if (linked && plan.field.done_option != null && plan.field.done_option !== before.done_option) {
+        await markDoneTasksOnLink(tx, projectId, viewerEmail)
+      }
       return { ok: true as const, field: plan.field }
     })
   )

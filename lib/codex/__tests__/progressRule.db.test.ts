@@ -302,6 +302,63 @@ describe("the progress field rule (Postgres, 0118 applied)", { skip }, () => {
     assert.equal((await activity()).length, 2)
   })
 
+  it("R5 (B43fix): re-saving the same link rewrites nothing; a new done option on the linked field reaches done tasks", async () => {
+    const p = await createProject(
+      OWNER,
+      {
+        name: "Re-saved link", kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: false, start_on: null, due_on: null, members: [],
+        sections: [
+          { name: "To do", status_category: "todo" },
+          { name: "Done", status_category: "done" },
+        ],
+      },
+      database
+    )
+    assert.ok(p.ok)
+    const pid = p.project.id
+    const options = [{ id: "a", label: "Started" }, { id: "b", label: "Done" }, { id: "c", label: "Signed off" }]
+    const f = await createCustomField(pid, OWNER, { name: "Progress", field_type: "single_select", options, done_option: "b" }, database)
+    const other = await createCustomField(pid, OWNER, { name: "Stage", field_type: "single_select", options, done_option: "a" }, database)
+    assert.ok(f.ok && other.ok)
+    const key = String(f.field.id)
+    const [r] = await client`INSERT INTO public.tasks (title, status, client_id, project_id, created_by_email)
+      VALUES ('done', 'done', 42, ${pid}, ${OWNER}) RETURNING id`
+    const done = Number(r.id)
+    const value = async () => {
+      const [v] = await client`SELECT custom_values FROM public.tasks WHERE id = ${done}`
+      return ((v.custom_values ?? {}) as Record<string, unknown>)[key] ?? null
+    }
+    const rows = async () => {
+      const [n] = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task' AND entity_id = ${done}`
+      return Number(n.n)
+    }
+
+    assert.equal((await setProgressField(pid, OWNER, f.field.id, database)).ok, true)
+    assert.equal(await value(), "b", "the first link sets it")
+    assert.equal(await rows(), 1)
+    // A done task may hold another option (a field-only change); a re-save of the same link keeps it.
+    await client`UPDATE public.tasks SET custom_values = ${JSON.stringify({ [key]: "a" })}::jsonb WHERE id = ${done}`
+    assert.equal((await setProgressField(pid, OWNER, f.field.id, database)).ok, true)
+    assert.equal(await value(), "a", "re-saving the same link rewrites nothing")
+    assert.equal(await rows(), 1, "and writes no activity row")
+
+    // A name change, or another field's done option, changes nothing.
+    assert.equal((await updateCustomField(pid, f.field.id, OWNER, { name: "Progress 2" }, database)).ok, true)
+    assert.equal((await updateCustomField(pid, other.field.id, OWNER, { done_option: "c" }, database)).ok, true)
+    assert.equal(await value(), "a")
+    assert.equal(await rows(), 1)
+
+    // A new done option on the linked field reaches the done task, one activity row.
+    assert.equal((await updateCustomField(pid, f.field.id, OWNER, { done_option: "c" }, database)).ok, true)
+    assert.equal(await value(), "c")
+    assert.equal(await rows(), 2)
+
+    // Switch off: a done option change sets nothing.
+    switches(false)
+    assert.equal((await updateCustomField(pid, f.field.id, OWNER, { done_option: "b" }, database)).ok, true)
+    assert.equal(await value(), "c")
+  })
+
   it("C-263: a refused link sets nothing", async () => {
     const before = await client`SELECT count(*)::int AS n FROM public.codex_activity WHERE entity_type = 'task'`
     await client`UPDATE public.codex_projects SET progress_field_id = NULL WHERE id = ${projectId}`

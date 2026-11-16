@@ -215,6 +215,7 @@ export function ProgressFieldPicker({
       <p className="text-xs text-muted-foreground">
         Completing a task sets this field to its done option, and setting the done option completes the task.
       </p>
+      <p className="text-xs text-muted-foreground">Linking a field, or changing its done option, also sets it on tasks already done.</p>
       <Select value={value == null ? NONE : String(value)} onValueChange={(v) => onChange(v === NONE ? null : Number(v))} disabled={busy}>
         <SelectTrigger className="w-64" aria-label="Progress field">
           <SelectValue />
