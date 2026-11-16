@@ -56,8 +56,11 @@ import {
   assertAssigneeCanSeeTask,
   emailsWithoutProjectAccess,
   hiddenTaskIds,
+  shareBatchProjects,
+  TaskJoinedBatchProjectError,
   taskVisibilityCondition,
 } from "@/lib/codex/taskVisibility"
+import { DATABASE_ERROR_MESSAGE, isDatabaseError, isLockConflict, LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
 import { followSectionRule, lockTaskAndProject, lockTaskProject, TaskProjectChangedError } from "@/lib/codex/sectionSync"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {
@@ -1108,12 +1111,15 @@ export async function createTask(
 export class CodexBulkError extends Error {
   readonly taskId: number
   readonly statusCode: 400 | 409
+  /** The response's `error` code when it is not the default for the status (R1: `try_again`, `task_changed`). */
+  readonly code: string | undefined
 
-  constructor(taskId: number, statusCode: 400 | 409, message: string) {
+  constructor(taskId: number, statusCode: 400 | 409, message: string, code?: string) {
     super(message)
     this.name = "CodexBulkError"
     this.taskId = taskId
     this.statusCode = statusCode
+    this.code = code
   }
 }
 
@@ -1121,7 +1127,9 @@ async function updateLiveTask(
   tx: DbExecutor,
   id: number,
   patch: UpdateTaskInput,
-  actorEmail: string | null
+  actorEmail: string | null,
+  /** R1 (B43fix): the projects a plain bulk edit locked first (`shareBatchProjects`). */
+  batchLocked?: ReadonlySet<number>
 ): Promise<CodexTask | null> {
   if (patch.recurringRule !== undefined && patch.recurringRule != null && patch.recurringRule.trim() !== "") {
     if (!normaliseRecurringRule(patch.recurringRule)) {
@@ -1135,7 +1143,7 @@ async function updateLiveTask(
     // F5 (B42fix): a task in a private project goes only to someone who can see the project.
     if (patch.assigneeEmail !== undefined) {
       const next = patch.assigneeEmail?.trim().toLowerCase() || null
-      if (next && assigneeChanged(before.assigneeEmail, next)) await assertAssigneeCanSeeTask(tx, id, next)
+      if (next && assigneeChanged(before.assigneeEmail, next)) await assertAssigneeCanSeeTask(tx, id, next, batchLocked)
     }
 
     if (patch.templateId !== undefined && patch.templateId != null) {
@@ -1654,11 +1662,21 @@ export async function softDeleteTask(
  * A bulk task's failure as CodexBulkError: a CodexBulkError stays as it is;
  * anything else is 400 naming the task. Also used by the projects store's
  * bulk path (`bulkUpdateTasksThroughSections`).
+ * R1 (B43fix): a deadlock or lock timeout is 409 `try_again` (the whole
+ * batch rolled back); a task that joined a project mid-batch is 409
+ * `task_changed`; a database error's own text (SQL and values) never goes
+ * back to the client, it is logged.
  */
 export function bulkFailure(id: number, error: unknown): CodexBulkError {
   if (error instanceof CodexBulkError) return error
   // F5 (B42fix): a refusal, not a bad request.
   if (error instanceof AssigneeNoAccessError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`)
+  if (error instanceof TaskJoinedBatchProjectError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`, "task_changed")
+  if (isLockConflict(error)) return new CodexBulkError(id, 409, LOCK_CONFLICT_MESSAGE, "try_again")
+  if (isDatabaseError(error)) {
+    console.error(`[codex] bulk task ${id} failed in the database:`, error)
+    return new CodexBulkError(id, 400, `Task ${id}: ${DATABASE_ERROR_MESSAGE}`)
+  }
   const message = error instanceof Error ? error.message : String(error)
   return new CodexBulkError(id, 400, message)
 }
@@ -1671,10 +1689,15 @@ export async function bulkUpdateTasks(
   database: Db = db
 ): Promise<CodexTask[]> {
   return database.transaction(async (tx) => {
+    // R1 (B43fix): an assignee change locks the batch's projects first, in id
+    // order (the F5 check holds each task's project), so the batch never takes
+    // a project lock after writing a task (a board move takes them the other way).
+    const assigning = typeof patch.assigneeEmail === "string" && patch.assigneeEmail.trim() !== ""
+    const batchLocked = assigning ? await shareBatchProjects(tx, ids) : undefined
     const updated: CodexTask[] = []
     for (const id of ids) {
       try {
-        const task = await updateLiveTask(tx, id, patch, actorEmail)
+        const task = await updateLiveTask(tx, id, patch, actorEmail, batchLocked)
         if (!task) {
           throw new CodexBulkError(id, 409, `Task ${id} was not found.`)
         }

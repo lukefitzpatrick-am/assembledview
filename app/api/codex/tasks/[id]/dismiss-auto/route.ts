@@ -6,6 +6,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   hiddenTaskGuard,
+  writeFailureResponse,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -49,13 +50,6 @@ export async function POST(request: Request, context: Ctx) {
     }
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Failed to dismiss auto-created task:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to dismiss auto-created task",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to dismiss auto-created task:", "Failed to dismiss auto-created task")
   }
 }

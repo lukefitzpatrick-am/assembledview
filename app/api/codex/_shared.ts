@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
+import { isLockConflict, LOCK_CONFLICT_MESSAGE, safeErrorMessage } from "@/lib/codex/dbErrors"
 import {
   CODEX_SHADOW_ROLES,
   userHasCodexShadowAccess,
@@ -69,6 +70,30 @@ export function jsonError(
     message ? { error, message } : { error },
     { status }
   )
+}
+
+/**
+ * R1 (B43fix): a deadlock (40P01) or a lock that could not be taken (55P03)
+ * is 409 `try_again`: the transaction rolled back whole, so a retry is safe.
+ * Null for any other error.
+ */
+export function lockConflictResponse(error: unknown): NextResponse | null {
+  if (!isLockConflict(error)) return null
+  console.warn("[codex] write stopped by a lock conflict; answered 409 try_again", error)
+  return jsonError(409, "try_again", LOCK_CONFLICT_MESSAGE)
+}
+
+/**
+ * R1 (B43fix): a Codex write route's last catch. A lock conflict is 409
+ * `try_again`; anything else is logged under `label` and answered 500
+ * `{ error: title, message }`, where a database error's own text (SQL and
+ * values) is replaced by a generic line.
+ */
+export function writeFailureResponse(error: unknown, label: string, title: string): NextResponse {
+  const busy = lockConflictResponse(error)
+  if (busy) return busy
+  console.error(label, error)
+  return NextResponse.json({ error: title, message: safeErrorMessage(error) }, { status: 500 })
 }
 
 /**

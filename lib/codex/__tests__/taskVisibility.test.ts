@@ -130,6 +130,8 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/codex/progressRule.ts#markProgressDone": { rule: "exempt", reason: WRITER },
   "lib/codex/progressRule.ts#markDoneTasksOnLink": { rule: "exempt", reason: "C-263: the progress field link's own write over the project's done tasks, after loadVisibleProject in the same transaction; no row goes to a person" },
   "lib/codex/taskVisibility.ts#shareTaskProject": { rule: "exempt", reason: "the F5 check itself: the task's project id, to lock it (C-258)" },
+  "lib/codex/taskVisibility.ts#shareBatchProjects": { rule: "exempt", reason: "R1 (B43fix): the batch's project ids, to lock them in id order before the F5 checks; no row goes to a person" },
+  "lib/codex/taskVisibility.ts#batchTaskProject": { rule: "exempt", reason: "R1 (B43fix): the F5 check in a batch: the task's project id, refused when outside the locked set" },
   "lib/codex/seedTasks.ts#findExistingSeededTask": { rule: "exempt", reason: SYSTEM },
   "lib/fireflies/proposalRepo.ts#insertProposalsFromNote": { rule: "exempt", reason: `${SYSTEM}: meeting ingest dedupe keys and titles` },
   "lib/fireflies/proposalRepo.ts#getTask": { rule: "exempt", reason: "dismiss-auto, behind hiddenTaskGuard" },
@@ -152,11 +154,11 @@ test("every task-table read is classified, per function, and every shared read a
   assert.deepEqual(checkReaders(reads, READERS, source), [])
 })
 
-test("the allowlist: 81 readers (18 shared, 12 project, 51 exempt), and no view or function over task tables yet", () => {
+test("the allowlist: 83 readers (18 shared, 12 project, 53 exempt), and no view or function over task tables yet", () => {
   const count = (rule: string) => Object.values(READERS).filter((e) => e.rule === rule).length
   assert.deepEqual(
     { all: Object.keys(READERS).length, shared: count("shared"), project: count("project"), exempt: count("exempt") },
-    { all: 81, shared: 18, project: 12, exempt: 51 }
+    { all: 83, shared: 18, project: 12, exempt: 53 }
   )
   // A new view or set-returning function over a task table joins RELATIONS and its readers must be listed.
   assert.deepEqual(RELATIONS, [])

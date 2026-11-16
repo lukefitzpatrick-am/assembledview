@@ -18,6 +18,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   hiddenTaskGuard,
+  writeFailureResponse,
 } from "../../_shared"
 
 export const runtime = "nodejs"
@@ -326,14 +327,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (notify) await notify.afterTaskWrite(actor, before, [id])
     return NextResponse.json(task)
   } catch (error) {
-    console.error("Failed to patch codex task:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to update task",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to patch codex task:", "Failed to update task")
   }
 }
 
@@ -364,13 +358,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Failed to delete codex task:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to delete task",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to delete codex task:", "Failed to delete task")
   }
 }

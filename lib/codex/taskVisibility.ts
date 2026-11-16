@@ -162,10 +162,20 @@ export async function emailsWithoutProjectAccess(
   return out
 }
 
-/** F5: throw AssigneeNoAccessError when `email` cannot see the project task `taskId` is in. */
-export async function assertAssigneeCanSeeTask(database: DbExecutor, taskId: number, email: string | null | undefined): Promise<void> {
+/**
+ * F5: throw AssigneeNoAccessError when `email` cannot see the project task
+ * `taskId` is in. `batchLocked` (R1, B43fix): the projects a bulk edit locked
+ * first (`shareBatchProjects`); a task now in a project outside them is
+ * refused (TaskJoinedBatchProjectError) before that project is locked.
+ */
+export async function assertAssigneeCanSeeTask(
+  database: DbExecutor,
+  taskId: number,
+  email: string | null | undefined,
+  batchLocked?: ReadonlySet<number>
+): Promise<void> {
   if (!(email ?? "").trim() || !(await isProjectsMigrationApplied(database))) return
-  const projectId = await shareTaskProject(database, taskId)
+  const projectId = batchLocked ? await batchTaskProject(database, taskId, batchLocked) : await shareTaskProject(database, taskId)
   const [refused] = await emailsWithoutProjectAccess(database, projectId, [email])
   if (refused) throw new AssigneeNoAccessError(refused)
 }
@@ -191,6 +201,53 @@ async function shareTaskProject(database: DbExecutor, taskId: number): Promise<n
   if (projectId != null && projectId !== (locked == null ? null : Number(locked.id))) {
     await database.execute(sql`SELECT p.id FROM public.codex_projects p WHERE p.id = ${projectId} FOR SHARE OF p`)
   }
+  return projectId
+}
+
+/**
+ * R1 (B43fix): a plain bulk edit that changes an assignee takes FOR SHARE on
+ * every batch task's project, in project id order, before it writes any
+ * task. A board move (or any section writer) holds its project FOR UPDATE
+ * and then writes tasks, so taking a project lock after a task row was
+ * written could deadlock with it. Returns the ids locked. Before 0118: an
+ * empty set (nothing to lock; the check returns before it locks).
+ */
+export async function shareBatchProjects(database: DbExecutor, ids: readonly number[]): Promise<Set<number>> {
+  const locked = new Set<number>()
+  const clean = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))]
+  if (clean.length === 0 || !(await isProjectsMigrationApplied(database))) return locked
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT p.id FROM public.codex_projects p
+       WHERE p.id IN (SELECT DISTINCT t.project_id FROM public.tasks t
+                       WHERE t.id IN (${sql.join(clean.map((id) => sql`${id}::bigint`), sql`, `)}) AND t.project_id IS NOT NULL)
+       ORDER BY p.id
+         FOR SHARE OF p
+    `)
+  )
+  for (const r of rows) locked.add(Number(r.id))
+  return locked
+}
+
+/** R1 (B43fix): a bulk task joined a project the batch did not lock (bulkFailure: 409 `task_changed`). */
+export class TaskJoinedBatchProjectError extends Error {
+  constructor(readonly taskId: number) {
+    super("The task moved project while saving. Reload and try again.")
+    this.name = "TaskJoinedBatchProjectError"
+  }
+}
+
+/**
+ * R1 (B43fix): the task's project inside a bulk edit whose projects are
+ * already held (`shareBatchProjects`). A task now in a project outside that
+ * set joined it mid-batch: refused (409 `task_changed`) and never locked
+ * late, so the batch never takes a project lock out of id order (as C-222
+ * does for the section path).
+ */
+async function batchTaskProject(database: DbExecutor, taskId: number, batchLocked: ReadonlySet<number>): Promise<number | null> {
+  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
+  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
+  if (projectId != null && !batchLocked.has(projectId)) throw new TaskJoinedBatchProjectError(taskId)
   return projectId
 }
 

@@ -10,6 +10,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   hiddenTaskGuard,
+  writeFailureResponse,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -128,13 +129,6 @@ export async function POST(request: Request, context: RouteContext) {
         { status: error.status }
       )
     }
-    console.error("Failed to request help on codex task:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to request help",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to request help on codex task:", "Failed to request help")
   }
 }

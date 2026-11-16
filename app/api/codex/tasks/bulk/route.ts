@@ -14,6 +14,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   firstHiddenTaskId,
+  writeFailureResponse,
 } from "../../_shared"
 
 export const runtime = "nodejs"
@@ -203,20 +204,13 @@ export async function POST(request: Request) {
       const status = error.statusCode
       return NextResponse.json(
         {
-          error: status === 409 ? "conflict" : "bad_request",
+          error: error.code ?? (status === 409 ? "conflict" : "bad_request"),
           message: error.message,
           id: error.taskId,
         },
         { status }
       )
     }
-    console.error("Failed to bulk-update codex tasks:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to update tasks",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to bulk-update codex tasks:", "Failed to update tasks")
   }
 }

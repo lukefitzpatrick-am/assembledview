@@ -20,6 +20,7 @@ import {
   codexFlagGuard,
   requireCodexInternalAccess,
   sessionEmail,
+  writeFailureResponse,
 } from "../_shared"
 
 export const runtime = "nodejs"
@@ -348,13 +349,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
-    console.error("Failed to create codex task:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to create task",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to create codex task:", "Failed to create task")
   }
 }

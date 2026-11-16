@@ -8,6 +8,7 @@ import {
   jsonError,
   requireCodexInternalAccess,
   sessionEmail,
+  writeFailureResponse,
 } from "../../../_shared"
 
 export const runtime = "nodejs"
@@ -87,13 +88,6 @@ export async function POST(request: Request, context: Ctx) {
       possible_duplicate: result.possibleDuplicate,
     })
   } catch (error) {
-    console.error("Failed to accept proposal:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to accept proposal",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to accept proposal:", "Failed to accept proposal")
   }
 }

@@ -9,6 +9,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   hiddenTaskGuard,
+  writeFailureResponse,
 } from "../../../../_shared"
 
 export const runtime = "nodejs"
@@ -91,14 +92,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     return NextResponse.json(item)
   } catch (error) {
-    console.error("Failed to patch checklist item:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to update checklist item",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to patch checklist item:", "Failed to update checklist item")
   }
 }
 
@@ -130,13 +124,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Failed to delete checklist item:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to delete checklist item",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to delete checklist item:", "Failed to delete checklist item")
   }
 }

@@ -7,13 +7,15 @@ import { NextResponse } from "next/server"
 
 import { ProjectsUnavailableError, type ProjectFailure } from "@/lib/codex/projectsRepo"
 import { PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
-import { jsonError } from "../_shared"
+import { jsonError, lockConflictResponse } from "../_shared"
 
-/** 503 before migration 0118, else 500 without detail. */
+/** 503 before migration 0118, 409 `try_again` for a lock conflict (R1, B43fix), else 500 without detail. */
 export function projectsErrorResponse(error: unknown, action: string): NextResponse {
   if (error instanceof ProjectsUnavailableError) {
     return jsonError(503, "migration_not_applied", "Codex projects need migration 0118 (codex_s1_projects).")
   }
+  const busy = lockConflictResponse(error)
+  if (busy) return busy
   console.error(`Codex projects ${action} failed:`, error)
   return jsonError(500, "projects_failed", "Projects failed. Try again.")
 }

@@ -6,6 +6,7 @@ import {
   requireCodexInternalAccess,
   sessionEmail,
   hiddenTaskGuard,
+  writeFailureResponse,
 } from "../../../../_shared"
 
 export const runtime = "nodejs"
@@ -49,13 +50,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Failed to delete comment:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to delete comment",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    return writeFailureResponse(error, "Failed to delete comment:", "Failed to delete comment")
   }
 }
