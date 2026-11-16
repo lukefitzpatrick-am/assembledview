@@ -91,7 +91,7 @@ describe("Creative admin landing containment (B44, C-200)", () => {
   it("the link carries the screenshot task the dialog would get", () => {
     const prefill = buildScreenshotTaskPrefill({
       clientName: "Bic",
-      campaignLabel: "BICAU002 — Summer",
+      campaignLabel: "BICAU002 Summer",
       clientId: 42,
       mbaNumber: "BICAU002",
     })
@@ -99,8 +99,8 @@ describe("Creative admin landing containment (B44, C-200)", () => {
     expect(parsed).toEqual({
       compose: "task",
       prefill: {
-        title: "Screenshots requested: Bic/BICAU002 — Summer",
-        description: "Screenshot request from Creative landing.\nClient: Bic\nCampaign: BICAU002 — Summer\nMBA: BICAU002",
+        title: "Screenshots requested: Bic/BICAU002 Summer",
+        description: "Screenshot request from Creative landing.\nClient: Bic\nCampaign: BICAU002 Summer\nMBA: BICAU002",
         clientId: 42,
         mbaNumber: "BICAU002",
         category: "creative",
