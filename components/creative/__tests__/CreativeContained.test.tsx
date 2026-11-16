@@ -126,6 +126,16 @@ describe("Creative admin landing containment (B44, C-200)", () => {
     })
   })
 
+  it("a non-ASCII campaign name reads back whole through the link (B44fix R9)", () => {
+    // Campaign names are free text; this one carries a dash (U+2014) and an accent.
+    const label = "BICAU002 \u2014 \u00c9t\u00e9 2026"
+    const prefill = buildScreenshotTaskPrefill({ clientName: "Bic", campaignLabel: label, clientId: 42, mbaNumber: "BICAU002" })
+    const parsed = parseTasksComposeParams(new URL(screenshotTaskComposeHref(prefill), "https://app.test").searchParams)
+    expect(parsed.notes).toEqual([])
+    expect(parsed.prefill.title).toBe(`Screenshots requested: Bic/${label}`)
+    expect(parsed.prefill.description).toContain(`Campaign: ${label}`)
+  })
+
   it("source: the page reads the switch on the server; the dialog renders only with it off", () => {
     const page = fs.readFileSync(path.join(process.cwd(), "app/creative/page.tsx"), "utf8")
     expect(page).toContain("isCodexContainedWritesEnabled()")
