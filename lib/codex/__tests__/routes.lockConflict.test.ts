@@ -8,7 +8,8 @@
  *   throwing a raw error, and a CodexBulkError carrying a code), and a
  *   projects route through `projectsErrorResponse` (the section move).
  * - Source scan: every write handler under app/api/codex/tasks/**, the
- *   projects routes and the proposal accept route ends in
+ *   projects routes, the proposal accept route and the batch accept POST
+ *   (`app/api/codex/proposals/route.ts`, R3 PACK4fix) ends in
  *   `writeFailureResponse` or `projectsErrorResponse`, never a raw
  *   `error.message` 500.
  *
@@ -92,6 +93,12 @@ if (supportsMockModule()) {
     namedExports: { isTaskHiddenFrom: async () => false, hiddenTaskIds: async () => new Set() },
   })
   await mock.module!("@/db", { namedExports: { db: {} } })
+  await mock.module!("@/lib/fireflies/proposalRepo", {
+    namedExports: {
+      batchAcceptForNote: failOrReturn({ accepted: 1, tasks: [TASK] }),
+      listProposedInbox: failOrReturn({ items: [], total: 0 }),
+    },
+  })
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
       ProjectsUnavailableError,
@@ -247,6 +254,30 @@ test("a projects route (section move): a lock conflict is 409 try_again; anythin
   assert.deepEqual(await broken.json(), { error: "projects_failed", message: "Projects failed. Try again." })
 })
 
+test("batch accept (R3, PACK4fix): a lock conflict is 409 try_again; any other database error is a 500 without its SQL", { skip }, async () => {
+  const route = await import("../../../app/api/codex/proposals/route.js")
+  const post = () => route.POST(json("POST", "http://l/api/codex/proposals", { note_id: 12 }))
+  for (const code of ["40P01", "55P03"]) {
+    const busy = await withSwitches(false, async () => {
+      failure = drizzleError(code)
+      return post()
+    })
+    assert.equal(busy.status, 409, code)
+    assert.deepEqual(await busy.json(), { error: "try_again", message: LOCK_CONFLICT_MESSAGE })
+  }
+  const broken = await withSwitches(false, async () => {
+    failure = drizzleError("23505")
+    return post()
+  })
+  assert.equal(broken.status, 500)
+  const body = (await broken.json()) as { error: string; message: string }
+  assert.deepEqual(body, { error: "Failed to batch-accept proposals", message: DATABASE_ERROR_MESSAGE })
+  assert.doesNotMatch(JSON.stringify(body), /Failed query|codex_projects|params/)
+  const ok = await withSwitches(false, post)
+  assert.equal(ok.status, 200)
+  assert.deepEqual(await ok.json(), { accepted: 1, tasks: [TASK] })
+})
+
 /** Every write handler body (POST, PATCH, PUT, DELETE) of a route file, by name. */
 function writeHandlers(source: string): Map<string, string> {
   const out = new Map<string, string>()
@@ -276,6 +307,7 @@ test("scan: every Codex task write handler ends in writeFailureResponse or proje
     ...routeFiles(path.join(root, "tasks")),
     ...routeFiles(path.join(root, "projects")),
     path.join(root, "proposals/[id]/accept/route.ts"),
+    path.join(root, "proposals/route.ts"),
   ]
   const offenders: string[] = []
   let handlers = 0

@@ -9,6 +9,7 @@ import {
   jsonError,
   requireCodexInternalAccess,
   sessionEmail,
+  writeFailureResponse,
 } from "../_shared"
 
 export const runtime = "nodejs"
@@ -69,13 +70,7 @@ export async function POST(request: Request) {
     const result = await batchAcceptForNote(noteId, email)
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Failed to batch-accept proposals:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to batch-accept proposals",
-        message: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    )
+    // R3 (PACK4fix): batch accept creates tasks; a lock conflict is 409 try_again, no database text.
+    return writeFailureResponse(error, "Failed to batch-accept proposals:", "Failed to batch-accept proposals")
   }
 }
