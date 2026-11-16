@@ -212,6 +212,10 @@ test("codex_progress_field's description names the 409 progress_conflict refusal
   assert.match(featureDefinition("codex_progress_field")!.description, /409 progress_conflict/)
 })
 
+test("codex_progress_field's description says a link saved while the switch was off must be linked again (PACK4fix R6)", () => {
+  assert.match(featureDefinition("codex_progress_field")!.description, /saved while this switch was off set nothing on done tasks: after turning it on, link the field again/)
+})
+
 test("codex_contained_writes (B44, C-200): new switch, default off, no env fallback, needs codex_v2, sent to the browser", () => {
   const def = featureDefinition("codex_contained_writes")!
   assert.equal(def.defaultOn, false)
@@ -225,6 +229,7 @@ test("codex_contained_writes (B44, C-200): new switch, default off, no env fallb
   assert.match(def.description, /C-200/)
   assert.match(def.description, /never saves on load/)
   assert.match(def.description, /Off: each page keeps its own dialog and writes as before/)
+  assert.match(def.description, /List shortened/, "PACK4fix R6: a long change list is cut to fit the link")
 })
 
 test("codex_contained_writes: the server getter needs codex_v2; the browser value is folded off without it", async () => {
