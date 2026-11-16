@@ -74,9 +74,13 @@ export const ZONE = [
 export const TASKS_UI = [/^components\/tasks\//, /^components\/codex\//]
 
 /**
- * Codex write helpers by module (no extension). Every export of these modules
- * is either here or in READ_EXPORTS (the self-test checks), so a new helper
- * must be classified.
+ * Codex write helpers by module (no extension): every exported function or
+ * value in `lib/codex` that inserts, updates or deletes rows (tasks and their
+ * children, projects, sections, fields, templates, the team roster,
+ * followers, activity, notifications, saved views), directly or through
+ * another write helper. Every export of these modules is either here or in
+ * READ_EXPORTS, and every writing module under `lib/codex` must be here (the
+ * self-test checks both), so a new helper or module must be classified.
  */
 export const WRITE_HELPERS = {
   "lib/codex/repo": [
@@ -89,12 +93,21 @@ export const WRITE_HELPERS = {
     "softDeleteTask",
     "bulkUpdateTasks",
     "bulkSoftDeleteTasks",
+    "createTeamMember",
+    "updateTeamMember",
     "createChecklistItem",
     "updateChecklistItem",
     "deleteChecklistItem",
     "reorderChecklistItems",
     "createComment",
     "deleteComment",
+    "createTemplate",
+    "updateTemplate",
+    "deleteTemplate",
+    "createTemplateItem",
+    "updateTemplateItem",
+    "deleteTemplateItem",
+    "reorderTemplateItems",
     "createGeneratedRecurringTask",
   ],
   "lib/codex/taskDetailRepo": ["createSubtask", "reorderSubtasks"],
@@ -133,43 +146,57 @@ export const WRITE_HELPERS = {
   "lib/codex/progressRule": ["markProgressDone", "markDoneTasksOnLink"],
   "lib/codex/runRecurring": ["runCodexRecurring"],
   "lib/codex/seedTasks": ["seedTasksForCampaign"],
+  "lib/codex/notify": ["applyFollows", "writeNotifications", "recordTaskChanges", "afterTaskWrite"],
+  "lib/codex/notificationsRepo": [
+    "markNotificationsRead",
+    "setEmailDigest",
+    "generateDueReminders",
+    "runDigest",
+    "runDailyNotifications",
+  ],
+  "lib/codex/savedViewsRepo": ["createSavedView", "updateSavedView", "deleteSavedView"],
+  "lib/codex/estimatedMinutesColumn": ["writeTaskEstimatedMinutes"],
+  "lib/codex/auth0RosterStore": ["postgresRosterStore"],
+  // Writes through the store it is given (the roster store by default).
+  "lib/codex/auth0LoginUpsert": ["upsertTeamMemberOnAdminLogin", "syncAdminRosterOnLogin"],
+  "lib/codex/auth0RosterSync": ["runAuth0RosterSync"],
 }
 
-/** Exports of the write modules that only read, lock or shape data (classified so nothing new slips in). */
+/**
+ * Exports of the write modules that do not write: reads, locks, shapes,
+ * constants and error classes (classified so nothing new slips in).
+ */
 export const READ_EXPORTS = {
   "lib/codex/repo": [
+    "TEMPLATE_LABEL_MAX",
+    "TemplateLabelError",
     "listTasks",
     "loadListTasksByIds",
     "countTasksByStatus",
     "countTasksByMba",
     "getTask",
     "listTaskActivity",
+    "CodexBulkError",
+    "HELP_ON_DONE_MESSAGE",
     "helpNoAccessMessage",
     "bulkFailure",
     "listClientNotes",
     "listEmailAliasCollisions",
     "listTeamMembers",
     "listRosterLoginRows",
-    "createTeamMember",
-    "updateTeamMember",
     "listChecklistItems",
     "listComments",
     "listTemplates",
     "getTemplate",
-    "createTemplate",
-    "updateTemplate",
-    "deleteTemplate",
     "listTemplateItems",
-    "createTemplateItem",
-    "updateTemplateItem",
-    "deleteTemplateItem",
-    "reorderTemplateItems",
     "listRecurringSeeds",
     "findGeneratedRecurringTask",
     "latestRecurringInstanceDueYmd",
+    "RecurringCopySkipped",
   ],
   "lib/codex/taskDetailRepo": ["getTaskProjectDetail"],
   "lib/codex/projectsRepo": [
+    "ProjectsUnavailableError",
     "isMissingProjectsSchema",
     "guarded",
     "projectRowToApi",
@@ -181,6 +208,7 @@ export const READ_EXPORTS = {
     "listProjects",
     "getProject",
     "listSections",
+    "BOARD_PAGE_SIZE",
     "attachTaskS1Fields",
     "loadProjectFields",
     "projectCardFieldsWhere",
@@ -188,7 +216,7 @@ export const READ_EXPORTS = {
     "loadProjectBoard",
     "listSectionTasks",
   ],
-  "lib/codex/sectionSync": ["lockTaskProject", "lockTaskAndProject"],
+  "lib/codex/sectionSync": ["lockTaskProject", "TaskProjectChangedError", "LOCK_TASK_AND_PROJECT_TRIES", "lockTaskAndProject"],
   "lib/codex/customFieldsRepo": ["listProjectFields"],
   "lib/codex/collabRepo": [
     "listCommentsWithMentions",
@@ -200,7 +228,50 @@ export const READ_EXPORTS = {
   ],
   "lib/codex/progressRule": ["loadProgressRule"],
   "lib/codex/runRecurring": [],
-  "lib/codex/seedTasks": ["eachMonthEndYmd", "expandSeedDueDates"],
+  "lib/codex/seedTasks": ["SEED_PAST_DUE_FLAG", "CAMPAIGN_PROFILE", "eachMonthEndYmd", "expandSeedDueDates"],
+  "lib/codex/notify": [
+    "loadTaskFactsMany",
+    "loadTaskFacts",
+    "canSeeTask",
+    "loadVisibleTask",
+    "loadFollowerRows",
+    "loadEffectiveFollowers",
+    "notifyEnabled",
+    "captureTaskStates",
+    "beforeTaskWrite",
+  ],
+  "lib/codex/notificationsRepo": [
+    "BELL_LIMIT_DEFAULT",
+    "BELL_LIMIT_MAX",
+    "DIGEST_LOOKBACK_DAYS",
+    "DIGEST_ROWS_MAX",
+    "bellPerson",
+    "listBell",
+    "loadDigestBatch",
+  ],
+  "lib/codex/savedViewsRepo": [
+    "SAVED_VIEWS_MARKER",
+    "SAVED_VIEWS_PER_OWNER_MAX",
+    "SavedViewsUnavailableError",
+    "SavedViewsLimitError",
+    "isMissingSavedViewsTable",
+    "resetSavedViewsMarkerCacheForTests",
+    "isSavedViewsMigrationApplied",
+    "savedViewRowToApi",
+    "listSavedViews",
+    "savedViewsOwnerLockSql",
+  ],
+  "lib/codex/estimatedMinutesColumn": [
+    "resetEstimatedMinutesColumnCache",
+    "executeRows",
+    "tasksHasEstimatedMinutesColumn",
+    "estimatedMinutesByTaskId",
+    "applyEstimatedMinutes",
+    "sumOpenEstimatedMinutesByAssignee",
+  ],
+  "lib/codex/auth0RosterStore": [],
+  "lib/codex/auth0LoginUpsert": ["LOGIN_SYNC_DEBOUNCE_MS", "resetLoginSyncDebounceForTests", "aliasesForNewRosterEmail"],
+  "lib/codex/auth0RosterSync": [],
 }
 
 /**
@@ -227,6 +298,26 @@ export const SERVER_EXCEPTIONS = [
     file: "app/api/cron/codex-recurring/route.ts",
     helpers: ["runCodexRecurring"],
     reason: "the recurring task cron, system:recurring (C-200 exception)",
+  },
+  {
+    file: "lib/auth0.ts",
+    helpers: ["syncAdminRosterOnLogin"],
+    reason: "an admin's login adds or refreshes their team roster row, fail soft (roster layer 1, C-200 exception, B44fix)",
+  },
+  {
+    file: "app/api/cron/auth0-roster-sync/route.ts",
+    helpers: ["runAuth0RosterSync"],
+    reason: "the nightly Auth0 admin roster sync writes team roster rows (C-200 exception, B44fix)",
+  },
+  {
+    file: "app/api/admin/auth0-roster-sync/route.ts",
+    helpers: ["runAuth0RosterSync"],
+    reason: "an admin runs the same Auth0 roster sync by hand (C-200 exception, B44fix)",
+  },
+  {
+    file: "app/api/cron/codex-notifications/route.ts",
+    helpers: ["runDailyNotifications"],
+    reason: "the daily Codex cron writes due reminders and marks digests sent (C-200 exception, B44fix)",
   },
 ]
 
