@@ -113,12 +113,16 @@ export function TasksComposeFromLink({
 }) {
   const { toast } = useToast()
   const parsed = useMemo(() => parseTasksComposeParams(params), [params])
-  const started = useRef(false)
+  /**
+   * Set when a run finishes, not when it starts. React StrictMode (on in
+   * `next dev`) runs effect, cleanup, effect: the first run is cancelled by
+   * its cleanup and the second one opens the dialog, once (B44fix R1).
+   */
+  const consumed = useRef(false)
   const [opened, setOpened] = useState<Opened>({ kind: "none" })
 
   useEffect(() => {
-    if (!parsed.compose || started.current) return
-    started.current = true
+    if (!parsed.compose || consumed.current) return
     let cancelled = false
     void (async () => {
       const clientIds = parsed.prefill.clientId != null ? await readClientIds() : new Set<number>()
@@ -141,7 +145,8 @@ export function TasksComposeFromLink({
           )
         }
       }
-      if (cancelled) return
+      if (cancelled || consumed.current) return
+      consumed.current = true
       setOpened(next)
       if (notes.length > 0) {
         toast({ title: "Some details from the link were left out", description: notes.join(" ") })

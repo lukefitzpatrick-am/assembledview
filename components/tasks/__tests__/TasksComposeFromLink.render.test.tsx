@@ -6,7 +6,7 @@
  */
 import fs from "node:fs"
 import path from "node:path"
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -72,18 +72,19 @@ describe("TasksComposeFromLink (B44)", () => {
     vi.unstubAllGlobals()
   })
 
-  async function mount(search: string, onConsumed = vi.fn()) {
+  async function mount(search: string, onConsumed = vi.fn(), strict = false) {
+    const el = (
+      <TasksComposeFromLink
+        params={new URLSearchParams(search)}
+        clients={[{ id: 42, mp_client_name: "Bic" }]}
+        teamMembers={[]}
+        meEmail="luke@x.au"
+        onSaved={() => undefined}
+        onConsumed={onConsumed}
+      />
+    )
     await act(async () => {
-      root.render(
-        <TasksComposeFromLink
-          params={new URLSearchParams(search)}
-          clients={[{ id: 42, mp_client_name: "Bic" }]}
-          teamMembers={[]}
-          meEmail="luke@x.au"
-          onSaved={() => undefined}
-          onConsumed={onConsumed}
-        />,
-      )
+      root.render(strict ? <StrictMode>{el}</StrictMode> : el)
     })
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0))
@@ -167,6 +168,63 @@ describe("TasksComposeFromLink (B44)", () => {
     })
     expect(toasts[0]?.description).toMatch(/had HTML in it/)
     expect(calls.every((c) => c.method === "GET")).toBe(true)
+  })
+
+  it("under React StrictMode (next dev) compose=task opens the form once and cleans the URL once (B44fix R1)", async () => {
+    const calls = routes({ clients: [42], mbas: ["BICAU002"] })
+    const consumed = await mount("compose=task&pf_title=T&pf_client=42&pf_mba=BICAU002", vi.fn(), true)
+    expect(formProps.at(-1)!.open).toBe(true)
+    expect(formProps.at(-1)!.createPrefill).toMatchObject({ title: "T", client_id: 42, mba_number: "BICAU002" })
+    expect(consumed).toHaveBeenCalledTimes(1)
+    expect(toasts).toHaveLength(0)
+    expect(calls.every((c) => c.method === "GET")).toBe(true)
+  })
+
+  it("under React StrictMode a link with a note opens once and toasts once (B44fix R1)", async () => {
+    routes({ clients: [7], mbas: [] })
+    const consumed = await mount("compose=task&pf_title=T&pf_client=42", vi.fn(), true)
+    expect(formProps.at(-1)!.open).toBe(true)
+    expect(consumed).toHaveBeenCalledTimes(1)
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]?.description).toContain("Client 42 from the link was not found")
+  })
+
+  it("under React StrictMode compose=help opens Ask for help once (B44fix R1)", async () => {
+    routes({ clients: [42], mbas: ["BICAU002"], tasks: [{ id: 3, title: "Bic launch", parent_task_id: null }] })
+    const consumed = await mount("compose=help&pf_title=Bic&pf_client=42&pf_mba=BICAU002", vi.fn(), true)
+    expect(helpProps.at(-1)!.open).toBe(true)
+    expect(consumed).toHaveBeenCalledTimes(1)
+    expect(toasts).toHaveLength(0)
+  })
+
+  it("closing the dialog does not reopen it on the next render", async () => {
+    routes({ clients: [42], mbas: [] })
+    const params = new URLSearchParams("compose=task&pf_title=T")
+    const consumed = vi.fn()
+    const el = () => (
+      <StrictMode>
+        <TasksComposeFromLink
+          params={params}
+          clients={[]}
+          teamMembers={[]}
+          meEmail={null}
+          onSaved={() => undefined}
+          onConsumed={consumed}
+        />
+      </StrictMode>
+    )
+    await act(async () => root.render(el()))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(formProps.at(-1)!.open).toBe(true)
+    await act(async () => (formProps.at(-1)!.onOpenChange as (o: boolean) => void)(false))
+    await act(async () => root.render(el()))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    expect(formProps.at(-1)!.open).toBe(false)
+    expect(consumed).toHaveBeenCalledTimes(1)
   })
 
   it("no compose param: nothing opens and nothing is fetched", async () => {
