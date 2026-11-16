@@ -84,6 +84,17 @@ const CAUGHT = [
   ["components/x/A.tsx", `const url = "/api/codex/tasks"\nexport const go = (init) => fetch(url, init)`, "url-in-writing-file"],
   ["components/x/A.tsx", `fetch("/api/codex/tasks", { "method": "POST" })`, "fetch-write"],
   ["components/x/A.tsx", `const r = new Request("/api/codex/tasks", { method: "POST" })`, "fetch-write"],
+  // PACK4fix R5: a computed method key, an aliased fetch, and a Codex route handler imported from outside the zone.
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { ["method"]: "POST" })`, "fetch-write"],
+  ["components/x/A.tsx", "fetch(\"/api/codex/tasks\", { [`method`]: \"PATCH\" })", "fetch-write"],
+  ["components/x/A.tsx", `fetch("/api/codex/tasks", { [key]: value })`, "fetch-write"],
+  ["components/x/A.tsx", `const M = "POST"\nconst opts = { method: M }\nconst f = fetch\nexport const go = () => f("/api/codex/tasks", opts)`, "fetch-write"],
+  ["components/x/A.tsx", `const send = window.fetch.bind(window)\nexport const go = () => send("/api/codex/tasks", { method: verb })`, "fetch-write"],
+  ["components/x/A.tsx", `const M = "POST"\nconst f = fetch\nconst url = "/api/codex/tasks"\nexport const go = () => f(url, { method: M })`, "url-in-writing-file"],
+  ["lib/x.ts", `import { POST } from "@/app/api/codex/tasks/route"`, "codex-route-import"],
+  ["app/api/cron/x/route.ts", `import { PATCH as patchTask } from "../../codex/tasks/[id]/route"`, "codex-route-import"],
+  ["lib/x.ts", `const { POST } = require("@/app/api/codex/tasks/route")`, "codex-route-import"],
+  ["lib/x.ts", `export async function f() { const route = await import("@/app/api/codex/tasks/bulk/route"); return route }`, "codex-route-import"],
   // A zone-looking name outside the zone is still outside.
   ["components/taskstuff/A.tsx", `import { createTask } from "@/lib/codex/repo"`, "write-helper"],
   ["app/pacing/tasks-ish/page.tsx", `import { createTask } from "@/lib/codex/repo"`, "write-helper"],
@@ -106,6 +117,11 @@ const ALLOWED = [
   ["components/x/A.tsx", `const methodName = "x"; fetch("/api/codex/tasks", { methodName, signal })`],
   ["components/x/A.tsx", `const url = "/api/codex/tasks"\nexport const go = () => fetch(url, { cache: "no-store" })`],
   ["components/x/A.tsx", `/* import { createTask } from "@/lib/codex/repo" */`],
+  // PACK4fix R5: an aliased fetch that is provably GET, a literal computed key that is not the method, a type from a route.
+  ["components/x/A.tsx", `const f = fetch\nexport const go = () => f("/api/codex/tasks", { ["cache"]: "no-store" })`],
+  ["components/x/A.tsx", `const f = fetch; f("/api/codex/tasks")`],
+  ["lib/x.ts", `import type { RouteContext } from "@/app/api/codex/tasks/[id]/route"`],
+  ["app/api/codex/tasks/bulk/route.ts", `import { PATCH } from "../[id]/route"`],
   ["lib/x.ts", `import { listTasks, getTask } from "@/lib/codex/repo"`],
   ["lib/x.ts", `import type { CodexTask } from "@/lib/codex/types"`],
   ["lib/x.ts", `import { type createTask } from "@/lib/codex/repo"`],
@@ -209,6 +225,9 @@ test("a new writing module or writer under lib/codex fails until it is classifie
     // and a module whose only write is a Drizzle delete.
     put("lib/codex/newChain.ts", 'export async function outer(x) {\n  return middle(x)\n}\nasync function middle(x) {\n  return inner(x)\n}\nasync function inner(x) {\n  return make(x)\n}\nimport { createTask as make } from "./repo"\n')
     put("lib/codex/newDelete.ts", 'export async function removeThing(db, id) {\n  await db.delete(things).where(eq(things.id, id))\n}\n')
+    // PACK4fix R5: a list export (also under another name), lowercase SQL, UPDATE ONLY, an indented export.
+    put("lib/codex/newList.ts", "async function archive(db) {\n  await db.execute(sql`update public.tasks set title = 'x'`)\n}\nasync function wipe(db) {\n  await db.execute(sql`UPDATE ONLY public.tasks SET title = 'y'`)\n}\nexport function readOnly() {\n  return 1\n}\nexport { archive, wipe as purgeAll, readOnly as alsoRead }\n")
+    put("lib/codex/newIndent.ts", "  export async function indented(db) {\n    await db.insert(things).values({})\n  }\n")
     put("lib/codex/notWrites.ts", 'export function strip(qs) {\n  qs.delete("task")\n  seen.delete(id)\n  return qs\n}\n')
     const found = findWriterExports(dir)
     assert.deepEqual(unclassifiedWriters(found), [
@@ -217,9 +236,34 @@ test("a new writing module or writer under lib/codex fails until it is classifie
       "lib/codex/newDelete#removeThing",
       "lib/codex/newDrizzle#archiveThing",
       "lib/codex/newDynamic#later",
+      "lib/codex/newIndent#indented",
+      "lib/codex/newList#archive",
+      "lib/codex/newList#purgeAll",
       "lib/codex/newSql#purge",
     ])
     assert.equal(found["lib/codex/notWrites"], undefined)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+/** Not found by the writer detector today (the header lists them). */
+const DETECTOR_GAPS = {
+  // A top-level declaration indented without `export`, before any other declaration: no declaration holds it.
+  "lib/codex/gapIndent.ts": "  async function helper(db) {\n    await db.insert(things).values({})\n  }\nexport async function outer(db) {\n  return helper(db)\n}\n",
+  // A re-export of a writer from another module under lib/codex.
+  "lib/codex/gapReexport.ts": 'export { createTask as make } from "./repo"\n',
+}
+
+test("DETECTOR_GAPS stay gaps (move one into the planted tree when the detector learns it) (PACK4fix R5)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-writer-gaps-"))
+  try {
+    fs.mkdirSync(path.join(dir, "lib/codex"), { recursive: true })
+    fs.writeFileSync(path.join(dir, "lib/codex/repo.ts"), 'export async function createTask(db, x) {\n  return db.insert(tasks).values(x).returning()\n}\n')
+    for (const [rel, src] of Object.entries(DETECTOR_GAPS)) fs.writeFileSync(path.join(dir, rel), src)
+    const found = findWriterExports(dir)
+    assert.deepEqual(found["lib/codex/repo"], ["createTask"])
+    for (const rel of Object.keys(DETECTOR_GAPS)) assert.equal(found[rel.replace(/\.ts$/, "")], undefined, rel)
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

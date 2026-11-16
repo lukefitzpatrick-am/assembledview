@@ -11,15 +11,20 @@
  *      a dynamic `import()` / `require()` of one (unless it destructures only
  *      read names);
  *   2. imports the /tasks UI (`components/tasks/**`, `components/codex/**`),
- *      which writes;
+ *      which writes, or a Codex route handler (`app/api/codex/**`, statically,
+ *      with `import()` or `require()`; a type-only import is fine), which
+ *      writes without a fetch (PACK4fix R5);
  *   3. sends a write to a Codex route: a `/api/codex/` URL inside a `fetch(...)`
  *      or `new Request(...)` whose method is not provably GET or HEAD, or inside
  *      a call whose name says it writes (post, put, patch, delete, send, submit,
  *      mutate, write; `sendBeacon` too). The method is read from the options:
- *      an object literal (`method: "POST"`, shorthand `{ method }`, a spread),
- *      or a `const` options object, method string or spread object in the same
- *      file. No options is GET. Anything it cannot resolve counts as a write
- *      (B44fix R2);
+ *      an object literal (`method: "POST"`, shorthand `{ method }`,
+ *      `["method"]:`, a spread), or a `const` options object, method string or
+ *      spread object in the same file. A computed key that is not a string
+ *      literal could be the method. `fetch` under another name (`const f =
+ *      fetch`, `window.fetch`, `.bind(...)`) counts as `fetch`. No options is
+ *      GET. Anything it cannot resolve counts as a write (B44fix R2, PACK4fix
+ *      R5);
  *   4. holds a `/api/codex/` URL outside such a call in a file that sends a
  *      write method anywhere (`method: "POST"`, `method="post"`, `sendBeacon`,
  *      or any `fetch` / `new Request` whose method is not provably GET), so a
@@ -48,8 +53,15 @@
  * that does the write, a write helper reached through another module that
  * re-exports it under a new name inside the zone, `XMLHttpRequest`, a
  * file-level `const` options object shadowed by a parameter of the same name,
- * and a `fetch` after JSX text with an apostrophe (the masker reads it as a
+ * `fetch` reached through an object (`const api = { f: fetch }`), and a
+ * `fetch` after JSX text with an apostrophe (the masker reads it as a
  * string, as in check-egress-guards).
+ *
+ * Writer detector (`findWriterExports`), not found (pinned in the
+ * self-test's DETECTOR_GAPS): a top-level declaration indented without
+ * `export` before any other declaration, a re-export of a writer
+ * (`export { x } from`), and a write through an injected store or an object
+ * passed around (listed by hand).
  *
  * Self-test: `npm run test:codex-task-writes`
  * (scripts/__tests__/check-codex-task-writes.test.mjs). `--root <dir>` scans
@@ -77,6 +89,9 @@ export const ZONE = [
 
 /** The /tasks UI: importing any of it from outside the zone is a write path. */
 export const TASKS_UI = [/^components\/tasks\//, /^components\/codex\//]
+
+/** The Codex API: importing a route handler from outside the zone calls it directly (PACK4fix R5). */
+export const CODEX_ROUTES = /^app\/api\/codex\//
 
 /**
  * Codex write helpers by module (no extension): every exported function or
@@ -613,8 +628,12 @@ function optionsObject(full, code, a, b, depth) {
       result = verb ? { kind: "verb", verb } : { kind: "unknown" }
       continue
     }
-    const key = prop.match(/^(?:(["'])method\1|method)\s*:/)
-    if (!key) continue
+    const key = prop.match(/^(?:(["'])method\1|method|\[\s*(["'`])method\2\s*\])\s*:/)
+    if (!key) {
+      // PACK4fix R5: a computed key that is not a plain string literal could be the method.
+      if (prop.startsWith("[") && !/^\[\s*(["'`])[^"'`$]*\1\s*\]\s*:/.test(prop)) result = { kind: "unknown" }
+      continue
+    }
     const verb = resolveVerb(full, code, pa + key[0].length, pb, depth)
     result = verb ? { kind: "verb", verb } : { kind: "unknown" }
   }
@@ -635,9 +654,23 @@ function callVerb(full, code, open) {
 
 const READ_VERBS = new Set(["GET", "HEAD"])
 
-/** True when any `fetch(` / `new Request(` in the file sends a method that is not provably GET. */
-function fileHasNonGetFetch(full, code) {
-  const re = /\b(?:fetch|Request)\s*\(/g
+/**
+ * PACK4fix R5: the names `fetch` goes by in this file: `fetch`, and any
+ * `const f = fetch` (or `window.fetch`, `globalThis.fetch`, `self.fetch`,
+ * with or without `.bind(...)`).
+ */
+function fetchNames(code) {
+  const names = new Set(["fetch"])
+  const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(?:(?:window|globalThis|self)\s*\.\s*)?fetch\b/g
+  let m
+  while ((m = re.exec(code))) names.add(m[1])
+  return names
+}
+
+/** True when any `fetch(` (or an alias of it) / `new Request(` in the file sends a method that is not provably GET. */
+function fileHasNonGetFetch(full, code, names = fetchNames(code)) {
+  const alt = [...names, "Request"].map((n) => n.replace(/\$/g, "\\$")).join("|")
+  const re = new RegExp(`(?<![\\w$])(?:${alt})\\s*\\(`, "g")
   let m
   while ((m = re.exec(code))) {
     const open = m.index + m[0].length - 1
@@ -651,8 +684,9 @@ export function codexWriteHits(rel, raw) {
   const code = maskNonCode(raw)
   const full = maskNonCode(raw, { keepStrings: true })
   const hits = []
+  const fetchers = fetchNames(code)
   const fileSendsWrites =
-    WRITE_METHOD_LITERAL.test(full) || /\bsendBeacon\s*\(/.test(full) || fileHasNonGetFetch(full, code)
+    WRITE_METHOD_LITERAL.test(full) || /\bsendBeacon\s*\(/.test(full) || fileHasNonGetFetch(full, code, fetchers)
   const re = /\/api\/codex\/[^\s"'`)]*/g
   let m
   while ((m = re.exec(full))) {
@@ -662,7 +696,7 @@ export function codexWriteHits(rel, raw) {
     const open = enclosingCallOpen(code, m.index)
     const callee = open >= 0 ? calleeBefore(code, open) : ""
     const line = lineOf(raw, m.index)
-    if (callee === "fetch" || callee === "Request") {
+    if (fetchers.has(callee) || callee === "Request") {
       const verb = callVerb(full, code, open)
       if (READ_VERBS.has(verb)) continue // a GET: a read-only panel
       hits.push({ rel, line, rule: "fetch-write", detail: `${verb} ${url}` })
@@ -689,6 +723,11 @@ export function importHits(rel, raw) {
       hits.push({ rel, line, rule: "tasks-ui-import", detail: target })
       continue
     }
+    // PACK4fix R5: a Codex route handler called from outside the zone writes without a fetch.
+    if (CODEX_ROUTES.test(`${target}/`)) {
+      hits.push({ rel, line, rule: "codex-route-import", detail: target })
+      continue
+    }
     const writes = WRITE_HELPERS[target]
     if (!writes) continue
     if (imp.whole) {
@@ -703,7 +742,8 @@ export function importHits(rel, raw) {
 }
 
 const DRIZZLE_WRITE = /\.(insert|update|delete)\(\s*[A-Za-z_$][\w$.]*\s*\)\s*\.\s*(values|set|where|returning|onConflict\w*)\s*\(/
-const SQL_WRITE = /\b(INSERT\s+INTO|UPDATE\s+[\w."]+(?:\s+(?:AS\s+)?[A-Za-z_]\w*)?\s+SET|DELETE\s+FROM)\b/
+// PACK4fix R5: any case, and `UPDATE ONLY t SET`.
+const SQL_WRITE = /\b(INSERT\s+INTO|UPDATE\s+(?:ONLY\s+)?[\w."]+(?:\s+(?:AS\s+)?[A-Za-z_]\w*)?\s+SET|DELETE\s+FROM)\b/i
 
 /**
  * B44fix R3 and R4: every exported value under `lib/codex` (plus `extraFiles`,
@@ -711,6 +751,8 @@ const SQL_WRITE = /\b(INSERT\s+INTO|UPDATE\s+[\w."]+(?:\s+(?:AS\s+)?[A-Za-z_]\w*
  * Drizzle insert, update or delete, or raw INSERT / UPDATE / DELETE SQL, or
  * names another declaration that writes (same file, or imported by name,
  * statically or with `const { x } = await import(...)`), to a fixed point.
+ * SQL in any case, `UPDATE ONLY` too; an indented `export` declaration and
+ * an `export { a, b as c }` list count as exports (PACK4fix R5).
  * A lower bound: a write through an injected store is listed by hand.
  */
 export function findWriterExports(rootDir, extraFiles = []) {
@@ -739,14 +781,24 @@ export function findWriterExports(rootDir, extraFiles = []) {
     }
     const bounds = []
     lines.forEach((ln, i) => {
-      if (/^[A-Za-z@]/.test(ln)) bounds.push(i)
+      // PACK4fix R5: an indented `export` is still top level (only a top-level declaration can be exported).
+      if (/^[A-Za-z@]/.test(ln) || /^\s+export\s/.test(ln)) bounds.push(i)
     })
     const decls = []
     bounds.forEach((i, k) => {
-      const m = lines[i].match(/^(export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?\s+|const\s+|let\s+|var\s+|class\s+)([A-Za-z_$][\w$]*)/)
+      const m = lines[i].match(/^\s*(export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?\s+|const\s+|let\s+|var\s+|class\s+)([A-Za-z_$][\w$]*)/)
       if (!m) return
-      decls.push({ name: m[2], exported: Boolean(m[1]), a: starts[i], b: k + 1 < bounds.length ? starts[bounds[k + 1]] : full.length })
+      decls.push({ name: m[2], exportedAs: m[1] ? [m[2]] : [], a: starts[i], b: k + 1 < bounds.length ? starts[bounds[k + 1]] : full.length })
     })
+    // PACK4fix R5: `export { a, b as c }` (not a re-export `from`) exports declarations made earlier.
+    for (const m of code.matchAll(/\bexport\s*\{([^}]*)\}(?!\s*from\b)/g)) {
+      for (const part of m[1].split(",")) {
+        const t = part.trim()
+        if (!t || t.startsWith("type ")) continue
+        const [local, as] = t.split(/\s+as\s+/).map((x) => x.trim())
+        for (const d of decls) if (d.name === local) d.exportedAs.push(as || local)
+      }
+    }
     const imports = {}
     const addNames = (list, spec) => {
       const target = spec.startsWith("@/")
@@ -791,9 +843,9 @@ export function findWriterExports(rootDir, extraFiles = []) {
   const out = {}
   for (const key of writes) {
     const [mod, name] = key.split("#")
-    if (mods[mod].decls.some((d) => d.name === name && d.exported)) (out[mod] ??= []).push(name)
+    for (const d of mods[mod].decls) if (d.name === name) for (const as of d.exportedAs) (out[mod] ??= new Set()).add(as)
   }
-  return out
+  return Object.fromEntries(Object.entries(out).map(([mod, names]) => [mod, [...names]]))
 }
 
 /** The exception whose file this repo path (no extension) is, if any. */
