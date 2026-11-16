@@ -22,8 +22,12 @@ export const COMPOSE_MBA_MAX = 40
 /** A value longer than this many times its cap is dropped, not shortened. */
 const HOSTILE_FACTOR = 4
 
-/** An MBA number as the app stores them (BICAU002, sinch001, ASM-2026.01). */
-const MBA_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+/**
+ * An MBA number as the app stores them (BICAU002, sinch001, ASM-2026.01). Spaces
+ * are allowed inside: one live master is "Historical OX and Harty Clients001"
+ * (SELECT, 16 Nov 2026: 1 of 228 masters has a space, none another character).
+ */
+const MBA_RE = /^[A-Za-z0-9][A-Za-z0-9._ -]*$/
 const CLIENT_RE = /^[1-9][0-9]{0,11}$/
 /** A tag, a closing tag, a comment or a stray angle bracket: HTML is never prefilled. */
 const HTML_RE = /[<>]/

@@ -76,7 +76,12 @@ test("pf_mba: an MBA number shape only, 40 characters at most", () => {
   assert.equal(parse("compose=task&pf_mba=BICAU002").prefill.mbaNumber, "BICAU002")
   assert.equal(parse("compose=task&pf_mba=sinch001").prefill.mbaNumber, "sinch001")
   assert.equal(parse("compose=task&pf_mba=ASM-2026.01_a").prefill.mbaNumber, "ASM-2026.01_a")
-  for (const bad of ["../etc", "a b", "-lead", "a/b", "a;drop", "x".repeat(41), "%"]) {
+  assert.equal(
+    parse("compose=task&pf_mba=" + encodeURIComponent("Historical OX and Harty Clients001")).prefill.mbaNumber,
+    "Historical OX and Harty Clients001",
+  )
+  assert.equal(parse("compose=task&pf_mba=%20BICAU002%20").prefill.mbaNumber, "BICAU002")
+  for (const bad of ["../etc", " -lead", "-lead", "a/b", "a;drop", "a\tb", "x".repeat(41), "%", "a<b"]) {
     const out = parse(`compose=task&pf_mba=${encodeURIComponent(bad)}`)
     assert.equal(out.prefill.mbaNumber, undefined, bad)
     assert.match(out.notes.join(" "), /MBA in the link is not an MBA number/, bad)
@@ -170,7 +175,7 @@ test("builder: a link built here reads back whole, and never carries what the pa
   assert.deepEqual(back.notes, [])
 
   assert.equal(
-    buildTasksComposeHref({ compose: "task", clientId: 0, mbaNumber: "bad mba", category: "nope" as never }),
+    buildTasksComposeHref({ compose: "task", clientId: 0, mbaNumber: "bad/mba", category: "nope" as never }),
     "/tasks?compose=task",
   )
   assert.equal(buildTasksComposeHref({ compose: "task", clientId: null, mbaNumber: null, title: null }), "/tasks?compose=task")
