@@ -184,6 +184,19 @@ test("PATCH: any other database error is 500 with a generic line, never the SQL;
   assert.deepEqual(await plain.json(), { error: "Failed to update task", message: "boom" })
 })
 
+test("PATCH (R2, PACK4fix): a task that moved into a project while the assignment waited is 409 task_changed", { skip }, async () => {
+  const route = await import("../../../app/api/codex/tasks/[id]/route.js")
+  const { TaskJoinedProjectError } = await import("../projects.js")
+  for (const projects of [false, true]) {
+    const res = await withSwitches(projects, async () => {
+      failure = new TaskJoinedProjectError(7)
+      return route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { assignee_email: "mia@x.au" }), ctx)
+    })
+    assert.equal(res.status, 409, `codex_projects ${projects}`)
+    assert.deepEqual(await res.json(), { error: "task_changed", message: "The task moved project while saving. Reload and try again." })
+  }
+})
+
 test("bulk: a raw lock conflict is 409 try_again; a raw database error never carries its SQL", { skip }, async () => {
   const route = await import("../../../app/api/codex/tasks/bulk/route.js")
   const body = { ids: [7, 8], patch: { assignee_email: "mia@x.au" } }

@@ -131,7 +131,7 @@ const READERS: Record<string, ReaderEntry> = {
   "lib/codex/progressRule.ts#markDoneTasksOnLink": { rule: "exempt", reason: "C-263: the progress field link's own write over the project's done tasks, after loadVisibleProject in the same transaction; no row goes to a person" },
   "lib/codex/taskVisibility.ts#shareTaskProject": { rule: "exempt", reason: "the F5 check itself: the task's project id, to lock it (C-258)" },
   "lib/codex/taskVisibility.ts#shareBatchProjects": { rule: "exempt", reason: "R1 (B43fix): the batch's project ids, to lock them in id order before the F5 checks; no row goes to a person" },
-  "lib/codex/taskVisibility.ts#batchTaskProject": { rule: "exempt", reason: "R1 (B43fix): the F5 check in a batch: the task's project id, refused when outside the locked set" },
+  "lib/codex/taskVisibility.ts#lockedTaskProject": { rule: "exempt", reason: "R2 (PACK4fix): the F5 check's task project id, read with the row FOR UPDATE (single and batch)" },
   "lib/codex/seedTasks.ts#findExistingSeededTask": { rule: "exempt", reason: SYSTEM },
   "lib/fireflies/proposalRepo.ts#insertProposalsFromNote": { rule: "exempt", reason: `${SYSTEM}: meeting ingest dedupe keys and titles` },
   "lib/fireflies/proposalRepo.ts#getTask": { rule: "exempt", reason: "dismiss-auto, behind hiddenTaskGuard" },

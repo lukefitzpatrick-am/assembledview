@@ -51,13 +51,12 @@ import {
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { activityActor, isSystemActor, SYSTEM_ACTORS } from "@/lib/codex/systemActors"
-import { AssigneeNoAccessError } from "@/lib/codex/projects"
+import { AssigneeNoAccessError, TaskJoinedProjectError } from "@/lib/codex/projects"
 import {
   assertAssigneeCanSeeTask,
   emailsWithoutProjectAccess,
   hiddenTaskIds,
   shareBatchProjects,
-  TaskJoinedBatchProjectError,
   taskVisibilityCondition,
 } from "@/lib/codex/taskVisibility"
 import { DATABASE_ERROR_MESSAGE, isDatabaseError, isLockConflict, LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
@@ -1671,7 +1670,8 @@ export function bulkFailure(id: number, error: unknown): CodexBulkError {
   if (error instanceof CodexBulkError) return error
   // F5 (B42fix): a refusal, not a bad request.
   if (error instanceof AssigneeNoAccessError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`)
-  if (error instanceof TaskJoinedBatchProjectError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`, "task_changed")
+  // R2 (PACK4fix): the batch peek and the single-task check refuse the same way.
+  if (error instanceof TaskJoinedProjectError) return new CodexBulkError(id, 409, `Task ${id}: ${error.message}`, "task_changed")
   if (isLockConflict(error)) return new CodexBulkError(id, 409, LOCK_CONFLICT_MESSAGE, "try_again")
   if (isDatabaseError(error)) {
     console.error(`[codex] bulk task ${id} failed in the database:`, error)

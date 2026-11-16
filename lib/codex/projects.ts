@@ -129,6 +129,20 @@ export function canonicalEmail(value: string | null | undefined, identity: Acces
   return identity.get(email) ?? email
 }
 
+/**
+ * R2 (PACK4fix): an assignment found the task in a different project once it
+ * held the task row (a board move into a project was in flight, or committed
+ * between the project lock and the read). Refused with nothing changed (409
+ * `task_changed`), never checked against a project it did not lock.
+ */
+export class TaskJoinedProjectError extends Error {
+  readonly code = "task_changed"
+  constructor(readonly taskId: number) {
+    super("The task moved project while saving. Reload and try again.")
+    this.name = "TaskJoinedProjectError"
+  }
+}
+
 /** The message when a task in a private project is given to someone who cannot see the project (F5). */
 export function assigneeNoAccessMessage(email: string): string {
   return `${email} is not a member of this private project. Add them to the project first, then assign the task.`

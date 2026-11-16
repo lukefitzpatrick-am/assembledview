@@ -12,8 +12,16 @@
  *   refused (409 `task_changed`, the whole batch rolled back), never locked
  *   late.
  * - R1: a database error inside the batch never carries its SQL.
- * - R7: on the single-task path, a task that joined a project between
- *   `shareTaskProject`'s lock and its read has that project locked too.
+ * - R7, changed by R2 (PACK4fix): on the single-task path, a task that
+ *   joined a project between `shareTaskProject`'s lock and its read is
+ *   refused (409 `task_changed`); that project is never locked late.
+ * - R2 (PACK4fix): a board move into a private project that is not committed
+ *   yet when the assignment reads the task. Both paths read the task row FOR
+ *   UPDATE, so they wait for the move and then refuse (409 `task_changed`);
+ *   before, a plain read saw no project and the outsider was assigned.
+ *   Controls: the same assignment after the move commits is refused
+ *   `assignee_no_access`; an in-flight edit that leaves the project as it
+ *   was is waited on and the assignment commits.
  *
  * Skips unless CODEX_PROJECTS_TEST_DATABASE_URL names a LOCAL database whose
  * name ends in `_codex_test`. It works in a sibling database
@@ -35,7 +43,8 @@ import type { Db } from "@/db"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
-import { bulkFailure, bulkUpdateTasks, CodexBulkError } from "../repo.js"
+import { bulkFailure, bulkUpdateTasks, CodexBulkError, updateTask } from "../repo.js"
+import { AssigneeNoAccessError, TaskJoinedProjectError } from "../projects.js"
 import { assertAssigneeCanSeeTask, TaskJoinedBatchProjectError } from "../taskVisibility.js"
 import { createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
 import { DATABASE_ERROR_MESSAGE, LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
@@ -73,10 +82,10 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
     { name: "Done", status_category: "done" as const },
   ]
 
-  async function project(name: string): Promise<number> {
+  async function project(name: string, isPrivate = false): Promise<number> {
     const res = await createProject(
       OLIVE,
-      { name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: false, start_on: null, due_on: null, members: [], sections },
+      { name, kind: "ops", client_id: 42, mba_number: null, owner_email: null, is_private: isPrivate, start_on: null, due_on: null, members: [], sections },
       database
     )
     assert.ok(res.ok)
@@ -192,7 +201,7 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
     })
   })
 
-  it("R7: a task that joins a project between the lock and the read has that project locked too", async () => {
+  it("R7 (R2, PACK4fix): a task that joins a project between the lock and the read is refused; that project is never locked late", async () => {
     const proj = await project("Joined between lock and read")
     const e = await task(null, OLIVE)
     const dialect = new PgDialect()
@@ -216,13 +225,106 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
           return typeof value === "function" ? value.bind(target) : value
         },
       })
-      await assertAssigneeCanSeeTask(watched as typeof tx, e, MIA)
+      await assert.rejects(assertAssigneeCanSeeTask(watched as typeof tx, e, MIA), (err: unknown) => {
+        assert.ok(err instanceof TaskJoinedProjectError)
+        assert.equal(err.taskId, e)
+        return true
+      })
       assert.equal(joined, true, "the task joined between the lock and the read")
-      await assert.rejects(
-        client`SELECT id FROM public.codex_projects WHERE id = ${proj} FOR UPDATE NOWAIT`,
-        (err: unknown) => (err as { code?: string }).code === "55P03",
-        "the joined project is held by the assignment"
-      )
+      const [free] = await client`SELECT id FROM public.codex_projects WHERE id = ${proj} FOR UPDATE NOWAIT`
+      assert.equal(Number(free.id), proj, "the joined project is not held by the assignment")
     })
+  })
+
+  /**
+   * A board move into project `into` that is not committed while `run` reads
+   * the task: the project FOR UPDATE, then the task's project_id, as
+   * `moveTaskToSection` does. Returns what `run` settled to.
+   */
+  async function duringMove<T>(taskId: number, into: number | null, run: () => Promise<T>): Promise<PromiseSettledResult<T>> {
+    const mover = postgres(URL_!, { max: 1, onnotice: () => {} })
+    let pending: Promise<T> | null = null
+    try {
+      await mover.begin(async (tx) => {
+        if (into != null) {
+          await tx`SELECT id FROM public.codex_projects WHERE id = ${into} FOR UPDATE`
+          await tx`UPDATE public.tasks SET project_id = ${into} WHERE id = ${taskId}`
+        } else {
+          await tx`UPDATE public.tasks SET title = 'Edited in flight' WHERE id = ${taskId}`
+        }
+        pending = run()
+        pending.catch(() => {})
+        await someoneWaits("the assignment")
+      })
+    } finally {
+      await mover.end({ timeout: 5 })
+    }
+    const [settled] = await Promise.allSettled([pending!])
+    return settled
+  }
+  async function projectOf(id: number): Promise<number | null> {
+    const [r] = await client`SELECT project_id FROM public.tasks WHERE id = ${id}`
+    return r.project_id == null ? null : Number(r.project_id)
+  }
+
+  it("R2: a bulk assignment during an uncommitted move into a private project waits, then is refused (409 task_changed); nothing changes", async () => {
+    const open = await project("Public batch project")
+    const priv = await project("Private, Olive only", true)
+    const c = await task(open, OLIVE)
+    const e = await task(null, OLIVE)
+    const settled = await duringMove(e, priv, () => bulkUpdateTasks([c, e], { assigneeEmail: MIA }, OLIVE, database))
+    assert.equal(settled.status, "rejected")
+    const err = (settled as PromiseRejectedResult).reason
+    assert.ok(err instanceof CodexBulkError, String(err))
+    assert.deepEqual([err.statusCode, err.code, err.taskId], [409, "task_changed", e])
+    assert.deepEqual(await assignees([c, e]), [OLIVE, OLIVE], "the whole batch rolled back")
+    assert.equal(await projectOf(e), priv, "the move committed")
+  })
+
+  it("R2 control: the same bulk after the move committed is refused assignee_no_access", async () => {
+    const open = await project("Public batch project, control")
+    const priv = await project("Private, control", true)
+    const c = await task(open, OLIVE)
+    const e = await task(priv, OLIVE)
+    await assert.rejects(bulkUpdateTasks([c, e], { assigneeEmail: MIA }, OLIVE, database), (err: unknown) => {
+      assert.ok(err instanceof CodexBulkError)
+      assert.deepEqual([err.statusCode, err.code, err.taskId], [409, undefined, e])
+      assert.match(err.message, /not a member of this private project/)
+      return true
+    })
+    assert.deepEqual(await assignees([c, e]), [OLIVE, OLIVE])
+  })
+
+  it("R2 control: a bulk assignment waits for an in-flight edit that keeps the project, then commits", async () => {
+    const open = await project("Public, edit in flight")
+    const c = await task(open, OLIVE)
+    const e = await task(null, OLIVE)
+    const settled = await duringMove(e, null, () => bulkUpdateTasks([c, e], { assigneeEmail: MIA }, OLIVE, database))
+    assert.equal(settled.status, "fulfilled", String((settled as PromiseRejectedResult).reason))
+    assert.deepEqual(await assignees([c, e]), [MIA, MIA])
+  })
+
+  it("R2: a single assignment during an uncommitted move into a private project waits, then is refused (task_changed); nothing changes", async () => {
+    const priv = await project("Private, single", true)
+    const e = await task(null, OLIVE)
+    const settled = await duringMove(e, priv, () => updateTask(e, { assigneeEmail: MIA }, OLIVE, database))
+    assert.equal(settled.status, "rejected")
+    const err = (settled as PromiseRejectedResult).reason
+    assert.ok(err instanceof TaskJoinedProjectError, String(err))
+    assert.equal(err.code, "task_changed")
+    assert.equal(err.taskId, e)
+    assert.deepEqual(await assignees([e]), [OLIVE])
+    assert.equal(await projectOf(e), priv, "the move committed")
+  })
+
+  it("R2 control: the single assignment after the move committed is refused assignee_no_access; an in-flight edit is waited on and commits", async () => {
+    const priv = await project("Private, single control", true)
+    const e = await task(priv, OLIVE)
+    await assert.rejects(updateTask(e, { assigneeEmail: MIA }, OLIVE, database), (err: unknown) => err instanceof AssigneeNoAccessError)
+    assert.deepEqual(await assignees([e]), [OLIVE])
+    const f = await task(null, OLIVE)
+    const settled = await duringMove(f, null, () => updateTask(f, { assigneeEmail: MIA }, OLIVE, database))
+    assert.equal(settled.status, "fulfilled", String((settled as PromiseRejectedResult).reason))
+    assert.deepEqual(await assignees([f]), [MIA])
   })
 })

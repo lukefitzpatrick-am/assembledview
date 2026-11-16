@@ -31,7 +31,14 @@ import { sql, type SQL } from "drizzle-orm"
 
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
-import { AssigneeNoAccessError, buildAccessIdentity, canonicalEmail, NO_ALIASES, type AccessIdentity } from "@/lib/codex/projects"
+import {
+  AssigneeNoAccessError,
+  buildAccessIdentity,
+  canonicalEmail,
+  NO_ALIASES,
+  TaskJoinedProjectError,
+  type AccessIdentity,
+} from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
@@ -184,9 +191,13 @@ export async function assertAssigneeCanSeeTask(
  * C-258 (B43): take the task's project row FOR SHARE and return its id (null
  * when the task is in no project). A member removal, a switch to private and
  * an owner change hold the row FOR UPDATE, so an assignment and those changes
- * wait for each other and each check reads the other's committed rows. A task
- * can only join a project (never leave one for another), so when it joined
- * one between the lock and the read, that project is locked too.
+ * wait for each other and each check reads the other's committed rows.
+ * R2 (PACK4fix): the task's project is then read with the task row FOR
+ * UPDATE (project, then task: the order a board move takes), so a move into
+ * a project that is still in flight is waited on and its result read. A task
+ * found in another project than the one locked is refused
+ * (TaskJoinedProjectError, 409 `task_changed`); its project is never locked
+ * after the task row.
  */
 async function shareTaskProject(database: DbExecutor, taskId: number): Promise<number | null> {
   const locked = executeRows(
@@ -196,12 +207,22 @@ async function shareTaskProject(database: DbExecutor, taskId: number): Promise<n
          FOR SHARE OF p
     `)
   )[0]
-  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
-  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
-  if (projectId != null && projectId !== (locked == null ? null : Number(locked.id))) {
-    await database.execute(sql`SELECT p.id FROM public.codex_projects p WHERE p.id = ${projectId} FOR SHARE OF p`)
-  }
+  const projectId = await lockedTaskProject(database, taskId)
+  if (projectId !== (locked == null ? null : Number(locked.id))) throw new TaskJoinedProjectError(taskId)
   return projectId
+}
+
+/**
+ * R2 (PACK4fix): the task's `project_id` read with its row FOR UPDATE. Under
+ * READ COMMITTED a plain read skips a move that is not committed yet; the
+ * row lock waits for it and reads the row as it then stands. Null when the
+ * task is in no project (or missing).
+ */
+async function lockedTaskProject(database: DbExecutor, taskId: number): Promise<number | null> {
+  const [peek] = executeRows(
+    await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId} FOR UPDATE`)
+  )
+  return peek?.project_id == null ? null : Number(peek.project_id)
 }
 
 /**
@@ -230,9 +251,9 @@ export async function shareBatchProjects(database: DbExecutor, ids: readonly num
 }
 
 /** R1 (B43fix): a bulk task joined a project the batch did not lock (bulkFailure: 409 `task_changed`). */
-export class TaskJoinedBatchProjectError extends Error {
-  constructor(readonly taskId: number) {
-    super("The task moved project while saving. Reload and try again.")
+export class TaskJoinedBatchProjectError extends TaskJoinedProjectError {
+  constructor(taskId: number) {
+    super(taskId)
     this.name = "TaskJoinedBatchProjectError"
   }
 }
@@ -242,11 +263,12 @@ export class TaskJoinedBatchProjectError extends Error {
  * already held (`shareBatchProjects`). A task now in a project outside that
  * set joined it mid-batch: refused (409 `task_changed`) and never locked
  * late, so the batch never takes a project lock out of id order (as C-222
- * does for the section path).
+ * does for the section path). The task row is read FOR UPDATE (R2,
+ * PACK4fix): the batch writes it next anyway, after every project lock.
  */
 async function batchTaskProject(database: DbExecutor, taskId: number, batchLocked: ReadonlySet<number>): Promise<number | null> {
-  const [peek] = executeRows(await database.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId}`))
-  const projectId = peek?.project_id == null ? null : Number(peek.project_id)
+  // R2 (PACK4fix): with the row lock, a move still in flight is waited on, then read.
+  const projectId = await lockedTaskProject(database, taskId)
   if (projectId != null && !batchLocked.has(projectId)) throw new TaskJoinedBatchProjectError(taskId)
   return projectId
 }
