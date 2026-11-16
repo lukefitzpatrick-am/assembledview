@@ -15,6 +15,7 @@ import type {
   InvestmentCutDim,
   InvestmentCutMeasure,
 } from "@/lib/finance/sections/investment/cutTypes"
+import { clientFeatureOn } from "@/lib/features/client"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -37,7 +38,8 @@ export function InvestmentMeasurePicker({
     lineFiltersActive
       ? { publishers: ["*"] } // any line filter disables Actuals
       : undefined,
-    { fy }
+    // B43fix (R6): the same FY rule as the investment cut (switch finance_melbourne_month).
+    { fy, melbourne: clientFeatureOn("finance_melbourne_month") }
   )
 
   function toggle(key: InvestmentCutMeasure, disabled: boolean) {

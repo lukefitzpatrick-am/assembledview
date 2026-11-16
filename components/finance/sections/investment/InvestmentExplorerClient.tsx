@@ -61,7 +61,8 @@ import {
   isAgencyEconomicsMeasure,
   measuresIncludeAgencyEconomics,
 } from "@/lib/finance/sections/investment/agencyEconomics"
-import { australianFyStartYearForDate } from "@/lib/finance/months"
+import { currentFinanceFyStartYear } from "@/lib/finance/months"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   useFinanceScopeApplied,
   useFinanceScopeStore,
@@ -143,7 +144,8 @@ export function InvestmentExplorerClient() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [blockedCode, setBlockedCode] = useState<string | null>(null)
 
-  const currentFy = australianFyStartYearForDate(new Date())
+  // B43fix (R6): the same FY rule as the investment cut (switch finance_melbourne_month).
+  const currentFy = currentFinanceFyStartYear(new Date(), { melbourne: clientFeatureOn("finance_melbourne_month") })
   const historicAgencyBlocked =
     applied.fy < currentFy &&
     (measuresIncludeAgencyEconomics(measures) ||

@@ -7,9 +7,10 @@
  */
 
 import {
-  australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
+  currentFinanceFyStartYear,
   referenceDateForFyStartYear,
+  type FinanceMonthOptions,
 } from "@/lib/finance/months"
 import {
   FORECAST_MAPPING_SCHEMA_GAPS,
@@ -78,13 +79,15 @@ export function validateAgencyEconomicsFy(input: {
   measures: readonly InvestmentCutMeasure[]
   presetId?: string | null
   today?: Date
+  /** Switch `finance_melbourne_month` (B43fix R6): the same FY rule as the investment cut's default. */
+  monthOpts?: FinanceMonthOptions
 }): { ok: true } | AgencyEconomicsHistoricError {
   const needsGate =
     measuresIncludeAgencyEconomics(input.measures) ||
     Boolean(input.presetId && getAgencyEconomicsPreset(input.presetId))
   if (!needsGate) return { ok: true }
 
-  const currentFy = australianFyStartYearForDate(input.today ?? new Date())
+  const currentFy = currentFinanceFyStartYear(input.today ?? new Date(), input.monthOpts ?? {})
   if (input.fy >= currentFy) return { ok: true }
 
   return {

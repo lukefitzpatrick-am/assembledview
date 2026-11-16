@@ -202,6 +202,7 @@ export function normalizeInvestmentCutRequest(
     measures,
     presetId: input.presetId,
     today,
+    monthOpts,
   })
   if ("code" in agencyFy) {
     return agencyFy

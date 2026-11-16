@@ -14,7 +14,7 @@ import {
   isAgencyEconomicsMeasure,
   measuresIncludeAgencyEconomics,
 } from "./agencyEconomics"
-import { australianFyStartYearForDate } from "@/lib/finance/months"
+import { currentFinanceFyStartYear } from "@/lib/finance/months"
 import type { InvestmentCutDim, InvestmentCutMeasure } from "./cutTypes"
 
 export type MeasureGroupId = "booked" | "actuals" | "agency"
@@ -123,10 +123,11 @@ export function measureDef(key: InvestmentCutMeasure): MeasureDef {
 export function measurePickerState(
   dimensions: readonly InvestmentCutDim[],
   filters?: Parameters<typeof isActualsMeasureAllowed>[1],
-  options?: { fy?: number; today?: Date }
+  /** `melbourne` (B43fix R6): switch `finance_melbourne_month`, the same FY rule as the investment cut. */
+  options?: { fy?: number; today?: Date; melbourne?: boolean }
 ): Array<MeasureDef & { disabled: boolean; disabledReason?: string }> {
   const actualsGate = isActualsMeasureAllowed(dimensions, filters)
-  const currentFy = australianFyStartYearForDate(options?.today ?? new Date())
+  const currentFy = currentFinanceFyStartYear(options?.today ?? new Date(), { melbourne: options?.melbourne === true })
   const fy = options?.fy ?? currentFy
   const historicBlocked = fy < currentFy
   const agencyGrain = (() => {
