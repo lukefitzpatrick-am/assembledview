@@ -139,6 +139,31 @@ describe("TasksComposeFromLink (B44)", () => {
     expect(toasts[0]?.description).toContain("No task you can see is attached to BICAU002 yet")
   })
 
+  it("compose=help with an MBA not on the client never looks up a task on it, and opens a new task (B44fix R6)", async () => {
+    const calls = routes({
+      clients: [42],
+      mbas: ["OTHER001"],
+      tasks: [{ id: 3, title: "Someone else's launch", parent_task_id: null }],
+    })
+    const consumed = await mount("compose=help&pf_title=Bic&pf_client=42&pf_mba=BICAU002")
+    expect(calls.some((c) => c.url.startsWith("/api/codex/tasks"))).toBe(false)
+    expect(helpProps).toHaveLength(0)
+    expect(formProps.at(-1)!.open).toBe(true)
+    expect(formProps.at(-1)!.createPrefill).toMatchObject({ title: "Bic", client_id: 42, mba_number: undefined })
+    expect(toasts[0]?.description).toContain("MBA BICAU002 from the link is not one of this client's campaigns")
+    expect(toasts[0]?.description).toContain("No campaign task to ask for help on.")
+    expect(consumed).toHaveBeenCalledTimes(1)
+  })
+
+  it("compose=help asks about the client's own spelling of the MBA (B44fix R6)", async () => {
+    const calls = routes({ clients: [42], mbas: ["BICAU002"], tasks: [{ id: 3, title: "Bic launch", parent_task_id: null }] })
+    await mount("compose=help&pf_title=Bic&pf_client=42&pf_mba=bicau002")
+    expect(calls.filter((c) => c.url.startsWith("/api/codex/tasks")).map((c) => c.url)).toEqual([
+      "/api/codex/tasks?mba_number=BICAU002&per_page=20",
+    ])
+    expect(helpProps.at(-1)!.open).toBe(true)
+  })
+
   it("an unknown client and an MBA not on the client are left out, with a note", async () => {
     routes({ clients: [7], mbas: [] })
     await mount("compose=task&pf_title=T&pf_client=42&pf_mba=BICAU002")

@@ -12,6 +12,10 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const dialogRenders: Array<Record<string, unknown>> = []
+const toasts: Array<{ title?: string; description?: string }> = []
+vi.mock("@/components/ui/use-toast", () => ({
+  useToast: () => ({ toast: (t: { title?: string; description?: string }) => toasts.push(t) }),
+}))
 vi.mock("@/components/tasks/TaskFormDialog", () => ({
   TaskFormDialog: (props: Record<string, unknown>) => {
     dialogRenders.push(props)
@@ -34,6 +38,7 @@ describe("Creative admin landing containment (B44, C-200)", () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     dialogRenders.length = 0
+    toasts.length = 0
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -79,6 +84,18 @@ describe("Creative admin landing containment (B44, C-200)", () => {
     expect(buttonsText()).not.toContain("Create Codex task")
     expect(dialogRenders).toHaveLength(0)
     expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/api/codex"))).toBe(false)
+  })
+
+  it("switch on, nothing picked: New task in Tasks is a button that asks for a client and campaign, not a link (B44fix R7)", async () => {
+    await mount({ codexEnabled: true, containedWrites: true })
+    const controls = [...document.body.querySelectorAll("button, a")].filter((el) => el.textContent?.trim() === "New task in Tasks")
+    expect(controls).toHaveLength(1)
+    expect(controls[0].tagName).toBe("BUTTON")
+    expect(controls[0].getAttribute("href")).toBeNull()
+    expect(document.body.querySelector('a[href^="/tasks"]')).toBeNull()
+    await act(async () => (controls[0] as HTMLButtonElement).click())
+    expect(toasts.map((t) => t.title)).toEqual(["Select client and campaign"])
+    expect(dialogRenders).toHaveLength(0)
   })
 
   it("codex off: neither control (process copy only), switch or not", async () => {

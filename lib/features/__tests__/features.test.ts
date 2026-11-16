@@ -261,6 +261,20 @@ test("codex_contained_writes: the server getter needs codex_v2; the browser valu
   assert.equal(foldContainedWritesRequires(null, true), null)
 })
 
+test("codex_contained_writes: the root layout folds the browser snapshot with codex_v2 before sending it (B44fix R8)", async () => {
+  const fs = await import("node:fs")
+  const path = await import("node:path")
+  const src = fs.readFileSync(path.join(process.cwd(), "components/ServerAuthScope.tsx"), "utf8")
+  assert.match(src, /import \{ foldContainedWritesRequires \} from "@\/lib\/codex\/containedWrites"/)
+  const read = src.indexOf("await Promise.all([readClientFeatureSnapshot(), isCodexV2Enabled()])")
+  const fold = src.indexOf("features = foldContainedWritesRequires(features, codexEnabled)")
+  const sent = src.indexOf("features={features}")
+  assert.ok(read > 0, "reads the snapshot and codex_v2 together")
+  assert.ok(fold > read, "folds after reading both")
+  assert.ok(sent > fold, "sends the folded snapshot to the browser")
+  assert.equal(src.match(/features = /g)?.length, 2, "after the read, features is set only by the fold and the catch")
+})
+
 test("B42 getters need codex_projects and codex_v2 as well as their own switch", async () => {
   const { isCodexMyWorkEnabled, isCodexProgressFieldEnabled } = await import("../../codex/flag.js")
   const rows = (on: string[]) =>
