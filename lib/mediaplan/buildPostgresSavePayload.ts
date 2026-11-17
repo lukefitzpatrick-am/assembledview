@@ -19,6 +19,7 @@ import { DOC_STEP_POSTGRES_GENERATE } from "@/lib/docs/saveDocSteps"
 import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
 import { fixedCostFromForSave } from "@/lib/mediaplan/fixedCostFrom"
 import type { PublisherGuardFinding } from "@/lib/mediaplan/publisherGuard"
+import type { PublishProblem } from "@/lib/mediaplan/publishValidation"
 import {
   noteSavedLineItemIds,
   registerLineIdFloors,
@@ -416,6 +417,8 @@ export type PlansSaveResponse = {
   publisherIssues?: PublisherGuardFinding[]
   /** B19 publisher guard. Publish only: media lines with no publisher. The save still commits. */
   publisherWarnings?: PublisherGuardFinding[]
+  /** S1 publish validation (switch `publish_validation`). 422 `PUBLISH_VALIDATION_REFUSED` lists each problem here. */
+  publishProblems?: PublishProblem[]
   /**
    * Publish only. Line ids stripped because they had no buy type and no
    * burst budget, rate, or quantity. Absent when nothing was stripped.

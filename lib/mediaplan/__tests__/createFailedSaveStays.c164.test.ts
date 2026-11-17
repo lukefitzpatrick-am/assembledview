@@ -76,6 +76,9 @@ test("C-164: each refusal the version save handles returns failed (and never cle
     // B19 Q4 publisher guard: the pre-flight and the server's 422.
     ["publisher guard pre-flight", (c) => /^publisherPreflight\.reject$/.test(c.trim())],
     ["publisher not in Publishers", (c) => /saveResult\.data\.code === PUBLISHER_NOT_IN_PUBLISHERS\b/.test(c)],
+    // B54 S1 publish validation: the pre-flight and the server's 422.
+    ["publish validation pre-flight", (c) => /^publishPreflight\.stop$/.test(c.trim())],
+    ["publish validation refused", (c) => /saveResult\.data\.code === PUBLISH_VALIDATION_REFUSED\b/.test(c)],
     ["any other save error", (c) => c.replace(/\s+/g, "") === "!saveResult.ok"],
   ]
   const seen = new Map<string, number>()

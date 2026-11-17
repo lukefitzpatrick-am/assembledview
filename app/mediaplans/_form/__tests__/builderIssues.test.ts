@@ -13,6 +13,7 @@ import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelI
 
 import { buildPlanBuilderIssues, type PlanBuilderIssuesInput } from "../builderIssues"
 import { loadedLinesByBillingKey, planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "../planChannels"
+import { NO_PUBLISH_CHECK, publishCheckFromRefusal, publishValidationPreflight } from "../publishValidation"
 
 const KEYS = [
   "television", "radio", "newspaper", "magazines", "ooh", "cinema", "digiDisplay", "digiAudio", "digiVideo", "bvod",
@@ -105,6 +106,7 @@ const quiet: PlanBuilderIssuesInput = {
   burstOverlapLines: [],
   publisherGuard: { blocked: [], warnings: [] },
   aaPublishWarnings: [],
+  publishCheck: NO_PUBLISH_CHECK,
 }
 
 test("nothing to say: no issues", () => {
@@ -174,4 +176,35 @@ test("mode: create names the channel cards in the dates detail; edit does not", 
 test("finance issues wait for the page (edit passes none until every channel has loaded)", () => {
   assert.equal(buildPlanBuilderIssues({ ...quiet, finance: null }).length, 0)
   assert.deepEqual(buildPlanBuilderIssues({ ...quiet, finance: { financials, panelIndicators } }).map((i) => i.id), ["billable-not-mba"])
+})
+
+test("S1: each publish problem is its own rail entry after the publisher guard; refusals are errors only while refusing", () => {
+  const check = (refusing: boolean) =>
+    publishValidationPreflight(
+      "publish",
+      { campaignStartDate: "2026-11-01", campaignEndDate: "2026-11-30" },
+      [
+        { lineItemId: "X1SM1", channel: "social", platform: "", buyType: "cpm", bursts: [{ startDate: "2026-11-01", endDate: "2026-11-30", budget: 10, calculatedValue: 0 }] },
+      ],
+      refusing,
+    ).check
+  const on = buildPlanBuilderIssues({ ...quiet, aaPublishWarnings: ["AA"], publishCheck: check(true) })
+  assert.deepEqual(on.map((i) => [i.id, i.severity]), [
+    ["publish-validation:no_publisher:social:X1SM1:0", "error"],
+    ["publish-validation:zero_deliverables:social:X1SM1:1", "warning"],
+    ["aa-publish-0", "warning"],
+  ])
+  const off = buildPlanBuilderIssues({ ...quiet, publishCheck: check(false) })
+  assert.deepEqual(off.map((i) => i.severity), ["warning", "warning"])
+})
+
+test("S1: a line S1 lists for overlapping bursts is not listed again by the B35 warning", () => {
+  const overlap = planBurstOverlapLines(true, record((k) => (k === "radio" ? [overlapping("X1RA1"), overlapping("X1RA2")] : [])))
+  const publishCheck = publishCheckFromRefusal([
+    { rule: "bursts_overlap", channel: "radio", lineItemId: "X1RA1", burst: 2, message: "Line X1RA1: Bursts 1 and 2 overlap." },
+  ])
+  const ids = buildPlanBuilderIssues({ ...quiet, burstOverlapLines: overlap, publishCheck }).map((i) => i.id)
+  assert.equal(ids.filter((id) => id.includes("X1RA1")).length, 1)
+  assert.ok(ids.includes("publish-validation:bursts_overlap:radio:X1RA1:2"))
+  assert.ok(ids.some((id) => id.startsWith("burst-overlap:") && id.includes("X1RA2")))
 })

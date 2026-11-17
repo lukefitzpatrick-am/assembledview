@@ -55,5 +55,24 @@ test("B35 and builder issues: overlap lines from every channel feed the rail", (
     "burstOverlapLines",
     "publisherGuard: { blocked: publisherGuardBlocked, warnings: publisherGuardWarnings }",
     "aaPublishWarnings",
+    "publishCheck",
   ])
+})
+
+test("S1: the publish check gets the posted mode, plan dates and lines, stops before the request, and takes the server's refusal", () => {
+  assert.deepEqual(entries(callText(page, "publishValidationPreflight(")), [
+    "modeResolved.mode",
+    "{ campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start), campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end), }",
+    "lineItemsForSave",
+  ])
+  const call = page.indexOf("const publishPreflight = publishValidationPreflight(")
+  const post = page.indexOf("postPlansSave(", call)
+  const stop = page.indexOf("if (publishPreflight.stop) {", call)
+  assert.ok(call > 0 && stop > call && post > stop, "checked before the request")
+  assert.ok(page.slice(stop, post).includes('return "failed"'), "a stop returns before the request")
+  assert.ok(page.slice(call, stop).includes("setPublishCheck(publishPreflight.check)"))
+  const body = callText(page, "assemblePlansSaveRequestBody(", 0)
+  assert.ok(body.includes("campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start)"), "same dates as posted")
+  assert.deepEqual(entries(callText(page, "setPublishCheck(publishCheckFromRefusal(")), ["saveResult.data.publishProblems"])
+  assert.match(page, /if \(saveResult\.data\.code === PUBLISH_VALIDATION_REFUSED\) \{\n\s+setPublishCheck\(publishCheckFromRefusal/)
 })

@@ -1,6 +1,6 @@
 /**
- * The plan form's builder issues list (both pages; B52, S33 A). S1 warnings
- * build here. Order is the rail order.
+ * The plan form's builder issues list (both pages; B52, S33 A). The S1
+ * publish check lists here, one entry per problem. Order is the rail order.
  */
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
@@ -10,7 +10,10 @@ import { burstOverlapBuilderIssues, type BurstOverlapLine } from "@/lib/mediapla
 import { missingBurstDatesBuilderIssues } from "@/lib/mediaplan/missingBurstDatesGate"
 import { missingBuyTypeBuilderIssues } from "@/lib/mediaplan/missingBuyTypeGate"
 import { publisherGuardBuilderIssues } from "@/lib/mediaplan/publisherGuard"
+import { publishValidationBuilderIssues } from "@/lib/mediaplan/publishValidation"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
+
+import type { PlanPublishCheck } from "./publishValidation"
 
 export type PlanBuilderIssuesInput = {
   mode: "create" | "edit"
@@ -34,6 +37,8 @@ export type PlanBuilderIssuesInput = {
     warnings: Parameters<typeof publisherGuardBuilderIssues>[1]
   }
   aaPublishWarnings: readonly string[]
+  /** S1: the last publish check (or the server's refusal), one entry per problem. */
+  publishCheck: PlanPublishCheck
 }
 
 /** The dates detail differs by page: create names the channel cards. */
@@ -114,8 +119,13 @@ export function buildPlanBuilderIssues(input: PlanBuilderIssuesInput): BuilderIs
   }
   issues.push(...missingBuyTypeBuilderIssues(input.missingBuyTypeLineIds))
   issues.push(...missingBurstDatesBuilderIssues(input.missingBurstDateLineIds))
-  issues.push(...burstOverlapBuilderIssues(input.burstOverlapLines))
+  // A line S1 lists for overlapping bursts shows once, as S1's entry.
+  const s1Overlap = new Set(
+    input.publishCheck.result.refuse.filter((p) => p.rule === "bursts_overlap").map((p) => p.lineItemId)
+  )
+  issues.push(...burstOverlapBuilderIssues(input.burstOverlapLines.filter((l) => !s1Overlap.has(l.lineLabel))))
   issues.push(...publisherGuardBuilderIssues(input.publisherGuard.blocked, input.publisherGuard.warnings))
+  issues.push(...publishValidationBuilderIssues(input.publishCheck.result, input.publishCheck.refusing))
   input.aaPublishWarnings.forEach((message, index) => {
     issues.push({
       id: `aa-publish-${index}`,

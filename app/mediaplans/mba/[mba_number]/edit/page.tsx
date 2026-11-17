@@ -249,6 +249,7 @@ import {
   publisherWarningsToast,
 } from "@/lib/mediaplan/publisherGuardClient"
 import type { PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
+import { PUBLISH_VALIDATION_REFUSED } from "@/lib/mediaplan/publishValidation"
 import {
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
@@ -485,6 +486,13 @@ import {
 } from "@/app/mediaplans/_form/workingBillingAppend"
 import { PartialMbaScopeNotices, partialMbaScopeNoticesShown } from "@/app/mediaplans/_form/PartialMbaScopeNotices"
 import { buildPlanBuilderIssues } from "@/app/mediaplans/_form/builderIssues"
+import {
+  NO_PUBLISH_CHECK,
+  publishCheckFromRefusal,
+  publishRefusedToast,
+  publishValidationPreflight,
+  type PlanPublishCheck,
+} from "@/app/mediaplans/_form/publishValidation"
 import { AVA_DOM_ACTIONS } from "@/app/mediaplans/_form/avaDomActions"
 import { downloadDraftDocument } from "@/app/mediaplans/_form/draftDocuments"
 import {
@@ -1373,6 +1381,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [publisherGuardBlocked, setPublisherGuardBlocked] = useState<PublisherGuardFinding[]>([])
   const [publisherGuardWarnings, setPublisherGuardWarnings] = useState<PublisherGuardFinding[]>([])
   const [publishersAddedHere, setPublishersAddedHere] = useState<PublisherIdentityRow[]>([])
+  // S1 A: the last publish check (or the server's refusal), listed per line.
+  const [publishCheck, setPublishCheck] = useState<PlanPublishCheck>(NO_PUBLISH_CHECK)
   const isAdmin = useIsAdmin()
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
@@ -6147,6 +6157,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         burstOverlapLines,
         publisherGuard: { blocked: publisherGuardBlocked, warnings: publisherGuardWarnings },
         aaPublishWarnings,
+        publishCheck,
       }),
     [
       watchedClientName,
@@ -6165,6 +6176,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       publisherGuardBlocked,
       publisherGuardWarnings,
       aaPublishWarnings,
+      publishCheck,
     ]
   )
 
@@ -7009,6 +7021,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setMissingBurstDateLineIds([])
       setPublisherGuardBlocked([])
       setPublisherGuardWarnings([])
+      setPublishCheck(NO_PUBLISH_CHECK)
       // B19 Q4: same gate as the server, before the round trip.
       const publisherPreflight = publisherGuardPreflight(modeResolved.mode, lineItemsForSave, [
         ...billingPublishers,
@@ -7018,6 +7031,23 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setPublisherGuardBlocked(publisherPreflight.body.publisherIssues)
         updateSaveStatus("Save plan (transactional)", "error", publisherPreflight.body.error)
         toast({ variant: "destructive", ...publisherGuardBlockedToast(publisherPreflight.body.publisherIssues) })
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
+        setIsSaving(false)
+        return
+      }
+      // S1 A: the publish validation set, before the round trip.
+      const publishPreflight = publishValidationPreflight(
+        modeResolved.mode,
+        {
+          campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
+          campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
+        },
+        lineItemsForSave
+      )
+      setPublishCheck(publishPreflight.check)
+      if (publishPreflight.stop) {
+        updateSaveStatus("Save plan (transactional)", "error", publishPreflight.stop.error)
+        toast({ variant: "destructive", ...publishRefusedToast(publishPreflight.stop) })
         skipUnrunPostgresSaveSteps(updateSaveStatus)
         setIsSaving(false)
         return
@@ -7166,6 +7196,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           const human = saveResult.data.error || publisherGuardBlockedToast(issues).description
           updateSaveStatus("Save plan (transactional)", "error", human)
           toast({ variant: "destructive", title: publisherGuardBlockedToast(issues).title, description: human })
+          setIsSaving(false)
+          return
+        }
+        if (saveResult.data.code === PUBLISH_VALIDATION_REFUSED) {
+          setPublishCheck(publishCheckFromRefusal(saveResult.data.publishProblems))
+          updateSaveStatus("Save plan (transactional)", "error", publishRefusedToast(saveResult.data).description)
+          toast({ variant: "destructive", ...publishRefusedToast(saveResult.data) })
           setIsSaving(false)
           return
         }
