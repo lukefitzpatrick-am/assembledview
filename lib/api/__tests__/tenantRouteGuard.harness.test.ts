@@ -34,6 +34,10 @@ export const API_ROUTE_GUARD_ALLOWLIST: {
     file: "app/api/creative-assets/[id]/frame/route.ts",
     reason: "public: signed frame URL via verifyFrameToken (no Auth0 session)",
   },
+  {
+    file: "app/api/csp-report/route.ts",
+    reason: "public: browser CSP violation reports arrive with no session (B55, S27); rate limited, logs only, no tenant data",
+  },
 
   // --- session-ref (middleware session only; not tenant MBA rows) ---
   {

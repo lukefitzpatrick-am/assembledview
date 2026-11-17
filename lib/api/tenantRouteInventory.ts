@@ -328,6 +328,10 @@ export function classifyHandler(opts: {
   if (opts.guardsFound.includes("verifyFrameToken")) {
     return "public"
   }
+  // Browser CSP violation reports: no session, no tenant data, logs only (B55).
+  if (p === "/api/csp-report") {
+    return "public"
+  }
   // AR invoice PDFs are client-downloadable (assertClientAccess) — not book-wide staff.
   if (p.startsWith("/api/finance/invoices/")) {
     return "tenant-scoped"

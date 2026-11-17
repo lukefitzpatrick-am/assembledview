@@ -11,6 +11,7 @@ import {
   VIEW_AS_COOKIE,
   VIEW_AS_HINT_COOKIE,
 } from './lib/auth/viewAs';
+import { CSP_REPORT_PATH } from './lib/security/cspReport';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/privacy', '/data-deletion'];
@@ -99,6 +100,8 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
     pathname.startsWith('/auth') ||
     isAuthApi ||
     pathname.startsWith('/api/cron') ||
+    // Browsers send violation reports without a session; the route rate-limits and logs only.
+    pathname === CSP_REPORT_PATH ||
     STATIC_PATHS.includes(pathname)
   ) {
     return continueResponse;

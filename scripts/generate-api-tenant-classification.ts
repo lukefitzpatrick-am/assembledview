@@ -215,7 +215,7 @@ Living recount of every HTTP handler under \`app/api\` \`route.ts\` files. Regen
 |---|---|
 | tenant-scoped | Client-owned / MBA-scoped data — must gate with server-side scope |
 | admin-only | Staff book-wide (\`requireRole\` / \`requireAdmin\` / \`requireFinanceAdmin\` / \`requireCodexInternalAccess\` / \`requireProxyStaff\` / inline admin deny) |
-| public | No Auth0 session principal (signed frame token) |
+| public | No Auth0 session principal (signed frame token, or the CSP report logger) |
 | internal-cron | \`/api/cron/*\` + \`assertCronSecret\` |
 
 | Mechanism | Maps from |
