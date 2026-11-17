@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/requireRole"
 import { executeIngestAcceptWithCampaign } from "@/lib/mediaplans/ingest/executeIngestAccept"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
 import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
-import { SavePlanError, type SavePlanMode } from "@/lib/data/savePlan"
+import type { SavePlanMode } from "@/lib/data/savePlan"
 
 export const runtime = "nodejs"
 
@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
+    // C-303: an accept saves a draft only. A publish here would skip the save
+    // route's gates and its stale-base check; publish from the plan page.
+    if (body.mode !== undefined && body.mode !== "draft") {
+      return NextResponse.json(
+        { error: "Schedule ingest saves a draft only. Open the plan and publish it from there." },
+        { status: 400 },
+      )
+    }
 
     const uploadedBy =
       typeof auth.session?.user?.email === "string"
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
         masterId: body.masterId,
         mbaNumber: body.mbaNumber.trim(),
         versionNumber: body.versionNumber ?? 1,
-        mode: body.mode ?? "draft",
+        mode: "draft",
         campaignName: body.campaignName,
         campaignStatus: body.campaignStatus,
         campaignStartDate: body.campaignStartDate,
@@ -83,10 +91,6 @@ export async function POST(request: NextRequest) {
     const { ok: _ok, ...payload } = result
     return NextResponse.json({ ok: true, ...payload })
   } catch (e) {
-    // S1 A: a publish accept runs savePlanVersion's publish validation.
-    if (e instanceof SavePlanError && e.code === "PUBLISH_VALIDATION_REFUSED") {
-      return NextResponse.json({ ...e.details, error: e.message, code: e.code }, { status: 422 })
-    }
     console.error("[admin/ingest/accept]", e)
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Accept failed" },
