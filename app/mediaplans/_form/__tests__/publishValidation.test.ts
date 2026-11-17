@@ -2,6 +2,7 @@
  * S1 A (B54): the plan form's publish check. Publish only, empty lines
  * stripped as the server does, a stop only with the switch on.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

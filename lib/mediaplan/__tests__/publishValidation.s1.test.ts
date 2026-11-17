@@ -2,6 +2,7 @@
  * S1 A (B54): the one publish validation set. Table test: each hard rule
  * refuses, each soft rule warns, a clean plan passes.
  */
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

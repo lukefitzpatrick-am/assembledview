@@ -4,6 +4,7 @@
  * overlap list (B35), and the 422 MISSING_BUY_TYPE and MISSING_BURST_DATES
  * fold into builder issues.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 
