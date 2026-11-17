@@ -1,6 +1,8 @@
 import type { LineChannel } from "@/db/schema"
 import type { SavePlanLineItem, SavePlanMode } from "@/lib/data/savePlan"
 import type { BillingMonth } from "@/lib/billing/types"
+import type { BilledMonth, BilledMonthsChoice } from "@/lib/finance/billedMonths/choice"
+import { chooseBilledMonths } from "@/lib/mediaplan/billedMonthsChoicePrompt"
 import type {
   FeeLoading,
   LineItemApproval,
@@ -323,6 +325,8 @@ export type PlansSaveRequestBody = {
    * to the current pointer — not `baseVersionId`. Null on create.
    */
   tipVersionIdAtLoad?: number | null
+  /** S2 A: set by `postPlansSave` after the billed months question, never by a page. */
+  billedMonthsChoice?: BilledMonthsChoice | null
   /** O4 — working billing for AUTO correction toast (server still authoritative). */
   clientBillingSchedulePreview?: BillingMonth[] | null
   /**
@@ -369,6 +373,8 @@ export type PlansSaveResponse = {
   lineIdFloors?: Record<string, number>
   /** BT-1 — 422 MISSING_BUY_TYPE names the offending lines. */
   lineItemIds?: string[]
+  /** S2 A — 409 BILLED_MONTHS_* lists each changed invoiced month. */
+  billedMonths?: BilledMonth[]
   /** O4 — AUTO-line server correction vs pre-save preview (toast, never silent). */
   billingCorrection?: {
     correctedLineCount: number
@@ -426,6 +432,10 @@ export type PlansSaveResponse = {
   removedIds?: string[]
 }
 
+/** The save stops when the billed months question is closed without a choice. */
+export const BILLED_MONTHS_NOT_CHOSEN =
+  "Not published. This version changes invoiced months, and no choice was made for them. Nothing was saved."
+
 export async function postPlansSave(
   body: PlansSaveRequestBody
 ): Promise<
@@ -438,6 +448,12 @@ export async function postPlansSave(
     body: JSON.stringify(body),
   })
   const data = (await res.json().catch(() => ({}))) as PlansSaveResponse
+  // S2 A: the publish changes invoiced months. Ask once, then send the choice.
+  if (res.status === 409 && data?.code === "BILLED_MONTHS_CHOICE_REQUIRED" && !body.billedMonthsChoice) {
+    const choice = await chooseBilledMonths(data.billedMonths ?? [])
+    if (choice) return postPlansSave({ ...body, billedMonthsChoice: choice })
+    return { ok: false, status: res.status, data: { ...data, error: BILLED_MONTHS_NOT_CHOSEN } }
+  }
   if (!res.ok) {
     if (isUnauthorizedStatus(res.status)) noteWriteUnauthorized()
     // A retired-id refusal carries the plan's floors, so a re-added line

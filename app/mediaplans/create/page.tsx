@@ -62,6 +62,7 @@ import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { BilledMonthsChoiceHost } from "@/components/mediaplans/BilledMonthsChoiceDialog"
 import { PublisherGuardActions } from "@/components/mediaplans/PublisherGuardActions"
 import { useIsAdmin } from "@/contexts/AuthContext"
 import { sortByLabel } from "@/lib/utils/sort"
@@ -7127,6 +7128,8 @@ const handleSaveAll = async (opts?: {
                 </div>
               </div>
             </section>
+
+<BilledMonthsChoiceHost />
 
 <SavingModal
   isOpen={shouldShowSaveModal}

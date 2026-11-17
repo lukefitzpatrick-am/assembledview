@@ -49,6 +49,7 @@ import { editCampaignLede, publishedVersionNumberForEditLede } from "@/component
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { BilledMonthsChoiceHost } from "@/components/mediaplans/BilledMonthsChoiceDialog"
 import { PublisherGuardActions } from "@/components/mediaplans/PublisherGuardActions"
 import { useIsAdmin } from "@/contexts/AuthContext"
 import { MediaTypeChipRow } from "@/components/mediaplans/MediaTypeChipRow"
@@ -11393,6 +11394,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           }
         }}
       />
+
+      <BilledMonthsChoiceHost />
 
       <SavingModal
         isOpen={shouldShowSaveModal}
