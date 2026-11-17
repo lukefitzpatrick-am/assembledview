@@ -350,14 +350,6 @@ export async function listCampaignInsightsPage(
   return { items, count: items.length, limit, offset, hasMore }
 }
 
-export type CampaignInsightDetail = {
-  item: CampaignInsightListItem
-  /** Insights this row replaced (superseded_by = this.id). */
-  replaced: CampaignInsightRow[]
-  /** The insight that replaced this one, if any. */
-  replacedBy: CampaignInsightRow | null
-}
-
 /** Recent live insights for an MBA. */
 export async function listRecentLiveInsightsForMba(
   mbaNumber: string,

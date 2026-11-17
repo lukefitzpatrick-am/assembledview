@@ -18,22 +18,6 @@ export interface MediaContainerLineItem {
   [key: string]: any // For flexibility with different media type fields
 }
 
-export interface MonthlyMediaSpend {
-  month: string
-  data: Array<{
-    mediaType: string
-    amount: number
-  }>
-}
-
-export interface SpendFilterOptions {
-  dateRange?: {
-    start: Date
-    end: Date
-  }
-  monthsOrder?: string[]
-}
-
 // Media container endpoints mapping — paths match live Xano media_plan_* tables
 // (same map as MEDIA_TYPE_ENDPOINTS in app/api/mediaplans/mba/[mba_number]/route.ts)
 export const MEDIA_CONTAINER_ENDPOINTS = {

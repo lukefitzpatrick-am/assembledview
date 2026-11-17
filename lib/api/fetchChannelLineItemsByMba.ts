@@ -85,11 +85,6 @@ function normalise(value: unknown): string {
     .toLowerCase()
 }
 
-export type VersionScope = {
-  versionNumber: number
-  mediaPlanVersionId: number | null
-}
-
 export type ChannelGetVersionHints = {
   mpPlanNumber?: string | null
   mediaPlanVersion?: string | null

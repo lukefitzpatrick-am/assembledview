@@ -1,12 +1,10 @@
-import type { FinanceFilters, FinanceSavedReportConfig, HubSavedView } from "@/lib/types/financeBilling"
+import type { FinanceSavedReportConfig } from "@/lib/types/financeBilling"
 import { DEFAULT_REPORT_METRICS, isReportMetricKey } from "@/lib/finance/report/metrics"
 import type { ReportDimension } from "@/lib/finance/report/types"
 import type { ReportMetricKey } from "@/lib/finance/report/metrics"
 
 /** Browser localStorage key for finance hub saved views (+ optional report configs). */
 export const FINANCE_HUB_SAVED_VIEWS_KEY = "finance-hub-saved-views-v3"
-
-const SAVED_VIEWS_CHANGED_EVENT = "finance-hub-saved-views-changed"
 
 const REPORT_DIMENSIONS = new Set<ReportDimension>([
   "mediaType",
@@ -43,39 +41,4 @@ export function normalizeSavedReportConfig(raw: unknown): FinanceSavedReportConf
     metricsRaw.length > 0 ? metricsRaw : [...DEFAULT_REPORT_METRICS]
   const showDetailRows = candidate.showDetailRows === true
   return { groupBy, metrics, showDetailRows }
-}
-
-function normalizeHubSavedView(raw: unknown): HubSavedView | null {
-  if (!raw || typeof raw !== "object") return null
-  const candidate = raw as Record<string, unknown>
-  if (typeof candidate.name !== "string" || !candidate.name.trim()) return null
-  if (!candidate.filters || typeof candidate.filters !== "object") return null
-  const report = normalizeSavedReportConfig(candidate.report)
-  return {
-    name: candidate.name.trim(),
-    filters: candidate.filters as FinanceFilters,
-    ...(report ? { report } : {}),
-  }
-}
-
-export function readHubSavedViews(): HubSavedView[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = localStorage.getItem(FINANCE_HUB_SAVED_VIEWS_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.flatMap((entry) => {
-      const view = normalizeHubSavedView(entry)
-      return view ? [view] : []
-    })
-  } catch {
-    return []
-  }
-}
-
-export function writeHubSavedViews(views: HubSavedView[]): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(FINANCE_HUB_SAVED_VIEWS_KEY, JSON.stringify(views))
-  window.dispatchEvent(new Event(SAVED_VIEWS_CHANGED_EVENT))
 }

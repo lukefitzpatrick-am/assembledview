@@ -24,5 +24,3 @@ export function flipStaleOnPublish(args: {
   })
   return { items, flippedIds }
 }
-
-export type StaleResolution = "resnapshot" | "keep"

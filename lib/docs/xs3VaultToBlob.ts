@@ -36,16 +36,6 @@ export type Xs3WorkItem = {
   mime: string
 }
 
-export type Xs3MigratedFileJson = {
-  url: string
-  mime: string
-  name: string
-  size: number
-  source: "migrated_from_xano"
-  pathname: string
-  xano_url: string
-}
-
 function asRecord(file: unknown): Record<string, unknown> | null {
   if (!file || typeof file !== "object" || Array.isArray(file)) return null
   return file as Record<string, unknown>
@@ -127,10 +117,4 @@ export function xs3BlobPathname(
   filename: string,
 ): string {
   return planDocumentBlobPathname(mbaNumber, versionNumber, kind, filename)
-}
-
-export type Xs3RunArgs = {
-  dryRun: boolean
-  limit: number | null
-  kind: Xs3Kind | null
 }

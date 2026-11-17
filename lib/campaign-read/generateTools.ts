@@ -5,6 +5,4 @@ export const CAMPAIGN_READ_GENERATE_TOOLS = [
   "get_campaign_insights",
 ] as const
 
-export type CampaignReadGenerateTool = (typeof CAMPAIGN_READ_GENERATE_TOOLS)[number]
-
 export const CAMPAIGN_READ_GENERATE_SURFACE = "campaign-read-generate"

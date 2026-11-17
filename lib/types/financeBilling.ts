@@ -159,21 +159,6 @@ export interface BillingRecord {
   xero_amount?: number | null
 }
 
-export interface BillingEdit {
-  id: number
-  finance_billing_records_id: number
-  finance_billing_line_items_id: number | null
-  edit_type: "field_change" | "amount_change" | "status_change" | "line_add" | "line_remove"
-  field_name: string
-  old_value: string | null
-  new_value: string | null
-  edit_status: "draft" | "published" | "reverted"
-  edited_by: number
-  edited_by_name: string
-  published_at: string | null
-  created_at: string
-}
-
 export interface FinanceFilters {
   selectedClients: string[]
   /** Publisher row ids from `/api/publishers` (Xano). Empty = all. */
@@ -196,14 +181,6 @@ export interface FinanceSavedReportConfig {
   groupBy: ReportDimension[]
   metrics: ReportMetricKey[]
   showDetailRows: boolean
-}
-
-export interface SavedView {
-  id: number
-  name: string
-  filters: FinanceFilters
-  /** Present when the view also captures Report tab group-by / metrics / detail rows. */
-  report?: FinanceSavedReportConfig
 }
 
 /** Browser localStorage shape for `finance-hub-saved-views-v3` (no server id). */

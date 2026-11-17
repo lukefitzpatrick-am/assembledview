@@ -4,7 +4,6 @@ import { sql, type SQL } from "drizzle-orm"
 import { schema } from "@/db"
 import { withPgReadLimits } from "@/lib/data/pgReadLimits"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
-import { readPacingOrphanFixRows } from "@/lib/pacing/admin/pacingOrphanFixes"
 
 /**
  * Pacing-surface reads from Postgres:
@@ -248,13 +247,5 @@ export async function readPacingVersions(
   mbaNumbers?: readonly string[] | ReadonlySet<string>,
 ): Promise<Record<string, unknown>[]> {
   return fetchPacingVersionsFromPostgres(mbaNumbers)
-}
-
-// --- pacing_orphan_fixes ---
-
-export async function fetchPacingOrphanFixesFromPostgres(): Promise<
-  Record<string, unknown>[]
-> {
-  return readPacingOrphanFixRows()
 }
 

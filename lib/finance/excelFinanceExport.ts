@@ -106,11 +106,6 @@ export async function loadFinanceExcelClientMeta(): Promise<FinanceExcelClientMe
   }
 }
 
-export async function fetchFinanceHubClientMetaByClientId(): Promise<Map<number, FinanceExcelClientMeta>> {
-  const { metaByClientId } = await loadFinanceExcelClientMeta()
-  return metaByClientId
-}
-
 function legalDetailRowsForCampaign(
   campaign: FinanceCampaignData,
   clientMeta?: FinanceExcelClientMeta | null
@@ -556,11 +551,5 @@ export function billingRecordsToFinanceCampaigns(
   const sow = records.filter((r) => r.billing_type === "sow").map(toCampaign)
   const retainers = records.filter((r) => r.billing_type === "retainer")
   return { media, sow, retainers }
-}
-
-export type FinanceHubWorkbookMonthGroup = {
-  monthIso: string
-  monthLabel: string
-  records: BillingRecord[]
 }
 

@@ -232,39 +232,3 @@ export function getMediaBadgeStyle(key: string): {
     borderColor: "transparent",
   }
 }
-
-/**
- * Maps series names to colours: registry colours for known media types; otherwise deterministic assignment.
- * - `media`: each unknown name gets `getDeterministicColor` (stable per normalized key via hash).
- * - `generic`: unknowns consume `FALLBACK_PALETTE` in first-seen order (distinct colours for ranked / ad-hoc series).
- */
-export function assignEntityColors(
-  names: string[],
-  type: "media" | "generic" = "media"
-): Map<string, string> {
-  const map = new Map<string, string>()
-  const unknownNormToColor = new Map<string, string>()
-  let genericCursor = 0
-
-  for (const name of names) {
-    const n = normalizeEntityKey(name)
-    const row = MEDIA_TYPE_REGISTRY[n as MediaTypeRegistryKey]
-    if (row) {
-      map.set(name, row.color)
-      continue
-    }
-    let c = unknownNormToColor.get(n)
-    if (!c) {
-      if (type === "generic") {
-        c = FALLBACK_PALETTE[genericCursor % FALLBACK_PALETTE.length]!
-        genericCursor += 1
-      } else {
-        c = getDeterministicColor(name)
-      }
-      unknownNormToColor.set(n, c)
-    }
-    map.set(name, c)
-  }
-
-  return map
-}

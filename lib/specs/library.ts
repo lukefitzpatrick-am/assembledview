@@ -45,23 +45,6 @@ export type MiCivicIndividualSite = {
   notes?: string
 }
 
-/** Civic Outdoor uses a site catalogue instead of a normal formats[]. */
-export type MiCivicOutdoorPublisher = {
-  publisher_slug: string
-  publisher_name: string
-  container_category: string
-  last_refreshed: string
-  source?: string
-  source_url?: string
-  universal_specs?: Record<string, unknown>
-  panel_groups?: MiCivicPanelGroup[]
-  individual_sites?: MiCivicIndividualSite[]
-  supply_deadline_rule?: string
-  best_practice_notes?: string[]
-  formats?: MiFormatRecord[]
-  [key: string]: unknown
-}
-
 export type MiPublisherRecord = {
   publisher_slug: string
   publisher_name: string

@@ -1,16 +1,5 @@
-import { MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS } from "@/lib/finance/planLineItemEnrichment"
 import { normalizeClientPaysForMedia } from "@/lib/finance/normalizeFields"
 import { parseBillingScheduleAmount } from "@/lib/finance/utils"
-
-function tableKeyToCamelProperty(tableKey: string): string {
-  return tableKey.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
-}
-
-function lineItemsArrayOnVersion(version: Record<string, unknown>, tableKey: string): unknown[] {
-  const camel = tableKeyToCamelProperty(tableKey)
-  const raw = version[tableKey] ?? version[camel]
-  return Array.isArray(raw) ? raw : []
-}
 
 /** Media $ for a campaign / schedule line item (best-effort across aliases). */
 export function lineItemMediaAmount(raw: unknown): number {
@@ -90,38 +79,4 @@ export function sumClientPaysForMediaMediaFromScheduleMonths(
     }
   }
   return Math.round(sum * 100) / 100
-}
-
-/**
- * Sum of media on campaign line items where the client pays for media directly
- * (agency invoices fee only). Flag via {@link normalizeClientPaysForMedia}.
- *
- * Prefers hydrated `*_line_items` on the version; when those are absent (list
- * payloads often omit related rows), falls back to client-pays lines nested on
- * the delivery schedule months.
- */
-export function sumClientPaysForMediaMediaFromVersion(
-  version: Record<string, unknown>,
-  deliveryMonths: Record<string, unknown>[] = []
-): number {
-  let sum = 0
-  let sawAnyChannelRows = false
-  for (const tableKey of MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS) {
-    const rows = lineItemsArrayOnVersion(version, tableKey)
-    if (rows.length > 0) sawAnyChannelRows = true
-    for (const row of rows) {
-      if (!normalizeClientPaysForMedia(row)) continue
-      sum += lineItemMediaAmount(row)
-    }
-  }
-  sum = Math.round(sum * 100) / 100
-  if (sawAnyChannelRows || deliveryMonths.length === 0) return sum
-  return sumClientPaysForMediaMediaFromScheduleMonths(deliveryMonths)
-}
-
-export type ComputeBillableAlignedMbaTotalInput = {
-  deliveryMonths: Record<string, unknown>[]
-  billingMonths: Record<string, unknown>[]
-  /** Media plan version — used for client-pays media subtraction when delivery is present. */
-  version: Record<string, unknown>
 }

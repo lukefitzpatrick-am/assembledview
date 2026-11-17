@@ -1,10 +1,5 @@
 import { formatMoney } from "@/lib/format/money"
 
-export type FormatCurrencyCompactOptions = {
-  currency?: string
-  locale?: string
-}
-
 export type FormatCurrencyFullOptions = {
   currency?: string
   locale?: string

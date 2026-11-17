@@ -125,15 +125,3 @@ export function parseBillingMonthRangeParams(
   }
   return { ok: true, months }
 }
-
-export function filterRecordsByBillingTypes<T extends { billing_type?: unknown; billingType?: unknown }>(
-  rows: T[],
-  types: BillingType[]
-): T[] {
-  if (types.length === 0) return rows
-  const want = new Set(types)
-  return rows.filter((row) => {
-    const bt = row.billing_type ?? row.billingType
-    return typeof bt === "string" && want.has(bt as BillingType)
-  })
-}

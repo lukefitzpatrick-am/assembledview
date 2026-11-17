@@ -21,20 +21,3 @@ export type PayableScheduleMeta = {
   clientId: number
   campaignName: string
 }
-
-/**
- * Normalise delivery schedule JSON to a month row array:
- * - top-level array
- * - `{ months: [...] }`
- * - `{ deliverySchedule: [...] }`
- */
-export function parseDeliveryScheduleArray(deliverySchedule: unknown): unknown[] {
-  if (!deliverySchedule) return []
-  if (Array.isArray(deliverySchedule)) return deliverySchedule
-  if (typeof deliverySchedule === "object" && deliverySchedule !== null) {
-    const o = deliverySchedule as Record<string, unknown>
-    if (Array.isArray(o.months)) return o.months
-    if (Array.isArray(o.deliverySchedule)) return o.deliverySchedule
-  }
-  return []
-}

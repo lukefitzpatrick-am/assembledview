@@ -1,20 +1,3 @@
-/**
- * Canonical finance field normaliser.
- *
- * Incoming Xano / version / line-item records use mixed snake_case and camelCase.
- * This module maps those aliases onto ONE camelCase set. Callers should prefer these
- * helpers over reading aliases inline. Remaining raw alias sites are marked
- * `TODO(phase-3-normalizeFields)` for migration.
- */
-
-export type CanonicalFinanceFields = {
-  clientPaysForMedia: boolean
-  budgetIncludesFees: boolean
-  /** Raw billing schedule payload (`billingSchedule` | `billing_schedule`), unparsed. */
-  billingSchedule: unknown
-  /** Raw delivery schedule payload (`deliverySchedule` | `delivery_schedule`), unparsed. */
-  deliverySchedule: unknown
-}
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
@@ -51,16 +34,6 @@ export function normalizeClientPaysForMedia(raw: unknown): boolean {
   return asBool(
     firstDefined(r.clientPaysForMedia, r.client_pays_for_media, r.client_pays_media)
   )
-}
-
-/**
- * Canonical `budgetIncludesFees` from:
- * `budgetIncludesFees` | `budget_includes_fees`
- */
-export function normalizeBudgetIncludesFees(raw: unknown): boolean {
-  const r = asRecord(raw)
-  if (!r) return false
-  return asBool(firstDefined(r.budgetIncludesFees, r.budget_includes_fees))
 }
 
 /** Schedule accessor: `billingSchedule` | `billing_schedule`. */

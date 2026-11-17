@@ -40,15 +40,6 @@ export interface Channel {
   pillarSources?: ChannelPillarSources;
 }
 
-export interface CulturalMoment {
-  date: string;
-  flight: FlightId;
-  title: string;
-  desc: string;
-  chans: string[];
-  geos: GeoId[];
-}
-
 export interface Weights {
   A: number;
   T: number;

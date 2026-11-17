@@ -97,11 +97,3 @@ export function filterPlanVersionsByIncludeDrafts(
     isFinanceIncludedCampaignStatus(resolveFinanceCampaignStatus(version))
   )
 }
-
-export type HubBillingRecordFilterParams = {
-  clientsIdCsv: string | null
-  search: string | null
-  statusCsv: string | null
-  publishersIdCsv: string | null
-  billingTypes: BillingType[]
-}

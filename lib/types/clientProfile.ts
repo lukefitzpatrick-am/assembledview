@@ -17,14 +17,3 @@ export type ClientProfileLinks = {
   linkedin_url: string
   tiktok_url: string
 }
-
-export type ClientBrainFields = {
-  client_brain: string
-  /** Xano stores epoch milliseconds as a number. */
-  client_brain_updated_at: number | null
-}
-
-/** List-safe projection flag — never ship the brain blob on list paths. */
-export type ClientBrainPresence = {
-  has_client_brain?: boolean
-}

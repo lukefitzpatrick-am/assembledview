@@ -75,16 +75,6 @@ export function mapFinanceBillingLineItemFromPostgres(
   return coerceNumericStringsToNumbers(toApiRow(row))
 }
 
-export async function fetchFinanceBillingLineItemsFromPostgres(): Promise<
-  Record<string, unknown>[]
-> {
-  const db = getDb()
-  const rows = await db.select().from(schema.financeBillingLineItems)
-  return rows.map((row) =>
-    mapFinanceBillingLineItemFromPostgres(row as Record<string, unknown>)
-  )
-}
-
 // --- finance_edits ---
 
 export function mapFinanceEditFromPostgres(
@@ -226,14 +216,6 @@ export function mapRevenueLineCatalogFromPostgres(
   row: Record<string, unknown>
 ): Record<string, unknown> {
   return coerceNumericStringsToNumbers(toApiRow(row))
-}
-
-export async function fetchRevenueLineCatalogFromPostgres(): Promise<
-  Record<string, unknown>[]
-> {
-  const db = getDb()
-  const rows = await db.select().from(schema.revenueLineCatalog)
-  return rows.map((row) => mapRevenueLineCatalogFromPostgres(row as Record<string, unknown>))
 }
 
 // --- scope_of_work ---

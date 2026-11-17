@@ -181,11 +181,3 @@ export function formatWorkbookCompareReport(report: WorkbookCompareReport): stri
   lines.push(report.hasTotalsDiff ? "TOTALS DIFF" : "TOTALS MATCH")
   return lines.join("\n")
 }
-
-export type PdfTotalsCompare = {
-  label: string
-  expected: number | null
-  actual: number | null
-  diff: number | null
-  match: boolean
-}

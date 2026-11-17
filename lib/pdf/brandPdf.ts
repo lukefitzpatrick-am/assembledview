@@ -13,9 +13,6 @@ export const PDF_COLOURS = {
   lime: hexToRgb(BRAND.colour.lime),
 } as const
 
-/** Logo artboard is 1000×148. */
-export const PDF_LOGO_HEIGHT_RATIO = 148 / 1000
-
 /**
  * Registers Plus Jakarta Sans (normal, bold, extrabold) and sets it as the
  * default. The font module is dynamic so client bundles load it only when a
