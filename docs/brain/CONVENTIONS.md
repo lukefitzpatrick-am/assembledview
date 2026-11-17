@@ -68,6 +68,8 @@ Every handler does its own work. Assume nothing was done for you.
 
 Postgres errors are read through `lib/db/pgError`: `sqlStateOf`, `isUniqueViolation` (optionally for one constraint), `isMissingColumn` (42703), `isMissingRelation` (42P01), `isLockConflict` (40P01, 55P03). A response carries `safeErrorMessage(err)`, never a database error's own text.
 
+Since B49 a 42P10 ("no unique or exclusion constraint matching the ON CONFLICT") is a plain 500, not a duplicate: `isUniqueViolation` reads only 23505, or a "duplicate key" or "unique constraint" message with no SQLSTATE. Before, any message with "unique" counted. A 42P10 means the statement names a constraint the table lacks, a code or migration fault, not a user's duplicate (B49 review R9).
+
 Crons bypass middleware entirely — `/api/cron/*` is protected only by `assertCronSecret`. Check it first in every cron handler.
 
 **Naming trap:** `/api/media_plans` (underscore) is the per-channel line-item surface; `/api/mediaplans` (no underscore) is masters, versions and MBA detail. They are different things.
