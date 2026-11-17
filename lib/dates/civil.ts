@@ -20,20 +20,6 @@ function utcMillis(iso: string): number {
   return Date.UTC(y, m - 1, d)
 }
 
-/**
- * A trimmed `YYYY-MM-DD` that is a real calendar date, else null.
- * `2026-02-30`, `2026-2-3` and timestamps are null.
- */
-export function parseISODate(value: unknown): string | null {
-  if (typeof value !== "string") return null
-  const text = value.trim()
-  const m = ISO_DATE.exec(text)
-  if (!m) return null
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
-  const probe = new Date(Date.UTC(y, mo - 1, d))
-  return probe.getUTCFullYear() === y && probe.getUTCMonth() === mo - 1 && probe.getUTCDate() === d ? text : null
-}
-
 /** `iso` moved by `days` calendar days. A malformed date throws a RangeError. */
 export function addDaysISO(iso: string, days: number): string {
   return new Date(utcMillis(iso) + days * 86_400_000).toISOString().slice(0, 10)
@@ -49,12 +35,6 @@ export function addMonthsISO(month: string, months: number): string {
   const [y, m] = month.split("-").map(Number)
   const idx = y * 12 + (m - 1) + months
   return `${Math.floor(idx / 12)}-${pad2((((idx % 12) + 12) % 12) + 1)}`
-}
-
-/** Last day of a `YYYY-MM` month as `YYYY-MM-DD`. The first day is `${month}-01`. */
-export function monthEndISO(month: string): string {
-  const [y, m] = month.split("-").map(Number)
-  return `${month}-${pad2(new Date(Date.UTC(y, m, 0)).getUTCDate())}`
 }
 
 /**

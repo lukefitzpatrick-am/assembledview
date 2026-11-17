@@ -6,7 +6,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { addDaysISO, addMonthsISO, daysBetweenISO, monthEndISO, parseISODate } from "../civil"
+import { addDaysISO, addMonthsISO, daysBetweenISO } from "../civil"
 import { getMelbourneMonthISO, getMelbourneTodayISO, melbourneInstant, melbourneParts } from "../melbourne"
 
 const HOUR = 3_600_000
@@ -110,7 +110,7 @@ test("melbourneInstant differs from the one-pass copy only on the Saturday and S
   assert.ok(differs > 0)
 })
 
-test("civil maths: add days, months, month end, days between, parse", () => {
+test("civil maths: add days, months, days between", () => {
   for (const d of INSTANTS.filter((_, i) => i % 24 === 0)) {
     const day = getMelbourneTodayISO(d)
     assert.equal(addDaysISO(addDaysISO(day, 40), -40), day)
@@ -121,10 +121,5 @@ test("civil maths: add days, months, month end, days between, parse", () => {
   assert.equal(addMonthsISO("2026-12", 1), "2027-01")
   assert.equal(addMonthsISO("2026-01", -1), "2025-12")
   assert.equal(addMonthsISO("2026-11", -25), "2024-10")
-  assert.equal(monthEndISO("2028-02"), "2028-02-29")
-  assert.equal(monthEndISO("2026-02"), "2026-02-28")
-  assert.equal(monthEndISO("2026-12"), "2026-12-31")
-  assert.equal(parseISODate(" 2026-02-28 "), "2026-02-28")
-  for (const bad of ["2026-02-30", "2026-2-3", "2026-13-01", "2026-11-17T00:00:00Z", "", null, 20261117]) assert.equal(parseISODate(bad), null, String(bad))
   for (const bad of ["abc", "2026-1-5", "", "2026-13-01"]) assert.throws(() => addDaysISO(bad, 1), RangeError, bad)
 })

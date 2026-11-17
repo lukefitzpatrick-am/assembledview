@@ -79,7 +79,7 @@ Crons bypass middleware entirely — `/api/cron/*` is protected only by `assertC
 - Dates display: `lib/format/date.ts` — en-AU only.
 - Calendar dates go through `lib/dates` only. Strings in and out (`YYYY-MM-DD`, `YYYY-MM`). The business zone is Melbourne (`BUSINESS_TZ`); Sydney shares its offset at every instant, so a "Sydney" date is the Melbourne one.
   - `lib/dates/melbourne`: `getMelbourneTodayISO`, `getMelbourneMonthISO` (the "current month" everywhere, never the UTC or host month), `getMelbourneYesterdayISO`, `toMelbourneDateString` (the day of an instant), `melbourneParts` (year, month, day, hour, minute, weekday), `melbourneInstant` (a wall time as an instant), `BUSINESS_TZ` for display formatters.
-  - `lib/dates/civil`: `addDaysISO`, `addMonthsISO`, `monthEndISO`, `daysBetweenISO`, `parseISODate`; `toDateOnlyString` and `parseDateOnlyString` for the local-midnight `Date`s of date pickers and the plan grids.
+  - `lib/dates/civil`: `addDaysISO`, `addMonthsISO`, `daysBetweenISO`; `toDateOnlyString` and `parseDateOnlyString` for the local-midnight `Date`s of date pickers and the plan grids.
   - `check:date-boundaries` ratchets the rest down: per file outside `lib/dates`, zone literals, `toISOString().slice(0, 7 or 10)`, hand-built `T00:00:00` strings and `formatToParts` (comments not counted). Baseline `scripts/date-boundaries-baseline.json` only goes down.
 - Date parsing: `parseDateSafe` (local midnight) and `parseDateNativeSafe` (UTC midnight) are **not** interchangeable. Swapping them shifts dates by a day.
 - Email text: `normaliseEmail` and `displayNameFromEmail` in `lib/email/address`. Identity (aliases, primary address) stays in `lib/codex/rosterResolve`.
