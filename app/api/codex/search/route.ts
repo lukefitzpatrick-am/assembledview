@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isCodexSearchEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { codexSearchLimit, normaliseCodexSearchQuery } from "@/lib/codex/search"
 import { searchCodex } from "@/lib/codex/searchRepo"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
@@ -15,7 +15,7 @@ export const runtime = "nodejs"
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexSearchEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_search"))) return jsonError(404, "not_found")
 
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error

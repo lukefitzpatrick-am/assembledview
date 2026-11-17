@@ -127,7 +127,7 @@ describe("Scenario planner containment (B44, C-200)", () => {
   it("source: both planner hosts post only with the switch off and pass containedTasks only with it on", () => {
     for (const file of ["ScenarioPlannerContext.tsx", "ScenarioPlannerDrawer.tsx"]) {
       const src = fs.readFileSync(path.join(process.cwd(), "components/pacing/scenario", file), "utf8")
-      expect(src, file).toContain("const containedWrites = codexContainedWritesOn()")
+      expect(src, file).toContain('const containedWrites = clientFeatureOn("codex_contained_writes")')
       expect(src, file).toContain("containedTasks={containedWrites ? { clientId: payload.clientId ?? null } : undefined}")
       expect(src, file).toContain("onCreateTask={containedWrites ? undefined : async (draft) => {")
     }

@@ -138,7 +138,7 @@ describe("Creative admin landing containment (B44, C-200)", () => {
 
   it("source: the page reads the switch on the server; the dialog renders only with it off", () => {
     const page = fs.readFileSync(path.join(process.cwd(), "app/creative/page.tsx"), "utf8")
-    expect(page).toContain("isCodexContainedWritesEnabled()")
+    expect(page).toContain(`isFeatureOn("codex_contained_writes")`)
     expect(page).toContain("containedWrites={containedWrites}")
     const src = fs.readFileSync(path.join(process.cwd(), "components/creative/CreativeAdminLanding.tsx"), "utf8")
     expect(src).toContain("{codexEnabled && !containedWrites ? (\n        <TaskFormDialog")

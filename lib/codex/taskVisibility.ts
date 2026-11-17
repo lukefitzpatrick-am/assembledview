@@ -30,7 +30,7 @@ import "server-only"
 import { sql, type SQL } from "drizzle-orm"
 
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   AssigneeNoAccessError,
   buildAccessIdentity,
@@ -57,7 +57,7 @@ export async function loadAccessIdentity(database: DbExecutor, aliases?: boolean
   let on = aliases
   if (on === undefined) {
     try {
-      on = await isCodexRosterAliasesEnabled()
+      on = await isFeatureOn("codex_roster_aliases")
     } catch {
       on = false
     }

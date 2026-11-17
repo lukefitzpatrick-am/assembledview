@@ -49,7 +49,11 @@ export type FeatureDefinition = {
   toggleRole: FeatureToggleRole
   /** "switch": set on /admin/features. "vercel": env only (middleware). */
   source: "switch" | "vercel"
-  /** Also needs these switches on (checked by the feature's own getter). */
+  /**
+   * Also needs these switches on, transitively. `isFeatureOn` and the
+   * browser snapshot resolve them (`effectiveFeatureOn`); no getter or
+   * browser check repeats them (S16).
+   */
   requires?: readonly string[]
   /** Why a "vercel" switch can't move to the page. */
   vercelReason?: string
@@ -619,6 +623,17 @@ export function resolveFeature(
   return { enabled: def.defaultOn, source: "default" }
 }
 
+/**
+ * The live value of a switch: its own value (`raw`, from `resolveFeature`)
+ * and every switch it requires, transitively (S16). The one place
+ * requirements are resolved.
+ */
+export function effectiveFeatureOn(key: string, raw: (key: string) => boolean): boolean {
+  const def = featureDefinition(key)
+  if (!def || !raw(key)) return false
+  return (def.requires ?? []).every((k) => effectiveFeatureOn(k, raw))
+}
+
 /** Who may toggle: admin roles, or finance admin for finance switches. */
 export function canToggleFeature(def: FeatureDefinition, roles: { admin: boolean; financeAdmin: boolean }): boolean {
   if (def.source === "vercel") return false
@@ -630,9 +645,10 @@ export function canToggleFeature(def: FeatureDefinition, roles: { admin: boolean
  * live value in, and as their default in tests. Not for live gates.
  */
 export function featureEnvValue(key: FeatureKey, env: Record<string, string | undefined> = process.env): boolean {
-  const def = featureDefinition(key)
-  if (!def) return false
-  return resolveFeature(def, null, env).enabled
+  return effectiveFeatureOn(key, (k) => {
+    const def = featureDefinition(k)
+    return def ? resolveFeature(def, null, env).enabled : false
+  })
 }
 
 export type UnsavedFeatureSwitch = { key: FeatureKey; enabled: boolean; source: "env" | "default" }

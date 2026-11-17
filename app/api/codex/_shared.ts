@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { auth0 } from "@/lib/auth0"
-import { isCodexV2Enabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
 import { isLockConflict, safeErrorMessage } from "@/lib/db/pgError"
 import {
@@ -22,7 +22,7 @@ export type CodexAuthResult = CodexAuthOk | { error: NextResponse }
 
 /** 404 when Codex v2 flag is off — checked before auth (module invisible). */
 export async function codexFlagGuard(): Promise<NextResponse | null> {
-  if (!(await isCodexV2Enabled())) {
+  if (!(await isFeatureOn("codex_v2"))) {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
   return null

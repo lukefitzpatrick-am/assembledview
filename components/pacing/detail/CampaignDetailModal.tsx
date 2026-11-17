@@ -40,7 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
-import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
+import { clientFeatureOn } from "@/lib/features/client"
 import { buildTasksComposeHref } from "@/lib/codex/composeLink"
 import { CampaignBurstsTab } from "./CampaignBurstsTab"
 import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/shared/relabelPageUrl"
@@ -172,7 +172,7 @@ export function CampaignDetailModal({
   const [lineFilter, setLineFilter] = useState("all")
   const [helpOpen, setHelpOpen] = useState(false)
   /** B44 (C-200): with codex_contained_writes on, Ask for help opens Tasks instead of writing here. */
-  const containedWrites = codexContainedWritesOn()
+  const containedWrites = clientFeatureOn("codex_contained_writes")
   const [note, setNote] = useState("")
   const [savingNote, setSavingNote] = useState(false)
   const [burstDailyWindow, setBurstDailyWindow] = useState<CampaignDetailDailyWindow | undefined>(undefined)

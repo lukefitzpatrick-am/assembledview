@@ -156,21 +156,3 @@ test("MERGE: 14 binds a row; switch-off rows bind null for both new columns", { 
   delete process.env.SNAPSHOT_PRUNE_MODE
 })
 
-test("the date counts only with the net basis on (server and browser getters)", async () => {
-  const { combineFixedCostFromDate, deliveryFlagsFromClient } = await import("@/lib/delivery/deliveryFlags")
-  const { readDeliveryFlags } = await import("@/lib/delivery/deliveryFlags.server")
-  const { setClientFeatureSnapshot } = await import("@/lib/features/client")
-  assert.equal(combineFixedCostFromDate(true, true), true)
-  assert.equal(combineFixedCostFromDate(true, false), false)
-  assert.equal(combineFixedCostFromDate(false, true), false)
-  const dateOnly = await readDeliveryFlags(async (key) => key === "fixed_cost_from_date")
-  assert.equal(dateOnly.fixedCostFromDate, false)
-  const both = await readDeliveryFlags(async (key) => key === "fixed_cost_from_date" || key === "fixed_cost_report_net")
-  assert.deepEqual(both, { packageNoUnitTarget: false, fixedCostReportNet: true, fixedCostFromDate: true })
-  setClientFeatureSnapshot({ fixed_cost_from_date: true })
-  assert.equal(deliveryFlagsFromClient().fixedCostFromDate, false)
-  setClientFeatureSnapshot({ fixed_cost_from_date: true, fixed_cost_report_net: true })
-  assert.equal(deliveryFlagsFromClient().fixedCostFromDate, true)
-  setClientFeatureSnapshot(null)
-  assert.equal(deliveryFlagsFromClient().fixedCostFromDate, false)
-})

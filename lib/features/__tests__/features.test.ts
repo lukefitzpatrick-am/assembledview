@@ -180,6 +180,8 @@ test("codex_projects (S1, B38): new switch, default off, no env fallback, needs 
   assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
   try {
     setFeatureRowReaderForTests(async () => new Map([["codex_projects", row("codex_projects", true)]]))
+    assert.equal(await isFeatureOn("codex_projects", {}), false, "B48: off while codex_v2 is off")
+    setFeatureRowReaderForTests(async () => new Map([["codex_projects", row("codex_projects", true)], ["codex_v2", row("codex_v2", true)]]))
     assert.equal(await isFeatureOn("codex_projects", {}), true)
   } finally {
     setFeatureRowReaderForTests(null)
@@ -230,79 +232,6 @@ test("codex_contained_writes (B44, C-200): new switch, default off, no env fallb
   assert.match(def.description, /never saves on load/)
   assert.match(def.description, /Off: each page keeps its own dialog and writes as before/)
   assert.match(def.description, /List shortened/, "PACK4fix R6: a long change list is cut to fit the link")
-})
-
-test("codex_contained_writes: the server getter needs codex_v2; the browser value is folded off without it", async () => {
-  const { isCodexContainedWritesEnabled } = await import("../../codex/flag.js")
-  const { foldContainedWritesRequires } = await import("../../codex/containedWrites.js")
-  const rows = (on: string[]) =>
-    new Map(
-      ["codex_v2", "codex_contained_writes"].map((k) => [
-        k,
-        { key: k, enabled: on.includes(k), updatedAt: null, updatedBy: null, updatedByName: null, note: null },
-      ])
-    )
-  for (const [on, expected] of [
-    [["codex_v2", "codex_contained_writes"], true],
-    [["codex_contained_writes"], false],
-    [["codex_v2"], false],
-    [[], false],
-  ] as Array<[string[], boolean]>) {
-    setFeatureRowReaderForTests(async () => rows(on))
-    try {
-      assert.equal(await isCodexContainedWritesEnabled(), expected, on.join(","))
-    } finally {
-      setFeatureRowReaderForTests(null)
-    }
-  }
-  assert.deepEqual(foldContainedWritesRequires({ codex_contained_writes: true, codex_search: true }, false), {
-    codex_contained_writes: false,
-    codex_search: true,
-  })
-  const on = { codex_contained_writes: true }
-  assert.equal(foldContainedWritesRequires(on, true), on)
-  const off = { codex_contained_writes: false }
-  assert.equal(foldContainedWritesRequires(off, false), off)
-  assert.equal(foldContainedWritesRequires(null, true), null)
-})
-
-test("codex_contained_writes: the root layout folds the browser snapshot with codex_v2 before sending it (B44fix R8)", async () => {
-  const fs = await import("node:fs")
-  const path = await import("node:path")
-  const src = fs.readFileSync(path.join(process.cwd(), "components/ServerAuthScope.tsx"), "utf8")
-  assert.match(src, /import \{ foldContainedWritesRequires \} from "@\/lib\/codex\/containedWrites"/)
-  const read = src.indexOf("await Promise.all([readClientFeatureSnapshot(), isCodexV2Enabled()])")
-  const fold = src.indexOf("features = foldContainedWritesRequires(features, codexEnabled)")
-  const sent = src.indexOf("features={features}")
-  assert.ok(read > 0, "reads the snapshot and codex_v2 together")
-  assert.ok(fold > read, "folds after reading both")
-  assert.ok(sent > fold, "sends the folded snapshot to the browser")
-  assert.equal(src.match(/features = /g)?.length, 2, "after the read, features is set only by the fold and the catch")
-})
-
-test("B42 getters need codex_projects and codex_v2 as well as their own switch", async () => {
-  const { isCodexMyWorkEnabled, isCodexProgressFieldEnabled } = await import("../../codex/flag.js")
-  const rows = (on: string[]) =>
-    new Map(
-      ["codex_v2", "codex_projects", "codex_progress_field", "codex_my_work"].map((k) => [
-        k,
-        { key: k, enabled: on.includes(k), updatedAt: null, updatedBy: null, updatedByName: null, note: null },
-      ])
-    )
-  for (const [on, progress, myWork] of [
-    [["codex_v2", "codex_projects", "codex_progress_field", "codex_my_work"], true, true],
-    [["codex_v2", "codex_progress_field", "codex_my_work"], false, false],
-    [["codex_projects", "codex_progress_field", "codex_my_work"], false, false],
-    [["codex_v2", "codex_projects"], false, false],
-  ] as Array<[string[], boolean, boolean]>) {
-    setFeatureRowReaderForTests(async () => rows(on))
-    try {
-      assert.equal(await isCodexProgressFieldEnabled(), progress, on.join(","))
-      assert.equal(await isCodexMyWorkEnabled(), myWork, on.join(","))
-    } finally {
-      setFeatureRowReaderForTests(null)
-    }
-  }
 })
 
 test("toggle invalidation: the next read after invalidate sees the new row", async () => {

@@ -13,8 +13,8 @@ const skip = mockModuleSkip()
 let flag: () => Promise<boolean> = async () => true
 
 test("a failed codex_roster_aliases read is off: no alias map, even with aliases in the roster", { skip }, async () => {
-  await mock.module!("@/lib/codex/flag", {
-    namedExports: { isCodexRosterAliasesEnabled: () => flag() },
+  await mock.module!("@/lib/features/server", {
+    namedExports: { isFeatureOn: (key: string) => (key === "codex_roster_aliases" ? flag() : Promise.resolve(false)) },
   })
   await mock.module!("@/lib/codex/rosterRead", {
     namedExports: {

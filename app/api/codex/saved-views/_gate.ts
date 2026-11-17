@@ -1,6 +1,6 @@
 /** Saved views route helpers (F8). The gates themselves stay inline in each handler. */
 import type { NextResponse } from "next/server"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { isProjectSavedViewScreen } from "@/lib/codex/savedViews"
 import { SavedViewsLimitError, SavedViewsUnavailableError } from "@/lib/codex/savedViewsRepo"
 import { jsonError } from "../_shared"
@@ -13,7 +13,7 @@ import { jsonError } from "../_shared"
  */
 export async function canUseSavedViewScreen(screen: string, email: string): Promise<boolean> {
   if (!isProjectSavedViewScreen(screen)) return true
-  if (!(await isCodexProjectsEnabled())) return false
+  if (!(await isFeatureOn("codex_projects"))) return false
   const id = Number(screen.slice("project:".length))
   if (!Number.isSafeInteger(id) || id < 1) return false
   try {

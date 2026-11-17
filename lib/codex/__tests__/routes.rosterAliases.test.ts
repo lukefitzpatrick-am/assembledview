@@ -175,7 +175,8 @@ test("switch on: an address no one holds saves as sent; clearing the assignee is
 })
 
 test("the alias switch needs codex_v2: aliases on with Codex off reads as off", { skip }, async () => {
-  const { isCodexRosterAliasesEnabled } = await import("../flag.js")
+  const { isFeatureOn } = await import("../../features/server.js")
+  const isCodexRosterAliasesEnabled = () => isFeatureOn("codex_roster_aliases")
   setFeatureRowReaderForTests(
     async () =>
       new Map([

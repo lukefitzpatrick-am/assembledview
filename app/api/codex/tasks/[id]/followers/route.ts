@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { followTask, listFollowers, unfollowTask } from "@/lib/codex/collabRepo"
-import { isCodexNotificationsEnabled, isCodexProjectsEnabled, isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { looksLikeEmail } from "@/lib/codex/rosterResolve"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../_shared"
@@ -24,7 +24,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 async function gate(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return { ok: false as const, error: flag }
-  if (!(await isCodexProjectsEnabled())) return { ok: false as const, error: jsonError(404, "not_found") }
+  if (!(await isFeatureOn("codex_projects"))) return { ok: false as const, error: jsonError(404, "not_found") }
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return { ok: false as const, error: auth.error }
   const email = sessionEmail(auth.session)
@@ -39,7 +39,7 @@ export async function GET(request: Request, context: RouteContext) {
   if (!g.ok) return g.error
   try {
     // N1 (B42): the login as the roster's primary email, as follow stores it.
-    const result = await listFollowers(g.id, g.email, undefined, { aliases: await isCodexRosterAliasesEnabled() })
+    const result = await listFollowers(g.id, g.email, undefined, { aliases: await isFeatureOn("codex_roster_aliases") })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
   } catch (error) {
@@ -59,7 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
     target = raw.email.trim().toLowerCase()
   }
   try {
-    const [notify, aliases] = await Promise.all([isCodexNotificationsEnabled(), isCodexRosterAliasesEnabled()])
+    const [notify, aliases] = await Promise.all([isFeatureOn("codex_notifications"), isFeatureOn("codex_roster_aliases")])
     const result = await followTask(g.id, g.email, target, { notify, aliases })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
@@ -72,7 +72,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const g = await gate(request, context)
   if (!g.ok) return g.error
   try {
-    const result = await unfollowTask(g.id, g.email, undefined, { aliases: await isCodexRosterAliasesEnabled() })
+    const result = await unfollowTask(g.id, g.email, undefined, { aliases: await isFeatureOn("codex_roster_aliases") })
     if (!result.ok) return projectFailureResponse(result)
     return NextResponse.json({ followers: result.followers, following: result.following })
   } catch (error) {

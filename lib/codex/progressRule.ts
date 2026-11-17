@@ -21,13 +21,13 @@ import { sql } from "drizzle-orm"
 
 import { progressRuleFromField, readStoredValues, valuesOnComplete, type ProgressRule } from "@/lib/codex/customFields"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { isCodexProgressFieldEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { activityActor } from "@/lib/codex/systemActors"
 
 /** The project's rule, or null (switch off, no link, or a field without a live done option). */
 export async function loadProgressRule(tx: DbExecutor, projectId: number | null): Promise<ProgressRule | null> {
-  if (projectId == null || !(await isCodexProgressFieldEnabled())) return null
+  if (projectId == null || !(await isFeatureOn("codex_progress_field"))) return null
   const row = executeRows(
     await tx.execute(sql`
       SELECT f.id, f.field_type, f.options, f.done_option

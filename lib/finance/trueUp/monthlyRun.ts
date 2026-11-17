@@ -17,7 +17,7 @@ import { getOpsEmailRecipients, sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
 import { getSydneyWallClock } from "@/lib/finance/periods/sydneyClock"
 import { rowsOf } from "@/lib/xero/dbRows"
 
-import { isTrueUpCronEnabled, isTrueUpEnabled } from "./flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { loadTrueUp } from "./load"
 import { isTrueUpMigrationApplied } from "./marker"
 import { buildTrueUpRunEmail, compactRunRows, trueUpRunMonths } from "./monthlyRunModel"
@@ -113,7 +113,7 @@ export async function runTrueUpMonthly(args: {
 }): Promise<TrueUpRunResult> {
   const now = args.now ?? new Date()
   const io = args.io ?? {}
-  if (!(await isTrueUpEnabled()) || (args.source === "cron" && !(await isTrueUpCronEnabled()))) {
+  if (!(await isFeatureOn(args.source === "cron" ? "true_up_cron" : "true_up"))) {
     return { ok: true, skipped: "disabled" }
   }
   if (!(await (io.migrationApplied ?? isTrueUpMigrationApplied)())) return { ok: true, skipped: "not_ready" }

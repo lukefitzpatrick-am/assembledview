@@ -23,7 +23,6 @@ import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
 import { TasksComposeFromLink } from "@/components/tasks/TasksComposeFromLink"
-import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
 import { withoutComposeParams } from "@/lib/codex/composeLink"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TasksFilterBar } from "@/components/tasks/TasksFilterBar"
@@ -702,7 +701,7 @@ export function TasksPageClient({
    * load; never saved on load. Off: the params are ignored, as before.
    */
   const [composeParams] = useState<URLSearchParams | null>(() =>
-    codexContainedWritesOn() && seededSearchParams.get("compose")
+    clientFeatureOn("codex_contained_writes") && seededSearchParams.get("compose")
       ? new URLSearchParams(seededSearchParams.toString())
       : null
   )

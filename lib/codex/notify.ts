@@ -21,7 +21,7 @@ import { eq, sql, type SQL } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { isCodexNotificationsEnabled, isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   activeRosterCheck,
   effectiveFollowers,
@@ -273,7 +273,7 @@ export async function writeNotifications(database: DbExecutor, event: NotifyEven
 /** codex_notifications on (with codex_projects and codex_v2) and 0118 applied. Never throws. */
 export async function notifyEnabled(database: Db = db): Promise<boolean> {
   try {
-    return (await isCodexNotificationsEnabled()) && (await isProjectsMigrationApplied(database))
+    return (await isFeatureOn("codex_notifications")) && (await isProjectsMigrationApplied(database))
   } catch (err) {
     console.warn("[codex-notify] switch read failed", err)
     return false
@@ -349,7 +349,7 @@ export async function afterTaskWrite(
   database: Db = db
 ): Promise<void> {
   try {
-    if (!(await isCodexProjectsEnabled())) return
+    if (!(await isFeatureOn("codex_projects"))) return
     const notify = await notifyEnabled(database)
     await recordTaskChanges(actor, before, ids, { created: opts.created, notify }, database)
   } catch (err) {
@@ -360,7 +360,7 @@ export async function afterTaskWrite(
 /** The route hook's read before a write: empty with codex_projects off (nothing is read). Never throws. */
 export async function beforeTaskWrite(ids: readonly number[], database: Db = db): Promise<Map<number, TaskNotifyState>> {
   try {
-    if (!(await isCodexProjectsEnabled())) return new Map()
+    if (!(await isFeatureOn("codex_projects"))) return new Map()
     return await captureTaskStates(ids, database)
   } catch (err) {
     console.error("[codex-notify] task state not read", err)

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { parseUpdateFieldInput } from "@/lib/codex/customFields"
 import { deleteCustomField, updateCustomField } from "@/lib/codex/customFieldsRepo"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../../_shared"
 import { projectFailureResponse, projectsErrorResponse } from "../../../_gate"
@@ -19,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string; fieldId: string }> }
 export async function PATCH(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)
@@ -43,7 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

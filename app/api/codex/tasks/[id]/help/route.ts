@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { CodexHelpError } from "@/lib/codex/helpRoster"
 import { HELP_ON_DONE_MESSAGE, requestHelp } from "@/lib/codex/repo"
 import { ASK_HELP_MAX_CHARS } from "@/lib/codex/types"
@@ -94,7 +94,7 @@ export async function POST(request: Request, context: RouteContext) {
     // codex_projects (B42, C-230 and C-240): the helper's task records the
     // asker as assigned by (My Work) and, like create, the helper follows it
     // and (codex_notifications) is told. Off: as before.
-    const projectsOn = await isCodexProjectsEnabled()
+    const projectsOn = await isFeatureOn("codex_projects")
     const result = await requestHelp(
       id,
       { assigneeEmail: helper.email, ask },

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { deleteTaskAttachmentBlob, storeTaskAttachmentBlob } from "@/lib/codex/attachmentBlob"
 import { checkAttachmentFile, parseAttachmentLink } from "@/lib/codex/attachments"
 import { checkCanAttach, createAttachment, listAttachments } from "@/lib/codex/collabRepo"
-import { isCodexNotificationsEnabled, isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../_shared"
 import { projectFailureResponse, projectsErrorResponse } from "../../../projects/_gate"
@@ -24,7 +24,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 async function gate(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return { ok: false as const, error: flag }
-  if (!(await isCodexProjectsEnabled())) return { ok: false as const, error: jsonError(404, "not_found") }
+  if (!(await isFeatureOn("codex_projects"))) return { ok: false as const, error: jsonError(404, "not_found") }
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return { ok: false as const, error: auth.error }
   const email = sessionEmail(auth.session)
@@ -51,7 +51,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (!g.ok) return g.error
   const type = request.headers.get("content-type") ?? ""
   try {
-    const notify = await isCodexNotificationsEnabled()
+    const notify = await isFeatureOn("codex_notifications")
     if (type.includes("multipart/form-data")) {
       let form: FormData
       try {

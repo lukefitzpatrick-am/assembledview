@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { setProgressField } from "@/lib/codex/customFieldsRepo"
-import { isCodexProgressFieldEnabled, isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../_shared"
 import { projectFailureResponse, projectsErrorResponse } from "../../_gate"
@@ -19,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function PUT(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled()) || !(await isCodexProgressFieldEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_progress_field"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

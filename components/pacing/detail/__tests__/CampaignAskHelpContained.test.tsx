@@ -104,7 +104,7 @@ describe("Campaign detail Ask for help (B44, C-200)", () => {
 
   it("source: the old dialog renders only with the switch off", () => {
     const src = fs.readFileSync(path.join(process.cwd(), "components/pacing/detail/CampaignDetailModal.tsx"), "utf8")
-    expect(src).toContain("const containedWrites = codexContainedWritesOn()")
+    expect(src).toContain('const containedWrites = clientFeatureOn("codex_contained_writes")')
     expect(src).toContain("{containedWrites ? null : <CampaignAskHelpDialog")
   })
 })

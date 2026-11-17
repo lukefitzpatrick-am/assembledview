@@ -3,15 +3,16 @@
  * `fixed_cost_report_net`. The Snowflake fixed-cost report treats package as
  * time based only on the net basis, so the switch counts only with both on:
  * the readers (server and browser) and the grids agree with Snowflake.
+ * B48: the registry resolves it (lib/features/__tests__/requires.b48.test.ts);
+ * the grid reads the live browser snapshot.
  */
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { combinePackageQuantity, deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
-import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import { setClientFeatureSnapshot } from "@/lib/features/client"
 import { buildFeaturePageModel } from "@/lib/features/pageModel"
-import { featureDefinition } from "@/lib/features/registry"
+import { featureDefinition, type FeatureRow } from "@/lib/features/registry"
+import { readClientFeatureSnapshot, setFeatureRowReaderForTests } from "@/lib/features/server"
 import * as maps from "@/lib/mediaplan/expertChannelMappings"
 import * as rowsCfg from "@/lib/mediaplan/expertGridChannelConfig"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -43,36 +44,6 @@ describe("registry", () => {
   })
 })
 
-describe("combinePackageQuantity", () => {
-  it("is on only with both switches on", () => {
-    assert.equal(combinePackageQuantity(true, true), true)
-    assert.equal(combinePackageQuantity(true, false), false)
-    assert.equal(combinePackageQuantity(false, true), false)
-    assert.equal(combinePackageQuantity(false, false), false)
-  })
-})
-
-describe("getters", () => {
-  it("server: the package switch alone is off", async () => {
-    const read = (on: string[]) => readDeliveryFlags(async (key) => on.includes(key))
-    assert.equal((await read(["expert_package_quantity"])).packageNoUnitTarget, false)
-    assert.equal((await read(["expert_package_quantity", "fixed_cost_report_net"])).packageNoUnitTarget, true)
-    // The net switch keeps its own meaning either way.
-    assert.equal((await read(["fixed_cost_report_net"])).fixedCostReportNet, true)
-  })
-
-  it("browser: the package switch alone is off", () => {
-    try {
-      setClientFeatureSnapshot({ expert_package_quantity: true })
-      assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, false)
-      setClientFeatureSnapshot({ expert_package_quantity: true, fixed_cost_report_net: true })
-      assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, true)
-    } finally {
-      setClientFeatureSnapshot(null)
-    }
-  })
-})
-
 describe("expert grid Apply follows the same rule", () => {
   const CS = new Date(2026, 0, 4)
   const CE = new Date(2026, 0, 31)
@@ -89,13 +60,24 @@ describe("expert grid Apply follows the same rule", () => {
     )
   }
 
-  it("package switch alone: the old 0; with the net switch: the quantity", () => {
+  /** The snapshot the root layout sends with these switch rows on. */
+  async function liveSnapshot(on: string[]) {
+    const row = (key: string): FeatureRow => ({ key, enabled: true, updatedAt: null, updatedBy: null, updatedByName: null, note: null })
+    setFeatureRowReaderForTests(async () => new Map(on.map((k) => [k, row(k)])))
+    try {
+      setClientFeatureSnapshot(await readClientFeatureSnapshot({}))
+    } finally {
+      setFeatureRowReaderForTests(null)
+    }
+  }
+
+  it("package switch alone: the old 0; with the net switch: the quantity", async () => {
     try {
       setClientFeatureSnapshot(null)
       assert.equal(socialPackageDeliverables(), 0)
-      setClientFeatureSnapshot({ expert_package_quantity: true })
+      await liveSnapshot(["expert_package_quantity"])
       assert.equal(socialPackageDeliverables(), 0)
-      setClientFeatureSnapshot({ expert_package_quantity: true, fixed_cost_report_net: true })
+      await liveSnapshot(["expert_package_quantity", "fixed_cost_report_net"])
       assert.equal(socialPackageDeliverables(), 3)
     } finally {
       setClientFeatureSnapshot(null)

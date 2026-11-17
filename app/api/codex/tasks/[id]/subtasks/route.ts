@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { parseCreateSubtaskInput } from "@/lib/codex/taskDetail"
 import { createSubtask } from "@/lib/codex/taskDetailRepo"
@@ -21,7 +21,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function POST(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const hidden = await hiddenTaskGuard(context, auth.session)

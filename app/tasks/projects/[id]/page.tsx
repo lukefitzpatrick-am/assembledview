@@ -5,7 +5,7 @@ import { PageShell } from "@/components/layout/PageShell"
 import { ProjectBoardClient } from "@/components/tasks/ProjectBoardClient"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState, LoadingState } from "@/components/ui/states"
-import { isCodexProjectsEnabled, isCodexV2Enabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { pageMetadata } from "@/lib/nav/routeManifest"
 
@@ -19,7 +19,7 @@ type PageProps = { params: Promise<{ id: string }> }
  * staff and project visibility checks.
  */
 export default async function ProjectBoardPage({ params }: PageProps) {
-  const [codexOn, projectsOn] = await Promise.all([isCodexV2Enabled(), isCodexProjectsEnabled()])
+  const [codexOn, projectsOn] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_projects")])
   if (!codexOn || !projectsOn) {
     return (
       <PageShell width="standard">

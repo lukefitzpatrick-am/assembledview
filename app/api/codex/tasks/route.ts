@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isCodexMyWorkEnabled, isCodexProjectsEnabled, isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import {
@@ -80,7 +80,7 @@ export async function parseTaskListFilters(
   // roster resolver, aliases with codex_roster_aliases; review N1). Off: ignored.
   const myWorkTab = parseMyWorkTab(url.searchParams.get("my_work"))
   let myWorkEmail: string | null = null
-  if (myWorkTab && (await isCodexMyWorkEnabled())) {
+  if (myWorkTab && (await isFeatureOn("codex_my_work"))) {
     const login = (await getCurrentUser(request))?.email?.trim() || null
     if (!login) {
       return {
@@ -89,7 +89,7 @@ export async function parseTaskListFilters(
       }
     }
     const [{ primaryEmailFor }, { db }] = await Promise.all([import("@/lib/codex/collabRepo"), import("@/db")])
-    myWorkEmail = await primaryEmailFor(db, login, await isCodexRosterAliasesEnabled())
+    myWorkEmail = await primaryEmailFor(db, login, await isFeatureOn("codex_roster_aliases"))
   }
   const myWork = myWorkEmail ? myWorkTab ?? undefined : undefined
 
@@ -139,7 +139,7 @@ export async function GET(request: Request) {
     // codex_projects (B40): rows carry type, dates, assigned by and field values
     // (a subtask shows as one, not as a help request), and `projects_ready`
     // says 0118 is applied (the page offers ASAP only then, B40fix). Off: as before.
-    if (await isCodexProjectsEnabled()) {
+    if (await isFeatureOn("codex_projects")) {
       const { attachTaskS1Fields, isProjectsMigrationApplied } = await import("@/lib/codex/projectsRepo")
       data.items = await attachTaskS1Fields(data.items)
       return NextResponse.json({ ...data, projects_ready: await isProjectsMigrationApplied() })
@@ -326,7 +326,7 @@ export async function POST(request: Request) {
           recurringRule,
           createdByEmail,
           // B40: assigned by the creator when the task goes to someone else (switch on, after 0118).
-          trackAssignedBy: await isCodexProjectsEnabled(),
+          trackAssignedBy: await isFeatureOn("codex_projects"),
         },
         createdByEmail
       )
@@ -343,7 +343,7 @@ export async function POST(request: Request) {
 
     // codex_projects (B41): the creator and assignee follow; with
     // codex_notifications the assignee is told. Loaded only with the switch on.
-    if (task && (await isCodexProjectsEnabled())) {
+    if (task && (await isFeatureOn("codex_projects"))) {
       const { afterTaskWrite } = await import("@/lib/codex/notify")
       await afterTaskWrite(createdByEmail, new Map(), [Number(task.id)], { created: true })
     }

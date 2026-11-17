@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { isCodexV2Enabled } from "../flag.js"
+import { isFeatureOn } from "../../features/server.js"
 import {
   clampPerPage,
   parseStatusFilter,
@@ -13,13 +13,13 @@ import { userHasCodexShadowAccess } from "../shadowRoles.js"
 test("CODEX_V2 flag is off unless exactly on (env fallback with no switch row)", async () => {
   const prev = process.env.CODEX_V2
   delete process.env.CODEX_V2
-  assert.equal(await isCodexV2Enabled(), false)
+  assert.equal(await isFeatureOn("codex_v2"), false)
   process.env.CODEX_V2 = "true"
-  assert.equal(await isCodexV2Enabled(), false)
+  assert.equal(await isFeatureOn("codex_v2"), false)
   process.env.CODEX_V2 = "on"
-  assert.equal(await isCodexV2Enabled(), true)
+  assert.equal(await isFeatureOn("codex_v2"), true)
   process.env.CODEX_V2 = "ON"
-  assert.equal(await isCodexV2Enabled(), true)
+  assert.equal(await isFeatureOn("codex_v2"), true)
   if (prev === undefined) delete process.env.CODEX_V2
   else process.env.CODEX_V2 = prev
 })

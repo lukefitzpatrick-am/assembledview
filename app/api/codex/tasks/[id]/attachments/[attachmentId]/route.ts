@@ -4,7 +4,7 @@ import { BlobNotFoundError } from "@vercel/blob"
 import { deleteTaskAttachmentBlob } from "@/lib/codex/attachmentBlob"
 import { deleteAttachment, getAttachmentFile } from "@/lib/codex/collabRepo"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseId } from "@/lib/codex/projects"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../../../_shared"
 import { projectFailureResponse, projectsErrorResponse } from "../../../../projects/_gate"
@@ -24,7 +24,7 @@ type RouteContext = { params: Promise<{ id: string; attachmentId: string }> }
 async function gate(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return { ok: false as const, error: flag }
-  if (!(await isCodexProjectsEnabled())) return { ok: false as const, error: jsonError(404, "not_found") }
+  if (!(await isFeatureOn("codex_projects"))) return { ok: false as const, error: jsonError(404, "not_found") }
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return { ok: false as const, error: auth.error }
   const email = sessionEmail(auth.session)

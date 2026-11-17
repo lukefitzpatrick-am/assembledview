@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { isCodexNotificationsEnabled, isCodexProjectsEnabled, isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { isProjectsUnavailable, PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
 import { createComment, listComments } from "@/lib/codex/repo"
 import {
@@ -43,7 +43,7 @@ export async function GET(request: Request, context: RouteContext) {
     // codex_projects (B41): comments carry their mentions, and a private
     // project's task is not found for someone who cannot see it. Before 0118,
     // or with the switch off, as before. The store loads only with the switch on.
-    if (await isCodexProjectsEnabled()) {
+    if (await isFeatureOn("codex_projects")) {
       const viewer = sessionEmail(auth.session)
       if (!viewer) return NextResponse.json({ error: "unauthorised" }, { status: 401 })
       try {
@@ -125,7 +125,7 @@ export async function POST(request: Request, context: RouteContext) {
     // are told. Tokens that match two people, no one, or someone who cannot
     // see a private project stay text and come back in `unresolved_mentions`.
     // Before 0118 the comment saves as before.
-    if (actor && (await isCodexProjectsEnabled())) {
+    if (actor && (await isFeatureOn("codex_projects"))) {
       try {
         const [{ createCommentWithMentions }, { loadRosterPeople }, { unresolvedMentionMessage }] = await Promise.all([
           import("@/lib/codex/collabRepo"),
@@ -134,8 +134,8 @@ export async function POST(request: Request, context: RouteContext) {
         ])
         const [roster, aliases, notify] = await Promise.all([
           loadRosterPeople(),
-          isCodexRosterAliasesEnabled(),
-          isCodexNotificationsEnabled(),
+          isFeatureOn("codex_roster_aliases"),
+          isFeatureOn("codex_notifications"),
         ])
         const result = await createCommentWithMentions(taskId, {
           body: commentBody,

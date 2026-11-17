@@ -8,7 +8,7 @@ import { scenarioLinesFromDetail } from "@/lib/pacing/scenario/fromLineCard"
 import type { SavedScenario } from "@/lib/pacing/scenario/savedScenarios"
 import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 import { ScenarioPlannerPanel } from "./ScenarioPlannerPanel"
-import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
+import { clientFeatureOn } from "@/lib/features/client"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 function linesFromPayload(payload: CampaignDetailPayload, asOf: string): ScenarioLine[] {
@@ -37,7 +37,7 @@ export function ScenarioPlannerDrawer({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** B44 (C-200): with codex_contained_writes on, the planner links into /tasks instead of posting a task. */
-  const containedWrites = codexContainedWritesOn()
+  const containedWrites = clientFeatureOn("codex_contained_writes")
 
   useEffect(() => {
     if (mba) {

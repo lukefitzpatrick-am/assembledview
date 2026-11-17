@@ -1,7 +1,7 @@
 import "server-only"
 
 import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
-import { isCodexV2Enabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import type { Db } from "@/db"
 import {
   createGeneratedRecurringTask,
@@ -43,7 +43,7 @@ export async function runCodexRecurring(
 ): Promise<RecurringRunResult> {
   const sydneyYmd = melbourneParts(now).ymd
 
-  if (!(await isCodexV2Enabled())) {
+  if (!(await isFeatureOn("codex_v2"))) {
     return {
       status: "skipped",
       reason: "codex_v2_off",

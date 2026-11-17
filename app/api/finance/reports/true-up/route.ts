@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { financialYearStart, defaultTrueUpAsOf, isTrueUpMonth } from "@/lib/finance/trueUp/compute"
 import { buildTrueUpCsv, trueUpCsvFilename } from "@/lib/finance/trueUp/csv"
-import { isTrueUpActionsEnabled, isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { loadTrueUp } from "@/lib/finance/trueUp/load"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
@@ -20,7 +20,7 @@ export const maxDuration = 60
 export async function GET(request: NextRequest) {
   const gate = await requireFinanceAdmin(request)
   if ("response" in gate) return gate.response
-  if (!(await isTrueUpEnabled())) {
+  if (!(await isFeatureOn("true_up"))) {
     return NextResponse.json({ error: "not_found", message: "The true-up is switched off." }, { status: 404 })
   }
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       })
     }
     // Stage 2: the page shows the fix buttons only when true_up_actions is on and 0109 is in.
-    return NextResponse.json({ ...report, actionsEnabled: (await isTrueUpActionsEnabled()) && report.stage2Ready })
+    return NextResponse.json({ ...report, actionsEnabled: (await isFeatureOn("true_up_actions")) && report.stage2Ready })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not build the true-up."
     return NextResponse.json({ error: "report_failed", message }, { status: 500 })

@@ -19,7 +19,7 @@ import type { SavedScenario } from "@/lib/pacing/scenario/savedScenarios"
 import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 import { ScenarioPlannerPanel } from "./ScenarioPlannerPanel"
-import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
+import { clientFeatureOn } from "@/lib/features/client"
 
 export type ScenarioPlannerOpenOptions = {
   lineItemId?: string
@@ -78,7 +78,7 @@ export function ScenarioPlannerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [preset, setPreset] = useState<ScenarioPlannerOpenOptions | null>(null)
   /** B44 (C-200): with codex_contained_writes on, the planner links into /tasks instead of posting a task. */
-  const containedWrites = codexContainedWritesOn()
+  const containedWrites = clientFeatureOn("codex_contained_writes")
 
   const close = useCallback(() => {
     setMba(null)

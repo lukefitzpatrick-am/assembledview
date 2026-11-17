@@ -5,7 +5,7 @@
  */
 import "server-only"
 
-import { isCodexRosterAliasesEnabled } from "./flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { loadRosterPeople } from "./rosterRead"
 import { ambiguousAssigneeMessage, decideAssigneeWrite, type RosterPerson } from "./rosterResolve"
 
@@ -15,7 +15,7 @@ export type AssigneeWriteDeps = {
 }
 
 const LIVE_DEPS: AssigneeWriteDeps = {
-  enabled: isCodexRosterAliasesEnabled,
+  enabled: () => isFeatureOn("codex_roster_aliases"),
   loadRoster: () => loadRosterPeople(),
 }
 

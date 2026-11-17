@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseWorkloadWeeks } from "@/lib/codex/workload"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
 import { projectsErrorResponse } from "../projects/_gate"
@@ -16,7 +16,7 @@ export const runtime = "nodejs"
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { isCodexNotificationsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { setEmailDigest } from "@/lib/codex/notificationsRepo"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../_shared"
 import { projectsErrorResponse } from "../../projects/_gate"
@@ -14,7 +14,7 @@ export const runtime = "nodejs"
 export async function PUT(request: Request) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexNotificationsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_notifications"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

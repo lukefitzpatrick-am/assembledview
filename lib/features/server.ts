@@ -1,7 +1,8 @@
 /**
  * Server reads of feature switches (0111). See lib/features/registry.ts.
  *
- * isFeatureOn(key): the switch row, else the old env var, else the default.
+ * isFeatureOn(key): the switch row, else the old env var, else the default,
+ * and every switch in its `requires`, transitively.
  * Never call from middleware or edge code: those keep the env read
  * ("vercel" switches in the registry).
  */
@@ -15,6 +16,7 @@ import { rowsOf } from "@/lib/xero/dbRows"
 
 import {
   CLIENT_FEATURE_KEYS,
+  effectiveFeatureOn,
   FEATURE_DEFINITIONS,
   featureDefinition,
   resolveFeature,
@@ -114,11 +116,19 @@ function definitionOrThrow(key: FeatureKey): FeatureDefinition {
   return def
 }
 
-/** The switch value: row, else env, else default. Requires are the getter's job. */
+/** Each switch's own value (row, else env, else default) as a lookup for `effectiveFeatureOn`. */
+function rawLookup(rows: ReadonlyMap<string, FeatureRow> | null, env: Record<string, string | undefined>) {
+  return (key: string) => resolveFeature(definitionOrThrow(key as FeatureKey), rows, env).enabled
+}
+
+/**
+ * The live value: the switch's own value (row, else env, else default) and
+ * every switch it requires, transitively. Callers never re-check `requires`.
+ */
 export async function isFeatureOn(key: FeatureKey, env: Record<string, string | undefined> = process.env): Promise<boolean> {
   const def = definitionOrThrow(key)
-  const rows = def.source === "vercel" ? null : await readFeatureRows()
-  return resolveFeature(def, rows, env).enabled
+  const rows = def.source === "vercel" && !def.requires?.length ? null : await readFeatureRows()
+  return effectiveFeatureOn(key, rawLookup(rows, env))
 }
 
 export type FeatureState = {
@@ -151,15 +161,17 @@ export async function readFeatureStates(env: Record<string, string | undefined> 
 
 export type ClientFeatureSnapshot = Record<ClientFeatureKey, boolean>
 
-/** The browser-visible switches, sent once per page render by the root layout. */
+/**
+ * The browser-visible switches, sent once per page render by the root
+ * layout. Each value is live (requirements resolved here, including ones the
+ * browser never sees), so browser code reads one value per switch.
+ */
 export async function readClientFeatureSnapshot(
   env: Record<string, string | undefined> = process.env,
 ): Promise<ClientFeatureSnapshot> {
-  const rows = await readFeatureRows()
+  const raw = rawLookup(await readFeatureRows(), env)
   const out = {} as ClientFeatureSnapshot
-  for (const key of CLIENT_FEATURE_KEYS) {
-    out[key] = resolveFeature(definitionOrThrow(key), rows, env).enabled
-  }
+  for (const key of CLIENT_FEATURE_KEYS) out[key] = effectiveFeatureOn(key, raw)
   return out
 }
 

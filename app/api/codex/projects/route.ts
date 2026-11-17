@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { isProjectStatus, parseCreateProjectInput } from "@/lib/codex/projects"
 import { createProject, listProjects } from "@/lib/codex/projectsRepo"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
@@ -15,7 +15,7 @@ export const runtime = "nodejs"
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexProjectsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_projects"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

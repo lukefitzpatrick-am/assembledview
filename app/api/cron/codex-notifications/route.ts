@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
-import { isCodexNotificationsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { isMelbourneCronHour } from "@/lib/cron/melbourneCrons"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { buildCodexDigestHtml } from "@/lib/codex/notificationsEmail"
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     if (!Number.isNaN(parsed.getTime())) now = parsed
   }
   try {
-    if (!(await isCodexNotificationsEnabled())) return NextResponse.json({ status: "skipped", reason: "switch_off" })
+    if (!(await isFeatureOn("codex_notifications"))) return NextResponse.json({ status: "skipped", reason: "switch_off" })
     if (!isMelbourneCronHour("/api/cron/codex-notifications", now)) return NextResponse.json({ status: "skipped", reason: "not_melbourne_0800_hour" })
     if (!(await isProjectsMigrationApplied())) return NextResponse.json({ status: "skipped", reason: "migration_not_applied" })
     const appBaseUrl = process.env.APP_BASE_URL ?? ""

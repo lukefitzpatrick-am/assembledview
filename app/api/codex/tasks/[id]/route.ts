@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
 import { isProjectsUnavailable, PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
@@ -118,7 +118,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     // codex_projects (B40): asap, start and due dates, task or milestone,
     // custom field values and assigned by. Off: those keys are ignored and
     // asap is refused, as before.
-    const projectsOn = await isCodexProjectsEnabled()
+    const projectsOn = await isFeatureOn("codex_projects")
     let details: TaskDetailPatch = {}
     if (projectsOn && hasTaskDetailKeys(raw)) {
       const parsedDetails = parseTaskDetailPatch(raw)

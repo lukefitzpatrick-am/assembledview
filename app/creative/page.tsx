@@ -5,7 +5,7 @@ import { CreativeAdminLanding } from "@/components/creative/CreativeAdminLanding
 import { CreativeCampaignPicker } from "@/components/creative/CreativeCampaignPicker"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { auth0 } from "@/lib/auth0"
-import { isCodexContainedWritesEnabled, isCodexV2Enabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { getUserRoles } from "@/lib/rbac"
 import { pageMetadata } from "@/lib/nav/routeManifest"
 
@@ -24,7 +24,7 @@ export default async function CreativeUploadsPage() {
 
   // Admin-only process-first landing; other staff keep the filter-first picker.
   if (roles.includes("admin")) {
-    const [codexEnabled, containedWrites] = await Promise.all([isCodexV2Enabled(), isCodexContainedWritesEnabled()])
+    const [codexEnabled, containedWrites] = await Promise.all([isFeatureOn("codex_v2"), isFeatureOn("codex_contained_writes")])
     return <CreativeAdminLanding codexEnabled={codexEnabled} containedWrites={containedWrites} />
   }
 

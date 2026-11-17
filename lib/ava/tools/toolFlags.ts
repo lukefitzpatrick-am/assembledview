@@ -5,11 +5,11 @@
 import "server-only"
 
 import { isBillingRevisionsEnabled } from "@/lib/finance/revisions/flag"
-import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
+import { isFeatureOn } from "@/lib/features/server"
 
 import type { AvaToolFlags } from "./pageToolOffer"
 
 export async function readAvaToolFlags(): Promise<AvaToolFlags> {
-  const [billingRevisions, trueUp] = await Promise.all([isBillingRevisionsEnabled(), isTrueUpEnabled()])
+  const [billingRevisions, trueUp] = await Promise.all([isBillingRevisionsEnabled(), isFeatureOn("true_up")])
   return { billingRevisions, trueUp }
 }

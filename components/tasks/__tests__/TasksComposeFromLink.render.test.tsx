@@ -263,8 +263,8 @@ describe("TasksComposeFromLink (B44)", () => {
 
 describe("Tasks page reads the compose link only with the switch on (source)", () => {
   const src = fs.readFileSync(path.join(process.cwd(), "app/tasks/TasksPageClient.tsx"), "utf8")
-  it("builds the compose params only when codexContainedWritesOn() and renders the component only then", () => {
-    expect(src).toMatch(/codexContainedWritesOn\(\) && seededSearchParams\.get\("compose"\)/)
+  it("builds the compose params only when codex_contained_writes is on and renders the component only then", () => {
+    expect(src).toMatch(/clientFeatureOn\("codex_contained_writes"\) && seededSearchParams\.get\("compose"\)/)
     expect(src).toMatch(/\{composeParams \? \(\s*<TasksComposeFromLink/)
     expect(src.match(/<TasksComposeFromLink/g)).toHaveLength(1)
   })

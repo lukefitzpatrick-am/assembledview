@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader"
 import { PageShell } from "@/components/layout/PageShell"
 import { EmptyState } from "@/components/ui/states"
 import { Badge } from "@/components/ui/badge"
-import { isCodexV2Enabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { pageMetadata } from "@/lib/nav/routeManifest"
 
 export const metadata = pageMetadata("/tasks/[id]")
@@ -15,7 +15,7 @@ type PageProps = {
 }
 
 export default async function TaskDetailPage({ params, searchParams }: PageProps) {
-  if (!(await isCodexV2Enabled())) {
+  if (!(await isFeatureOn("codex_v2"))) {
     return (
       <PageShell width="standard">
         <PageHeader

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { parseSavedViewPatch } from "@/lib/codex/savedViews"
 import { deleteSavedView, updateSavedView } from "@/lib/codex/savedViewsRepo"
-import { isCodexSavedViewsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../../_shared"
 import { canUseSavedViewScreen, savedViewId, savedViewsErrorResponse } from "../_gate"
 
@@ -19,7 +19,7 @@ function refused(reason: "not_found" | "not_owner"): NextResponse {
 export async function PATCH(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexSavedViewsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_saved_views"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()
   if (flag) return flag
-  if (!(await isCodexSavedViewsEnabled())) return jsonError(404, "not_found")
+  if (!(await isFeatureOn("codex_saved_views"))) return jsonError(404, "not_found")
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
   const email = sessionEmail(auth.session)

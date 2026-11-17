@@ -28,7 +28,7 @@ import {
 } from "@/lib/codex/notifications"
 import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
 import { primaryEmailFor } from "@/lib/codex/collabRepo"
-import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import { guarded } from "@/lib/codex/projectsRepo"
 import { looksLikeEmail } from "@/lib/codex/rosterResolve"
 import type { AccessIdentity } from "@/lib/codex/projects"
@@ -69,7 +69,7 @@ export type BellPayload = { items: BellItem[]; unread: number; email_digest: boo
 export async function bellPerson(database: Db, login: string): Promise<string> {
   let aliases = false
   try {
-    aliases = await isCodexRosterAliasesEnabled()
+    aliases = await isFeatureOn("codex_roster_aliases")
   } catch {
     aliases = false
   }

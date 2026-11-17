@@ -8,7 +8,7 @@ import {
 } from "@/lib/codex/repo"
 import { validateTaskInput } from "@/lib/codex/types"
 import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
-import { isCodexProjectsEnabled } from "@/lib/codex/flag"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       if (assignee.resolved) patch.assigneeName = assignee.name
     }
     // codex_projects (B40): assignee changes record who assigned (server side).
-    const projectsOn = await isCodexProjectsEnabled()
+    const projectsOn = await isFeatureOn("codex_projects")
     if (projectsOn) patch.trackAssignedBy = true
     // codex_projects (B41): the states before the write, for follows and
     // (codex_notifications) notifications after it. Loaded only with the switch on.
@@ -193,7 +193,7 @@ export async function POST(request: Request) {
     // refused task is 409 and the whole batch is rolled back.
     // The projects store loads only with the switch on.
     const throughSections =
-      (patch.status !== undefined || patch.dueDate !== undefined) && (await isCodexProjectsEnabled())
+      (patch.status !== undefined || patch.dueDate !== undefined) && (await isFeatureOn("codex_projects"))
         ? await (await import("@/lib/codex/projectsRepo")).bulkUpdateTasksThroughSections(ids, patch, actor)
         : null
     const tasks = throughSections ?? (await bulkUpdateTasks(ids, patch, actor))

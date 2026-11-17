@@ -127,7 +127,7 @@ export function NotificationBellPanel({
 
 /** The bell button and its panel. Renders nothing with the switches off. */
 export function NotificationBell() {
-  const on = clientFeatureOn("codex_notifications") && clientFeatureOn("codex_projects")
+  const on = clientFeatureOn("codex_notifications")
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<BellState>("loading")

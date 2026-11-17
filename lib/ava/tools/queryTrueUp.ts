@@ -17,7 +17,7 @@ import { z } from "zod"
 
 import { getAvaDb, schema } from "@/db/avaClient"
 import { trueUpSkipReason } from "@/lib/finance/trueUp/compute"
-import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
+import { isFeatureOn } from "@/lib/features/server"
 
 import { asRecord, asString, jsonContent } from "./helpers"
 import { centsToDollars, parseZodOrError, requireAvaDbOrSoftFail } from "./postgresShared"
@@ -96,7 +96,7 @@ export type TrueUpActionRecord = {
 /** Defence in depth: the chat route is admin only already. */
 export async function trueUpToolGate(context: Pick<AvaToolContext, "roles">): Promise<AvaToolResult | null> {
   if (!context.roles.includes("admin")) return { content: "query_true_up is for finance admins only.", isError: true }
-  if (!(await isTrueUpEnabled())) return { content: "The true-up is turned off (Admin > Features, True-up report).", isError: true }
+  if (!(await isFeatureOn("true_up"))) return { content: "The true-up is turned off (Admin > Features, True-up report).", isError: true }
   return null
 }
 

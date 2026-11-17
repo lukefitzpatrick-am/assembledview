@@ -147,15 +147,8 @@ describe("extractKpiReviewPlanLine (KPI plan deliverables)", () => {
 })
 
 describe("delivery flags", () => {
-  it("server: reads expert_package_quantity with fixed_cost_report_net (B23fix); a failed read is off", async () => {
-    assert.equal(
-      (await readDeliveryFlags(async (key) => key === "expert_package_quantity" || key === "fixed_cost_report_net"))
-        .packageNoUnitTarget,
-      true,
-    )
-    // B23fix: the package switch alone counts as off (registry requires the net switch).
-    assert.equal((await readDeliveryFlags(async (key) => key === "expert_package_quantity")).packageNoUnitTarget, false)
-    assert.equal((await readDeliveryFlags(async (key) => key === "fixed_cost_report_net")).packageNoUnitTarget, false)
+  it("server: reads the expert_package_quantity switch (requires resolved by isFeatureOn, B48); a failed read is off", async () => {
+    assert.equal((await readDeliveryFlags(async (key) => key === "expert_package_quantity")).packageNoUnitTarget, true)
     assert.equal((await readDeliveryFlags(async () => false)).packageNoUnitTarget, false)
     assert.deepEqual(
       await readDeliveryFlags(async () => {
@@ -169,9 +162,7 @@ describe("delivery flags", () => {
     setClientFeatureSnapshot(null)
     assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, false)
     setClientFeatureSnapshot({ expert_package_quantity: true })
-    assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, false, "B23fix: needs the net switch too")
-    setClientFeatureSnapshot({ expert_package_quantity: true, fixed_cost_report_net: true })
-    assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, true)
+    assert.equal(deliveryFlagsFromClient().packageNoUnitTarget, true, "the snapshot value is already live (B48)")
     setClientFeatureSnapshot(null)
   })
 })
