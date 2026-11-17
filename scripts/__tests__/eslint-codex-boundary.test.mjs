@@ -67,6 +67,9 @@ const PLANTED = [
   'export const x = () => new XMLHttpRequest().open("POST", "/api/codex/tasks")',
   'export const g = () => fetch("/api/codex/tasks?mba_number=X")',
   'export const h = () => fetch("/api/codex" + "/tasks", { method: "POST" })',
+  'export const i = () => fetch("api/codex/tasks", { method: "POST" })',
+  "export const e = () => fetch(`\\/api/codex/tasks`, { method: 'POST' })",
+  'export const o = (origin: string) => fetch(`${origin}api/codex/tasks`, { method: "POST" })',
 ]
 const ALLOWED = [
   'import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"',
@@ -169,7 +172,7 @@ test("a read module holds no write and imports only read modules and non-Codex c
   assert.deepEqual(failing("lib/codex/clientMbas.ts", types.slice(0, 1)), [1])
 })
 
-test("every allowance is still used export by export", () => {
+test("every allowance is still used export by export; allowlisted pages keep exactly their URL lines", () => {
   const allowances = codexAllowances()
   const use = (a, name) => `uses ${a.module}#${name ?? "types"}`
   const selectors = allowances.flatMap((a) => {
@@ -194,7 +197,8 @@ test("every allowance is still used export by export", () => {
     for (const n of a.names ?? [null]) assert.ok(hits[a.file]?.some((m) => m.message === use(a, n)), `${a.file} ${use(a, n)} ${stale}`)
   }
   const urlLines = (f) => lines(hits[f]?.filter((m) => m.message === "url")).length
-  for (const f of [...CODEX_SWITCH_ALLOWLIST.map((a) => a.file), ...CODEX_URL_PROSE]) assert.ok(urlLines(f) > 0, `${f} ${stale}`)
+  for (const a of CODEX_SWITCH_ALLOWLIST) assert.equal(urlLines(a.file), a.urls, `${a.file}: /api/codex lines changed (each old one has its C-200 disable comment; add none)`)
+  for (const f of CODEX_URL_PROSE) assert.ok(urlLines(f) > 0, `${f} ${stale}`)
   for (const f of CODEX_READ_MODULES) assert.ok(hits[f], `${f} is gone: drop it from CODEX_READ_MODULES`)
 })
 

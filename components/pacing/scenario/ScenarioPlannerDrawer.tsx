@@ -136,8 +136,10 @@ export function ScenarioPlannerDrawer({
         containedTasks={containedWrites ? { clientId: payload.clientId ?? null } : undefined}
         onCreateTask={containedWrites ? undefined : async (draft) => {
           if (!payload.clientId) return
+          // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
           const teamRes = await fetch("/api/codex/team", { credentials: "include" })
           const team = teamRes.ok ? ((await teamRes.json()) as { meEmail?: string }) : {}
+          // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
           await fetch("/api/codex/tasks", {
             method: "POST",
             credentials: "include",

@@ -43,7 +43,9 @@ export function CampaignAskHelpDialog({
     if (!open) return
     let cancelled = false
     Promise.all([
+      // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
       fetch("/api/codex/team", { credentials: "include" }).then((r) => r.json()),
+      // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
       fetch(`/api/codex/tasks?mba_number=${encodeURIComponent(mba)}&per_page=20`, {
         credentials: "include",
       }).then((r) => r.json()),
@@ -80,6 +82,7 @@ export function CampaignAskHelpDialog({
     if (!email || !body) return
     setSending(true)
     try {
+      // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
       const res = await fetch(`/api/codex/tasks/${task.id}/help`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

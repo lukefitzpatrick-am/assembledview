@@ -180,6 +180,7 @@ export function CreativeAdminLanding({ codexEnabled, containedWrites = false }: 
           fetch("/api/mediaplans"),
         ]
         if (codexEnabled && !containedWrites) {
+          // eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path, deleted with codex_contained_writes
           fetches.push(fetch("/api/codex/team?active=0&per_page=100"))
         }
         const [clientsRes, plansRes, teamRes] = await Promise.all(fetches)

@@ -126,13 +126,14 @@ export const CODEX_SERVER_WRITERS = [
  * `codex_contained_writes` keep their old code for switch off. Allowed only
  * while the switch is in lib/features/registry.ts (the self-test fails once it
  * is gone: delete the old paths and this list). `may`: zone files it imports,
- * by export.
+ * by export. `urls`: its /api/codex lines, each under its own
+ * `eslint-disable-next-line` naming C-200 (a new one fails the self-test).
  */
 export const CODEX_SWITCH_ALLOWLIST = [
-  { file: "components/pacing/detail/CampaignAskHelpDialog.tsx", may: {} },
-  { file: "components/pacing/scenario/ScenarioPlannerContext.tsx", may: {} },
-  { file: "components/pacing/scenario/ScenarioPlannerDrawer.tsx", may: {} },
-  { file: "components/creative/CreativeAdminLanding.tsx", may: { "components/tasks/TaskFormDialog.tsx": ["TaskFormDialog"] } },
+  { file: "components/pacing/detail/CampaignAskHelpDialog.tsx", may: {}, urls: 3 },
+  { file: "components/pacing/scenario/ScenarioPlannerContext.tsx", may: {}, urls: 2 },
+  { file: "components/pacing/scenario/ScenarioPlannerDrawer.tsx", may: {}, urls: 2 },
+  { file: "components/creative/CreativeAdminLanding.tsx", may: { "components/tasks/TaskFormDialog.tsx": ["TaskFormDialog"] }, urls: 1 },
 ]
 
 /** Files outside the zone that name /api/codex without calling it. */
@@ -144,10 +145,11 @@ export const CODEX_URL_PROSE = [
 const MESSAGE =
   "C-200: tasks are written only in Tasks. Read through a lib/codex read module or codexGet (lib/codex/readFetch), or link into /tasks (lib/codex/composeLink)."
 
-/** `no-restricted-syntax` entries for a /api/codex URL in a string or template. */
+/** `no-restricted-syntax` entries for a /api/codex URL in a string or template, rooted or relative (`api/codex/...`). */
+const URL_RE = "(^|\\/)api\\/codex(?![\\w-])"
 export const CODEX_URL_SELECTORS = [
-  { selector: "Literal[value=/\\/api\\/codex(?![\\w-])/]", message: MESSAGE },
-  { selector: "TemplateElement[value.raw=/\\/api\\/codex(?![\\w-])/]", message: MESSAGE },
+  { selector: `Literal[value=/${URL_RE}/]`, message: MESSAGE },
+  { selector: `TemplateElement[value.cooked=/${URL_RE}/]`, message: MESSAGE },
 ]
 
 const WRITE_MESSAGE = "C-200: a lib/codex read module holds no write. Put the write in a write module (it stays inside the Tasks zone)."
@@ -173,7 +175,6 @@ export const CODEX_URL_IGNORES = [
   ...zoneGlobs,
   ...TESTS,
   ...CODEX_URL_PROSE,
-  ...CODEX_SWITCH_ALLOWLIST.map((a) => globEscape(a.file)),
 ]
 
 /**
@@ -272,9 +273,11 @@ export function codexImportBlocks(root, { restrictedImports, syntaxFor }) {
         },
       }
     }),
+    // The allowlisted pages: a C-200 disable comment that no longer silences a URL fails lint.
+    { files: CODEX_SWITCH_ALLOWLIST.map((a) => globEscape(a.file)), linterOptions: { reportUnusedDisableDirectives: "error" } },
   ]
 }
 
 /** The URL selectors for a file (named files are never tests). */
 export const codexUrlSelectorsFor = (file) =>
-  inCodexZone(file) || CODEX_URL_PROSE.includes(file) || CODEX_SWITCH_ALLOWLIST.some((a) => a.file === file) ? [] : CODEX_URL_SELECTORS
+  inCodexZone(file) || CODEX_URL_PROSE.includes(file) ? [] : CODEX_URL_SELECTORS
