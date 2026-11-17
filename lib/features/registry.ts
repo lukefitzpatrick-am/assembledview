@@ -822,8 +822,11 @@ export function canToggleFeature(def: FeatureDefinition, roles: { admin: boolean
 }
 
 /**
- * Env-only value (no database). For pure sync helpers whose callers pass the
- * live value in, and as their default in tests. Not for live gates.
+ * Env-only value (no database). The live value of a `source: "vercel"`
+ * switch: middleware gates on it, since the env is that switch and
+ * `requires` still resolves here. Elsewhere it is for pure sync helpers whose
+ * callers pass the live value in, and their default in tests; not a live gate
+ * for a database switch.
  */
 export function featureEnvValue(key: FeatureKey, env: Record<string, string | undefined> = process.env): boolean {
   // No database here: a marker counts as applied (no env-read switch names one).
