@@ -33,8 +33,8 @@ function tempRoot(files) {
  * driver is a file, not `node -e`: run() starts each test file with the
  * parent's exec flags, and `-e` would rerun the driver in every child.
  */
-function runMain(root, prefixes = []) {
-  const env = { ...process.env }
+function runMain(root, prefixes = [], extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv }
   delete env.NODE_TEST_CONTEXT
   const driver = path.join(root, "driver.mjs")
   fs.writeFileSync(driver, `const m = await import(${JSON.stringify(RUNNER)})\nprocess.exitCode = await m.main(${JSON.stringify(prefixes)}, ${JSON.stringify(root)})\n`)
@@ -177,4 +177,11 @@ test("a test registered after a top-level await runs, so its late failure fails 
   const r = runMain(tempRoot({ "lib/a.test.mts": NODE_TEST + body })) // .mts: top-level await needs ESM
   assert.equal(r.status, 1, r.stdout)
   assert.match(r.stdout, /node:test files 1 \(ran 2, skipped 0, todo 0\)/)
+})
+
+test("test files run in UTC whatever the host zone, from module load on", () => {
+  const body = `import assert from "node:assert/strict"\nconst zone = new Intl.DateTimeFormat().resolvedOptions().timeZone\ntest("utc", () => assert.equal(zone, "UTC"))\n`
+  const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + body }), [], { TZ: "Australia/Sydney" })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /ran 1, skipped 0/)
 })

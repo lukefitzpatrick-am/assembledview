@@ -22,6 +22,8 @@
  *   ended, which dropped the tail of its results still queued on the pipe and
  *   never ran a test registered after a top-level await. A file that hangs is
  *   stopped by FILE_TIMEOUT_MS instead.
+ * - Every test child runs with TZ=UTC, as CI and Vercel do, so a zone-less
+ *   formatter built at module load cannot pass here on a Melbourne host.
  * - run() starts each file with this process's exec flags too, so start the
  *   runner as a file (`node scripts/run-tests.mjs`), never with `node -e`.
  *
@@ -156,6 +158,7 @@ function runVitest(files, root) {
 
 export async function main(prefixes, root = ROOT) {
   const started = Date.now()
+  process.env.TZ = "UTC" // inherited by every test child (node:test and Vitest), as on CI and Vercel
   const tests = findTests(root)
   if (tests.length === 0) {
     console.error(`[run-tests] found no test files under ${root}`)
