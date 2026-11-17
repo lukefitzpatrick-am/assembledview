@@ -39,6 +39,7 @@ import {
   taskPriorityLabel,
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 const ALL = "__all__"
 const UNASSIGNED = "__unassigned__"
@@ -56,7 +57,7 @@ function myWeekChipLabel(now = new Date()): string {
   const ymd = myWeekDueBefore(now)
   const [y, m, d] = ymd.split("-").map(Number)
   const due = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
   }).format(new Date(Date.UTC(y, m - 1, d, 12, 0, 0)))

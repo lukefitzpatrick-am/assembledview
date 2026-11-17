@@ -12,10 +12,11 @@
  * `priority` or `field:<id>`, a leading `-` for descending) and
  * `field_<id>` (an option id, or `none`).
  */
-import { sydneyTodayYmd } from "@/lib/codex/dueDate"
 import { valueIds, valueLabels, type CodexCustomField, type CustomValues } from "@/lib/codex/customFields"
 import { sortSections, type CodexSection } from "@/lib/codex/projects"
 import type { CodexTask } from "@/lib/codex/types"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export const LIST_SORT_KEYS = ["title", "assignee", "due", "priority"] as const
 export type ListSortColumn = (typeof LIST_SORT_KEYS)[number] | `field:${number}`
@@ -122,18 +123,12 @@ export function isListFiltered(filters: ProjectListFilters): boolean {
   )
 }
 
-function addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const t = new Date(Date.UTC(y, m - 1, d + days))
-  return t.toISOString().slice(0, 10)
-}
-
 export type ListRow = CodexTask & { custom_values?: CustomValues | null }
 
 /** Rows that pass every filter. `today` is the Sydney civil date. */
-export function filterListRows<T extends ListRow>(rows: readonly T[], filters: ProjectListFilters, today = sydneyTodayYmd()): T[] {
+export function filterListRows<T extends ListRow>(rows: readonly T[], filters: ProjectListFilters, today = getMelbourneTodayISO()): T[] {
   const q = filters.q.trim().toLowerCase()
-  const weekEnd = addDaysYmd(today, 7)
+  const weekEnd = addDaysISO(today, 7)
   return rows.filter((row) => {
     if (q && !String(row.title ?? "").toLowerCase().includes(q)) return false
     const assignee = (row.assignee_email ?? "").trim().toLowerCase()
@@ -216,7 +211,7 @@ export function groupListRows<T extends ListRow>(
   state: ProjectListState,
   fields: readonly CodexCustomField[],
   totals: Readonly<Record<string, number>> = {},
-  today = sydneyTodayYmd()
+  today = getMelbourneTodayISO()
 ): ListGroup<T>[] {
   const group = (key: string, section: CodexSection | null): ListGroup<T> => ({
     section,

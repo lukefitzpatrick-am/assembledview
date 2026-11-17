@@ -4,7 +4,8 @@
  * overdue, due this week and no due date. Pure (no database), so the panel
  * and the store share it.
  */
-import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
+import { melbourneParts } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export const WORKLOAD_WEEKS_DEFAULT = 6
 export const WORKLOAD_WEEKS_MAX = 12
@@ -36,13 +37,13 @@ export function parseWorkloadWeeks(raw: string | null | undefined): number {
 
 /** This Sydney week and the next `n - 1`, Monday to Sunday. */
 export function workloadWeeks(now: Date, n: number): { today: string; weeks: WorkloadWeek[] } {
-  const p = sydneyCivilParts(now)
+  const p = melbourneParts(now)
   const daysFromMonday = p.weekday === 0 ? 6 : p.weekday - 1
-  const monday = addSydneyDays(p.ymd, -daysFromMonday)
+  const monday = addDaysISO(p.ymd, -daysFromMonday)
   const weeks: WorkloadWeek[] = []
   for (let i = 0; i < n; i++) {
-    const start = addSydneyDays(monday, 7 * i)
-    weeks.push({ start, end: addSydneyDays(start, 6) })
+    const start = addDaysISO(monday, 7 * i)
+    weeks.push({ start, end: addDaysISO(start, 6) })
   }
   return { today: p.ymd, weeks }
 }

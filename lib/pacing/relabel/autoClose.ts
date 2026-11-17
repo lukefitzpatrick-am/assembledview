@@ -5,8 +5,8 @@ import { and, isNull, like, ne } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { updateTaskFollowingSections } from "@/lib/codex/repo"
 import { SYSTEM_ACTORS } from "@/lib/codex/systemActors"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { shouldAutoCloseAppliedTask } from "./notify"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type RelabelAutoCloseCandidate = {
   id: number
@@ -32,7 +32,7 @@ export async function closeUntouchedRelabelTasks(
 
 /** Digest-cron closer: applied relabel tasks untouched for 7 Melbourne days. */
 export async function runCloseUntouchedRelabelTasks(now: Date = new Date()): Promise<number> {
-  const asOfYmd = getAsOfDate(now)
+  const asOfYmd = getMelbourneTodayISO(now)
   try {
     const db = getDb()
     const rows = await db

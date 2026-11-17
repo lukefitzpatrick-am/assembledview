@@ -11,9 +11,10 @@ import { and, eq, isNull } from "drizzle-orm"
 
 import { db, type Db } from "@/db"
 import { tasks } from "@/db/schema/codex"
-import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { createTask, type CreateTaskInput } from "@/lib/codex/repo"
 import type { CodexTask } from "@/lib/codex/types"
+import { melbourneParts } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export const SEED_PAST_DUE_FLAG = "[codex-seed-flag:past-due]"
 
@@ -183,7 +184,7 @@ export function expandSeedDueDates(args: {
     const { days, relativeTo } = row.dueOffset
     if (relativeTo === "monthEnd") {
       for (const monthEnd of eachMonthEndYmd(start, end)) {
-        const dueYmd = addSydneyDays(monthEnd, days)
+        const dueYmd = addDaysISO(monthEnd, days)
         const ym = monthEnd.slice(0, 7)
         out.push({
           label: `${row.label} — ${ym}`,
@@ -197,7 +198,7 @@ export function expandSeedDueDates(args: {
     const anchor = relativeTo === "start" ? start : end
     out.push({
       label: row.label,
-      dueYmd: addSydneyDays(anchor, days),
+      dueYmd: addDaysISO(anchor, days),
       ownerRole: row.ownerRole,
       source,
     })
@@ -243,7 +244,7 @@ export async function seedTasksForCampaign(
   database: Db = db
 ): Promise<SeedTasksResult> {
   const now = args.now ?? new Date()
-  const sydneyToday = sydneyCivilParts(now).ymd
+  const sydneyToday = melbourneParts(now).ymd
   const expanded = expandSeedDueDates({
     profile: args.profile,
     campaignStart: args.campaignStart,

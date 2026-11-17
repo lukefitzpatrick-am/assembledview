@@ -7,7 +7,7 @@ import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/Medi
 import { prepareMediaPlanExportClone } from "@/components/dashboard/campaign/MediaPlanVizSection"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

@@ -7,6 +7,7 @@ import { mock, test } from "node:test"
 import { NextRequest, NextResponse } from "next/server"
 
 import { mockModuleSkip } from "@/lib/test/mockModuleHarness"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const skip = mockModuleSkip()
 
@@ -37,7 +38,11 @@ if (typeof mock.module === "function") {
     namedExports: { requireFinanceAdmin: requireFinanceAdminMock },
   })
   await mock.module("@/lib/finance/trueUp/load", {
-    namedExports: { loadTrueUp: loadMock, todaySydneyIso: () => "2026-11-02" },
+    namedExports: { loadTrueUp: loadMock },
+  })
+  const dates = await import("../../../../../../lib/dates/melbourne")
+  await mock.module("@/lib/dates/melbourne", {
+    namedExports: { ...dates, getMelbourneTodayISO: () => "2026-11-02" },
   })
 }
 

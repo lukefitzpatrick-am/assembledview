@@ -21,6 +21,7 @@ import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 type AdminListedUser = {
   user_id: string
@@ -65,14 +66,13 @@ function ClientSlugsCell({ user }: { user: AdminListedUser }) {
 }
 
 const PER_PAGE = 25
-const SYDNEY_TZ = "Australia/Sydney"
 
 function formatLastLogin(value: string | null): string {
   if (!value) return "—"
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TZ,
+    timeZone: BUSINESS_TZ,
     day: "2-digit",
     month: "short",
     year: "numeric",

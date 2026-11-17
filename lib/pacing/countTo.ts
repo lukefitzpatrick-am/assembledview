@@ -18,7 +18,8 @@
  * - Expected maths already caps elapsed days at the campaign end, so a
  *   campaign that ended earlier is fully expected too.
  */
-import { getAsOfDate, getMelbourneYesterdayISO } from "@/lib/pacing/maths"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -35,7 +36,7 @@ export function isIsoDay(value: unknown): value is string {
 
 /** The day before the view day. */
 export function adminPacingCountToISO(asOfDate: string): string {
-  return getMelbourneYesterdayISO(asOfDate)
+  return addDaysISO(asOfDate, -1)
 }
 
 /**
@@ -47,7 +48,7 @@ export function resolveAdminPacingDays(
   now: Date = new Date(),
 ): AdminPacingDays {
   const raw = asOfParam?.trim() ?? ""
-  const asOfDate = isIsoDay(raw) ? raw : getAsOfDate(now)
+  const asOfDate = isIsoDay(raw) ? raw : getMelbourneTodayISO(now)
   return { asOfDate, countToDate: adminPacingCountToISO(asOfDate) }
 }
 

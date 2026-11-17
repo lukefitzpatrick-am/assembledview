@@ -2,7 +2,6 @@ import "server-only"
 
 import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 import { snapshotMatchesCountTo } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
-import { addMelbourneDays } from "@/lib/pacing/relabel/notify"
 import { listRelabelDrift, type RelabelDriftFinding } from "@/lib/pacing/relabel/listRelabelDrift"
 import {
   listRelabelLogForDay,
@@ -29,6 +28,7 @@ import {
   type DigestCampaignRow,
   type DigestSourceRow,
 } from "./banding"
+import { addDaysISO } from "@/lib/dates/civil"
 
 function asSource(
   channel: string,
@@ -188,7 +188,7 @@ async function finishDigest(
 ): Promise<PacingDigestPayload> {
   const groups = groupDigestByBand(rows)
   const atRisk = groups["at-risk"]
-  const relabelDay = addMelbourneDays(asOfDate, -1)
+  const relabelDay = addDaysISO(asOfDate, -1)
   let relabelEvents: DeliveryRelabelLogRow[] = []
   let relabelDrift: RelabelDriftFinding[] = []
   const relabelStarted = Date.now()

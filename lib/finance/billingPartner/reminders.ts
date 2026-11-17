@@ -20,8 +20,8 @@ import { reportDigestSends } from "@/db/schema"
 import { listAuth0RoleUserEmails } from "@/lib/api/auth0Management"
 import { listDueAaPlans } from "@/lib/finance/billingPartner/duePlans"
 import { listPacksForMonth } from "@/lib/finance/billingPartner/packStore"
-import { sydneyCalendar, sydneyYmd } from "@/lib/finance/billingPartner/cycle"
 import { sendAccountsPackEmail } from "@/lib/finance/sendAccountsPackMail"
+import { melbourneParts, getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const BILLING_PARTNER_REMINDER_KIND = "billing_partner_reminder"
 
@@ -57,14 +57,14 @@ type ReminderIo = {
 }
 
 export function reminderDay(now: Date): 10 | 15 | 17 | null {
-  const { day } = sydneyCalendar(now)
+  const { day } = melbourneParts(now)
   if (day === 10 || day === 15 || day === 17) return day
   return null
 }
 
 /** First of the Melbourne month that contains `now`. */
 export function reminderBillingMonth(now: Date): string {
-  const { year, month } = sydneyCalendar(now)
+  const { year, month } = melbourneParts(now)
   return `${year}-${String(month).padStart(2, "0")}-01`
 }
 
@@ -124,7 +124,7 @@ export async function runBillingPartnerReminders(io: ReminderIo = {}): Promise<R
   const day = reminderDay(now)
   if (day == null) return { skipped: "not a reminder day" }
 
-  const reminderDate = sydneyYmd(now)
+  const reminderDate = getMelbourneTodayISO(now)
   const alreadySent = io.alreadySent ?? productionAlreadySent
   if (await alreadySent(reminderDate)) return { skipped: "already sent" }
 

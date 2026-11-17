@@ -1,4 +1,4 @@
-import { format, startOfDay, differenceInCalendarDays } from "date-fns"
+import { startOfDay, differenceInCalendarDays } from "date-fns"
 import {
   type BuyType,
   coerceBuyTypeWithDevWarn,
@@ -71,6 +71,7 @@ import type {
   ProgOohExpertScheduleRow,
   ProgExpertMergedWeekSpan,
 } from "./expertModeWeeklySchedule.js"
+import { toDateOnlyString } from "@/lib/dates/civil"
 
 /** Aligned with {@link serializeBurstsJson} for parsing bursts_json Stage 1 contract fields. */
 const BURST_JSON_MONEY_FORMAT: MoneyFormatOptions = {
@@ -580,7 +581,6 @@ export function deriveOohExpertRowScheduleYmd(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): { startDate: string; endDate: string } {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
   for (const col of weekColumns) {
@@ -591,8 +591,8 @@ export function deriveOohExpertRowScheduleYmd(
   }
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -605,7 +605,7 @@ export function deriveOohExpertRowScheduleYmd(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -627,7 +627,6 @@ export function deriveOohExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -657,8 +656,8 @@ export function deriveOohExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -671,7 +670,7 @@ export function deriveOohExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -693,7 +692,6 @@ export function deriveRadioExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -723,8 +721,8 @@ export function deriveRadioExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -737,7 +735,7 @@ export function deriveRadioExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -759,7 +757,6 @@ export function deriveCinemaExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -780,11 +777,11 @@ export function deriveCinemaExpertRowScheduleYmdFromRow(
     }
   }
   if (!firstCol || !lastCol) {
-    return { startDate: ymd(campaignStartDate), endDate: ymd(campaignEndDate) }
+    return { startDate: toDateOnlyString(campaignStartDate), endDate: toDateOnlyString(campaignEndDate) }
   }
   const { start } = burstWindowForWeekColumn(firstCol, campaignStartDate, campaignEndDate)
   const { end } = burstWindowForWeekColumn(lastCol, campaignStartDate, campaignEndDate)
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -806,7 +803,6 @@ export function deriveNewspaperExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -836,8 +832,8 @@ export function deriveNewspaperExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -850,7 +846,7 @@ export function deriveNewspaperExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -872,7 +868,6 @@ export function deriveMagazineExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -902,8 +897,8 @@ export function deriveMagazineExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -916,7 +911,7 @@ export function deriveMagazineExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function parseBurstDate(v: Date | string | undefined): Date | null {
@@ -1440,9 +1435,6 @@ export function mapRadioExpertRowsToStandardLineItems(
   })
 }
 
-function formatYmd(d: Date): string {
-  return format(startOfDay(d), "yyyy-MM-dd")
-}
 
 /**
  * Standard bursts store unit rate in `buyAmount` (same contract as
@@ -1666,8 +1658,8 @@ export function mapStandardOohLineItemsToExpertRows(
       format: String(item.format ?? ""),
       type: String(item.type ?? ""),
       placement: String(item.placement ?? ""),
-      startDate: firstBurst ? formatYmd(firstBurst.startDate) : formatYmd(campaignStartDate),
-      endDate: lastBurst ? formatYmd(lastBurst.endDate) : formatYmd(campaignEndDate),
+      startDate: firstBurst ? toDateOnlyString(firstBurst.startDate) : toDateOnlyString(campaignStartDate),
+      endDate: lastBurst ? toDateOnlyString(lastBurst.endDate) : toDateOnlyString(campaignEndDate),
       size: String(item.size ?? ""),
       panels: buyType === "panels" ? bursts.reduce((s, b) => s + (typeof b.calculatedValue === "number" ? b.calculatedValue : 0), 0) : "",
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -1791,11 +1783,11 @@ export function mapStandardRadioLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       network: String(item.network ?? ""),
       station: String(item.station ?? ""),
       market: String(item.market ?? ""),
@@ -1964,7 +1956,6 @@ export function deriveProductionExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -1994,8 +1985,8 @@ export function deriveProductionExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -2008,7 +1999,7 @@ export function deriveProductionExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 /**
@@ -2218,11 +2209,11 @@ export function mapStandardProductionLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       mediaType: String(item.mediaType ?? item.media_type ?? ""),
       publisher: String(item.publisher ?? ""),
       description: String(item.description ?? ""),
@@ -2517,8 +2508,8 @@ export function mapStandardCinemaLineItemsToExpertRows(
     return {
       id: _reactKey,
       sourceLineItemId: id,
-      startDate: firstBurst ? formatYmd(firstBurst.startDate) : formatYmd(campaignStartDate),
-      endDate: lastBurst ? formatYmd(lastBurst.endDate) : formatYmd(campaignEndDate),
+      startDate: firstBurst ? toDateOnlyString(firstBurst.startDate) : toDateOnlyString(campaignStartDate),
+      endDate: lastBurst ? toDateOnlyString(lastBurst.endDate) : toDateOnlyString(campaignEndDate),
       network: String(item.network ?? ""),
       station: String(item.station ?? ""),
       market: String(item.market ?? ""),
@@ -2622,7 +2613,6 @@ export function deriveTelevisionExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -2652,8 +2642,8 @@ export function deriveTelevisionExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -2666,7 +2656,7 @@ export function deriveTelevisionExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyTelevisionLineItem(
@@ -2961,11 +2951,11 @@ export function mapStandardTvLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       market: String(item.market ?? ""),
       network: String(item.network ?? ""),
       station: String(item.station ?? ""),
@@ -3052,7 +3042,6 @@ export function deriveBvodExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -3082,8 +3071,8 @@ export function deriveBvodExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -3096,7 +3085,7 @@ export function deriveBvodExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyBvodLineItem(
@@ -3389,11 +3378,11 @@ export function mapStandardBvodLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       publisher: String(item.publisher ?? ""),
       site: String(item.site ?? ""),
@@ -3484,7 +3473,6 @@ export function deriveDigiVideoExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -3514,8 +3502,8 @@ export function deriveDigiVideoExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -3528,7 +3516,7 @@ export function deriveDigiVideoExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyDigiVideoLineItem(
@@ -3825,11 +3813,11 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       publisher: String(item.publisher ?? ""),
       site: String(item.site ?? ""),
@@ -3923,7 +3911,6 @@ export function deriveDigitalDisplayExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -3953,8 +3940,8 @@ export function deriveDigitalDisplayExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -3967,7 +3954,7 @@ export function deriveDigitalDisplayExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyDigiDisplayLineItem(
@@ -4265,11 +4252,11 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       publisher: String(item.publisher ?? ""),
       site: String(item.site ?? ""),
@@ -4358,7 +4345,6 @@ export function deriveDigitalAudioExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -4388,8 +4374,8 @@ export function deriveDigitalAudioExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -4402,7 +4388,7 @@ export function deriveDigitalAudioExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyDigiAudioLineItem(
@@ -4696,11 +4682,11 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       publisher: String(item.publisher ?? ""),
       site: String(item.site ?? ""),
@@ -4789,7 +4775,6 @@ export function deriveSocialMediaExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -4819,8 +4804,8 @@ export function deriveSocialMediaExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -4833,7 +4818,7 @@ export function deriveSocialMediaExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptySocialMediaLineItem(
@@ -5124,11 +5109,11 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -5215,7 +5200,6 @@ export function deriveSearchExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -5245,8 +5229,8 @@ export function deriveSearchExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -5259,7 +5243,7 @@ export function deriveSearchExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptySearchLineItem(
@@ -5549,11 +5533,11 @@ export function mapStandardSearchLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -5644,7 +5628,6 @@ export function deriveInfluencersExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -5674,8 +5657,8 @@ export function deriveInfluencersExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -5688,7 +5671,7 @@ export function deriveInfluencersExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyInfluencersLineItem(
@@ -5980,11 +5963,11 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       objective: String(item.objective ?? ""),
       campaign: String(item.campaign ?? ""),
@@ -6084,7 +6067,6 @@ export function deriveIntegrationExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -6114,8 +6096,8 @@ export function deriveIntegrationExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -6128,7 +6110,7 @@ export function deriveIntegrationExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function emptyIntegrationLineItem(
@@ -6420,11 +6402,11 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       objective: String(item.objective ?? ""),
       campaign: String(item.campaign ?? ""),
@@ -6791,11 +6773,11 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       network: String(item.network ?? ""),
       publisher: String(item.publisher ?? ""),
       title: String(item.title ?? ""),
@@ -7151,11 +7133,11 @@ export function mapStandardMagazineLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       network: String(item.network ?? ""),
       title: String(item.title ?? ""),
       buyType,
@@ -7211,7 +7193,6 @@ export function deriveProgExpertRowScheduleYmdFromRow(
       dayKeysByWeekKey
     )
   }
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weekKeyOrder = weekColumns.map((c) => c.weekKey)
   let firstCol: WeeklyGanttWeekColumn | null = null
   let lastCol: WeeklyGanttWeekColumn | null = null
@@ -7241,8 +7222,8 @@ export function deriveProgExpertRowScheduleYmdFromRow(
 
   if (!firstCol || !lastCol) {
     return {
-      startDate: ymd(campaignStartDate),
-      endDate: ymd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   const { start } = burstWindowForWeekColumn(
@@ -7255,7 +7236,7 @@ export function deriveProgExpertRowScheduleYmdFromRow(
     campaignStartDate,
     campaignEndDate
   )
-  return { startDate: ymd(start), endDate: ymd(end) }
+  return { startDate: toDateOnlyString(start), endDate: toDateOnlyString(end) }
 }
 
 function buildBurstsFromProgExpertLikeRow(
@@ -7636,11 +7617,11 @@ export function mapStandardProgAudioLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -7831,11 +7812,11 @@ export function mapStandardProgBvodLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -8038,11 +8019,11 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -8239,11 +8220,11 @@ export function mapStandardProgVideoLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
@@ -8437,11 +8418,11 @@ export function mapStandardProgOohLineItemsToExpertRows(
       id: _reactKey,
       sourceLineItemId: id,
       startDate: firstBurst
-        ? formatYmd(firstBurst.startDate)
-        : formatYmd(campaignStartDate),
+        ? toDateOnlyString(firstBurst.startDate)
+        : toDateOnlyString(campaignStartDate),
       endDate: lastBurst
-        ? formatYmd(lastBurst.endDate)
-        : formatYmd(campaignEndDate),
+        ? toDateOnlyString(lastBurst.endDate)
+        : toDateOnlyString(campaignEndDate),
       platform: String(item.platform ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,

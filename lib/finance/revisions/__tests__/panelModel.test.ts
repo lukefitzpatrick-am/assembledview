@@ -7,10 +7,10 @@ import {
   buildRequestBody,
   initialPanelForm,
   previewBlocker,
-  sydneyMonthNow,
   underspendAction,
 } from "../panelModel"
 import { DEFAULT_OPTIONS, PENFOLD022_CAMPAIGN, PENFOLD022_V3, linesFromRows } from "./fixtures"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 test("PENFOLD020 $100k form builds the preview body", () => {
   const form = { ...initialPanelForm({ currentMonth: "2026-10" }), amount: "100,000", reason: " Client asked ", unlockApprovedMonths: ["2026-10"] }
@@ -58,7 +58,7 @@ test("preview grid: changed lines, skipped production, locked months flagged", (
 
 test("Record underspend: past or current month only, not on invoiced months", () => {
   const now = new Date("2026-10-26T06:00:00Z")
-  assert.equal(sydneyMonthNow(new Date("2026-10-31T13:30:00Z")), "2026-11")
+  assert.equal(getMelbourneMonthISO(new Date("2026-10-31T13:30:00Z")), "2026-11")
   assert.deepEqual(underspendAction({ billing_month: "2026-11", state: "ready" }, now), { show: false })
   assert.deepEqual(underspendAction({ billing_month: "2026-10", state: "approved" }, now), { show: true })
   assert.equal(underspendAction({ billing_month: "2026-09", state: "sent_to_finance" }, now).show, true)

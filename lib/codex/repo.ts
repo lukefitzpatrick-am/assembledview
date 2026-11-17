@@ -38,8 +38,7 @@ import {
   type MyWorkTab,
   type TaskSortKey,
 } from "@/lib/codex/queryHelpers"
-import { sydneyTodayYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
+import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import {
   descriptionHasPeriod,
   descriptionHasSeed,
@@ -87,6 +86,7 @@ import {
   type AliasCollision,
   type AliasRosterRow,
 } from "@/lib/codex/rosterAliasGuard"
+import { melbourneParts, getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export { clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
 
@@ -726,7 +726,7 @@ function taskListWhere(filters: ListTasksFilters): SQL | undefined {
   if (filters.dueBefore) conds.push(lte(tasks.dueDate, filters.dueBefore))
   if (filters.dueAfter) conds.push(gte(tasks.dueDate, filters.dueAfter))
   if (filters.overdue) {
-    conds.push(lt(tasks.dueDate, sydneyTodayYmd(filters.now)))
+    conds.push(lt(tasks.dueDate, getMelbourneTodayISO(filters.now)))
     conds.push(ne(tasks.status, "done"))
   }
   if (filters.category === "none") conds.push(isNull(tasks.category))
@@ -921,7 +921,7 @@ export async function countTasksByMba(
   }
   if (unique.length === 0) return []
 
-  const sydneyToday = sydneyCivilParts(now).ymd
+  const sydneyToday = melbourneParts(now).ymd
   // B42: tasks in a private project the viewer cannot see are not counted.
   const visible = await taskVisibilityCondition(database, viewerEmail)
 

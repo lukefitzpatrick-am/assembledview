@@ -22,7 +22,7 @@ import {
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type MediaGanttGranularity = "weekly" | "monthly"
 

@@ -2,7 +2,6 @@ import "server-only"
 
 import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import type { Db } from "@/db"
 import {
   createGeneratedRecurringTask,
@@ -15,6 +14,7 @@ import {
   parseRecurringRule,
   recurringPeriodsToGenerate,
 } from "@/lib/codex/recurringRule"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export type RecurringRunResult = {
   status: "ok" | "skipped" | "error"
@@ -41,7 +41,7 @@ export async function runCodexRecurring(
   /** Tests pass a database; the cron uses the default. */
   database?: Db
 ): Promise<RecurringRunResult> {
-  const sydneyYmd = sydneyCivilParts(now).ymd
+  const sydneyYmd = melbourneParts(now).ymd
 
   if (!(await isCodexV2Enabled())) {
     return {

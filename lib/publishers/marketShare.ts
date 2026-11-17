@@ -14,6 +14,7 @@ import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import type { PublisherMediaTypeShare } from "@/lib/types/publisher"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export type MarketSharePublisher = {
   id: number
@@ -33,14 +34,7 @@ export type AustralianFyWindow = {
 }
 
 export function currentAustralianFyWindow(now = new Date()): AustralianFyWindow {
-  const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now)
-  const year = Number(parts.find((part) => part.type === "year")?.value)
-  const month = Number(parts.find((part) => part.type === "month")?.value)
+  const { year, month } = melbourneParts(now)
   const startYear = month >= 7 ? year : year - 1
   return { start: `${startYear}-07-01`, end: `${startYear + 1}-06-30` }
 }

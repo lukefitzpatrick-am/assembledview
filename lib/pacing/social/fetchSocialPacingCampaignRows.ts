@@ -14,7 +14,6 @@ import {
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
 import {
   computePacing,
-  getMelbourneYesterdayISO,
   type PacingStatus,
 } from "@/lib/pacing/maths";
 import { pacingStatus } from "@/lib/pacing/status";
@@ -23,6 +22,7 @@ import { composerCountToISO } from "@/lib/pacing/countTo";
 import { endedLineStatus } from "@/lib/pacing/endedCampaigns";
 import { planCpvRateForLine } from "@/lib/pacing/kpi/planCpvRate";
 import type { CampaignKpiRow } from "@/lib/xano/campaignKpi";
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type FetchSocialPacingCampaignRowsArgs = GetLiveSocialLineItemsArgs & {
   /**
@@ -127,7 +127,7 @@ export async function fetchSocialPacingCampaignRows(
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
       .sort()[0] ?? countTo;
-  const yesterday = getMelbourneYesterdayISO(args.asOfDate);
+  const yesterday = addDaysISO(args.asOfDate, -1);
 
   if (metaIds.length > 0 || tiktokIds.length > 0 || redditIds.length > 0) {
     const [metaFacts, tiktokFacts, redditFacts] = await Promise.all([

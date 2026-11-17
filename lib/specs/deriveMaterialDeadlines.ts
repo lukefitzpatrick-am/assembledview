@@ -3,13 +3,14 @@
  * Prose-only publishers contribute nothing. Never invents a date.
  */
 
-import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { weekdayOfSydneyYmd } from "@/lib/codex/recurringRule"
 import type { StructuredDeadline } from "./parseSupplyDeadline.js"
 import {
   subtractSydneyBusinessDays,
   sydneyBusinessDaysUntil,
 } from "./sydneyBusinessDays.js"
+import { addDaysISO } from "@/lib/dates/civil"
+import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 const MONTHS = [
@@ -75,13 +76,9 @@ export function formatSupplyDeadlineCell(prose: string, derivedYmd: string | nul
   return `${stated} — due ${formatSydneyDeadlineLabel(derivedYmd)}`
 }
 
+/** A live date or instant as the Melbourne civil day (Sydney shares its offset); "" when absent or invalid. */
 export function liveInstantToSydneyYmd(live: string | null | undefined): string {
-  const raw = (live ?? "").trim()
-  if (!raw) return ""
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
-  const parsed = new Date(raw)
-  if (Number.isNaN(parsed.getTime())) return ""
-  return sydneyCivilParts(parsed).ymd
+  return normalizeDateToMelbourneISO(live) ?? ""
 }
 
 export function materialDateForLine(
@@ -94,7 +91,7 @@ export function materialDateForLine(
   const n = structured.max_days
   if (!Number.isFinite(n) || n < 1) return null
   if (structured.business_days) return subtractSydneyBusinessDays(live, n)
-  return addSydneyDays(live, -n)
+  return addDaysISO(live, -n)
 }
 
 function withoutStatedPhrase(n: number): string {

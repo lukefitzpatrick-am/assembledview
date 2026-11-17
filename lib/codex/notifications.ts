@@ -31,6 +31,8 @@
  * (18:00 to 08:00 Melbourne unless the person's row says otherwise).
  */
 
+import { addDaysISO } from "@/lib/dates/civil"
+import { getMelbourneTodayISO, melbourneParts } from "@/lib/dates/melbourne"
 import { resolveRosterAddress, type RosterPerson } from "./rosterResolve"
 
 export const NOTIFICATION_KINDS = [
@@ -247,33 +249,8 @@ export function notificationText(kind: NotificationKind, actorName: string | nul
 // Melbourne clock: quiet hours, the daily job, reminder dates
 // ---------------------------------------------------------------------------
 
-export const MELBOURNE_TZ = "Australia/Melbourne"
 export const DEFAULT_QUIET_START = "18:00"
 export const DEFAULT_QUIET_END = "08:00"
-/** The cron runs at 21:30 and 22:30 UTC; the job acts on the run that falls in this Melbourne hour (08:30). */
-export const DAILY_JOB_MELBOURNE_HOUR = 8
-
-function melbourneParts(now: Date): { ymd: string; minutes: number } {
-  const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: MELBOURNE_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00"
-  return { ymd: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) }
-}
-
-export function melbourneTodayYmd(now: Date): string {
-  return melbourneParts(now).ymd
-}
-
-export function melbourneHour(now: Date): number {
-  return Math.floor(melbourneParts(now).minutes / 60)
-}
 
 /** "18:00", "08:00:00" to minutes after midnight; null when it does not parse. */
 export function parseClock(value: string | null | undefined): number | null {
@@ -294,20 +271,14 @@ export function isQuietHours(now: Date, quietStart?: string | null, quietEnd?: s
   const start = parseClock(quietStart) ?? parseClock(DEFAULT_QUIET_START)!
   const end = parseClock(quietEnd) ?? parseClock(DEFAULT_QUIET_END)!
   if (start === end) return false
-  const m = melbourneParts(now).minutes
+  const { hour, minute } = melbourneParts(now)
+  const m = hour * 60 + minute
   return start > end ? m >= start || m < end : m >= start && m < end
 }
 
 /** The daily cron's two runs: only the one in the Melbourne 08:00 hour does anything. */
 export function isDailyJobHour(now: Date): boolean {
-  return melbourneHour(now) === DAILY_JOB_MELBOURNE_HOUR
-}
-
-function addDays(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const dt = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
+  return melbourneParts(now).hour === 8
 }
 
 /** Overdue reminders look back this many days, so an old overdue task is not announced once 0118 runs. */
@@ -317,8 +288,8 @@ export type ReminderDates = { today: string; tomorrow: string; overdueFrom: stri
 
 /** Due tomorrow: due on `tomorrow`. Overdue: due on `overdueFrom`..`overdueTo` (the 7 days before today). */
 export function reminderDates(now: Date): ReminderDates {
-  const today = melbourneTodayYmd(now)
-  return { today, tomorrow: addDays(today, 1), overdueFrom: addDays(today, -OVERDUE_LOOKBACK_DAYS), overdueTo: addDays(today, -1) }
+  const today = getMelbourneTodayISO(now)
+  return { today, tomorrow: addDaysISO(today, 1), overdueFrom: addDaysISO(today, -OVERDUE_LOOKBACK_DAYS), overdueTo: addDaysISO(today, -1) }
 }
 
 /** Which reminder a live, not done task gets today, if any. */

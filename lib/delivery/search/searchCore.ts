@@ -6,6 +6,7 @@ import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFil
 import type { SearchPacingDailyRow, SearchPacingTotals } from "@/lib/snowflake/search-pacing-service"
 import { parseMoney } from "@/lib/money"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type SearchApiDailyRow = SearchPacingDailyRow
 export type SearchApiTotals = SearchPacingTotals
@@ -76,13 +77,6 @@ export function daysInclusive(startISO: string, endISO: string): number {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
   const msPerDay = 24 * 60 * 60 * 1000
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1)
-}
-
-export function addDaysISO(isoDate: string, days: number): string {
-  const [y, m, d] = isoDate.split("-").map((v) => Number(v))
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 export function buildDateListISO(startISO: string, endISO: string): string[] {

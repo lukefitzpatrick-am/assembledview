@@ -1,5 +1,6 @@
 import { shellUserIdentity } from "@/components/UserMenu"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 const MONTH_NAMES = [
   "January",
@@ -26,19 +27,11 @@ export type GreetingIdentity = {
 
 export type MelbourneDayPart = "morning" | "afternoon" | "evening"
 
-/** Hour in Australia/Melbourne. Morning before 12, afternoon before 17, else evening. */
+/** Hour in Melbourne. Morning before 12, afternoon before 17, else evening. */
 export function melbourneDayPart(now: Date = new Date()): MelbourneDayPart {
-  const raw = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
-    hour: "numeric",
-    hourCycle: "h23",
-  })
-    .formatToParts(now)
-    .find((part) => part.type === "hour")?.value
-  const hour = Number(raw)
-  const safe = Number.isFinite(hour) ? hour % 24 : 12
-  if (safe < 12) return "morning"
-  if (safe < 17) return "afternoon"
+  const hour = melbourneParts(now).hour
+  if (hour < 12) return "morning"
+  if (hour < 17) return "afternoon"
   return "evening"
 }
 

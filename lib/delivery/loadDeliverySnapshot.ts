@@ -9,7 +9,6 @@ import {
   cleanPacingLineItemId,
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { extractKpiReviewPlanLine } from "@/lib/kpi/kpiReview"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/resolveLiveSocialLineItems"
 import { getCampaignPacingData, type PacingRow } from "@/lib/snowflake/pacing-service"
@@ -63,6 +62,7 @@ import type { DeliveryFlags } from "@/lib/delivery/deliveryFlags"
 import type { PackageUnitTargetOptions } from "@/lib/delivery/packageUnitTarget"
 import { mergedSpendInWindow } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -1235,7 +1235,7 @@ export async function loadDeliverySnapshot(
     "plan_only",
   ]
 
-  const asOf = getAsOfDate()
+  const asOf = getMelbourneTodayISO()
   const channels: DeliveryChannelGroup[] = []
   const assumedLines: DeliveryLineSnapshot[] = []
   const assumedExpectedLines: AssumedExpectedLine[] = []

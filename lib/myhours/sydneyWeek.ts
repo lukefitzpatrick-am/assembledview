@@ -1,16 +1,17 @@
-import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
+import { melbourneParts, toMelbourneDateString } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 /**
- * Current civil week in Australia/Sydney: Monday → Sunday inclusive.
+ * Current civil week in Melbourne (Sydney shares its offset): Monday → Sunday inclusive.
  */
 export function sydneyWeekRange(
   now: Date = new Date()
 ): { startYmd: string; endYmd: string } {
-  const p = sydneyCivilParts(now)
+  const p = melbourneParts(now)
   // weekday: Sun=0 … Sat=6 → days since Monday
   const daysFromMonday = p.weekday === 0 ? 6 : p.weekday - 1
-  const startYmd = addSydneyDays(p.ymd, -daysFromMonday)
-  const endYmd = addSydneyDays(startYmd, 6)
+  const startYmd = addDaysISO(p.ymd, -daysFromMonday)
+  const endYmd = addDaysISO(startYmd, 6)
   return { startYmd, endYmd }
 }
 
@@ -25,14 +26,9 @@ export function sydneyLastNWeekStarts(
   const { startYmd } = sydneyWeekRange(now)
   const out: string[] = []
   for (let i = n - 1; i >= 0; i--) {
-    out.push(addSydneyDays(startYmd, -7 * i))
+    out.push(addDaysISO(startYmd, -7 * i))
   }
   return out
-}
-
-/** Today as YYYY-MM-DD in Australia/Sydney. */
-export function sydneyTodayYmd(now: Date = new Date()): string {
-  return sydneyCivilParts(now).ymd
 }
 
 export function sydneyYmdFromUtcInstant(isoOrDate: string | Date): string {
@@ -40,5 +36,5 @@ export function sydneyYmdFromUtcInstant(isoOrDate: string | Date): string {
   if (Number.isNaN(d.getTime())) {
     throw new Error(`invalid meeting start: ${isoOrDate}`)
   }
-  return sydneyCivilParts(d).ymd
+  return toMelbourneDateString(d)
 }

@@ -40,6 +40,7 @@ import {
 } from "@/lib/finance/sections/serviceLineBucket"
 import { costsDeltaCents, xeroApExGstCents } from "@/lib/finance/sections/costsApAmount"
 import { normalizeContactKey } from "@/lib/xero/normalizeContact"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type FinanceCostsQuery = {
   fy: number
@@ -138,13 +139,6 @@ function monthStartDate(yyyyMm: string): string {
   return `${yyyyMm}-01`
 }
 
-function monthEndExclusive(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map((x) => Number.parseInt(x, 10))
-  const d = new Date(y!, m! - 1, 1)
-  d.setMonth(d.getMonth() + 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
-}
-
 function clientFilterSql(clientIds: number[]): SQL {
   if (!clientIds.length) return sql`TRUE`
   return sql`m.client_id = ANY(ARRAY[${sql.join(
@@ -220,7 +214,7 @@ export function normalizeCostsQuery(input: {
 
 export function bookedByPublisherMonthSqlText(q: FinanceCostsQuery): string {
   const from = monthStartDate(q.from)
-  const toEx = monthEndExclusive(q.to)
+  const toEx = `${addMonthsISO(q.to, 1)}-01`
   const clients =
     q.clientIds.length > 0 ? `AND m.client_id = ANY(ARRAY[${q.clientIds.join(",")}])` : ""
   const channels =
@@ -268,7 +262,7 @@ export async function fetchFinanceCostsSummary(
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const clientSql = clientFilterSql(q.clientIds)
   const channelSql = channelFilterSql(q.channels)

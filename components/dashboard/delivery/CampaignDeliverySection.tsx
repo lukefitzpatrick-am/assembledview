@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
-import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
+import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
@@ -61,6 +61,7 @@ import {
 } from "@/lib/delivery/deliverySourceMap"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { resolvePacingWindow } from "@/lib/pacing/expectedForWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type CampaignDeliverySectionProps = {
   mbaNumber: string

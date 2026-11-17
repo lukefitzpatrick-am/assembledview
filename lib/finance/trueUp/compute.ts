@@ -29,6 +29,7 @@
 
 import { matchMbaAgainstMasters, type MbaMaster } from "@/lib/xero/matchMba"
 import { toCents } from "@/lib/money"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export const TRUE_UP_COMPONENTS = ["fee", "adserving", "production", "media"] as const
 export type TrueUpComponent = (typeof TRUE_UP_COMPONENTS)[number]
@@ -208,21 +209,13 @@ export function isTrueUpMonth(value: unknown): value is string {
   return typeof value === "string" && MONTH_RE.test(value)
 }
 
-export function addMonths(month: string, delta: number): string {
-  const [ys, ms] = month.split("-")
-  const idx = Number(ys) * 12 + (Number(ms) - 1) + delta
-  const y = Math.floor(idx / 12)
-  const m = (idx % 12) + 1
-  return `${y}-${String(m).padStart(2, "0")}`
-}
-
 export function monthRange(from: string, to: string): string[] {
   const out: string[] = []
   if (!isTrueUpMonth(from) || !isTrueUpMonth(to) || from > to) return out
   let m = from
   while (m <= to && out.length < 120) {
     out.push(m)
-    m = addMonths(m, 1)
+    m = addMonthsISO(m, 1)
   }
   return out
 }
@@ -236,7 +229,7 @@ export function financialYearStart(month: string): string {
 
 /** Default as-of month: the month before `todayIso` (YYYY-MM-DD, Sydney). */
 export function defaultTrueUpAsOf(todayIso: string): string {
-  return addMonths(todayIso.slice(0, 7), -1)
+  return addMonthsISO(todayIso.slice(0, 7), -1)
 }
 
 function monthOf(value: string | null | undefined): string | null {
@@ -398,8 +391,8 @@ export function attributeInvoiceLines(input: {
   const shift = (key: string, month: string | null): string | null => {
     if (!month) return month
     const timing = input.timingByMba?.get(key)
-    if (timing === "month_ahead") return addMonths(month, 1)
-    if (timing === "in_arrears") return addMonths(month, -1)
+    if (timing === "month_ahead") return addMonthsISO(month, 1)
+    if (timing === "in_arrears") return addMonthsISO(month, -1)
     return month
   }
   const recordsByInvoice = new Map<string, Array<{ mbaKey: string; month: string; manual: boolean }>>()

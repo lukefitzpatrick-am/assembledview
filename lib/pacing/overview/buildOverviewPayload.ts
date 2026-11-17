@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getAsOfDate } from "@/lib/pacing/maths";
 import { adminPacingCountToISO, isIsoDay } from "@/lib/pacing/countTo";
 import {
   getCachedAdServingPacingRows,
@@ -28,6 +27,7 @@ import type {
   OverviewPayload,
 } from "@/lib/pacing/overview/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** Leave headroom under route maxDuration so partial results can still serialize. */
 export const OVERVIEW_SOURCE_TIMEOUT_MS = 45_000;
@@ -156,7 +156,7 @@ export async function buildOverviewPayload(
     fetchers?: Partial<ChannelFetchers>;
   }
 ): Promise<OverviewPayload> {
-  const asOfDate = args.asOfDate?.trim() || getAsOfDate();
+  const asOfDate = args.asOfDate?.trim() || getMelbourneTodayISO();
   // P1: count to the day before the view day, same as the channel tabs.
   const countToDate = isIsoDay(args.countToDate)
     ? args.countToDate

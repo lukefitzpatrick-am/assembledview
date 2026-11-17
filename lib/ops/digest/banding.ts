@@ -10,8 +10,8 @@ import {
   computeDaysPassed,
   computeDaysRemaining,
   computeExpectedPct,
-  getAsOfDate,
 } from "@/lib/pacing/maths"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /**
  * Existing app banding (from computeStatus → lineItemStatus pills).
@@ -229,7 +229,7 @@ function sortDigestRows(rows: DigestCampaignRow[]): DigestCampaignRow[] {
  */
 export function buildDirectDigestCampaignRows(
   groups: DirectCampaignGroup[],
-  asOfDate: string = getAsOfDate(),
+  asOfDate: string = getMelbourneTodayISO(),
 ): DigestCampaignRow[] {
   const rows: DigestCampaignRow[] = []
 
@@ -294,7 +294,7 @@ function adServingDigestChannel(sources: ReadonlyArray<AdServingPacingCampaignRo
  */
 export function buildAdServingDigestCampaignRows(
   sources: AdServingPacingCampaignRow[],
-  asOfDate: string = getAsOfDate(),
+  asOfDate: string = getMelbourneTodayISO(),
 ): DigestCampaignRow[] {
   type Acc = {
     clientName: string
@@ -414,7 +414,7 @@ export function metricsForSourceRow(
  */
 export function buildDigestCampaignRows(
   sources: DigestSourceRow[],
-  asOfDate: string = getAsOfDate(),
+  asOfDate: string = getMelbourneTodayISO(),
 ): DigestCampaignRow[] {
   type Acc = {
     clientName: string

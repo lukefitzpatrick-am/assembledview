@@ -10,7 +10,7 @@ import { addDays, format } from "date-fns"
 
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 function ymd(offsetDays: number): string {
   const [y, m, d] = getMelbourneTodayISO().split("-").map(Number)

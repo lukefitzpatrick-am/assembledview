@@ -6,7 +6,6 @@ import { db } from "@/db"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
-import { getAsOfDate, getMelbourneYesterdayISO } from "@/lib/pacing/maths"
 import { getCachedPlanningMeta } from "@/lib/planning/metaCache"
 import type { OpsCheckResult } from "./types"
 import {
@@ -15,6 +14,8 @@ import {
   rowVolumeStatus,
   worstStatus,
 } from "./status"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const SEARCH_FACT = "ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT"
 const PACING_FACT = "ASSEMBLEDVIEW.MART.PACING_FACT"
@@ -52,15 +53,6 @@ type FreshnessRow = {
   MAX_DATE: string | null
   YDAY_ROWS: number | null
   TRAIL_MEAN: number | null
-}
-
-function addDaysISO(isoDate: string, days: number): string {
-  const ms = Date.parse(`${isoDate}T00:00:00Z`)
-  const dt = new Date(ms + days * 86_400_000)
-  const yyyy = dt.getUTCFullYear()
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(dt.getUTCDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
 }
 
 async function queryPlatformStats(yesterday: string): Promise<FreshnessRow[]> {
@@ -146,7 +138,7 @@ export async function checkWarehouseAndVolume(asOfDate: string): Promise<{
   freshness: OpsCheckResult
   volume: OpsCheckResult
 }> {
-  const yesterday = getMelbourneYesterdayISO(asOfDate)
+  const yesterday = addDaysISO(asOfDate, -1)
   try {
     const rows = await queryPlatformStats(yesterday)
     return checksFromPlatformStats(asOfDate, rows)
@@ -364,7 +356,7 @@ export async function checkXeroStageFailures(
 }
 
 export async function runOpsHealthChecks(now: Date = new Date()) {
-  const asOfDate = getAsOfDate(now)
+  const asOfDate = getMelbourneTodayISO(now)
 
   const [platformChecks, methodology, xeroSync, xeroFailures] = await Promise.all([
     checkWarehouseAndVolume(asOfDate),

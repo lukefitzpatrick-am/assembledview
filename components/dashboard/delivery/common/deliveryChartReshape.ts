@@ -1,5 +1,5 @@
 import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 function formatChartDateLabel(iso: string | undefined): string {
   if (!iso) return ""

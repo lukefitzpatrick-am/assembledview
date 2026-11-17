@@ -1,25 +1,14 @@
 /**
- * Burst calendar-day helpers anchored to Australia/Sydney.
+ * Burst calendar-day helpers anchored to the business zone (Melbourne, which
+ * shares Sydney's offset).
  *
- * Write and read both convert through Sydney civil dates so AEST/AEDT
+ * Write and read both convert through civil dates so AEST/AEDT
  * clients and UTC servers agree. Downstream code should use getFullYear /
  * getMonth / getDate on the Date returned by {@link parseBurstDateLocal}.
  */
+import { toMelbourneDateString } from "@/lib/dates/melbourne"
 
-const SYDNEY_TZ = "Australia/Sydney"
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
-
-const sydneyYmdFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: SYDNEY_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-})
-
-function toSydneyYmd(instant: Date): string {
-  // en-CA + numeric/2-digit parts → YYYY-MM-DD
-  return sydneyYmdFormatter.format(instant)
-}
 
 /**
  * Format a burst date for persist as YYYY-MM-DD in Australia/Sydney.
@@ -32,10 +21,10 @@ export function formatBurstDateLocal(value: Date | string): string {
     if (DATE_ONLY_RE.test(trimmed)) return trimmed
     const instant = new Date(trimmed)
     if (Number.isNaN(instant.getTime())) return ""
-    return toSydneyYmd(instant)
+    return toMelbourneDateString(instant)
   }
   if (Number.isNaN(value.getTime())) return ""
-  return toSydneyYmd(value)
+  return toMelbourneDateString(value)
 }
 
 /**
@@ -55,7 +44,7 @@ export function parseBurstDateLocal(value: string): Date {
     if (Number.isNaN(instant.getTime())) {
       throw new Error(`Invalid burst date string: ${value}`)
     }
-    ymd = toSydneyYmd(instant)
+    ymd = toMelbourneDateString(instant)
   }
 
   const [ys, ms, ds] = ymd.split("-")

@@ -4,8 +4,9 @@ import test from "node:test"
 import { buildTrueUpReport } from "../compute.js"
 import { buildTrueUpCsv, centsToPlain, trueUpCsvFilename, trueUpCsvHeader } from "../csv.js"
 import { parseCsv } from "./csvParse.js"
-import { filterTrueUpRows, sydneyTodayIso, trueUpMonthOptions, trueUpRowSuggestions } from "../viewModel.js"
+import { filterTrueUpRows, trueUpMonthOptions, trueUpRowSuggestions } from "../viewModel.js"
 import { INVOICES, MATCHED_RECORDS, PLANS, SCHEDULE } from "./fixtures.js"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const report = buildTrueUpReport({
   asOfMonth: "2026-09",
@@ -52,5 +53,5 @@ test("month options: last month first, twelve of them, Sydney date", () => {
   assert.equal(opts.length, 12)
   assert.equal(opts[0], "2026-10")
   assert.equal(opts[11], "2025-11")
-  assert.equal(sydneyTodayIso(new Date("2026-10-31T14:30:00Z")), "2026-11-01")
+  assert.equal(getMelbourneTodayISO(new Date("2026-10-31T14:30:00Z")), "2026-11-01")
 })

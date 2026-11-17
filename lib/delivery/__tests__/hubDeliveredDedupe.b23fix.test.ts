@@ -34,8 +34,9 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/direct/fetchDirectPacingRows", {
     namedExports: { fetchDirectPacingRows: async () => directGroups },
   })
-  await mock.module!("@/lib/pacing/maths", {
-    namedExports: { getAsOfDate: () => "2026-11-02" },
+  const dates = await import("../../dates/melbourne.js")
+  await mock.module!("@/lib/dates/melbourne", {
+    namedExports: { ...dates, getMelbourneTodayISO: () => "2026-11-02" },
   })
 }
 

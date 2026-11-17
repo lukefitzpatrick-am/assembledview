@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 
-import { addSydneyDays } from "@/lib/codex/quickAddParse"
 import { listTimeEntryProposalsForWeek } from "@/lib/myhours/proposalRepo"
 import { sydneyWeekRange } from "@/lib/myhours/sydneyWeek"
 import {
@@ -8,6 +7,7 @@ import {
   jsonError,
   requireCodexInternalAccess,
 } from "../../_shared"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export const runtime = "nodejs"
 
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     const proposals = await listTimeEntryProposalsForWeek(weekStart)
     return NextResponse.json({
       week_start: weekStart,
-      week_end: addSydneyDays(weekStart, 6),
+      week_end: addDaysISO(weekStart, 6),
       proposals,
     })
   } catch (error) {

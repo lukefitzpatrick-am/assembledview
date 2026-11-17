@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { requireRole } from "@/lib/requireRole"
 import {
@@ -13,6 +12,7 @@ import {
   upsertDeadlineOverride,
 } from "@/lib/specs/deadlineOverrides"
 import { loadPublishedPlanDeadlineLines } from "@/lib/specs/planDeadlineLines"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -40,7 +40,7 @@ export async function GET(
   const derived = deriveMaterialDeadlines({
     lines,
     overrides,
-    asOfYmd: sydneyCivilParts().ymd,
+    asOfYmd: melbourneParts().ymd,
   })
   return NextResponse.json({
     items: derived.stripItems,

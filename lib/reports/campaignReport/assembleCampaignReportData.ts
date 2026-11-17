@@ -19,7 +19,7 @@ import {
   type ResolvedCampaignReportPeriod,
 } from "@/lib/reports/campaignReport/periods"
 import { impressionsNotTracked, noImpressionTrackingNote } from "@/lib/pacing/expectedForWindow"
-import { computeCampaignDays, computeDaysPassed, computeExpectedPct, getAsOfDate } from "@/lib/pacing/maths"
+import { computeCampaignDays, computeDaysPassed, computeExpectedPct } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
 import {
@@ -64,6 +64,7 @@ import {
 } from "@/lib/delivery/conversions/channelConversions"
 import { loadConversionsForLines } from "@/lib/delivery/conversions/loadConversions"
 import type { ConversionHeadline } from "@/lib/delivery/conversions/rules"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export { formatReportInt, formatReportMoney }
 
@@ -402,7 +403,7 @@ export async function assembleCampaignReportData(
 
   const start = input.campaignStartISO ?? currentWindow.startISO
   const end = input.campaignEndISO ?? currentWindow.endISO
-  const asOf = currentSnap.asOf || getAsOfDate()
+  const asOf = currentSnap.asOf || getMelbourneTodayISO()
   const versionNumber = input.versionNumber ?? currentSnap.versionNumber
   const version =
     versions.find((row) => Number(row.version_number) === versionNumber) ??

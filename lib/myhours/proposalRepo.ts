@@ -3,7 +3,6 @@ import "server-only"
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import { addSydneyDays } from "@/lib/codex/quickAddParse"
 import {
   buildTimeEntryDrafts,
   REFRESHABLE_TIME_ENTRY_PROPOSAL_STATUSES,
@@ -15,6 +14,7 @@ import type {
   TimeEntryProposal,
   TimeEntryProposalPatch,
 } from "@/lib/myhours/timeEntryProposals"
+import { addDaysISO } from "@/lib/dates/civil"
 
 type Db = ReturnType<typeof getDb>
 
@@ -47,7 +47,7 @@ export async function listTimeEntryProposalsForWeek(
   weekStart: string,
   database: Db = getDb()
 ): Promise<TimeEntryProposalListRow[]> {
-  const weekEnd = addSydneyDays(weekStart, 6)
+  const weekEnd = addDaysISO(weekStart, 6)
   const rows = await database
     .select({
       id: schema.avaTimeEntryProposals.id,

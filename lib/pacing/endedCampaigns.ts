@@ -18,6 +18,7 @@
 import { resolveCampaignPhase, sydneyCivilDayFromYmd } from "@/lib/mediaplan/campaignPhase"
 import { statusFromExpectedPct, type ExpectedPaceBand } from "@/lib/pacing/status"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
+import { addDaysISO } from "@/lib/dates/civil"
 
 /** Days an ended campaign stays on the admin pacing lists after its end date. */
 export const ENDED_CAMPAIGN_LISTED_DAYS = 7
@@ -26,11 +27,6 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
 function isIsoDay(value: unknown): value is string {
   return typeof value === "string" && ISO_DAY.test(value)
-}
-
-function addDaysISO(day: string, days: number): string {
-  const ms = Date.parse(`${day}T00:00:00Z`) + days * 86_400_000
-  return new Date(ms).toISOString().slice(0, 10)
 }
 
 /** True when the campaign's end date is before the view day. */

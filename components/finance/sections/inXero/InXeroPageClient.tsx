@@ -18,7 +18,7 @@ import {
   useFinanceScopeApplied,
   useFinanceScopeVersion,
 } from "@/lib/finance/sections/useFinanceScope"
-import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { BUSINESS_TZ, getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import type { ViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
 
@@ -27,7 +27,7 @@ function formatMelbourneStamp(iso: string | null, empty: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return empty
   const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
     hour: "numeric",

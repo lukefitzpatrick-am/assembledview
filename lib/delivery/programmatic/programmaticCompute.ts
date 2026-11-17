@@ -10,7 +10,6 @@ import { formatDateShort } from "@/lib/format/date"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { Dv360DailyRow } from "@/lib/pacing/dv360/dv360Pacing"
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
@@ -42,6 +41,7 @@ import {
   PROGRAMMATIC_DELIVERY_SOURCE_SEED,
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** Payload 2dp, half-up through lib/money (C3a). NaN reads as 0, like the old toFixed path. */
 const round2 = (n: number): number => {

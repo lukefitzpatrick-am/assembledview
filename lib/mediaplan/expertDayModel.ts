@@ -1,6 +1,7 @@
 import { eachDayOfInterval, format, startOfDay } from "date-fns"
 import type { ExpertWeeklyValues } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
+import { toDateOnlyString } from "@/lib/dates/civil"
 
 export type DayKey = string // "yyyy-MM-dd" — a single campaign-clamped calendar day
 export type ExpertDailyValues = Record<DayKey, number | "">
@@ -18,7 +19,6 @@ export interface DayBurstWindow {
   qty: number
 }
 
-const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
 
 function parseYmd(value: string): Date {
   const [y, m, d] = value.split("-").map(Number)
@@ -85,7 +85,7 @@ export function buildDayColumnsForWeek(
   const hi = clampDay(week.weekEnd, campaignStartDate, campaignEndDate)
   if (startOfDay(hi).getTime() < startOfDay(lo).getTime()) return []
   return eachDayOfInterval({ start: lo, end: hi }).map((date) => ({
-    dayKey: ymd(date),
+    dayKey: toDateOnlyString(date),
     date: startOfDay(date),
     weekKey: week.weekKey,
     labelShort: format(date, "EEEEE d"),

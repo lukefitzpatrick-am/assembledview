@@ -13,7 +13,6 @@ import { backOnTrackPlan } from "@/lib/pacing/scenario/backOnTrackPlan"
 import { EMPTY_LEVERS } from "@/lib/pacing/scenario/emptyLevers"
 import { kpiGoalPerDay } from "@/lib/pacing/scenario/kpiGoalPerDay"
 import { narrate } from "@/lib/pacing/scenario/narrate"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import {
@@ -24,6 +23,7 @@ import {
   jsonContent,
   resolveScopedMba,
 } from "./helpers"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const LINE_ALIASES: Record<string, string[]> = {
   search: ["search", "google", "google ads", "sem"],
@@ -366,7 +366,7 @@ export const runScenarioTool: AvaTool = {
       const { buildCampaignDetail, CampaignDetailError } = await import(
         "@/lib/pacing/detail/buildCampaignDetail"
       )
-      const asOf = getAsOfDate()
+      const asOf = getMelbourneTodayISO()
       const payload = await buildCampaignDetail({
         mbaNumber: mba,
         asOfDate: asOf,

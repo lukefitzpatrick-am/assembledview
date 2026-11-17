@@ -14,6 +14,8 @@ import {
   parseEstimateToMinutes,
 } from "./estimateParse.js"
 import { resolveRosterMention, rosterDisplayName } from "./rosterResolve.js"
+import { melbourneParts } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type QuickAddTeamMember = {
   email: string
@@ -66,8 +68,6 @@ export type QuickAddParsed = {
   chips: QuickAddChip[]
 }
 
-const SYDNEY_TZ = "Australia/Sydney"
-
 const WEEKDAYS: Record<string, number> = {
   sunday: 0,
   monday: 1,
@@ -109,56 +109,9 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0")
 }
 
-export function sydneyCivilParts(
-  instant: Date = new Date()
-): { year: number; month: number; day: number; weekday: number; ymd: string } {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: SYDNEY_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-  })
-  const map: Record<string, string> = {}
-  for (const p of fmt.formatToParts(instant)) {
-    if (p.type !== "literal") map[p.type] = p.value
-  }
-  const year = Number(map.year)
-  const month = Number(map.month)
-  const day = Number(map.day)
-  const weekdayName = (map.weekday ?? "Sun").toLowerCase()
-  const weekday =
-    weekdayName.startsWith("sun")
-      ? 0
-      : weekdayName.startsWith("mon")
-        ? 1
-        : weekdayName.startsWith("tue")
-          ? 2
-          : weekdayName.startsWith("wed")
-            ? 3
-            : weekdayName.startsWith("thu")
-              ? 4
-              : weekdayName.startsWith("fri")
-                ? 5
-                : 6
-  return {
-    year,
-    month,
-    day,
-    weekday,
-    ymd: `${year}-${pad2(month)}-${pad2(day)}`,
-  }
-}
-
-export function addSydneyDays(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const dt = new Date(Date.UTC(y!, m! - 1, d! + days))
-  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`
-}
-
 function nextOrSameWeekday(fromYmd: string, fromDow: number, targetDow: number): string {
   let delta = (targetDow - fromDow + 7) % 7
-  return addSydneyDays(fromYmd, delta)
+  return addDaysISO(fromYmd, delta)
 }
 
 function normalizeKey(value: string): string {
@@ -262,7 +215,7 @@ function upcomingMonthDay(
 }
 
 function parseDuePhrase(input: string, now: Date): DueHit | null {
-  const sydney = sydneyCivilParts(now)
+  const sydney = melbourneParts(now)
 
   // due YYYY-MM-DD
   {
@@ -281,7 +234,7 @@ function parseDuePhrase(input: string, now: Date): DueHit | null {
     if (m) {
       const word = m[1]!.toLowerCase()
       const ymd =
-        word === "today" ? sydney.ymd : addSydneyDays(sydney.ymd, 1)
+        word === "today" ? sydney.ymd : addDaysISO(sydney.ymd, 1)
       return {
         ok: true,
         full: m[0],
@@ -660,7 +613,7 @@ function escapeReg(s: string): string {
 
 /** Sydney civil date seven days after today. My week has no lower bound. */
 export function myWeekDueBefore(now: Date = new Date()): string {
-  return addSydneyDays(sydneyCivilParts(now).ymd, 7)
+  return addDaysISO(melbourneParts(now).ymd, 7)
 }
 
 /**
@@ -671,7 +624,7 @@ export function myWeekDueRange(now: Date = new Date()): {
   dueAfter: string
   dueBefore: string
 } {
-  const { ymd } = sydneyCivilParts(now)
+  const { ymd } = melbourneParts(now)
   return {
     dueAfter: ymd,
     dueBefore: myWeekDueBefore(now),

@@ -15,6 +15,7 @@ import type {
   PartnerRawLine,
   PartnerSourceMapRow,
 } from "./types"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type PartnerMailMessage = {
   id: string
@@ -159,15 +160,6 @@ function emptySummary(): PartnerIngestRunSummary {
   }
 }
 
-function melbourneToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date())
-}
-
 function daysBetween(fromYmd: string, toYmd: string): number {
   const from = Date.parse(`${fromYmd}T00:00:00Z`)
   const to = Date.parse(`${toYmd}T00:00:00Z`)
@@ -184,7 +176,7 @@ async function collectStaleSources(
   if (watched.length === 0) return []
   const labels = [...new Set(watched.map((m) => m.sourceLabel))]
   const maxes = await deps.snowflake.loadMaxReportDates(labels)
-  const today = deps.today ?? melbourneToday()
+  const today = deps.today ?? getMelbourneTodayISO()
   const stale: PartnerIngestRunSummary["staleSources"] = []
   const seen = new Set<string>()
   for (const map of watched) {

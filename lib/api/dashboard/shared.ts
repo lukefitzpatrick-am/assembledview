@@ -2,6 +2,7 @@
  * Shared internal helpers for lib/api/dashboard/* modules.
  */
 import { slugifyClientNameForUrl } from '@/lib/clients/slug'
+import { melbourneInstant, melbourneParts } from '@/lib/dates/melbourne'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 import {
   parseVersionNumber,
@@ -10,7 +11,6 @@ import {
 import { parseMoney as parseMoneyAmount } from "@/lib/money"
 import { MEDIA_TYPE_LABELS } from '@/lib/media/mediaTypes'
 
-export const MELBOURNE_TZ = 'Australia/Melbourne'
 export const DAY_MS = 24 * 60 * 60 * 1000
 
 export const isDashboardDebug = () => process.env.NEXT_PUBLIC_DEBUG_DASHBOARD === 'true'
@@ -157,57 +157,10 @@ export function getAustralianFinancialYear(date = new Date()) {
   return { start, end, months }
 }
 
-export type TzParts = { year: number; month: number; day: number; hour: number; minute: number; second: number }
-
-export function getTzParts(date: Date, timeZone = MELBOURNE_TZ): TzParts {
-  const formatter = new Intl.DateTimeFormat('en-AU', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  const parts = formatter.formatToParts(date).reduce<Record<string, number>>((acc, part) => {
-    if (part.type !== 'literal') {
-      acc[part.type] = Number(part.value)
-    }
-    return acc
-  }, {})
-
-  return {
-    year: parts.year,
-    month: parts.month,
-    day: parts.day,
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  }
-}
-
-export function makeZonedDate(
-  year: number,
-  monthIndex: number,
-  day: number,
-  hour = 0,
-  minute = 0,
-  second = 0,
-  ms = 0,
-  timeZone = MELBOURNE_TZ,
-): Date {
-  const utcGuess = Date.UTC(year, monthIndex, day, hour, minute, second, ms)
-  const parts = getTzParts(new Date(utcGuess), timeZone)
-  const asLocal = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, ms)
-  const offset = asLocal - utcGuess
-  return new Date(utcGuess - offset)
-}
-
 export function getTodayWindow() {
-  const parts = getTzParts(new Date())
-  const start = makeZonedDate(parts.year, parts.month - 1, parts.day, 0, 0, 0, 0)
-  const end = makeZonedDate(parts.year, parts.month - 1, parts.day, 23, 59, 59, 999)
+  const parts = melbourneParts(new Date())
+  const start = melbourneInstant(parts.year, parts.month, parts.day, 0, 0, 0, 0)
+  const end = melbourneInstant(parts.year, parts.month, parts.day, 23, 59, 59, 999)
   return { start, end }
 }
 
@@ -218,11 +171,11 @@ export function getLast30DaysWindow() {
 }
 
 export function getAustralianFinancialYearWindow(reference: Date = new Date()) {
-  const parts = getTzParts(reference)
+  const parts = melbourneParts(reference)
   const isAfterJune = parts.month >= 7 // July is month 7 in 1-based parts
   const startYear = isAfterJune ? parts.year : parts.year - 1
-  const start = makeZonedDate(startYear, 6, 1, 0, 0, 0, 0) // July 1
-  const end = makeZonedDate(startYear + 1, 5, 30, 23, 59, 59, 999) // June 30
+  const start = melbourneInstant(startYear, 7, 1, 0, 0, 0, 0) // July 1
+  const end = melbourneInstant(startYear + 1, 6, 30, 23, 59, 59, 999) // June 30
   return { start, end }
 }
 
@@ -279,8 +232,8 @@ export function parseMonthYearLabel(label: any): { start: Date; end: Date } | nu
 
   if (year === null || monthIndex === null || monthIndex < 0 || monthIndex > 11) return null
 
-  const start = makeZonedDate(year, monthIndex, 1, 0, 0, 0, 0)
-  const end = makeZonedDate(year, monthIndex + 1, 0, 23, 59, 59, 999) // day 0 of next month = last day current
+  const start = melbourneInstant(year, monthIndex + 1, 1, 0, 0, 0, 0)
+  const end = melbourneInstant(year, monthIndex + 2, 0, 23, 59, 59, 999) // day 0 of next month = last day current
   return { start, end }
 }
 
@@ -394,24 +347,11 @@ export function computeSpendFromDelivery(
 
     // Daily entry: include if inside window
     if (explicitDate) {
-      const dayStart = makeZonedDate(
-        explicitDate.getUTCFullYear(),
-        explicitDate.getUTCMonth(),
-        explicitDate.getUTCDate(),
-        0,
-        0,
-        0,
-        0,
-      )
-      const dayEnd = makeZonedDate(
-        explicitDate.getUTCFullYear(),
-        explicitDate.getUTCMonth(),
-        explicitDate.getUTCDate(),
-        23,
-        59,
-        59,
-        999,
-      )
+      const y = explicitDate.getUTCFullYear()
+      const m = explicitDate.getUTCMonth() + 1
+      const d = explicitDate.getUTCDate()
+      const dayStart = melbourneInstant(y, m, d)
+      const dayEnd = melbourneInstant(y, m, d, 23, 59, 59, 999)
       if (dayEnd >= windows.last30d.start && dayStart <= windows.last30d.end) {
         last30d += amount
       }

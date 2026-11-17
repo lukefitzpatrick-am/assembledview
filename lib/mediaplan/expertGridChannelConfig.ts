@@ -3,7 +3,6 @@
  * Columns, buy/bid options, labels, fee wiring, and empty-row factory live here —
  * the grid shell stays channel-agnostic.
  */
-import { format, startOfDay } from "date-fns"
 import type { ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type {
@@ -56,6 +55,7 @@ import {
 } from "@/lib/mediaplan/expertOohFuzzyMatch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
+import { toDateOnlyString } from "@/lib/dates/civil"
 
 type ExpertGridPublisherField = "platform" | "network" | "publisher"
 
@@ -288,15 +288,14 @@ export function createEmptySearchExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): SearchExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -431,15 +430,14 @@ export function createEmptyProgVideoExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProgVideoExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -577,15 +575,14 @@ export function createEmptyProgDisplayExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProgDisplayExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -723,15 +720,14 @@ export function createEmptyProgAudioExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProgAudioExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -869,15 +865,14 @@ export function createEmptyProgBvodExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProgBvodExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -1014,15 +1009,14 @@ export function createEmptyProgOohExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProgOohExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -1162,15 +1156,14 @@ export function createEmptySocialMediaExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): SocialMediaExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     bidStrategy: "",
     buyType: "",
@@ -1328,7 +1321,6 @@ export function createEmptyOohExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): OohExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
@@ -1340,8 +1332,8 @@ export function createEmptyOohExpertRow(
     format: "",
     type: "",
     placement: "",
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     size: "",
     panels: "",
     buyingDemo: "",
@@ -1694,15 +1686,14 @@ export function createEmptyDigitalDisplayExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): DigitalDisplayExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     publisher: "",
     site: "",
@@ -1816,15 +1807,14 @@ export function createEmptyDigiVideoExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): DigiVideoExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     publisher: "",
     site: "",
@@ -1947,15 +1937,14 @@ export function createEmptyDigitalAudioExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): DigitalAudioExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     publisher: "",
     site: "",
@@ -2078,15 +2067,14 @@ export function createEmptyBvodExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): BvodExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     publisher: "",
     site: "",
@@ -2210,15 +2198,14 @@ export function createEmptyTelevisionExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): TelevisionExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     market: "",
     network: "",
     station: "",
@@ -2348,15 +2335,14 @@ export function createEmptyRadioExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): RadioExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     network: "",
     station: "",
     market: "",
@@ -2464,15 +2450,14 @@ export function createEmptyCinemaExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): CinemaExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     network: "",
     station: "",
     market: "",
@@ -2580,15 +2565,14 @@ export function createEmptyNewspaperExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): NewspaperExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     network: "",
     publisher: "",
     title: "",
@@ -2705,15 +2689,14 @@ export function createEmptyMagazinesExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): MagazinesExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     network: "",
     title: "",
     buyType: "",
@@ -2838,15 +2821,14 @@ export function createEmptyInfluencersExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): InfluencersExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     objective: "",
     campaign: "",
@@ -3018,15 +3000,14 @@ export function createEmptyIntegrationExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): IntegrationExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     platform: "",
     objective: "",
     campaign: "",
@@ -3169,15 +3150,14 @@ export function createEmptyProductionExpertRow(
   campaignEndDate: Date,
   weekKeys: string[]
 ): ProductionExpertScheduleRow {
-  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
   const weeklyValues = {} as ExpertWeeklyValues
   for (const k of weekKeys) {
     weeklyValues[k] = ""
   }
   return {
     id,
-    startDate: ymd(campaignStartDate),
-    endDate: ymd(campaignEndDate),
+    startDate: toDateOnlyString(campaignStartDate),
+    endDate: toDateOnlyString(campaignEndDate),
     mediaType: "",
     publisher: "",
     description: "",

@@ -4,6 +4,7 @@
 
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { formatReportDate } from "@/lib/reports/campaignReport/formatters"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type CampaignReportPeriodKind =
   | "this_month"
@@ -37,13 +38,6 @@ function parseYmd(iso: string): { y: number; m: number; d: number } {
 
 function ymd(y: number, m: number, d: number): string {
   return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`
-}
-
-function addDaysISO(iso: string, days: number): string {
-  const { y, m, d } = parseYmd(iso)
-  const dt = new Date(Date.UTC(y, m - 1, d, 0, 0, 0))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 function daysInclusive(startISO: string, endISO: string): number {

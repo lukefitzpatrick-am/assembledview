@@ -1,20 +1,20 @@
 /**
- * B43 (B34 Q4): one Melbourne date helper family. `lib/pacing/pacingWindow`
- * (`getMelbourneTodayISO`), `lib/pacing/maths` (`getAsOfDate`,
- * `getMelbourneYesterdayISO`) and `resolveMonthLocks.currentSydneyMonth`
- * delegate to `lib/dates/melbourne.ts`. Pure refactor: each new function
- * gives the same output as its old body (copied verbatim below) over a
- * 3-year sweep of instants (every hour of 2025 to 2027, plus every minute
- * for two hours either side of each daylight saving change and each month
- * boundary), and Sydney and Melbourne share one zone over the sweep.
+ * B43 (B34 Q4), B49: one Melbourne date helper family. B43 made the pacing
+ * "today" (`pacingWindow`), `maths.getAsOfDate`, `maths.getMelbourneYesterdayISO`
+ * and `resolveMonthLocks.currentSydneyMonth` delegate to `lib/dates`; B49
+ * deleted those wrappers and their importers call `lib/dates` directly.
+ * Each `lib/dates` function gives the same output as the old body (copied
+ * verbatim below) over a 3-year sweep of instants (every hour of 2025 to
+ * 2027, plus every minute for two hours either side of each daylight saving
+ * change and each month boundary), and Sydney and Melbourne share one zone
+ * over the sweep.
  */
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 
-import { getMelbourneMonthISO, getMelbourneTodayISO, getMelbourneYesterdayISO as datesYesterday, shiftISODate } from "../melbourne"
-import { getMelbourneTodayISO as pacingToday, getPacingWindow } from "../../pacing/pacingWindow"
-import { getAsOfDate, getMelbourneYesterdayISO as mathsYesterday } from "../../pacing/maths"
-import { currentSydneyMonth } from "../../finance/revisions/resolveMonthLocks"
+import { addDaysISO } from "../civil"
+import { getMelbourneMonthISO, getMelbourneTodayISO, getMelbourneYesterdayISO as datesYesterday, melbourneParts } from "../melbourne"
+import { getPacingWindow } from "../../pacing/pacingWindow"
 
 // ---------------------------------------------------------------------------
 // The old bodies (before B43). B43fix (R4): each old body built a new
@@ -120,26 +120,25 @@ test("Sydney and Melbourne are one zone over the whole sweep (day and month)", (
   }
 })
 
-test("currentSydneyMonth, getAsOfDate and lib/dates give the old outputs at every instant", () => {
+test("lib/dates gives the old currentSydneyMonth and getAsOfDate outputs at every instant", () => {
   for (const o of OLD) {
-    same(currentSydneyMonth(o.d), o.sydneyMonth, "currentSydneyMonth", o.d)
-    same(getAsOfDate(o.d), o.day, "getAsOfDate", o.d)
     same(getMelbourneTodayISO(o.d), o.day, "getMelbourneTodayISO", o.d)
+    same(melbourneParts(o.d).ymd, o.day, "melbourneParts", o.d)
     same(getMelbourneMonthISO(o.d), o.sydneyMonth, "getMelbourneMonthISO", o.d)
   }
 })
 
-test("maths getMelbourneYesterdayISO (with a date) gives the old output for every day of the sweep, and lib/dates agrees", () => {
+test("addDaysISO(day, -1) gives the old maths yesterday for every day of the sweep, and lib/dates yesterday agrees", () => {
   for (const o of OLD) {
     const want = oldMathsYesterday(o.day)
-    same(mathsYesterday(o.day), want, "maths yesterday", o.d)
+    same(addDaysISO(o.day, -1), want, "addDaysISO yesterday", o.d)
     same(datesYesterday(o.d), want, "lib/dates yesterday", o.d)
   }
-  assert.equal(shiftISODate("2028-03-01", -1), "2028-02-29")
-  assert.equal(shiftISODate("2026-12-31", 1), "2027-01-01")
+  assert.equal(addDaysISO("2028-03-01", -1), "2028-02-29")
+  assert.equal(addDaysISO("2026-12-31", 1), "2027-01-01")
 })
 
-test("maths getMelbourneYesterdayISO: a bad date still throws the same error", () => {
+test("addDaysISO(day, -1): a bad date throws where the old maths yesterday threw, and agrees where it did not", () => {
   for (const bad of ["abc", "2026-1-5", "", "2026-13-01", "2026-02-30", "2026-02-31", "2026-04-31", " 2026-01-01"]) {
     let oldErr: unknown = null
     let newErr: unknown = null
@@ -151,22 +150,22 @@ test("maths getMelbourneYesterdayISO: a bad date still throws the same error", (
       oldErr = e
     }
     try {
-      newOut = mathsYesterday(bad)
+      newOut = addDaysISO(bad, -1)
     } catch (e) {
       newErr = e
     }
     assert.equal(newOut, oldOut, bad)
-    assert.equal(String(newErr), String(oldErr), bad)
+    assert.equal(newErr == null, oldErr == null, bad)
   }
 })
 
-test("the no-argument forms read the clock the same way (pacing today, maths today and yesterday, the pacing window)", (t) => {
+test("the no-argument forms read the clock the same way (today, yesterday, the pacing window)", (t) => {
   for (const d of INSTANTS.filter((_, i) => i % 97 === 0)) {
     t.mock.timers.enable({ apis: ["Date"], now: d.getTime() })
     try {
-      assert.equal(pacingToday(), oldPacingToday(d), d.toISOString())
-      assert.equal(getAsOfDate(), oldGetAsOfDate(d), d.toISOString())
-      assert.equal(mathsYesterday(), oldMathsYesterday(oldGetAsOfDate(d)), d.toISOString())
+      assert.equal(getMelbourneTodayISO(), oldPacingToday(d), d.toISOString())
+      assert.equal(getMelbourneTodayISO(), oldGetAsOfDate(d), d.toISOString())
+      assert.equal(datesYesterday(), oldMathsYesterday(oldGetAsOfDate(d)), d.toISOString())
       const today = oldPacingToday(d)
       assert.deepEqual(getPacingWindow("2025-01-01", "2026-06-30"), {
         campaignStartISO: "2025-01-01",

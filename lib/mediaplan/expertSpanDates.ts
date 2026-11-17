@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format, startOfDay } from "date-fns"
+import { addDays, differenceInCalendarDays, startOfDay } from "date-fns"
 import {
   clampDateToCampaignRange,
   type WeeklyGanttWeekColumn,
@@ -13,6 +13,7 @@ import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import { toDateOnlyString } from "@/lib/dates/civil"
 
 /** Span fields that may carry exact burst-window overrides (ISO yyyy-MM-dd). */
 export type ExpertSpanDateOverrides = Readonly<{
@@ -26,9 +27,6 @@ export type ExpertSpanWithWeekRange = ExpertSpanDateOverrides &
     endWeekKey: string
   }>
 
-function formatYmd(d: Date): string {
-  return format(startOfDay(d), "yyyy-MM-dd")
-}
 
 function parseYmd(ymd: string): Date | null {
   const d = startOfDay(new Date(`${ymd}T12:00:00`))
@@ -75,7 +73,7 @@ export function weekWindowYmdForSpan(
     campaignStartDate,
     campaignEndDate
   )
-  return { startYmd: formatYmd(start), endYmd: formatYmd(end) }
+  return { startYmd: toDateOnlyString(start), endYmd: toDateOnlyString(end) }
 }
 
 /**
@@ -220,8 +218,8 @@ export function tryImportMultiWeekBurstAsMergedSpan(
       startWeekKey,
       endWeekKey,
       totalQty,
-      startYmd: formatYmd(clampedStart),
-      endYmd: formatYmd(clampedEnd),
+      startYmd: toDateOnlyString(clampedStart),
+      endYmd: toDateOnlyString(clampedEnd),
       ...(params.buyType ? { buyType: params.buyType } : {}),
       ...(params.gross != null && Number.isFinite(params.gross)
         ? { gross: params.gross }
@@ -244,7 +242,7 @@ export function burstYmdOverridesForImport(
   const end = startOfDay(
     clampDateToCampaignRange(burstEnd, campaignStartDate, campaignEndDate)
   )
-  return { startYmd: formatYmd(start), endYmd: formatYmd(end) }
+  return { startYmd: toDateOnlyString(start), endYmd: toDateOnlyString(end) }
 }
 
 export type SpanEdgeResizeMode = "day" | "week"
@@ -308,7 +306,7 @@ function daysInclusiveBetween(startYmd: string, endYmd: string): number {
 function addDaysYmd(ymd: string, delta: number): string | null {
   const d = parseYmd(ymd)
   if (!d) return null
-  return formatYmd(addDays(d, delta))
+  return toDateOnlyString(addDays(d, delta))
 }
 
 export type SpanEdgeDayDeltaBounds = Readonly<{
@@ -338,8 +336,8 @@ export function spanEdgeDayDeltaBounds(
   )
   if (!bounds) return null
 
-  const campaignStartYmd = formatYmd(campaignStartDate)
-  const campaignEndYmd = formatYmd(campaignEndDate)
+  const campaignStartYmd = toDateOnlyString(campaignStartDate)
+  const campaignEndYmd = toDateOnlyString(campaignEndDate)
   const edgeYmd =
     edge === "start" ? bounds.startYmd : bounds.endYmd
   const spanDays = daysInclusiveBetween(bounds.startYmd, bounds.endYmd)
@@ -475,8 +473,8 @@ export function resizeSpanEdgeByDays(
   const newEdgeYmd = addDaysYmd(edgeYmd, clampedDelta)
   if (!newEdgeYmd) return null
 
-  const campaignStartYmd = formatYmd(campaignStartDate)
-  const campaignEndYmd = formatYmd(campaignEndDate)
+  const campaignStartYmd = toDateOnlyString(campaignStartDate)
+  const campaignEndYmd = toDateOnlyString(campaignEndDate)
   const clampedEdge =
     newEdgeYmd < campaignStartYmd
       ? campaignStartYmd
@@ -719,8 +717,8 @@ export function enumerateExpertRowScheduledElements(
         kind: "weekCell",
         weekKey: col.weekKey,
         qty: weekCellQty(row.weeklyValues[col.weekKey]),
-        startYmd: formatYmd(start),
-        endYmd: formatYmd(end),
+        startYmd: toDateOnlyString(start),
+        endYmd: toDateOnlyString(end),
       })
     }
   }
@@ -787,8 +785,8 @@ export function deriveExpertRowScheduleYmdFromRow(
   )
   if (elements.length === 0) {
     return {
-      startDate: formatYmd(campaignStartDate),
-      endDate: formatYmd(campaignEndDate),
+      startDate: toDateOnlyString(campaignStartDate),
+      endDate: toDateOnlyString(campaignEndDate),
     }
   }
   let startDate = elements[0]!.startYmd
@@ -832,8 +830,8 @@ function clampYmdToCampaign(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): string {
-  const campaignStartYmd = formatYmd(campaignStartDate)
-  const campaignEndYmd = formatYmd(campaignEndDate)
+  const campaignStartYmd = toDateOnlyString(campaignStartDate)
+  const campaignEndYmd = toDateOnlyString(campaignEndDate)
   if (ymd < campaignStartYmd) return campaignStartYmd
   if (ymd > campaignEndYmd) return campaignEndYmd
   return ymd
@@ -878,7 +876,7 @@ function clampEdgeTargetYmd(
       while (ymd < cursor) {
         const prev = addDaysYmd(cursor, -1)
         if (!prev) break
-        if (prev < formatYmd(campaignStartDate)) break
+        if (prev < toDateOnlyString(campaignStartDate)) break
         const wk = weekKeyForYmd(prev, dayKeysByWeekKey)
         if (wk !== null && weekBlocked(wk) && wk !== element.weekKey) break
         cursor = prev
@@ -913,7 +911,7 @@ function clampEdgeTargetYmd(
     while (ymd > cursor) {
       const next = addDaysYmd(cursor, 1)
       if (!next) break
-      if (next > formatYmd(campaignEndDate)) break
+      if (next > toDateOnlyString(campaignEndDate)) break
       const wk = weekKeyForYmd(next, dayKeysByWeekKey)
       if (wk !== null && weekBlocked(wk) && wk !== element.weekKey) break
       cursor = next

@@ -6,29 +6,19 @@
 import {
   TRUE_UP_COMPONENTS,
   TRUE_UP_COMPONENT_LABELS,
-  addMonths,
   defaultTrueUpAsOf,
   needsAction,
   type TrueUpMbaRow,
   type TrueUpSkipped,
 } from "./compute"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type TrueUpView = "action" | "all"
-
-/** Sydney calendar date, YYYY-MM-DD. */
-export function sydneyTodayIso(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
-}
 
 /** The default as-of month and the 11 before it, newest first. */
 export function trueUpMonthOptions(todayIso: string): string[] {
   const latest = defaultTrueUpAsOf(todayIso)
-  return Array.from({ length: 12 }, (_, i) => addMonths(latest, -i))
+  return Array.from({ length: 12 }, (_, i) => addMonthsISO(latest, -i))
 }
 
 export function trueUpMonthLabel(month: string): string {

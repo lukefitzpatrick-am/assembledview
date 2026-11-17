@@ -7,6 +7,7 @@ import {
   SAVE_PUBLISHES_IMMEDIATELY,
   type ResolvePostgresSaveModeResult,
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 export type PlanSavePill = {
   primary: string
@@ -106,7 +107,7 @@ export function formatDraftOfferTimestamp(updatedAt: string): string {
   const when = new Date(updatedAt)
   if (Number.isNaN(when.getTime())) return updatedAt
   return when.toLocaleString("en-AU", {
-    timeZone: "Australia/Melbourne",
+    timeZone: BUSINESS_TZ,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -122,7 +123,7 @@ export function formatDraftSavedTime(when: Date | string = new Date()): string {
   if (Number.isNaN(date.getTime())) return typeof when === "string" ? when : ""
   return date
     .toLocaleTimeString("en-AU", {
-      timeZone: "Australia/Melbourne",
+      timeZone: BUSINESS_TZ,
       hour: "numeric",
       minute: "2-digit",
       hour12: true,

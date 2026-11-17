@@ -9,10 +9,7 @@ import type { SavedScenario } from "@/lib/pacing/scenario/savedScenarios"
 import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 import { ScenarioPlannerPanel } from "./ScenarioPlannerPanel"
 import { codexContainedWritesOn } from "@/lib/codex/containedWrites"
-
-function melbourneDate(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date())
-}
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 function linesFromPayload(payload: CampaignDetailPayload, asOf: string): ScenarioLine[] {
   if (payload.scenarioLines?.length) return payload.scenarioLines
@@ -34,7 +31,7 @@ export function ScenarioPlannerDrawer({
 }) {
   const [mbaInput, setMbaInput] = useState(mba ?? "")
   const [activeMba, setActiveMba] = useState(mba ?? "")
-  const resolvedAsOf = asOf ?? melbourneDate()
+  const resolvedAsOf = asOf ?? getMelbourneTodayISO()
   const [payload, setPayload] = useState<CampaignDetailPayload | null>(null)
   const [saved, setSaved] = useState<SavedScenario[]>([])
   const [loading, setLoading] = useState(false)

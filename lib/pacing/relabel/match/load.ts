@@ -10,6 +10,7 @@ import { querySnowflake } from "@/lib/snowflake/query"
 import { PACING_FACT, SEARCH_PACING_FACT, SOCIAL_PACING_FACT } from "../shared/types"
 import { buildMatchSuggestions, classifyMatch, parseMatchLineId, summariseMatch, type RawMatchEntity } from "./rules"
 import type { MatchCampaignOption, MatchClientOption, MatchPayload, MatchPlanLine } from "./types"
+import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 
 /** How far back delivery is read: about 18 months. */
 export const MATCH_LOOKBACK_DAYS = 548
@@ -35,23 +36,12 @@ function burstRange(bursts: unknown): { startDate: string | null; endDate: strin
     if (!b || typeof b !== "object") continue
     const row = b as Record<string, unknown>
     // Bursts store UTC instants of Sydney midnight (e.g. 2025-12-31T13:00:00.000Z is 1 Jan).
-    const s = toSydneyYmd(row.startDate)
-    const e = toSydneyYmd(row.endDate)
+    const s = normalizeDateToMelbourneISO(row.startDate)
+    const e = normalizeDateToMelbourneISO(row.endDate)
     if (s && (!startDate || s < startDate)) startDate = s
     if (e && (!endDate || e > endDate)) endDate = e
   }
   return { startDate, endDate }
-}
-
-function toSydneyYmd(value: unknown): string | null {
-  if (value == null || value === "") return null
-  const s = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  try {
-    return sydneyYmdFromUtcInstant(s)
-  } catch {
-    return null
-  }
 }
 
 /** Clients with at least one published campaign, for the client dropdown. */

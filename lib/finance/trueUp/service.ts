@@ -22,7 +22,6 @@ import {
   type PreviewOk,
   type ServiceError,
 } from "@/lib/finance/revisions/revisionService"
-import { currentSydneyMonth } from "@/lib/finance/revisions/resolveMonthLocks"
 import type { RestoreTarget, RevisionOptions, TrueUpRequest } from "@/lib/finance/revisions/types"
 import { rowsOf } from "@/lib/xero/dbRows"
 
@@ -41,6 +40,7 @@ import { buildTrueUpFixRequest, sameTrueUpActuals, trueUpLedgerDrafts, type True
 import { TRUE_UP_NOT_READY_MESSAGE, isTrueUpActionsEnabled } from "./flag"
 import { loadTrueUp } from "./load"
 import { isTrueUpMigrationApplied } from "./marker"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 function err(status: number, code: string, message: string, extra: Partial<ServiceError> = {}): ServiceError {
   return { ok: false, status, code, message, ...extra }
@@ -120,7 +120,7 @@ export async function previewTrueUpFix(args: {
     row: found.row,
     asOfMonth: args.asOfMonth,
     fromMonth,
-    currentMonth: currentSydneyMonth(now),
+    currentMonth: getMelbourneMonthISO(now),
     choice: args.choice,
   })
   if (!built.ok) return err(422, "TRUE_UP_BAD_REQUEST", built.message)
@@ -244,7 +244,7 @@ export async function applyTrueUpFromToken(args: {
         row: found.row,
         asOfMonth: request.asOfMonth,
         fromMonth,
-        currentMonth: currentSydneyMonth(now),
+        currentMonth: getMelbourneMonthISO(now),
         choice: { components: request.components, strategy: request.strategy, noInvoiceMonths: request.noInvoiceMonths },
       })
       if (!rebuilt.ok || !sameTrueUpActuals(rebuilt.request, request)) {
@@ -357,7 +357,7 @@ export async function previewTrueUpUndo(args: {
   }
   const target = rev.diff?.restore
   if (!target || typeof target !== "object") return err(409, "NOT_UNDOABLE", "This true-up has no undo data.")
-  const fixedAtMonth = currentSydneyMonth(new Date(rev.created_at))
+  const fixedAtMonth = getMelbourneMonthISO(new Date(rev.created_at))
   return previewRevision({
     mbaNumber: rev.mba_number,
     request: { mode: "true_up_restore", target, fixedAtMonth },

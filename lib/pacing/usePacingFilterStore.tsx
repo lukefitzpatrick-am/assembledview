@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useRef, type ReactNode } from "react"
 import { createStore, useStore } from "zustand"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import type { PacingFiltersSnapshot } from "@/lib/pacing/pacingFilters"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type PacingFilterState = PacingFiltersSnapshot
 
@@ -13,7 +13,7 @@ export function createDefaultPacingFilters(): PacingFilterState {
     client_ids: [],
     media_types: [],
     statuses: [],
-    as_of_date: getAsOfDate(),
+    as_of_date: getMelbourneTodayISO(),
     search: "",
   }
 }

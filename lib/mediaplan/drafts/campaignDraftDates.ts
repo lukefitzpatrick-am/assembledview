@@ -1,4 +1,5 @@
-import { parseDateOnlyString, toDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
+import { parseDateOnlyString, toDateOnlyString } from "@/lib/dates/civil"
+import { toMelbourneDateString } from "@/lib/dates/melbourne"
 
 /** Campaign date fields on the create and edit forms. */
 export const DRAFT_CAMPAIGN_DATE_FIELDS = [

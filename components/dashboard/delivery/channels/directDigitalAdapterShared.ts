@@ -31,7 +31,6 @@ import { CLIENT_REPORTED_SPEND_LABEL } from "@/components/dashboard/delivery/sha
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import { sumReportedSpend } from "@/lib/delivery/programmatic/applyReportedSpend"
 import type { ProgressCardProps } from "../shared/ProgressCard"
@@ -63,6 +62,7 @@ import {
   type PacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** Schedule media type for the fee snapshot, per Direct Booked Digital container. */
 const FEE_MEDIA_TYPE: Record<string, string> = {

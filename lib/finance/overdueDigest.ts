@@ -13,7 +13,6 @@ import { sql } from "drizzle-orm"
 import { getDb } from "@/db"
 import { overdueDigestSends } from "@/db/schema/overdueDigestSends"
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { getOpsEmailRecipients, sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
 import { formatMoney } from "@/lib/format/money"
 import { bucketForDaysOverdue, daysOverdue } from "@/lib/finance/sections/owedLedger"
@@ -23,6 +22,7 @@ import { FY26_AR_START } from "@/lib/xero/contactLinks"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 import { isFeatureOn } from "@/lib/features/server"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export const NO_CLIENT_LINK_LABEL = "No client link"
 
@@ -409,7 +409,7 @@ export async function runOverdueDigest(io: Partial<OverdueDigestIo> = {}): Promi
   const enabled = io.enabled ?? (await isOverdueDigestEnabled())
   if (!enabled) return { skipped: "disabled" }
 
-  const civil = sydneyCivilParts(io.now ?? new Date())
+  const civil = melbourneParts(io.now ?? new Date())
   if (civil.weekday === 0 || civil.weekday === 6) return { skipped: "weekend" }
 
   const alreadySent = io.alreadySent ?? productionAlreadySent

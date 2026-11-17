@@ -4,7 +4,8 @@
  * Pure: no Snowflake, no React.
  */
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
-import { addDaysISO, buildDateListISO } from "@/lib/delivery/search/searchCore"
+import { addDaysISO } from "@/lib/dates/civil"
+import { buildDateListISO } from "@/lib/delivery/search/searchCore"
 import { roundMoney2 } from "@/lib/money"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import { campaignReportChannelLabel } from "@/lib/reports/campaignReport/reportFigures"

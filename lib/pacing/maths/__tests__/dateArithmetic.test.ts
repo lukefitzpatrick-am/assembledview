@@ -5,8 +5,8 @@ import {
   computeCampaignDays,
   computeDaysPassed,
   computeDaysRemaining,
-  getAsOfDate,
 } from "../index.js"
+import { getMelbourneTodayISO } from "../../../dates/melbourne.js"
 
 test("future campaign: daysPassed 0, daysRemaining equals campaignDays", () => {
   const start = "2026-06-01"
@@ -60,13 +60,13 @@ test("div0 matches Snowflake DIV0", () => {
   assert.equal(div0(10, Number.NaN), 0)
 })
 
-test("getAsOfDate returns YYYY-MM-DD", () => {
-  const s = getAsOfDate(new Date("2026-05-14T12:00:00.000Z"))
+test("the as-of day (Melbourne today) returns YYYY-MM-DD", () => {
+  const s = getMelbourneTodayISO(new Date("2026-05-14T12:00:00.000Z"))
   assert.match(s, /^\d{4}-\d{2}-\d{2}$/)
 })
 
-test("getAsOfDate is the Melbourne day, not the UTC day (orphan admin as-of)", () => {
+test("the as-of day is the Melbourne day, not the UTC day (orphan admin as-of)", () => {
   const morningMelbourne = new Date("2026-10-20T20:00:00.000Z")
   assert.equal(morningMelbourne.toISOString().slice(0, 10), "2026-10-20")
-  assert.equal(getAsOfDate(morningMelbourne), "2026-10-21")
+  assert.equal(getMelbourneTodayISO(morningMelbourne), "2026-10-21")
 })

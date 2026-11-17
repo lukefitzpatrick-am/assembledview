@@ -1,6 +1,7 @@
 import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { querySnowflake } from "@/lib/snowflake/query"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const QUERY_ROW_LIMIT = 50000
 // 400 days: annual plans (Jan to Dec) plus a buffer. 180 cut off anything older
@@ -74,13 +75,6 @@ function normalizeDateString(value?: string | null) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return null
   return parsed.toISOString().slice(0, 10)
-}
-
-function addDaysISO(isoDate: string, days: number): string {
-  const [y, m, d] = isoDate.split("-").map((v) => Number(v))
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 function buildDateRange(startDate?: string, endDate?: string) {

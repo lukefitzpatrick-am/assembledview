@@ -134,6 +134,7 @@ import {
 } from "@/lib/codex/types"
 import { parentLinkLabel } from "@/lib/codex/taskDetail"
 import type { TeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 function teamTasksHref(email: string, kind: "open" | "overdue"): string {
   const assignee = encodeURIComponent(email.trim())
@@ -157,7 +158,6 @@ type ClientOption = {
   slug?: string
 }
 
-const SYDNEY_TZ = "Australia/Sydney"
 const PER_PAGE = 100
 const BOARD_PER_PAGE = 50
 
@@ -209,7 +209,7 @@ function formatUpdatedAt(value: string | null | undefined): string {
   const d = parseISO(value)
   if (!isValid(d)) return value
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TZ,
+    timeZone: BUSINESS_TZ,
     day: "2-digit",
     month: "short",
     year: "numeric",

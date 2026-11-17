@@ -25,13 +25,13 @@ import { toast } from "@/components/ui/use-toast"
 import { trueUpCsvFilename } from "@/lib/finance/trueUp/csv"
 import {
   filterTrueUpRows,
-  sydneyTodayIso,
   trueUpMonthLabel,
   trueUpMonthOptions,
   trueUpRowSuggestions,
   trueUpSkippedLines,
   type TrueUpView,
 } from "@/lib/finance/trueUp/viewModel"
+import { BUSINESS_TZ, getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const VIEW_OPTIONS: { value: TrueUpView; label: string }[] = [
   { value: "action", label: "Needs action" },
@@ -312,7 +312,7 @@ function UnattributedTable({
 }
 
 export function TrueUpPageClient() {
-  const today = useMemo(() => sydneyTodayIso(), [])
+  const today = useMemo(() => getMelbourneTodayISO(), [])
   const monthOptions = useMemo(() => trueUpMonthOptions(today), [today])
   const [asOf, setAsOf] = useState<string>(() => monthOptions[0]!)
   const [view, setView] = useState<TrueUpView>("action")
@@ -421,7 +421,7 @@ export function TrueUpPageClient() {
       {report ? (
         <p className="mb-4 text-xs text-muted-foreground">
           {report.xeroSyncedAt
-            ? `Xero last synced ${new Date(report.xeroSyncedAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}. `
+            ? `Xero last synced ${new Date(report.xeroSyncedAt).toLocaleString("en-AU", { timeZone: BUSINESS_TZ })}. `
             : ""}
           {report.provisionalInvoices > 0
             ? `${report.provisionalInvoices} draft or unsent invoice${report.provisionalInvoices === 1 ? " is" : "s are"} shown as provisional and not counted.`

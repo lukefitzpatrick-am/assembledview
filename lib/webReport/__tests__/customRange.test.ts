@@ -9,11 +9,11 @@ import {
   customRangeWindows,
   daysInclusive,
   resolveReportWindows,
-  sydneyToday,
   validateCustomRange,
 } from "@/lib/webReport/periods"
 import { emptyTotals, type WebReportData } from "@/lib/webReport/types"
 import type { WebKpiReportItem } from "@/lib/webReport/kpis/report"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const TODAY = "2026-10-26"
 
@@ -46,7 +46,7 @@ describe("custom report range", () => {
 
   it("reads today in Sydney, not UTC", () => {
     // 14:30 UTC on 25 Oct is 01:30 on 26 Oct in Sydney (AEDT).
-    assert.equal(sydneyToday(new Date("2026-10-25T14:30:00Z")), "2026-10-26")
+    assert.equal(getMelbourneTodayISO(new Date("2026-10-25T14:30:00Z")), "2026-10-26")
   })
 
   it("sends the range on preview only, and the save keeps the preset", () => {

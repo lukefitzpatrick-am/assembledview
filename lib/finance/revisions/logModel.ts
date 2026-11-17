@@ -2,6 +2,7 @@
  * Pure view model for the billing change log (design 6.3).
  */
 import { centsLabel, monthShort } from "./panelModel"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 export type RevisionLogRowDto = {
   id: number
@@ -31,7 +32,7 @@ export function sydneyDateTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
     year: "numeric",

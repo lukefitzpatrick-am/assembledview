@@ -3,8 +3,8 @@
  * (same law as Codex `lastBusinessDaySydneyYmd`).
  */
 
-import { addSydneyDays } from "@/lib/codex/quickAddParse"
 import { weekdayOfSydneyYmd } from "@/lib/codex/recurringRule"
+import { addDaysISO } from "@/lib/dates/civil"
 
 function isSydneyWeekday(ymd: string): boolean {
   const dow = weekdayOfSydneyYmd(ymd)
@@ -16,7 +16,7 @@ export function subtractSydneyBusinessDays(ymd: string, n: number): string {
   let remaining = n
   let cursor = ymd
   while (remaining > 0) {
-    cursor = addSydneyDays(cursor, -1)
+    cursor = addDaysISO(cursor, -1)
     if (isSydneyWeekday(cursor)) remaining -= 1
   }
   return cursor
@@ -32,7 +32,7 @@ export function sydneyBusinessDaysUntil(fromYmd: string, toYmd: string): number 
   let count = 0
   let cursor = fromYmd
   while (cursor < toYmd) {
-    cursor = addSydneyDays(cursor, 1)
+    cursor = addDaysISO(cursor, 1)
     if (isSydneyWeekday(cursor)) count += 1
   }
   return count

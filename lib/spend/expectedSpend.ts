@@ -1,6 +1,5 @@
 import { roundMoney2 } from "@/lib/format/money"
-
-const MELBOURNE_TZ = "Australia/Melbourne"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 const MONTH_NAMES = [
   "january",
@@ -184,26 +183,10 @@ const parseMonthYear = (value?: string): MonthParts | null => {
 }
 
 const getMelbourneDateParts = (value: Date): DateParts => {
-  const date = value instanceof Date ? value : new Date(value)
-  if (isNaN(date.getTime())) {
+  if (isNaN(value.getTime())) {
     throw new Error("Invalid date input provided to spend calculator")
   }
-
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: MELBOURNE_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date)
-
-  const year = Number(parts.find((p) => p.type === "year")?.value)
-  const month = Number(parts.find((p) => p.type === "month")?.value)
-  const day = Number(parts.find((p) => p.type === "day")?.value)
-
-  if (!year || !month || !day) {
-    throw new Error("Unable to extract date parts for Melbourne timezone")
-  }
-
+  const { year, month, day } = melbourneParts(value)
   return { year, month, day }
 }
 

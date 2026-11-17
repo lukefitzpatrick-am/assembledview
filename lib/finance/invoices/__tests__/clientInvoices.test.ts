@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { dollarsToCents } from "@/lib/xero/money"
 
 import {
@@ -10,6 +9,7 @@ import {
   isClientInvoicesEnabled,
   type ClientInvoiceCandidate,
 } from "../clientInvoices"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 function candidate(
   partial: Partial<ClientInvoiceCandidate> & Pick<ClientInvoiceCandidate, "xeroInvoiceId" | "status">,
@@ -143,8 +143,8 @@ describe("assembleClientInvoices", () => {
   it("due today in Sydney is not overdue, and the day before is", () => {
     const stillToday = new Date("2026-10-07T12:30:00.000Z")
     const nextSydneyDay = new Date("2026-10-07T13:30:00.000Z")
-    const sydneyToday = sydneyCivilParts(stillToday).ymd
-    const sydneyTomorrow = sydneyCivilParts(nextSydneyDay).ymd
+    const sydneyToday = melbourneParts(stillToday).ymd
+    const sydneyTomorrow = melbourneParts(nextSydneyDay).ymd
     assert.equal(sydneyToday, "2026-10-07")
     assert.equal(sydneyTomorrow, "2026-10-08")
 

@@ -144,16 +144,6 @@ export function resolveReportWindows(period: ReportPeriod, today: string): Repor
   }
 }
 
-/** Today's civil date in Australia/Sydney, YYYY-MM-DD. Safe in the browser. */
-export function sydneyToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now)
-}
-
 /** A from/to range that is malformed or fails validateCustomRange. */
 export class WebReportRangeError extends Error {
   constructor() {

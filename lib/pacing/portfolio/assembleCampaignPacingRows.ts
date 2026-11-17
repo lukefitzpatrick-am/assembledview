@@ -12,7 +12,6 @@ import {
   computeCampaignDays,
   computeDaysPassed,
   computeDaysRemaining,
-  getMelbourneYesterdayISO,
 } from "@/lib/pacing/maths"
 import {
   deliveryStatusFromPct,
@@ -53,6 +52,7 @@ import type {
   ChannelSpendMode,
   PortfolioPace,
 } from "./types"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export { countPortfolioRows, isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 
@@ -933,7 +933,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       startDate: group.campaignStartDate,
       endDate: group.campaignEndDate,
     })
-    const yesterdayISO = getMelbourneYesterdayISO(input.asOfDate)
+    const yesterdayISO = addDaysISO(input.asOfDate, -1)
     const leftovers = new Map<string, { label: string; lines: DirectLineItemRow[] }>()
     const assumed = new Map<string, { label: string; lines: DirectLineItemRow[] }>()
 

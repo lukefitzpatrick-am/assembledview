@@ -5,11 +5,11 @@ import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, directSpendWithAssumed, snapshotAssumedSupplement, snapshotSpendByLineId, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
 import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { addLoadedDeliveryLineIds } from "@/lib/spend/deliveryLineIds"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
@@ -25,7 +25,7 @@ export type GetDeliveredTotalsForCampaignInput = {
 }
 
 export type DeliveredTotalsForCampaign = DeliveredTotals & {
-  /** Melbourne "as of" date (`getAsOfDate()`) — Snowflake facts refresh ~06:30 Melbourne daily. */
+  /** Melbourne "as of" date (`getMelbourneTodayISO()`) — Snowflake facts refresh ~06:30 Melbourne daily. */
   asOf: string
   /** Digital snapshot clicks (0 when snapshot missing) — for read-only KPI pacing (B1-1). */
   clicks: number
@@ -65,7 +65,7 @@ export async function getDeliveredTotalsForCampaign(
   const mbaKey = input.mbaNumber.trim().toLowerCase()
   const needsFixedCost = hasFixedCostMediaLineItems(input.lineItemsMap)
   const window = deliveredQueryWindow(input.startDate, input.endDate)
-  const asOfDate = asOfForDeliveredRange(getAsOfDate(), window?.endDate)
+  const asOfDate = asOfForDeliveredRange(getMelbourneTodayISO(), window?.endDate)
 
   console.info("[getDeliveredTotalsForCampaign] start", {
     mbaNumber: input.mbaNumber,
@@ -159,7 +159,7 @@ export async function getDeliveredTotalsForCampaign(
 
   return {
     ...totals,
-    asOf: asOfForDeliveredRange(snapshot?.asOf ?? getAsOfDate(), window?.endDate),
+    asOf: asOfForDeliveredRange(snapshot?.asOf ?? getMelbourneTodayISO(), window?.endDate),
     clicks: snapshot?.planTotals.clicks ?? 0,
     results: snapshot?.planTotals.results ?? 0,
     video3sViews: snapshot?.planTotals.video3sViews ?? 0,

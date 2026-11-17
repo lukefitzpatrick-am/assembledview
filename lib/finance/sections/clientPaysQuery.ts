@@ -36,6 +36,7 @@ import {
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { IS_SERVICE_LINE_SQL } from "@/lib/finance/sections/serviceLineBucket"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type FinanceClientPaysQuery = Pick<
   FinanceCostsQuery,
@@ -74,13 +75,6 @@ export type FinanceClientPaysPayload = {
 
 function monthStartDate(yyyyMm: string): string {
   return `${yyyyMm}-01`
-}
-
-function monthEndExclusive(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map((x) => Number.parseInt(x, 10))
-  const d = new Date(y!, m! - 1, 1)
-  d.setMonth(d.getMonth() + 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
 }
 
 function clientFilterSql(clientIds: number[]): SQL {
@@ -150,7 +144,7 @@ export async function fetchFinanceClientPays(
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const clientSql = clientFilterSql(q.clientIds)
   const channelSql = channelFilterSql(q.channels)

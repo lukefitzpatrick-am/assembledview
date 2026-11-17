@@ -44,6 +44,7 @@ import { PERIOD_STATUS_LABEL } from "@/lib/finance/periods/labels"
 import { getPeriodPg } from "@/lib/finance/periods/postgresStore"
 import { getSydneyWallClock } from "@/lib/finance/periods/sydneyClock"
 import type { FinancePeriodStatus } from "@/lib/finance/periods/types"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type FinanceSectionsSummaryQuery = {
   fy: number
@@ -113,13 +114,6 @@ export type FinanceSectionsSummaryPayload = {
 
 function monthStartDate(yyyyMm: string): string {
   return `${yyyyMm}-01`
-}
-
-function monthEndExclusive(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map((x) => Number.parseInt(x, 10))
-  const d = new Date(y!, m! - 1, 1)
-  d.setMonth(d.getMonth() + 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
 }
 
 async function resolvePeriodStatusCard(): Promise<FinanceSectionsSummaryPayload["periodStatus"]> {
@@ -201,7 +195,7 @@ function asBigInt(v: unknown): number {
 /** Documented SQL for receivables FYTD (billing basis, published tip, status-scoped). */
 export function receivablesSqlText(q: FinanceSectionsSummaryQuery): string {
   const from = monthStartDate(q.from)
-  const toEx = monthEndExclusive(q.to)
+  const toEx = `${addMonthsISO(q.to, 1)}-01`
   const clients =
     q.clientIds.length > 0 ? `AND m.client_id = ANY(ARRAY[${q.clientIds.join(",")}])` : ""
   return `
@@ -225,7 +219,7 @@ ${clients}
  */
 export function payablesSqlText(q: FinanceSectionsSummaryQuery): string {
   const from = monthStartDate(q.from)
-  const toEx = monthEndExclusive(q.to)
+  const toEx = `${addMonthsISO(q.to, 1)}-01`
   const clients =
     q.clientIds.length > 0 ? `AND m.client_id = ANY(ARRAY[${q.clientIds.join(",")}])` : ""
   return `
@@ -279,11 +273,11 @@ export async function fetchFinanceSectionsSummary(
   const db = getDb()
   const q = input
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   // The current-month billing tile: the Melbourne month with finance_melbourne_month on (B43), else the host month.
   const currentMonth = getCurrentBillingMonth(options?.now, { melbourne: options?.melbourneMonth === true })
   const currentMonthStart = monthStartDate(currentMonth)
-  const currentMonthEndEx = monthEndExclusive(currentMonth)
+  const currentMonthEndEx = `${addMonthsISO(currentMonth, 1)}-01`
   const clientSql = clientFilterSql(q.clientIds)
   const lineJoin = sql.raw(SCHEDULE_LINE_JOIN_SQL)
   const scopeLabel = `FY${q.fy} · ${q.from}→${q.to}${

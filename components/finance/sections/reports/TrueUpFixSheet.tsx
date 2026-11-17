@@ -38,6 +38,7 @@ import {
   trueUpPreviewGrid,
 } from "@/lib/finance/trueUp/fixPanelModel"
 import { trueUpMonthLabel } from "@/lib/finance/trueUp/viewModel"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 type Preview = {
   ok: true
@@ -420,7 +421,7 @@ export function TrueUpFixSheet({
                     <span>
                       {ledgerLabel(a)}
                       <span className="block text-xs text-muted-foreground">
-                        {a.createdByName ?? "Someone"} · {a.createdAt ? new Date(a.createdAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney" }) : ""}
+                        {a.createdByName ?? "Someone"} · {a.createdAt ? new Date(a.createdAt).toLocaleString("en-AU", { timeZone: BUSINESS_TZ }) : ""}
                         {a.action !== "schedule" ? ` · ${gapText(a.action === "explained" ? a.gapCents : a.amountCents)}` : ""}
                       </span>
                     </span>

@@ -20,6 +20,7 @@ import {
   type CodexSearchResults,
 } from "@/lib/codex/search"
 import { statusMeta } from "@/lib/codex/types"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 const DEBOUNCE_MS = 250
 
@@ -28,7 +29,7 @@ function shortDate(value: string | null): string | null {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return null
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
     year: "numeric",

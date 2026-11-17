@@ -1,9 +1,10 @@
 /**
- * Australia/Sydney wall-clock helpers for PC5 cron guards.
- * Always compute the Sydney civil date/time — never trust UTC day-of-month alone.
+ * Sydney wall-clock helpers for PC5 cron guards, read from `lib/dates`
+ * (Melbourne shares Sydney's offset). Always compute the civil date/time —
+ * never trust UTC day-of-month alone.
  */
 
-const SYDNEY_TZ = "Australia/Sydney"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export type SydneyWallClock = {
   /** YYYY-MM-DD in Sydney */
@@ -20,42 +21,13 @@ export type SydneyWallClock = {
   isLastDayOfMonth: boolean
 }
 
-function partsInSydney(instant: Date): {
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-} {
-  const fmt = new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  })
-  const map: Record<string, string> = {}
-  for (const p of fmt.formatToParts(instant)) {
-    if (p.type !== "literal") map[p.type] = p.value
-  }
-  return {
-    year: Number(map.year),
-    month: Number(map.month),
-    day: Number(map.day),
-    hour: Number(map.hour),
-    minute: Number(map.minute),
-  }
-}
-
 function lastDayOfMonth(year: number, month: number): number {
   // month is 1-12; day 0 of next month = last day of this month (UTC math ok for length)
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
 export function getSydneyWallClock(now: Date = new Date()): SydneyWallClock {
-  const p = partsInSydney(now)
+  const p = melbourneParts(now)
   const last = lastDayOfMonth(p.year, p.month)
   const ymd = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`
   return {

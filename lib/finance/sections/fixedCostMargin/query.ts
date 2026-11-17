@@ -15,7 +15,6 @@ import { sql, type SQL } from "drizzle-orm"
 import { getDb } from "@/db"
 import { FINANCE_STATUS_INCLUDED_SQL } from "@/lib/finance/sections/financeCampaignStatus"
 import {
-  addMonths,
   billLineView,
   buildCfPlacementMap,
   costBasisForPublisher,
@@ -88,6 +87,7 @@ import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { querySnowflake } from "@/lib/snowflake/query"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type FinanceFixedCostMarginQuery = Pick<FinanceCostsQuery, "fy" | "from" | "to" | "clientIds">
 
@@ -477,8 +477,8 @@ async function loadBills(
   contactRegex: string = BILL_CONTACT_SQL_REGEX
 ): Promise<RawBillRow[]> {
   const db = getDb()
-  const fromDate = `${addMonths(q.from, -BILL_WINDOW_BEFORE_MONTHS)}-01`
-  const toDate = `${addMonths(q.to, BILL_WINDOW_AFTER_MONTHS + 1)}-01`
+  const fromDate = `${addMonthsISO(q.from, -BILL_WINDOW_BEFORE_MONTHS)}-01`
+  const toDate = `${addMonthsISO(q.to, BILL_WINDOW_AFTER_MONTHS + 1)}-01`
   const result = await db.execute(sql`
     SELECT b.id, b.xero_invoice_id, COALESCE(b.invoice_number, '') AS invoice_number,
       COALESCE(b.reference_raw, '') AS reference_raw, c.name AS contact_name,

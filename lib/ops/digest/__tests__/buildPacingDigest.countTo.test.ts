@@ -5,6 +5,7 @@ import { mock, test } from "node:test"
 import { mockModuleSkip, supportsMockModule } from "../../../test/mockModuleHarness.js"
 import { p6FixtureRows } from "../../../pacing/portfolio/__tests__/p6Fixture.js"
 import { buildPacingDigestEmailHtml } from "../email.js"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const skip = mockModuleSkip()
 
@@ -44,9 +45,6 @@ if (supportsMockModule()) {
         durationMs: 1,
       }),
     },
-  })
-  await mock.module!("@/lib/pacing/relabel/notify", {
-    namedExports: { addMelbourneDays: (day: string) => day },
   })
   await mock.module!("@/lib/pacing/relabel/listRelabelDrift", {
     namedExports: { listRelabelDrift: async () => [] },

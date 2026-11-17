@@ -23,7 +23,6 @@ import {
   type ProgrammaticLineItemMetrics,
 } from "@/lib/delivery/programmatic/programmaticCompute"
 import { snowflakeChannelsForDeliverySource } from "@/lib/delivery/deliverySourceMap"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
@@ -55,6 +54,7 @@ import {
   untrackedNote,
   type ChannelPacingInputs,
 } from "./linePace"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 const FEE_MEDIA_TYPE: Record<"programmatic-display" | "programmatic-video" | "programmatic-ooh", string> = {
   "programmatic-display": "progDisplay",

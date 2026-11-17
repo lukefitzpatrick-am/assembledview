@@ -16,6 +16,7 @@ import {
   mbaFromTaskName,
   type JoinedActivityEntry,
 } from "./joinActivity.js"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type MappingSource = "name_match" | "manual" | "unmapped"
 
@@ -116,16 +117,6 @@ export function clientProjectName(clientId: number, clientName: string): string 
   return clientName.trim() || `Client ${clientId}`
 }
 
-function addDaysYmd(ymd: string, delta: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const dt = new Date(Date.UTC(y!, m! - 1, d!))
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  const yy = dt.getUTCFullYear()
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(dt.getUTCDate()).padStart(2, "0")
-  return `${yy}-${mm}-${dd}`
-}
-
 export function resolvePullWindow(args: {
   cursorFrom: string | null
   todayYmd: string
@@ -135,9 +126,9 @@ export function resolvePullWindow(args: {
   const today = args.todayYmd
   if (!args.cursorFrom) {
     // First run: last 30 days + today
-    return { dateFrom: addDaysYmd(today, -30), dateTo: today }
+    return { dateFrom: addDaysISO(today, -30), dateTo: today }
   }
-  const from = addDaysYmd(args.cursorFrom, -overlap)
+  const from = addDaysISO(args.cursorFrom, -overlap)
   return { dateFrom: from, dateTo: today }
 }
 

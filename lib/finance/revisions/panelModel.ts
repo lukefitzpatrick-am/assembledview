@@ -4,6 +4,7 @@
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 import type { MonthKey, RevisionOk } from "./types"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 export type PanelTab = "bill_amount" | "pull_month" | "bill_remainder" | "underspend"
 
@@ -192,12 +193,6 @@ export function buildPreviewGrid(
   return { months, rows, totals }
 }
 
-/** Current civil month in Australia/Sydney, for the browser (no node:crypto). */
-export function sydneyMonthNow(now: Date = new Date()): MonthKey {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney", year: "numeric", month: "2-digit" }).formatToParts(now)
-  return `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}`
-}
-
 const HARD_STATES = new Set(["sent_to_finance", "legacy_billed", "drafted", "issued", "paid", "overdue", "issued_outside_av"])
 
 /** Record underspend on a finance row: past or current month, not invoiced. */
@@ -207,7 +202,7 @@ export function underspendAction(record: {
   billed?: boolean | null
 }, now: Date = new Date()): { show: boolean; disabledReason?: string } {
   const month = String(record.billing_month ?? "").slice(0, 7)
-  if (!/^\d{4}-\d{2}$/.test(month) || month > sydneyMonthNow(now)) return { show: false }
+  if (!/^\d{4}-\d{2}$/.test(month) || month > getMelbourneMonthISO(now)) return { show: false }
   if (HARD_STATES.has(String(record.state ?? "")) || record.billed === true) {
     return { show: true, disabledReason: "Invoiced. Underspend on invoiced months is not handled here." }
   }

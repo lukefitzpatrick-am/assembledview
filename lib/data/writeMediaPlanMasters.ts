@@ -10,7 +10,7 @@ import { mapPlanMasterFromPostgres } from "@/lib/data/readMediaPlans"
 import { resolveClientIdForMaster } from "@/lib/data/writeClients"
 import { dollarsToCampaignBudgetCents } from "@/lib/mediaplan/buildPostgresSavePayload"
 import { campaignStatusForWrite } from "@/lib/mediaplan/campaignStatusGuard"
-import { toMelbourneDateString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/dates/melbourne"
 
 export type CreateMediaPlanMasterInput = {
   mbaNumber: string

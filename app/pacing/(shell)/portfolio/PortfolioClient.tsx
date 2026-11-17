@@ -19,6 +19,7 @@ import {
   usePacingClientIdToNameMap,
 } from "@/lib/pacing/usePacingClientIdToNameMap"
 import { isPacingClientFilterUnresolved } from "@/lib/pacing/filters/applyPacingRowFilters"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 type ApiShape = {
   asOf: string
@@ -42,7 +43,7 @@ function formatPortfolioDay(isoDate: string): string {
 
 function formatUpdatedAt(iso: string): string {
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
     hour: "numeric",

@@ -4,8 +4,8 @@
  * month's 17th, 24th, 26th and 28th.
  */
 import { BillingPartnerPackError } from "@/lib/finance/billingPartner/errors"
+import { getMelbourneTodayISO, melbourneParts } from "@/lib/dates/melbourne"
 
-const SYDNEY = "Australia/Sydney"
 const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/
 const AA_DAYS = [17, 24, 26, 28] as const
 
@@ -56,33 +56,9 @@ export function normalizeBillingMonth(raw: string): string {
   )
 }
 
-export function sydneyCalendar(now: Date): { year: number; month: number; day: number } {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: SYDNEY,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-      .formatToParts(now)
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  )
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-  }
-}
-
-export function sydneyYmd(now: Date): string {
-  const { year, month, day } = sydneyCalendar(now)
-  return `${year}-${pad2(month)}-${pad2(day)}`
-}
-
 /** First of the billing month for the cycle that is open on `now`. */
 export function defaultBillingMonth(now: Date = new Date()): string {
-  const { year, month, day } = sydneyCalendar(now)
+  const { year, month, day } = melbourneParts(now)
   if (day < 17) return `${year}-${pad2(month)}-01`
   const nextMonth = month === 12 ? 1 : month + 1
   const nextYear = month === 12 ? year + 1 : year
@@ -130,7 +106,7 @@ export function packSummaryFileName(billingMonth: string): string {
 }
 
 export function packZipFileName(billingMonth: string, now: Date = new Date()): string {
-  return `AA pack ${billingMonthLabel(billingMonth)} ${sydneyYmd(now)}.zip`
+  return `AA pack ${billingMonthLabel(billingMonth)} ${getMelbourneTodayISO(now)}.zip`
 }
 
 export function financeActorEmail(email: string | null | undefined): string | null {

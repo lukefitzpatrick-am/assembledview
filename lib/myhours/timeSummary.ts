@@ -4,7 +4,6 @@
 import { and, eq, gte, isNotNull, isNull, lt, lte, ne, sql, sum } from "drizzle-orm"
 
 import { getDb, schema, type Db } from "@/db"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { sumOpenEstimatedMinutesByAssignee } from "@/lib/codex/estimatedMinutesColumn"
 import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { minutesToHours } from "@/lib/myhours/hoursMath"
@@ -12,6 +11,7 @@ import {
   sydneyLastNWeekStarts,
   sydneyWeekRange,
 } from "@/lib/myhours/sydneyWeek"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 const db = () => getDb()
 
@@ -147,7 +147,7 @@ export async function getTeamWeekTimeSummary(
   viewerEmail?: string | null
 ): Promise<TeamWeekTimeSummary> {
   const { startYmd, endYmd } = sydneyWeekRange(now)
-  const sydneyToday = sydneyCivilParts(now).ymd
+  const sydneyToday = melbourneParts(now).ymd
   // B42 (C-211): open, overdue and estimate counts leave out tasks in a
   // private project the viewer cannot see (unset viewer: public only).
   const visible = await taskVisibilityCondition(database, viewerEmail)

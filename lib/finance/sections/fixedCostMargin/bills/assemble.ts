@@ -126,11 +126,3 @@ export function billLineView(l: MatchedBillLine): FixedCostBillLineView {
   }
 }
 
-/** YYYY-MM plus n months. */
-export function addMonths(month: string, n: number): string {
-  const [y, m] = month.split("-").map((v) => Number.parseInt(v, 10))
-  const idx = (y ?? 0) * 12 + ((m ?? 1) - 1) + n
-  const yy = Math.floor(idx / 12)
-  const mm = (idx % 12) + 1
-  return `${yy}-${String(mm).padStart(2, "0")}`
-}

@@ -5,9 +5,9 @@
  * amountDue 0 on a voided invoice cannot stamp `paid`.
  */
 
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
-import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
 import { isLegacyExportStamp } from "@/lib/finance/legacyExportStamp"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 
 export type BillingState =
   | "ready"
@@ -54,19 +54,6 @@ function xeroStatus(status: string): string {
   return status.trim().toUpperCase()
 }
 
-/** Xero `date` columns are civil YYYY-MM-DD; datetimes convert via Sydney. */
-function evidenceToSydneyYmd(value: string | null): string | null {
-  if (value == null) return null
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
-  try {
-    return sydneyYmdFromUtcInstant(trimmed)
-  } catch {
-    return null
-  }
-}
-
 function liveXero(xero: BillingXeroEvidence | null): BillingXeroEvidence | null {
   if (!xero) return null
   if (ABSENT_XERO_STATUSES.has(xeroStatus(xero.status))) return null
@@ -98,7 +85,7 @@ export function resolveBillingState(input: ResolveBillingStateInput): {
   state: BillingState
   reason: string
 } {
-  const todayYmd = sydneyCivilParts(input.today ?? new Date()).ymd
+  const todayYmd = getMelbourneTodayISO(input.today ?? new Date())
   const xero = liveXero(input.xero)
 
   if (xero) {
@@ -110,7 +97,7 @@ export function resolveBillingState(input: ResolveBillingStateInput): {
     }
     const status = xeroStatus(xero.status)
     const amountDue = Number(xero.amountDue)
-    const dueYmd = evidenceToSydneyYmd(xero.dueDate)
+    const dueYmd = normalizeDateToMelbourneISO(xero.dueDate)
     const fullyPaid = stampPresent(xero.fullyPaidDate)
 
     if (status === "PAID" || fullyPaid || (status === "AUTHORISED" && Number.isFinite(amountDue) && amountDue <= 0)) {

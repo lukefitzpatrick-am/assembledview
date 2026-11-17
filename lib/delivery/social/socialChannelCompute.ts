@@ -16,7 +16,7 @@ import type { PacingResult, PacingSeriesPoint } from "@/lib/pacing/calcPacing"
 import { getDeliverableKey } from "@/lib/pacing/calcPacing"
 import { MetaPacingRow, normalisePlatform, summariseDelivery } from "@/lib/pacing/social/metaPacing"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
-import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
+import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import {
@@ -32,6 +32,7 @@ import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialPlatform } from "@/lib/pacing/social/types"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type SocialLineItem = {
   line_item_id: string

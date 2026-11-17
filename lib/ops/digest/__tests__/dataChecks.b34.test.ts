@@ -14,6 +14,7 @@ import {
 } from "../dataChecks.js"
 import { buildPacingDigestEmailHtml, cm360DriftLines, labelMapDuplicateLines } from "../email.js"
 import type { PacingDigestPayload } from "../buildPacingDigest.js"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const MISSING = new Error(
   "SQL compilation error:\nObject 'ASSEMBLEDVIEW.MART.VW_PACING_FACT_CM360_DRIFT' does not exist or not authorized.",
@@ -235,9 +236,6 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/pacing/portfolio/portfolioSnapshotStore", {
     namedExports: { readPortfolioSnapshot: async () => null },
-  })
-  await mock.module!("@/lib/pacing/relabel/notify", {
-    namedExports: { addMelbourneDays: (day: string) => day },
   })
   await mock.module!("@/lib/pacing/relabel/listRelabelDrift", {
     namedExports: { listRelabelDrift: async () => [] },

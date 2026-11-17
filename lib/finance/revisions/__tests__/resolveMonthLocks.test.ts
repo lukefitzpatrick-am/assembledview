@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { getMelbourneMonthISO } from "../../../dates/melbourne"
 import {
-  currentSydneyMonth,
   resolveMonthLocks,
   revisionMonthSpan,
   toMonthKey,
@@ -158,13 +158,13 @@ test("months after the campaign end are hard", () => {
 })
 
 test("Sydney month edge: 31 Oct 23:59 AEDT vs 1 Nov 00:30 AEDT", () => {
-  assert.equal(currentSydneyMonth(new Date("2026-10-31T12:59:00Z")), "2026-10")
-  assert.equal(currentSydneyMonth(new Date("2026-10-31T13:30:00Z")), "2026-11")
+  assert.equal(getMelbourneMonthISO(new Date("2026-10-31T12:59:00Z")), "2026-10")
+  assert.equal(getMelbourneMonthISO(new Date("2026-10-31T13:30:00Z")), "2026-11")
   // UTC is still 31 Oct here, Sydney is already November.
   assert.equal(new Date("2026-10-31T13:30:00Z").getUTCMonth(), 9)
   // AEST in winter: 30 Jun 14:00 UTC = 1 Jul 00:00 AEST.
-  assert.equal(currentSydneyMonth(new Date("2026-06-30T13:59:00Z")), "2026-06")
-  assert.equal(currentSydneyMonth(new Date("2026-06-30T14:00:00Z")), "2026-07")
+  assert.equal(getMelbourneMonthISO(new Date("2026-06-30T13:59:00Z")), "2026-06")
+  assert.equal(getMelbourneMonthISO(new Date("2026-06-30T14:00:00Z")), "2026-07")
 })
 
 test("toMonthKey and revisionMonthSpan", () => {

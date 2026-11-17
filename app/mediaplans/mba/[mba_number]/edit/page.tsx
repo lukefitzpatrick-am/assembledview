@@ -492,7 +492,7 @@ import { fetchNamingWorkbook } from "@/lib/naming/fetchNamingWorkbook"
 import { saveAs } from 'file-saver'
 import { clickBlobDownload } from "@/lib/docs/clickBlobDownload"
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
-import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
+import { toDateOnlyString, parseDateOnlyString } from "@/lib/dates/civil"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import {
   campaignStatusDisplayLabel,

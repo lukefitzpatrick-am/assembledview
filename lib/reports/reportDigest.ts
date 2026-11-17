@@ -9,6 +9,7 @@ import {
   MONTHLY_CAMPAIGN_REPORT_KIND,
   previousSydneyMonth,
 } from "@/lib/reports/selectMonthlyReportMbas"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 export { MONTHLY_CAMPAIGN_REPORT_KIND }
 
@@ -83,31 +84,8 @@ export function reportDigestRecipients(
 }
 
 export function sydneyDigestClock(instant: Date): SydneyDigestClock {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  })
-  const map: Record<string, string> = {}
-  for (const part of fmt.formatToParts(instant)) {
-    if (part.type !== "literal") map[part.type] = part.value
-  }
-  const year = Number(map.year)
-  const month = Number(map.month)
-  const day = Number(map.day)
-  const hour = Number(map.hour)
-  const minute = Number(map.minute)
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return {
-    ymd: `${year}-${pad(month)}-${pad(day)}`,
-    day,
-    hour,
-    minute,
-  }
+  const { ymd, day, hour, minute } = melbourneParts(instant)
+  return { ymd, day, hour, minute }
 }
 
 /** Sydney 5th, 16:00 onwards. The queue does not have to be empty. */

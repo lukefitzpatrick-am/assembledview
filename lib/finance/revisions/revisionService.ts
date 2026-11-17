@@ -29,7 +29,6 @@ import { isBillingRevisionsMigrationApplied } from "./marker"
 import { loadPacingSpendHints } from "./pacingHint"
 import { planBillingRevision } from "./planBillingRevision"
 import { PREVIEW_TOKEN_MESSAGES, signPreviewToken, verifyPreviewToken } from "./previewToken"
-import { currentSydneyMonth } from "./resolveMonthLocks"
 import {
   isTrueUpRevisionMode,
   type MonthKey,
@@ -39,6 +38,7 @@ import {
   type RevisionRequest,
   type RestoreTarget,
 } from "./types"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 export type ServiceError = {
   ok: false
@@ -427,5 +427,5 @@ export async function loadPanelContext(args: {
 }
 
 export function currentRevisionMonth(now: Date = new Date()): MonthKey {
-  return currentSydneyMonth(now)
+  return getMelbourneMonthISO(now)
 }

@@ -18,7 +18,6 @@ import type {
 } from "@/lib/pacing/programmatic/types";
 import {
   computePacing,
-  getMelbourneYesterdayISO,
   type PacingStatus,
 } from "@/lib/pacing/maths";
 import { pacingStatus } from "@/lib/pacing/status";
@@ -28,6 +27,7 @@ import { composerCountToISO } from "@/lib/pacing/countTo";
 import { endedLineStatus } from "@/lib/pacing/endedCampaigns";
 import { planCpvRateForLine } from "@/lib/pacing/kpi/planCpvRate";
 import type { CampaignKpiRow } from "@/lib/xano/campaignKpi";
+import { addDaysISO } from "@/lib/dates/civil"
 
 export type FetchProgrammaticPacingCampaignRowsArgs = GetLiveProgrammaticLineItemsArgs & {
   /**
@@ -140,7 +140,7 @@ export async function fetchProgrammaticPacingCampaignRows(
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
       .sort()[0] ?? countTo;
-  const yesterday = getMelbourneYesterdayISO(args.asOfDate);
+  const yesterday = addDaysISO(args.asOfDate, -1);
 
   if (displayIds.length > 0 || videoIds.length > 0 || oohIds.length > 0) {
     const [displayFacts, videoFacts, oohFacts] = await Promise.all([

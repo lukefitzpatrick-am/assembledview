@@ -18,7 +18,7 @@ import {
   type StructureLink,
   type TimeEntryUpsert,
 } from "@/lib/myhours/sync"
-import { sydneyTodayYmd } from "@/lib/myhours/sydneyWeek"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export async function runMyHoursSyncToPostgres(): Promise<{
   status: "ok" | "error"
@@ -38,7 +38,7 @@ export async function runMyHoursSyncToPostgres(): Promise<{
 
   return runMyHoursSync({
     getApiKey: () => apiKey,
-    todayYmd: () => sydneyTodayYmd(),
+    todayYmd: () => getMelbourneTodayISO(),
     loadCursorDateFrom: async () => {
       const [ok] = await database
         .select({ finishedAt: schema.myhoursSyncRuns.finishedAt })

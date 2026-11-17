@@ -9,7 +9,6 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
-import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { daysOverdue } from "@/lib/finance/sections/owedLedger"
 import { pdfAvailableFromJson } from "@/lib/finance/sections/owedQuery"
 import { FY26_AR_START } from "@/lib/xero/contactLinks"
@@ -19,6 +18,7 @@ import { rowsOf } from "@/lib/xero/dbRows"
 
 import { resolveInvoiceClients } from "./resolveInvoiceClient"
 import { isFeatureOn } from "@/lib/features/server"
+import { melbourneParts } from "@/lib/dates/melbourne"
 
 /**
  * The client_invoices switch (Admin > Features). With no switch row it reads
@@ -236,7 +236,7 @@ export async function loadClientInvoicesForClient(
   const todayYmd =
     options?.todayYmd ??
     todayRows[0]?.sydney_today?.slice(0, 10) ??
-    sydneyCivilParts(new Date()).ymd
+    melbourneParts(new Date()).ymd
 
   const candidates: ClientInvoiceCandidate[] = []
   for (const row of invoiceRows) {

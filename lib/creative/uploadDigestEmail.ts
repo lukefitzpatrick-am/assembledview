@@ -1,5 +1,6 @@
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 import type { UploadDigestPayload } from "./uploadDigest"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 function escapeHtml(v: string): string {
   return v
@@ -24,7 +25,7 @@ function fmtBytes(n: number): string {
 function fmtTime(epoch: number): string {
   try {
     return new Intl.DateTimeFormat("en-AU", {
-      timeZone: "Australia/Sydney",
+      timeZone: BUSINESS_TZ,
       day: "2-digit",
       month: "short",
       hour: "2-digit",

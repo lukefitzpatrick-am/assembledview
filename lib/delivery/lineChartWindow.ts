@@ -1,4 +1,5 @@
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import { addDaysISO } from "@/lib/dates/civil"
 
 /**
  * Date window for the daily delivery charts.
@@ -23,13 +24,6 @@ export function isoDay(value: unknown): string | null {
   const text = String(value ?? "").trim()
   const m = text.match(ISO_DAY)
   return m ? m[0] : null
-}
-
-export function addDaysISO(iso: string, days: number): string {
-  const [y, mo, d] = iso.split("-").map(Number)
-  const dt = new Date(Date.UTC(y, (mo ?? 1) - 1, d ?? 1))
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 export function isoDayList(from: string, to: string): string[] {

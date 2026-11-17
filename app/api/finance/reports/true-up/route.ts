@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { financialYearStart, defaultTrueUpAsOf, isTrueUpMonth } from "@/lib/finance/trueUp/compute"
 import { buildTrueUpCsv, trueUpCsvFilename } from "@/lib/finance/trueUp/csv"
 import { isTrueUpActionsEnabled, isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
-import { loadTrueUp, todaySydneyIso } from "@/lib/finance/trueUp/load"
+import { loadTrueUp } from "@/lib/finance/trueUp/load"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   if ((asOfRaw != null && !isTrueUpMonth(asOfRaw)) || (fromRaw != null && !isTrueUpMonth(fromRaw))) {
     return NextResponse.json({ error: "invalid_month", message: "asOf and from must be YYYY-MM." }, { status: 400 })
   }
-  const asOfMonth = asOfRaw ?? defaultTrueUpAsOf(todaySydneyIso())
+  const asOfMonth = asOfRaw ?? defaultTrueUpAsOf(getMelbourneTodayISO())
   const fromMonth = fromRaw ?? financialYearStart(asOfMonth)
   if (fromMonth > asOfMonth) {
     return NextResponse.json({ error: "invalid_range", message: "from must be on or before asOf." }, { status: 400 })

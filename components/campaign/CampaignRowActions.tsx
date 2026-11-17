@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 import type { PublishedDocumentsPayload } from "@/lib/docs/planVersionFiles"
 import { cn } from "@/lib/utils"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 export type CampaignRowActionsProps = {
   mbaNumber: string
@@ -60,7 +61,7 @@ function formatSavedDay(iso: string): string {
   return new Intl.DateTimeFormat("en-AU", {
     day: "numeric",
     month: "short",
-    timeZone: "Australia/Melbourne",
+    timeZone: BUSINESS_TZ,
   }).format(new Date(iso))
 }
 

@@ -73,6 +73,7 @@ import {
   type InvestmentCutResponse,
   type InvestmentCutRow,
 } from "./cutTypes"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 const BOOKED_DEFAULT_MEASURES: InvestmentCutMeasure[] = [
   "media_cents",
@@ -83,13 +84,6 @@ const BOOKED_DEFAULT_MEASURES: InvestmentCutMeasure[] = [
 
 function monthStartDate(yyyyMm: string): string {
   return `${yyyyMm}-01`
-}
-
-function monthEndExclusive(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map((x) => Number.parseInt(x, 10))
-  const d = new Date(y!, m! - 1, 1)
-  d.setMonth(d.getMonth() + 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
 }
 
 function isDim(v: unknown): v is InvestmentCutDim {
@@ -510,7 +504,7 @@ END`.trim()
 
 export function buildInvestmentCutSql(q: InvestmentCutNormalized): BuiltCutSql {
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   const lineJoin = SCHEDULE_LINE_JOIN_SQL
   const filters = buildFilterClauses(q)
 
@@ -805,7 +799,7 @@ export async function fetchInvestmentCut(
     measuresIncludeAgencyEconomics(q.measures)
 
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
 
   const [cutResult, feeResult, matchResult, lineDetailResult, excludedResult] =
     await Promise.all([
@@ -973,7 +967,7 @@ async function fetchInvestmentCutTotals(
 ): Promise<Partial<Record<InvestmentCutMeasure, number>>> {
   const db = getDb()
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   const filters = buildFilterClauses(q)
   const filterSqlCombined = filters.sqlParts.length
     ? sql.join(filters.sqlParts, sql` AND `)

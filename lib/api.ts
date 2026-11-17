@@ -1,5 +1,5 @@
 import { isReferenceTablePath } from "@/lib/data/referenceTablePaths"
-import { toMelbourneDateString } from "@/lib/timezone"
+import { toMelbourneDateString } from "@/lib/dates/melbourne"
 import { throwIfWriteUnauthorized } from "@/lib/auth/writeSessionExpiry"
 import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
 import {

@@ -1,6 +1,6 @@
 import { PACING_STATUS_THRESHOLDS, projectionVarianceBounds } from "@/lib/pacing/status"
 import { div0 } from "./div0"
-import { getMelbourneTodayISO, shiftISODate } from "@/lib/dates/melbourne"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { roas as purchaseRoas } from "@/lib/delivery/conversions/rules"
 
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
@@ -92,28 +92,6 @@ export function computeDaysRemaining(startYmd: string, endYmd: string, asOfYmd: 
   return Math.max(0, campaignDays - daysPassed)
 }
 
-/**
- * Melbourne calendar date (YYYY-MM-DD) for "today", matching the view's
- * as_of_date. B43: `lib/dates/melbourne.ts` (one helper family).
- */
-export function getAsOfDate(now: Date = new Date()): string {
-  return getMelbourneTodayISO(now)
-}
-
-/**
- * Returns yesterday in Melbourne timezone as YYYY-MM-DD.
- *
- * NOT the same as "latest delivery date" or "asOfDate - 1 in UTC".
- * Used for the "Spend Yesterday" column on /pacing/search, which
- * matches DATE_DAY = yesterday in SEARCH_PACING_FACT (a DATE column
- * stored without timezone — semantically the Melbourne calendar day).
- */
-export function getMelbourneYesterdayISO(asOfDate?: string): string {
-  const today = asOfDate ?? getAsOfDate()
-  if (!Number.isFinite(Date.parse(today + "T00:00:00Z"))) throw new Error(`Invalid asOfDate: ${today}`)
-  return shiftISODate(today, -1)
-}
-
 export function computeExpectedPct(daysPassed: number, campaignDays: number): number {
   return div0(daysPassed, campaignDays)
 }
@@ -195,7 +173,7 @@ function computeKpis(input: {
 }
 
 export function computePacing(input: PacingMathsInput): PacingMathsOutput {
-  const asOfDate = input.asOfDate ?? getAsOfDate()
+  const asOfDate = input.asOfDate ?? getMelbourneTodayISO()
 
   const campaignDays = computeCampaignDays(input.startDate, input.endDate)
   const daysPassed = computeDaysPassed(input.startDate, input.endDate, asOfDate)

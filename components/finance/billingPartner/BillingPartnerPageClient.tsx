@@ -39,6 +39,7 @@ import {
   type BillingPartnerPackRow,
   type BillingPartnerPagePayload,
 } from "@/lib/finance/billingPartner/cycle"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/
 
@@ -53,7 +54,7 @@ function formatSydney(iso: string | null): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return "—"
   return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
+    timeZone: BUSINESS_TZ,
     day: "numeric",
     month: "short",
     year: "numeric",

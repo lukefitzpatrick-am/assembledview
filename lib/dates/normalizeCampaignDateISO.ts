@@ -1,4 +1,4 @@
-import { toMelbourneDateString } from "@/lib/timezone"
+import { toMelbourneDateString } from "./melbourne"
 
 /**
  * Normalise campaign / API date fields to `YYYY-MM-DD` as a civil date in Australia/Melbourne

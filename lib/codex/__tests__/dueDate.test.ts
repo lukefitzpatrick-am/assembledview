@@ -4,9 +4,9 @@ import { test } from "node:test"
 import {
   formatDueYmd,
   isOverdueYmd,
-  sydneyTodayYmd,
   toSydneyCivilYmd,
 } from "../dueDate.js"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** 12:00 on 14 Aug 2026 in Sydney (AEST, UTC+10). */
 const NOW = new Date("2026-08-14T02:00:00.000Z")
@@ -32,7 +32,7 @@ test("toSydneyCivilYmd rejects null and rubbish", () => {
 })
 
 test("isOverdueYmd uses the Sydney civil day: yesterday open, yesterday done, today", () => {
-  assert.equal(sydneyTodayYmd(NOW), "2026-08-14")
+  assert.equal(getMelbourneTodayISO(NOW), "2026-08-14")
   assert.equal(isOverdueYmd("2026-08-13", "todo", NOW), true)
   assert.equal(isOverdueYmd("2026-08-13", "done", NOW), false)
   assert.equal(isOverdueYmd("2026-08-14", "todo", NOW), false)

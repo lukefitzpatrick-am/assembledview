@@ -22,6 +22,7 @@ import {
   timesheetDraftStatusMeta,
 } from "@/lib/myhours/timesheetDraftUi"
 import { resolveListViewState } from "@/lib/ui/viewState"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 type TimesheetDraft = {
   id: number
@@ -49,7 +50,7 @@ type TimesheetDraftsPanelProps = {
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-AU", {
-  timeZone: "Australia/Sydney",
+  timeZone: BUSINESS_TZ,
   weekday: "short",
   day: "2-digit",
   month: "short",

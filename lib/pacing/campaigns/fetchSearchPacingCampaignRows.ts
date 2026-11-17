@@ -9,7 +9,6 @@ import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns
 import { fetchCampaignKpisForMbas } from "@/lib/xano/campaignKpi";
 import {
   computePacing,
-  getMelbourneYesterdayISO,
   type PacingStatus,
 } from "@/lib/pacing/maths";
 import { pacingStatus } from "@/lib/pacing/status";
@@ -19,6 +18,7 @@ import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 import { campaignEndedBefore, endedLineStatus, isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns";
 import { boundedMap } from "@/lib/utils/boundedMap";
 import { composerCountToISO } from "@/lib/pacing/countTo";
+import { addDaysISO } from "@/lib/dates/civil"
 
 /** Parallel per-master fetches; well under Launch-plan 100 req/s ceiling. */
 const XANO_MASTER_FETCH_CONCURRENCY = 8;
@@ -354,7 +354,7 @@ export async function fetchSearchPacingCampaignRows(
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
       .sort()[0] ?? countTo;
-  const yesterday = getMelbourneYesterdayISO(args.asOfDate);
+  const yesterday = addDaysISO(args.asOfDate, -1);
 
   const snowflakeRows = await getSearchCampaignsPacingData({
     lineItemIds,

@@ -31,9 +31,9 @@ import {
   buildCanonicalBillingLineIdSet,
   canonicalBillingLineIdSetHas,
 } from "@/lib/finance/manualBillingOverridesUi"
+import { melbourneInstant } from "@/lib/dates/melbourne"
 
 const PACK_MARKER = "0100_billing_partner_packs"
-const SYDNEY = "Australia/Sydney"
 const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/
 
 /** Plans published before this Sydney date are treated as already with AA. */
@@ -114,38 +114,10 @@ export function normalizeBillingMonth(raw: string): string {
   )
 }
 
-/** Sydney midnight at the start of ymd, as a UTC instant. */
+/** Melbourne (Sydney) midnight at the start of ymd, as a UTC instant. */
 export function sydneyMidnightUtc(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number)
-  const utcGuess = new Date(Date.UTC(y!, m! - 1, d!, 0, 0, 0))
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: SYDNEY,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })
-  const offsetAt = (instant: Date) => {
-    const parts = Object.fromEntries(
-      fmt
-        .formatToParts(instant)
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, part.value]),
-    )
-    const asUtc = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-      Number(parts.second),
-    )
-    return asUtc - instant.getTime()
-  }
-  return new Date(utcGuess.getTime() - offsetAt(utcGuess))
+  return melbourneInstant(y!, m!, d!)
 }
 
 /**

@@ -17,8 +17,9 @@
  * `[codex-seed:<seed task id>]`. Idempotency is (seed task id, period).
  * Catch-up walks at most RECURRING_CATCHUP_DAYS back from Sydney today.
  */
+import { melbourneParts } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
-import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
 
 export const CODEX_PERIOD_PREFIX = "[codex-period:"
 export const CODEX_PERIOD_SUFFIX = "]"
@@ -29,7 +30,7 @@ export const RECURRING_CATCHUP_DAYS = 31
 const DOW_TOKENS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const
 export type DowToken = (typeof DOW_TOKENS)[number]
 
-/** Sun=0 … Sat=6 — matches `sydneyCivilParts().weekday`. */
+/** Sun=0 … Sat=6 — matches `melbourneParts().weekday`. */
 const DOW_TO_NUMBER: Record<DowToken, number> = {
   sun: 0,
   mon: 1,
@@ -67,7 +68,7 @@ export function weekdayOfSydneyYmd(ymd: string): number {
   const [y, m, d] = ymd.split("-").map(Number)
   // Noon UTC is always the same civil day in Sydney (AEDT/AEST are UTC+10/+11).
   const probe = new Date(Date.UTC(y!, m! - 1, d!, 12, 0, 0))
-  return sydneyCivilParts(probe).weekday
+  return melbourneParts(probe).weekday
 }
 
 /** Last Mon–Fri of the given Sydney month (1–12). No public holidays. */
@@ -188,10 +189,10 @@ export function recurringPeriodsToGenerate(
   }
 ): Array<{ period: string; dueYmd: string }> {
   const lookback = args.lookbackDays ?? RECURRING_CATCHUP_DAYS
-  const floor = addSydneyDays(args.todayYmd, -lookback)
+  const floor = addDaysISO(args.todayYmd, -lookback)
   let start = args.createdYmd > floor ? args.createdYmd : floor
   if (args.lastDueYmd) {
-    const afterLast = addSydneyDays(args.lastDueYmd, 1)
+    const afterLast = addDaysISO(args.lastDueYmd, 1)
     if (afterLast > start) start = afterLast
   }
   if (start > args.todayYmd) return []
@@ -211,7 +212,7 @@ export function recurringPeriodsToGenerate(
       seen.add(due.period)
       out.push({ period: due.period, dueYmd: due.dueYmd })
     }
-    cursor = addSydneyDays(cursor, 1)
+    cursor = addDaysISO(cursor, 1)
   }
   return out
 }
@@ -224,7 +225,7 @@ export function resolveRecurringDue(
   rule: ParsedRecurringRule,
   now: Date = new Date()
 ): RecurringDue {
-  const sydney = sydneyCivilParts(now)
+  const sydney = melbourneParts(now)
 
   if (rule.kind === "monthly_day") {
     const last = lastCivilDayOfMonth(sydney.year, sydney.month)
@@ -256,7 +257,7 @@ export function resolveRecurringDue(
     : (() => {
         // Still compute the period's due for the current week (for callers that need it).
         const delta = (rule.weekday - sydney.weekday + 7) % 7
-        return addSydneyDays(sydney.ymd, delta)
+        return addDaysISO(sydney.ymd, delta)
       })()
   const { isoYear, week } = isoWeekParts(dueYmd)
   const period = `${isoYear}-W${pad2(week)}-${rule.dow}`

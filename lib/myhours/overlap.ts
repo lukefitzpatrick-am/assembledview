@@ -1,3 +1,4 @@
+import { melbourneInstant } from "@/lib/dates/melbourne"
 /**
  * Two-tier overlap guard for time-entry proposals (CX2-6 §5).
  * Pure functions — no DB. Never block on same-day presence alone.
@@ -28,42 +29,6 @@ export type OverlapHit =
 type TimeInterval = { startMs: number; endMs: number }
 
 const NESTED_RAW_KEYS = ["activity", "timeLog", "log", "time"] as const
-const SYDNEY_WALL_CLOCK = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Australia/Sydney",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-})
-
-function parseSydneyWallClock(
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
-  second: number
-): number {
-  const desiredAsUtc = Date.UTC(year, month - 1, day, hour, minute, second)
-  const parts = Object.fromEntries(
-    SYDNEY_WALL_CLOCK.formatToParts(new Date(desiredAsUtc))
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, Number(part.value)])
-  )
-  const renderedAsUtc = Date.UTC(
-    parts.year!,
-    parts.month! - 1,
-    parts.day!,
-    parts.hour!,
-    parts.minute!,
-    parts.second!
-  )
-  return desiredAsUtc - (renderedAsUtc - desiredAsUtc)
-}
-
 function parseTimestamp(value: unknown, entryDate: string): number | null {
   if (value == null) return null
   const text = String(value).trim()
@@ -71,14 +36,14 @@ function parseTimestamp(value: unknown, entryDate: string): number | null {
 
   const offsetless = /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/.exec(text)
   if (offsetless) {
-    return parseSydneyWallClock(
+    return melbourneInstant(
       Number(offsetless[1]),
       Number(offsetless[2]),
       Number(offsetless[3]),
       Number(offsetless[4]),
       Number(offsetless[5]),
       Number(offsetless[6] ?? "0")
-    )
+    ).getTime()
   }
 
   const direct = Date.parse(text)
@@ -92,14 +57,14 @@ function parseTimestamp(value: unknown, entryDate: string): number | null {
   const seconds = timeOnly[3] ?? "00"
   const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(entryDate)
   if (!dateParts) return null
-  return parseSydneyWallClock(
+  return melbourneInstant(
     Number(dateParts[1]),
     Number(dateParts[2]),
     Number(dateParts[3]),
     Number(hours),
     Number(minutes),
     Number(seconds)
-  )
+  ).getTime()
 }
 
 function rawStartEnd(raw: unknown): { start?: unknown; end?: unknown } {

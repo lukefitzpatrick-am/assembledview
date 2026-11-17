@@ -16,6 +16,7 @@ import { querySnowflake } from "@/lib/snowflake/query";
 import type { MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 import { isIsoDay } from "@/lib/pacing/countTo";
 import { trimDirectLineToCountTo } from "@/lib/pacing/direct/trimDirectLineToCountTo";
+import { addDaysISO } from "@/lib/dates/civil"
 
 const ROLLING_WINDOW_DAYS = 3;
 
@@ -89,13 +90,6 @@ function bool(v: boolean | number | null | undefined): boolean {
 
 function dateISO(v: unknown): string {
   return String(v ?? "").slice(0, 10);
-}
-
-function addDaysISO(isoDate: string, days: number): string {
-  const [y, m, d] = isoDate.split("-").map((v) => Number(v));
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
 }
 
 function parseBurstStatus(raw: string | null | undefined): DirectBurstStatus {

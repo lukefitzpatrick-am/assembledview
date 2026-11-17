@@ -206,7 +206,7 @@ import {
   mbaNumberTakenWithoutReplacement,
 } from "@/lib/mediaplan/mbaNumberTaken"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-import { toDateOnlyString } from "@/lib/timezone"
+import { toDateOnlyString } from "@/lib/dates/civil"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import {
   applyIngestLineItemsLoad,

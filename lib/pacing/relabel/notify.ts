@@ -3,9 +3,10 @@ import "server-only"
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 
 import { formatMoney } from "@/lib/format/money"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import type { RelabelPreview } from "./shared/types"
 import type { DeliveryRelabelRow } from "./repo"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 export const DEFAULT_RELABEL_NOTIFY_EMAIL = "luke.fitzpatrick@assembledmedia.com.au"
 export const RELABEL_APPLIED_AUTO_CLOSE_DAYS = 7
@@ -139,13 +140,6 @@ export function relabelNotifyFromRow(
   }
 }
 
-export function addMelbourneDays(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number)
-  const utc = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1))
-  utc.setUTCDate(utc.getUTCDate() + days)
-  return utc.toISOString().slice(0, 10)
-}
-
 export function relabelAvaAutoKey(kind: RelabelNotifyKind, relabelId: number): string {
   return `relabel:${kind}:${relabelId}`
 }
@@ -157,7 +151,7 @@ export async function notifyRelabel(input: RelabelNotifyInput, deps: RelabelNoti
   const now = deps.now ?? new Date()
   const dueDate =
     input.kind === "applied"
-      ? addMelbourneDays(getAsOfDate(now), RELABEL_APPLIED_AUTO_CLOSE_DAYS)
+      ? addDaysISO(getMelbourneTodayISO(now), RELABEL_APPLIED_AUTO_CLOSE_DAYS)
       : null
 
   await deps.createTask({
@@ -204,7 +198,7 @@ export function shouldAutoCloseAppliedTask(
   if (!isUntouchedRelabelTask(row)) return false
   const created = String(row.createdAt ?? "").slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}/.test(created)) return false
-  return created <= addMelbourneDays(asOfYmd, -RELABEL_APPLIED_AUTO_CLOSE_DAYS)
+  return created <= addDaysISO(asOfYmd, -RELABEL_APPLIED_AUTO_CLOSE_DAYS)
 }
 
 function escapeHtml(value: string): string {

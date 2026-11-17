@@ -5,7 +5,7 @@ import { ganttLabelFits, ganttLabelWidthPx, burstDayX, thinnedWeekLabels } from 
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
 import { getMediaLabel } from "@/lib/charts/registry"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /**
  * Melbourne 14 Oct 2026 (02:00 UTC = 13:00 AEDT), the day the flighting

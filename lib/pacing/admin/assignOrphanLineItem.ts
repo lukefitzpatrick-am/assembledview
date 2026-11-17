@@ -3,7 +3,6 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 import { PACING_CAMPAIGNS_TAG } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
-import { getAsOfDate } from "@/lib/pacing/maths";
 import {
   sessionExecuteRows,
   sessionExecuteVoid,
@@ -11,6 +10,7 @@ import {
 } from "@/lib/snowflake/snowflakeSession";
 import { createPacingOrphanFix } from "@/lib/pacing/admin/pacingOrphanFixes";
 import { SEARCH_PACING_CHANNELS } from "./orphanDetection";
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type AssignOrphanLineItemArgs = {
   adminEmail: string;
@@ -61,7 +61,7 @@ export async function assignOrphanLineItem(
   }
 
   const liveIds = await getLiveSearchLineItemIds({
-    asOfDate: getAsOfDate(),
+    asOfDate: getMelbourneTodayISO(),
     allowedClientSlugs: null,
   });
   if (!liveIds.has(normalizedNew)) {

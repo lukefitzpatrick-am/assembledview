@@ -20,16 +20,10 @@ import {
   type InvestmentCutRow,
 } from "./cutTypes"
 import { measuresIncludeActuals } from "./cutGrain"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 function monthStartDate(yyyyMm: string): string {
   return `${yyyyMm}-01`
-}
-
-function monthEndExclusive(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map((x) => Number.parseInt(x, 10))
-  const d = new Date(y!, m! - 1, 1)
-  d.setMonth(d.getMonth() + 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
 }
 
 function asNumber(v: unknown): number {
@@ -132,7 +126,7 @@ export async function attachActualsMeasures(
 
   const db = getDb()
   const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
+  const toExclusive = `${addMonthsISO(q.to, 1)}-01`
   const wantsInvoiced = q.measures.includes("invoiced_cents")
   const wantsPaid = q.measures.includes("paid_cents")
   const wantsDelta = q.measures.includes("invoiced_delta_cents")

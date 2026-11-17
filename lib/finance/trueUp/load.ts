@@ -19,7 +19,6 @@ import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuar
 import { rowsOf } from "@/lib/xero/dbRows"
 
 import {
-  addMonths,
   buildTrueUpReport,
   type TrueUpActionSqlRow,
   type TrueUpBillingTiming,
@@ -31,6 +30,7 @@ import {
   type TrueUpScheduleSqlRow,
 } from "./compute"
 import { isTrueUpMigrationApplied } from "./marker"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 export type TrueUpQueryRunner = (query: SQL) => Promise<unknown>
 
@@ -93,8 +93,8 @@ export function trueUpScheduleSql(): SQL {
  * billing month than its issue date.
  */
 export function trueUpInvoicesSql(fromMonth: string, asOfMonth: string): SQL {
-  const start = `${addMonths(fromMonth, -1)}-01`
-  const end = `${addMonths(asOfMonth, 4)}-01`
+  const start = `${addMonthsISO(fromMonth, -1)}-01`
+  const end = `${addMonthsISO(asOfMonth, 4)}-01`
   return sql`
     SELECT
       i.xero_invoice_id,
@@ -125,8 +125,8 @@ export function trueUpMatchedRecordsSql(fromMonth: string, asOfMonth: string): S
     FROM finance_billing_records r
     WHERE r.matched_xero_invoice_id IS NOT NULL
       AND r.invoice_key LIKE 'media:%'
-      AND left(coalesce(r.billing_month, ''), 7) >= ${addMonths(fromMonth, -3)}
-      AND left(coalesce(r.billing_month, ''), 7) <= ${addMonths(asOfMonth, 3)}
+      AND left(coalesce(r.billing_month, ''), 7) >= ${addMonthsISO(fromMonth, -3)}
+      AND left(coalesce(r.billing_month, ''), 7) <= ${addMonthsISO(asOfMonth, 3)}
   `
 }
 
@@ -220,6 +220,3 @@ export async function loadTrueUp(args: { asOfMonth: string; fromMonth: string })
   return loadTrueUpWith((query) => db.execute(query), { ...args, with0109 })
 }
 
-export function todaySydneyIso(): string {
-  return getMelbourneTodayISO()
-}

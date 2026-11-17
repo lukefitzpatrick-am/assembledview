@@ -15,7 +15,6 @@ import {
 import { BaseChartCard } from "@/components/charts/system"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { EmptyState } from "@/components/ui/states"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
 import { withDateLabels } from "./deliveryChartReshape"
 import {
@@ -40,6 +39,7 @@ import {
   type DeliveryDailyChartSeries,
   type DeliveryPaintSeries,
 } from "./deliveryChartSpec"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type { DeliveryChartSpec, DeliveryDailyChartSeries } from "./deliveryChartSpec"
 export { DELIVERY_DAILY_METRIC_LINE_COLOR, DELIVERY_DAILY_METRIC_LINE_THEME_HEXES } from "./deliveryDailyChartColors"

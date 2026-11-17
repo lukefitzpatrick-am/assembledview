@@ -3,7 +3,8 @@
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { addIsoDays, sydneyToday, validateCustomRange, type DateWindow } from "@/lib/webReport/periods"
+import { addIsoDays, validateCustomRange, type DateWindow } from "@/lib/webReport/periods"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** Start and end date inputs for a custom range. End is capped at yesterday in Sydney. */
 export function CustomRangeFields({
@@ -15,7 +16,7 @@ export function CustomRangeFields({
   onApply: (range: DateWindow) => void
   fieldClassName: string
 }) {
-  const today = sydneyToday()
+  const today = getMelbourneTodayISO()
   const yesterday = addIsoDays(today, -1)
   const [from, setFrom] = useState(initial?.from ?? addIsoDays(yesterday, -27))
   const [to, setTo] = useState(initial?.to ?? yesterday)
@@ -52,7 +53,7 @@ export function CustomRangeFields({
           size="sm"
           className="min-h-9"
           onClick={() => {
-            const checked = validateCustomRange(from, to, sydneyToday())
+            const checked = validateCustomRange(from, to, getMelbourneTodayISO())
             if (!checked.ok) {
               setError(checked.error)
               return

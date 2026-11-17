@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireRole";
 import { getOrphanAdGroups, SEARCH_PACING_CHANNELS } from "@/lib/pacing/admin/orphanDetection";
-import { getAsOfDate } from "@/lib/pacing/maths";
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       : null;
 
   // Melbourne civil date, the same as-of as every pacing read (never the UTC day).
-  const asOfDate = getAsOfDate();
+  const asOfDate = getMelbourneTodayISO();
 
   try {
     const orphans = await getOrphanAdGroups({

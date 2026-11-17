@@ -10,18 +10,19 @@ import {
   TRUE_UP_COMPONENTS,
   TRUE_UP_COMPONENT_LABELS,
   TRUE_UP_STATUS_LABELS,
-  addMonths,
   financialYearStart,
   isTrueUpMonth,
   needsAction,
   type TrueUpReport,
 } from "./compute"
 import { trueUpSkippedLines } from "./viewModel"
+import { addMonthsISO } from "@/lib/dates/civil"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 
 /** As of the month just ended in Sydney, from the start of its financial year. A valid override wins. */
 export function trueUpRunMonths(now: Date, asOfOverride?: string): { asOfMonth: string; fromMonth: string } {
   const asOfMonth =
-    asOfOverride && isTrueUpMonth(asOfOverride) ? asOfOverride : addMonths(getSydneyWallClock(now).periodMonth, -1)
+    asOfOverride && isTrueUpMonth(asOfOverride) ? asOfOverride : addMonthsISO(getSydneyWallClock(now).periodMonth, -1)
   return { asOfMonth, fromMonth: financialYearStart(asOfMonth) }
 }
 
@@ -81,7 +82,7 @@ export function buildTrueUpRunEmail(
   const more = need.length > MAX_LISTED ? `<p>And ${need.length - MAX_LISTED} more on the page.</p>` : ""
 
   const synced = report.xeroSyncedAt
-    ? new Date(report.xeroSyncedAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney", dateStyle: "medium", timeStyle: "short" })
+    ? new Date(report.xeroSyncedAt).toLocaleString("en-AU", { timeZone: BUSINESS_TZ, dateStyle: "medium", timeStyle: "short" })
     : "unknown"
 
   const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a">

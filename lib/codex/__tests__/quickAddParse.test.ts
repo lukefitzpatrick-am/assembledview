@@ -2,11 +2,11 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
-  addSydneyDays,
   myWeekDueRange,
   parseQuickAdd,
-  sydneyCivilParts,
 } from "../quickAddParse.js"
+import { melbourneParts } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
 
 const team = [
   { email: "luke@assembledmedia.com.au", name: "Luke Fitzpatrick" },
@@ -21,8 +21,8 @@ const clients = [
 /** Fixed instant: Wednesday 6 Aug 2025 04:00 UTC = Wednesday in Sydney (AEST). */
 const WED = new Date("2025-08-06T04:00:00.000Z")
 
-test("sydneyCivilParts is Wednesday 2025-08-06 for WED fixture", () => {
-  const p = sydneyCivilParts(WED)
+test("melbourneParts is Wednesday 2025-08-06 for WED fixture", () => {
+  const p = melbourneParts(WED)
   assert.equal(p.ymd, "2025-08-06")
   assert.equal(p.weekday, 3)
 })
@@ -128,7 +128,7 @@ test("fallback client from filter when no #token", () => {
 test("myWeekDueRange is today..+7 Sydney", () => {
   const range = myWeekDueRange(WED)
   assert.equal(range.dueAfter, "2025-08-06")
-  assert.equal(range.dueBefore, addSydneyDays("2025-08-06", 7))
+  assert.equal(range.dueBefore, addDaysISO("2025-08-06", 7))
 })
 
 test("@name fuzzy unique match", () => {

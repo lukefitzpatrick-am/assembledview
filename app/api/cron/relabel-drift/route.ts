@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { runRelabelDriftCheck } from "@/lib/pacing/relabel/listRelabelDrift"
 import { logJob } from "@/lib/log"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const asOfDate = getAsOfDate()
+  const asOfDate = getMelbourneTodayISO()
 
   try {
     const snapshot = await runRelabelDriftCheck(asOfDate)

@@ -4,15 +4,16 @@
  * The column is timestamptz. postgres-js (Drizzle mode "string") returns text
  * such as "2026-08-14 00:00:00+00". The UI treats a missing "T" as a civil
  * date and appends a time, which does not parse. On read, collapse every
- * stored instant to the Australia/Sydney civil date. Writes stay YYYY-MM-DD.
+ * stored instant to the Melbourne civil date (Sydney shares its offset).
+ * Writes stay YYYY-MM-DD.
  */
 
-import { sydneyCivilParts } from "./quickAddParse.js"
+import { BUSINESS_TZ, getMelbourneTodayISO, toMelbourneDateString } from "@/lib/dates/melbourne"
 
 const BARE_YMD = /^(\d{4})-(\d{2})-(\d{2})$/
 
 const dueFormatter = new Intl.DateTimeFormat("en-AU", {
-  timeZone: "Australia/Sydney",
+  timeZone: BUSINESS_TZ,
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -34,11 +35,7 @@ export function toSydneyCivilYmd(value: string | null | undefined): string | nul
   if (BARE_YMD.test(trimmed)) return trimmed
   const instant = parseInstant(trimmed)
   if (!instant) return null
-  return sydneyCivilParts(instant).ymd
-}
-
-export function sydneyTodayYmd(now = new Date()): string {
-  return sydneyCivilParts(now).ymd
+  return toMelbourneDateString(instant)
 }
 
 export function isOverdueYmd(
@@ -46,7 +43,7 @@ export function isOverdueYmd(
   status: string,
   now = new Date()
 ): boolean {
-  return dueYmd !== null && status !== "done" && dueYmd < sydneyTodayYmd(now)
+  return dueYmd !== null && status !== "done" && dueYmd < getMelbourneTodayISO(now)
 }
 
 export function formatDueYmd(dueYmd: string | null): string {

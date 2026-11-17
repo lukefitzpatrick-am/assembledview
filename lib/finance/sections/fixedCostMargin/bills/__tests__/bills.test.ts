@@ -9,7 +9,6 @@ import test from "node:test"
 
 import { composeFixedCostMargin, lineFlagLabels, type FixedCostPlanCell } from "../../compose.js"
 import {
-  addMonths,
   buildCfPlacementMap,
   costBasisForPublisher,
   createBillPublisherResolver,
@@ -45,6 +44,7 @@ import {
   PLAN_LINES,
   PUBLISHERS,
 } from "./fixtures.js"
+import { addMonthsISO } from "@/lib/dates/civil"
 
 function parse(bill: RawBillRow) {
   const kind = supplierKindOf(bill.contactName)
@@ -343,8 +343,8 @@ test("assemble: publisher resolution, cost basis, CF map, month maths", () => {
   ])
   assert.deepEqual(map.get("PL1"), ["a"])
   assert.deepEqual(map.get("PL2"), [])
-  assert.equal(addMonths("2026-10", 3), "2027-01")
-  assert.equal(addMonths("2026-07", -3), "2026-04")
+  assert.equal(addMonthsISO("2026-10", 3), "2027-01")
+  assert.equal(addMonthsISO("2026-07", -3), "2026-04")
 })
 
 function planCell(over: Partial<FixedCostPlanCell>): FixedCostPlanCell {

@@ -15,11 +15,11 @@ import { resolvePacingWindowISO } from "@/lib/pacing/expectedForWindow"
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
 import { isCreativePerformanceEnabled } from "@/lib/creative/performance/featureFlag"
 import { assumedExpectedLinesFromLineItemMap } from "@/lib/spend/assumedExpectedLines"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 export const maxDuration = 60
 
 interface CampaignDetailPageProps {
@@ -692,7 +692,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       deliveredVideo3sViews = delivered.video3sViews
       hasDelivery = delivered.hasDelivery
       // Coverage and the delivery cards keep today's date for "not started yet".
-      deliveredAsOf = getAsOfDate()
+      deliveredAsOf = getMelbourneTodayISO()
       deliveredThroughISO = delivered.asOf
       for (const id of delivered.deliveryLineIds) deliveryLineIds.add(id)
     } catch (error) {
@@ -708,7 +708,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const monthlyPlanDateOpts = {
     campaignStartISO: effectiveStartISO,
     campaignEndISO: effectiveEndISO,
-    asOfISO: deliveredAsOf ?? getAsOfDate(),
+    asOfISO: deliveredAsOf ?? getMelbourneTodayISO(),
   }
 
   const expectedSpend = resolveCampaignExpectedSpendForWindow({

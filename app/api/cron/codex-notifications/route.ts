@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
 import { isCodexNotificationsEnabled } from "@/lib/codex/flag"
-import { isDailyJobHour, melbourneTodayYmd } from "@/lib/codex/notifications"
+import { isDailyJobHour } from "@/lib/codex/notifications"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { buildCodexDigestHtml } from "@/lib/codex/notificationsEmail"
 import { runDailyNotifications } from "@/lib/codex/notificationsRepo"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
     if (!isDailyJobHour(now)) return NextResponse.json({ status: "skipped", reason: "not_melbourne_0800_hour" })
     if (!(await isProjectsMigrationApplied())) return NextResponse.json({ status: "skipped", reason: "migration_not_applied" })
     const appBaseUrl = process.env.APP_BASE_URL ?? ""
-    const asOf = melbourneTodayYmd(now)
+    const asOf = getMelbourneTodayISO(now)
     // Reminders then the digest, in one store call, so today's reminders are in today's email.
     const { reminders, digest } = await runDailyNotifications(
       now,

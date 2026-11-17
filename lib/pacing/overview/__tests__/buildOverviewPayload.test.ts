@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
+vi.mock("@/lib/dates/melbourne", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dates/melbourne")>()),
+  getMelbourneTodayISO: () => "2026-07-01",
+}))
+
 vi.mock("@/lib/pacing/maths", () => ({
-  getAsOfDate: () => "2026-07-01",
-  getMelbourneYesterdayISO: () => "2026-06-30",
   computePacing: () => ({ status: "on_track", percentComplete: 50 }),
   calculateTimeProgress: () => 50,
   formatCurrency: (n: number) => `$${n}`,

@@ -4,7 +4,6 @@ import { readDeliveryFlags, readHubDeliveredDedupe } from "@/lib/delivery/delive
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { getCachedDirectPacingRows } from "@/lib/pacing/campaigns/pacingRowsCache"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import {
   collectSearchLineItemIds,
@@ -20,6 +19,7 @@ import {
   type DeliveredTotals,
 } from "@/lib/delivery/deliveredTotals"
 import { boundedMap } from "@/lib/utils/boundedMap"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type ClientDeliveredTotalsCampaignInput = {
   mbaNumber: string
@@ -31,7 +31,7 @@ export type ClientDeliveredTotalsCampaignInput = {
 }
 
 export type ClientDeliveredTotals = DeliveredTotals & {
-  /** Melbourne "as of" date (`getAsOfDate()`) — Snowflake facts refresh ~06:30 Melbourne daily. */
+  /** Melbourne "as of" date (`getMelbourneTodayISO()`) — Snowflake facts refresh ~06:30 Melbourne daily. */
   asOf: string
   /** True when a snapshot, the direct leg, or a fixed-cost overlay failed. Totals are what succeeded. */
   partial: boolean
@@ -52,7 +52,7 @@ async function loadScopedDirectGroups(
     return []
   }
   try {
-    return await getCachedDirectPacingRows(getAsOfDate(), pacingSlugSet, false)
+    return await getCachedDirectPacingRows(getMelbourneTodayISO(), pacingSlugSet, false)
   } catch (error) {
     console.error("[getDeliveredTotalsForClient] direct leg failed", {
       leg: "direct",
@@ -106,7 +106,7 @@ export async function getDeliveredTotalsForClient(
       spendToDate: 0,
       impressions: 0,
       hasDelivery: false,
-      asOf: asOfForDeliveredRange(getAsOfDate(), window?.endDate),
+      asOf: asOfForDeliveredRange(getMelbourneTodayISO(), window?.endDate),
       partial: false,
       failedSources: [],
     }
@@ -213,7 +213,7 @@ export async function getDeliveredTotalsForClient(
 
   const totals = sumDeliveredTotals(perCampaign)
   const asOf = asOfForDeliveredRange(
-    snapshots.find((s): s is NonNullable<typeof s> => Boolean(s))?.asOf ?? getAsOfDate(),
+    snapshots.find((s): s is NonNullable<typeof s> => Boolean(s))?.asOf ?? getMelbourneTodayISO(),
     window?.endDate,
   )
 
