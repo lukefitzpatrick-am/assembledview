@@ -66,6 +66,8 @@ Every handler does its own work. Assume nothing was done for you.
 4. **Validate** with zod at the boundary.
 5. **Fail loudly.** A read failure becomes an error the UI can render (`lib/data/readResult.ts` → `lib/ui/viewState.ts`), never a silent `[]`.
 
+Postgres errors are read through `lib/db/pgError`: `sqlStateOf`, `isUniqueViolation` (optionally for one constraint), `isMissingColumn` (42703), `isMissingRelation` (42P01), `isLockConflict` (40P01, 55P03). A response carries `safeErrorMessage(err)`, never a database error's own text.
+
 Crons bypass middleware entirely — `/api/cron/*` is protected only by `assertCronSecret`. Check it first in every cron handler.
 
 **Naming trap:** `/api/media_plans` (underscore) is the per-channel line-item surface; `/api/mediaplans` (no underscore) is masters, versions and MBA detail. They are different things.
@@ -75,7 +77,12 @@ Crons bypass middleware entirely — `/api/cron/*` is protected only by `assertC
 - Money display: `lib/format/money.ts` — en-AU, AUD, null/NaN renders `—`. Rounding changes cause reconciliation drift across finance, pacing and exports.
 - Money maths lives in lib/money. check:money-inline ratchets the rest down: its per-file baseline only goes down (`--update` lowers it and never raises a count or adds a file; `--reseed` is only for the commit that changes the pattern list). It counts local money helpers by name (`parseCurrency`, `roundMoney`, `parseScheduleMoney` and the rest in the script header), `parseFloat(…replace(/[^0-9.…` parsers, percent guessing (`<= 1 ? x * 100`) and `(100 - fee)` splits.
 - Dates display: `lib/format/date.ts` — en-AU only.
+- Calendar dates go through `lib/dates` only. Strings in and out (`YYYY-MM-DD`, `YYYY-MM`). The business zone is Melbourne (`BUSINESS_TZ`); Sydney shares its offset at every instant, so a "Sydney" date is the Melbourne one.
+  - `lib/dates/melbourne`: `getMelbourneTodayISO`, `getMelbourneMonthISO` (the "current month" everywhere, never the UTC or host month), `getMelbourneYesterdayISO`, `toMelbourneDateString` (the day of an instant), `melbourneParts` (year, month, day, hour, minute, weekday), `melbourneInstant` (a wall time as an instant), `BUSINESS_TZ` for display formatters.
+  - `lib/dates/civil`: `addDaysISO`, `addMonthsISO`, `monthEndISO`, `daysBetweenISO`, `parseISODate`; `toDateOnlyString` and `parseDateOnlyString` for the local-midnight `Date`s of date pickers and the plan grids.
+  - `check:date-boundaries` ratchets the rest down: per file outside `lib/dates`, zone literals, `toISOString().slice(0, 7 or 10)`, hand-built `T00:00:00` strings and `formatToParts` (comments not counted). Baseline `scripts/date-boundaries-baseline.json` only goes down.
 - Date parsing: `parseDateSafe` (local midnight) and `parseDateNativeSafe` (UTC midnight) are **not** interchangeable. Swapping them shifts dates by a day.
+- Email text: `normaliseEmail` and `displayNameFromEmail` in `lib/email/address`. Identity (aliases, primary address) stays in `lib/codex/rosterResolve`.
 - `fy` always means the Australian financial year **ending** year.
 
 ## Navigation
