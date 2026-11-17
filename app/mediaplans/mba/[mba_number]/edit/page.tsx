@@ -1064,19 +1064,6 @@ if (HYDRATION_WATCHDOG_MS <= LINE_ITEM_TIMEOUT_INITIAL_MS + LINE_ITEM_TIMEOUT_AU
   throw new Error("HYDRATION_WATCHDOG_MS must exceed initial + auto-retry timeouts")
 }
 
-/**
- * Stage 2 divergence UI (banner + first-visit modal). Re-enabled after C2
- * close-out (commit 6b7536b dropped the line-level fee_total check that was
- * the source of false positives on healthy campaigns). Month-level feeTotal,
- * line_total, adserving_total, and missing-line divergence checks remain
- * active and gate the banner / first-visit modal.
- *
- * Toggling to false suppresses the banner and first-visit modal but does NOT
- * stop compareBillingDivergence from running — it only hides its UI consumers.
- * Compare itself is also gated on `allChannelsHydrated` (BUX-5).
- */
-const FF_BILLING_DIVERGENCE_ENABLED = true
-
 function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
   // This ensures we get the latest value on every render/navigation
@@ -9440,8 +9427,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     // Month-only redistribution from deliberate Prebill stays calm (header pill).
     if (
       result.isDivergent &&
-      isUnintendedBillingDivergence(result) &&
-      FF_BILLING_DIVERGENCE_ENABLED
+      isUnintendedBillingDivergence(result)
     ) {
       const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
       const acked =
@@ -9479,8 +9465,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       // MB-9: sync banner with unintended drift only (not deliberate reconciling timing).
       if (
         result.isDivergent &&
-        isUnintendedBillingDivergence(result) &&
-        FF_BILLING_DIVERGENCE_ENABLED
+        isUnintendedBillingDivergence(result)
       ) {
         const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
         const acked =
@@ -12053,7 +12038,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
         billingDivergence={billingDivergence}
         showDivergenceBanner={
-          FF_BILLING_DIVERGENCE_ENABLED &&
           allChannelsHydrated &&
           mbaBillingModalState.viewReady &&
           showDivergenceBanner

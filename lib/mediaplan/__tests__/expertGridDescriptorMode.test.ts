@@ -1,7 +1,7 @@
 /**
  * SM-13 / SM-14 / SM-24 — descriptor compact-mode hysteresis, pin/focus resolve,
  * logical-scroll auto-mode, canCompact, user-initiated vs compensation events,
- * compact-floor compensation, and auto-compact kill-switch branches (off vs on).
+ * and compact-floor compensation.
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridDescriptorMode.test.ts
  */
@@ -22,14 +22,10 @@ import {
   descriptorLogicalScrollLeft,
   DESCRIPTOR_COMPACT_SCROLL_PX,
   DESCRIPTOR_EXPAND_SCROLL_PX,
-  DESCRIPTOR_SCROLL_SUPPRESS_MS,
   nextDescriptorPin,
   nextDescriptorScrollIntent,
-  nextDescriptorScrollSuppressUntil,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
-  resolveExpertGridDescriptorModeWith,
-  shouldSuppressDescriptorScrollEvent,
 } from "@/lib/mediaplan/expertGridDescriptorMode"
 
 test("hysteresis: 200 → compact; 100 → still compact; 30 → expanded; 100 → still expanded", () => {
@@ -118,45 +114,7 @@ const UNPINNED_AUTO_COMPACT = {
   auto: "compact" as const,
 }
 
-test("auto-compact off: pinned null + auto compact → expanded", () => {
-  assert.equal(
-    resolveExpertGridDescriptorModeWith(UNPINNED_AUTO_COMPACT, false),
-    "expanded"
-  )
-})
-
-test("auto-compact off: pinned false → compact", () => {
-  assert.equal(
-    resolveExpertGridDescriptorModeWith(
-      {
-        focusWithin: false,
-        errorWithin: false,
-        pinned: false,
-        auto: "expanded",
-      },
-      false
-    ),
-    "compact"
-  )
-})
-
-test("pinned null uses auto when auto-compact is on", () => {
-  assert.equal(
-    resolveExpertGridDescriptorModeWith(UNPINNED_AUTO_COMPACT, true),
-    "compact"
-  )
-  assert.equal(
-    resolveExpertGridDescriptorModeWith(
-      {
-        focusWithin: false,
-        errorWithin: false,
-        pinned: null,
-        auto: "expanded",
-      },
-      true
-    ),
-    "expanded"
-  )
+test("pinned null follows auto", () => {
   assert.equal(resolveExpertGridDescriptorMode(UNPINNED_AUTO_COMPACT), "compact")
   assert.equal(
     resolveExpertGridDescriptorMode({
@@ -324,14 +282,6 @@ test("logicalScroll equals scrollLeft when expanded and scrollLeft + W when comp
 test("nextDescriptorScrollIntent stays expanded when compact is not allowed", () => {
   assert.equal(nextDescriptorScrollIntent("expanded", 300, false), "expanded")
   assert.equal(nextDescriptorScrollIntent("compact", 300, false), "expanded")
-})
-
-test("dead suppress helpers still encode the 34ms window (knip leftovers)", () => {
-  const until = nextDescriptorScrollSuppressUntil(1_000)
-  assert.equal(until, 1_000 + DESCRIPTOR_SCROLL_SUPPRESS_MS)
-  assert.equal(shouldSuppressDescriptorScrollEvent(1_000, until), true)
-  assert.equal(shouldSuppressDescriptorScrollEvent(1_033, until), true)
-  assert.equal(shouldSuppressDescriptorScrollEvent(1_034, until), false)
 })
 
 const APPLY_BASE = {

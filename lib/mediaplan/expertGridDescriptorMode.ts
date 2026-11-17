@@ -12,13 +12,6 @@ export type ExpertGridDescriptorMode = "expanded" | "compact"
 export const DESCRIPTOR_COMPACT_SCROLL_PX = 160
 /** Logical scroll below this → expanded (strict less-than). */
 export const DESCRIPTOR_EXPAND_SCROLL_PX = 40
-/** Dead: live path uses an intent flag, not a timer. Kept for a later knip sweep. */
-export const DESCRIPTOR_SCROLL_SUPPRESS_MS = 34
-/**
- * Kill switch for descriptor auto-compact. SM-16 stop-gap lifted after
- * SM-17 (d7083dce, ffd0e8e8) fixed trailing sticky widths. Keep the constant.
- */
-export const DESCRIPTOR_AUTO_COMPACT_ENABLED = true
 
 export type DescriptorStickyWidths = {
   expandedStickyWidthPx: number
@@ -55,17 +48,6 @@ export function canCompact(
     el.scrollWidth + (widths.expandedStickyWidthPx - widths.currentStickyWidthPx)
   const expandedMaxScroll = expandedScrollWidth - el.clientWidth
   return expandedMaxScroll - W >= DESCRIPTOR_COMPACT_SCROLL_PX
-}
-
-export function shouldSuppressDescriptorScrollEvent(
-  now: number,
-  suppressUntil: number
-): boolean {
-  return now < suppressUntil
-}
-
-export function nextDescriptorScrollSuppressUntil(now: number): number {
-  return now + DESCRIPTOR_SCROLL_SUPPRESS_MS
 }
 
 export const DESCRIPTOR_PIN_STORAGE_PREFIX = "eg-descriptor-pin:"
@@ -141,25 +123,14 @@ export type ResolveExpertGridDescriptorModeArgs = {
   auto: ExpertGridDescriptorMode
 }
 
-/**
- * Resolution: focusWithin / errorWithin → expanded; then pinned; then auto.
- * When auto-compact is off and pinned is null, stay expanded regardless of `auto`.
- */
-export function resolveExpertGridDescriptorModeWith(
-  args: ResolveExpertGridDescriptorModeArgs,
-  autoEnabled: boolean
+/** Resolution: focusWithin / errorWithin → expanded; then pinned; then auto. */
+export function resolveExpertGridDescriptorMode(
+  args: ResolveExpertGridDescriptorModeArgs
 ): ExpertGridDescriptorMode {
   if (args.focusWithin || args.errorWithin) return "expanded"
   if (args.pinned === true) return "expanded"
   if (args.pinned === false) return "compact"
-  if (!autoEnabled) return "expanded"
   return args.auto
-}
-
-export function resolveExpertGridDescriptorMode(
-  args: ResolveExpertGridDescriptorModeArgs
-): ExpertGridDescriptorMode {
-  return resolveExpertGridDescriptorModeWith(args, DESCRIPTOR_AUTO_COMPACT_ENABLED)
 }
 
 /** Click cycle: auto → pin expanded → pin compact → auto. */

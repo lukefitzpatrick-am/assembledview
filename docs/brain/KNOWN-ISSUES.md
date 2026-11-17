@@ -402,7 +402,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/archive/design-refresh/BASELINE.md` is an unfilled template | FIXED (management route + stub removed; User Management stays at `/admin/users/new`) — BASELINE.md template still unfilled |
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |
 | D-10 | Stale docs that contradict code: `docs/archive/PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `docs/archive/FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
-| D-11 | `DESCRIPTOR_SCROLL_SUPPRESS_MS`, `shouldSuppressDescriptorScrollEvent`, `nextDescriptorScrollSuppressUntil` are unused by the live auto-compact path (intent flag in `ExpertGrid.tsx`). Kept exported for a later knip sweep. |
+| D-11 | `DESCRIPTOR_SCROLL_SUPPRESS_MS`, `shouldSuppressDescriptorScrollEvent`, `nextDescriptorScrollSuppressUntil` are unused by the live auto-compact path (intent flag in `ExpertGrid.tsx`). Kept exported for a later knip sweep. | FIXED (B50) — deleted with their test |
 
 ## UI chrome (UI-*)
 

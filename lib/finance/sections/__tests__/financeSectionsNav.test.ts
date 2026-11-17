@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import test from "node:test"
 
-import { isFinanceSectionsEnabled } from "../../../flags/financeSections.js"
 import {
   CLIENTS_BILLING_TAB_ITEMS,
   FINANCE_LEGACY_PATH_REDIRECTS,
@@ -15,20 +14,6 @@ import {
   sectionPathForFinanceTab,
 } from "../nav.js"
 import { getRouteByExactPath } from "../../../nav/routeManifest.js"
-
-test("isFinanceSectionsEnabled is always true (kill-switch removed, FN7)", () => {
-  const prev = process.env.NEXT_PUBLIC_FINANCE_SECTIONS
-  delete process.env.NEXT_PUBLIC_FINANCE_SECTIONS
-  assert.equal(isFinanceSectionsEnabled(), true)
-  process.env.NEXT_PUBLIC_FINANCE_SECTIONS = "on"
-  assert.equal(isFinanceSectionsEnabled(), true)
-  process.env.NEXT_PUBLIC_FINANCE_SECTIONS = "off"
-  assert.equal(isFinanceSectionsEnabled(), true)
-  process.env.NEXT_PUBLIC_FINANCE_SECTIONS = "0"
-  assert.equal(isFinanceSectionsEnabled(), true)
-  if (prev === undefined) delete process.env.NEXT_PUBLIC_FINANCE_SECTIONS
-  else process.env.NEXT_PUBLIC_FINANCE_SECTIONS = prev
-})
 
 test("every finance sections page path is in the route manifest as admin-gated", () => {
   for (const path of FINANCE_SECTION_PAGE_PATHS) {

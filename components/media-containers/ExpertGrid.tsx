@@ -171,7 +171,6 @@ import {
 import {
   adjustScrollLeftForDescriptorWidthChange,
   applyDescriptorScrollEvent,
-  DESCRIPTOR_AUTO_COMPACT_ENABLED,
   descriptorErrorForcesExpand,
   descriptorPinStorageKey,
   nextDescriptorPin,
@@ -1159,7 +1158,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   }, [config.mediaTypeKey, descriptorPinned])
 
   useEffect(() => {
-    if (!DESCRIPTOR_AUTO_COMPACT_ENABLED) return
     const el = gridScrollRef.current
     if (!el) return
     let raf = 0
