@@ -375,7 +375,7 @@ describe("edit page sends live dates only on Generate; publish uses the stored f
     assert.ok(draftStart > 0 && draftEnd > draftStart)
     // B52: the download is downloadDraftDocument (behaviour in app/mediaplans/_form/__tests__).
     assert.match(createSrc.slice(draftStart, draftEnd), /kind: "mba_pdf", body: draftDocumentBody/)
-    assert.match(createSrc, /const draftDocumentBody = async \(kind\) => \{\s*await waitForStateFlush\(\)\s*return buildCreateDraftDocumentsBody\(kind\)/)
+    assert.match(createSrc, /const draftDocumentBody = async \(kind: DraftDocumentKind\) => \{\s*await waitForStateFlush\(\)\s*return buildCreateDraftDocumentsBody\(kind\)/)
     const zipStart = createSrc.indexOf("const zipPublishedCreateDocuments")
     const zipEnd = createSrc.indexOf("const handleSaveAndDownloadAll", zipStart)
     assert.ok(zipStart > 0 && zipEnd > zipStart)

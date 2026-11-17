@@ -6,9 +6,8 @@
 import { toast } from "@/components/ui/use-toast"
 import { clickBlobDownload } from "@/lib/docs/clickBlobDownload"
 import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
+import type { DraftDocumentKind } from "@/lib/mediaplan/mergeDraftDocumentsBody"
 import { DRAFT_MBA_TOAST } from "@/lib/mediaplan/planWizardSaveBar"
-
-export type DraftDocumentKind = "mba_pdf" | "media_plan" | "aa_media_plan"
 
 const FAILED: Record<DraftDocumentKind, string> = {
   mba_pdf: "Failed to download draft MBA",

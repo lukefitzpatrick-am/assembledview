@@ -279,6 +279,7 @@ import {
 import {
   kpiRowsForDraftDocuments,
   mergeDraftDocumentsBody,
+  type DraftDocumentKind,
 } from "@/lib/mediaplan/mergeDraftDocumentsBody"
 import { formatDraftSavedTime } from "@/lib/mediaplan/drafts/pill"
 import {
@@ -2810,9 +2811,7 @@ function CreateMediaPlan() {
     return { blob, fileName, planVersion: resolvedPlanVersion };
   };
 
-  const buildCreateDraftDocumentsBody = (
-    kind: "mba_pdf" | "media_plan" | "aa_media_plan"
-  ): Record<string, unknown> => {
+  const buildCreateDraftDocumentsBody = (kind: DraftDocumentKind): Record<string, unknown> => {
     const fv = form.getValues()
     const clientName =
       typeof fv.mp_client_name === "string"
@@ -3036,10 +3035,10 @@ function CreateMediaPlan() {
     })
   }
 
-  const draftDocumentBody = async (kind) => {
-      await waitForStateFlush()
-      return buildCreateDraftDocumentsBody(kind)
-    }
+  const draftDocumentBody = async (kind: DraftDocumentKind) => {
+    await waitForStateFlush()
+    return buildCreateDraftDocumentsBody(kind)
+  }
   const handleDraftMba = async () => {
     await downloadDraftDocument({ kind: "mba_pdf", body: draftDocumentBody, setBusy: setIsMbaGenerating })
   }
