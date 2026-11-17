@@ -265,3 +265,29 @@ test("splice: an unreadable published blob refuses and names the months", () => 
   assert.equal(out.ok, false)
   assert.ok(!out.ok && /Nov 2026/.test(out.message))
 })
+
+test("splice: two stored rows on one line, component and month refuse instead of a unique violation (B56fix R4)", () => {
+  const base = penfold022V3Blob()
+  const candidate = candidateBlob()
+  const baseRows = rowsOf(base, 3)
+  const dup = baseRows.find((r) => r.month.startsWith("2026-11"))!
+  const ok = spliceBilledMonths({
+    months: ["2026-11"],
+    candidateSchedule: candidate,
+    candidateRows: rowsOf(candidate, 7),
+    baseSchedule: base,
+    baseRows,
+    versionId: 7,
+  })
+  assert.ok(ok.ok)
+  const out = spliceBilledMonths({
+    months: ["2026-11"],
+    candidateSchedule: candidate,
+    candidateRows: rowsOf(candidate, 7),
+    baseSchedule: base,
+    baseRows: [...baseRows, { ...dup }],
+    versionId: 7,
+  })
+  assert.equal(out.ok, false)
+  assert.ok(!out.ok && /Nov 2026/.test(out.message))
+})

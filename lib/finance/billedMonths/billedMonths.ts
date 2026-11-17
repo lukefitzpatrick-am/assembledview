@@ -130,8 +130,10 @@ export type SpliceResult =
  * `keep`: the kept months take the published tip's blob month entries and
  * its stored billing rows exactly; every other month stays the new
  * version's. Delivery rows are untouched. Refuses (nothing to write) unless
- * the rebuilt blob bills the tip's cells in the kept months and the new
- * version's cells in the rest.
+ * both read back: the rebuilt blob bills the tip's blob cells in the kept
+ * months and the new version's in the rest, and the billing rows to write
+ * equal the tip's stored rows in the kept months and the new version's rows
+ * in the rest, with no two rows on one line, component and month (B56fix R4).
  */
 export function spliceBilledMonths(args: {
   months: readonly MonthKey[]
@@ -185,5 +187,17 @@ export function spliceBilledMonths(args: {
   const allMonths = [...new Set([...spliced, ...candidate].map((c) => String(c.month).slice(0, 7)))]
   const otherMonths = allMonths.filter((m) => !kept.has(m))
   if (!sameCells(spliced, base, args.months) || !sameCells(spliced, candidate, otherMonths)) return fail()
+
+  const billingRows = rows.filter((r) => r.basis === "billing")
+  const candidateBilling = args.candidateRows.filter((r) => r.basis === "billing")
+  const rowKeys = billingRows.map((r) => `${r.lineItemId}|${r.component}|${String(r.month).slice(0, 7)}`)
+  const rowMonths = [...new Set([...billingRows, ...candidateBilling].map((r) => String(r.month).slice(0, 7)))]
+  if (
+    new Set(rowKeys).size !== rowKeys.length ||
+    !sameCells(billingRows, args.baseRows, args.months) ||
+    !sameCells(billingRows, candidateBilling, rowMonths.filter((m) => !kept.has(m)))
+  ) {
+    return fail()
+  }
   return { ok: true, schedule, rows }
 }

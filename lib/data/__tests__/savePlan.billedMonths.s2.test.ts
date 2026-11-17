@@ -241,3 +241,38 @@ test("on, a draft is not a publish: nothing is read", { skip }, async () => {
   await savePlanVersion(input(3050, { mode: "draft" }), memoryDb(writes))
   assert.equal(loads, 0)
 })
+
+const withFee = (amount: number, over: Partial<Input> = {}): Input => {
+  const base = input(amount, over)
+  return { ...base, lineItems: base.lineItems.map((l) => ({ ...l, feePct: 10 })) }
+}
+
+/** Billing rows per month and component: `line|component|cents`, sorted. */
+const rowsIn = (rows: Saved["billing"], month: string) =>
+  rows
+    .filter((r) => r.month.startsWith(month))
+    .map((r) => `${r.lineItemId}|${r.component}|${r.amountCents}`)
+    .sort()
+
+test("on, keep with a fee line: kept month writes the tip's media and fee rows once; later months the new version's (B56fix R4)", { skip }, async () => {
+  setSwitch(false)
+  const tipWrites: Write[] = []
+  await savePlanVersion(withFee(6100), memoryDb(tipWrites))
+  const tipSaved = saved(tipWrites)
+  tip = { versionId: 6, schedule: tipSaved.schedule, rows: tipSaved.billing.map((r) => ({ ...r, month: r.month.slice(0, 7) })) }
+  setSwitch(false)
+  const newWrites: Write[] = []
+  await savePlanVersion(withFee(3050), memoryDb(newWrites))
+  const fresh = saved(newWrites).billing
+
+  setSwitch(true)
+  const writes: Write[] = []
+  const result = await savePlanVersion(withFee(3050, { billedMonthsChoice: "keep" }), memoryDb(writes))
+  assert.equal(result.published, true)
+  const s = saved(writes).billing
+  assert.ok(rowsIn(tipSaved.billing, "2026-09").some((r) => r.includes("|fee|")), "the tip bills a fee in Sep")
+  assert.deepEqual(rowsIn(s, "2026-09"), rowsIn(tipSaved.billing, "2026-09"))
+  assert.deepEqual(rowsIn(s, "2026-10"), rowsIn(fresh, "2026-10"))
+  const keys = s.map((r) => `${r.lineItemId}|${r.component}|${r.month}`)
+  assert.equal(new Set(keys).size, keys.length)
+})
