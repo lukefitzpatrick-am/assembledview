@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Loader2, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import type { TokenOverrides } from "@/lib/naming/channelTabs"
 import type { TokenSourceItem } from "@/lib/naming/summariseTargetingTokens"
 import { cn } from "@/lib/utils"
