@@ -147,6 +147,24 @@ describe("middleware with security_headers on", () => {
     expect(api.headers.get("x-middleware-override-headers")).toBeNull()
   })
 
+  it("a policy the client sent never reaches the renderer: ours replaces it, in either mode", async () => {
+    session = { user: ADMIN }
+    const sent = { [ENFORCED]: "script-src 'nonce-sent1'", [RO]: "script-src 'nonce-sent2'" }
+    vi.stubEnv("SECURITY_HEADERS", "on")
+    for (const enforce of [false, true]) {
+      if (enforce) vi.stubEnv("CSP_ENFORCE", "on")
+      const res = await middleware(new NextRequest("https://av.example/dashboard", { headers: sent }))
+      const ours = enforce ? ENFORCED : RO
+      const other = enforce ? RO : ENFORCED
+      const forwarded = res.headers.get("x-middleware-override-headers")!.split(",")
+      expect(forwarded).toContain(ours)
+      expect(forwarded).not.toContain(other)
+      expect(res.headers.get(`x-middleware-request-${ours}`)).toBe(res.headers.get(ours))
+      expect(res.headers.get(`x-middleware-request-${other}`)).toBeNull()
+      expect(readNonce(res.headers)).not.toMatch(/^sent/)
+    }
+  })
+
   it("csp_enforce on moves the same policy to Content-Security-Policy", async () => {
     vi.stubEnv("SECURITY_HEADERS", "on")
     vi.stubEnv("CSP_ENFORCE", "on")

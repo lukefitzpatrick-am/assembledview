@@ -102,6 +102,9 @@ export function applySecurityHeaders(
   // Next reads the nonce from the policy on the request. NextResponse.next({ request })
   // is the public way to set request headers; its override headers are copied onto
   // Auth0's response so its cookies and cache headers stay as they are.
+  // A policy the client sent would win in Next and readNonce (they read the enforced name first).
+  forwarded.delete(CSP_HEADER)
+  forwarded.delete(CSP_REPORT_ONLY_HEADER)
   forwarded.set(header, policy)
   NextResponse.next({ request: { headers: forwarded } }).headers.forEach((value, name) => {
     if (name === "x-middleware-override-headers" || name.startsWith("x-middleware-request-")) response.headers.set(name, value)
