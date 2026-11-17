@@ -62,7 +62,7 @@ test("month ends from 00:00 to 11:00 Melbourne on the 1st: Melbourne month, whil
   }
 })
 
-// The copy B49 replaced (duePlans.sydneyMidnightUtc, myhours overlap, dashboard makeZonedDate), verbatim in shape.
+// The one-pass copy B49 kept (duePlans.sydneyMidnightUtc, myhours overlap, dashboard makeZonedDate), verbatim in shape (C-276).
 const OLD_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "Australia/Sydney", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
 function oldZoned(y: number, m: number, d: number, h: number, mi: number): number {
   const desired = Date.UTC(y, m - 1, d, h, mi, 0)
@@ -70,19 +70,44 @@ function oldZoned(y: number, m: number, d: number, h: number, mi: number): numbe
   return desired - (Date.UTC(p.year!, p.month! - 1, p.day!, p.hour!, p.minute!, p.second!) - desired)
 }
 
-test("melbourneInstant gives the old one-pass answer for every hour of 2025 to 2027, and round-trips away from a changeover", () => {
-  let offByOne = 0
+test("melbourneInstant round-trips every hour of 2025 to 2027; a repeated hour gives its first instant (C-276)", () => {
   for (let t = Date.UTC(2025, 0, 1); t < Date.UTC(2028, 0, 1); t += HOUR) {
     const p = melbourneParts(new Date(t))
-    const got = melbourneInstant(p.year, p.month, p.day, p.hour, p.minute)
-    assert.equal(got.getTime(), oldZoned(p.year, p.month, p.day, p.hour, p.minute), new Date(t).toISOString())
-    if (got.getTime() !== t) offByOne += 1
+    const got = melbourneInstant(p.year, p.month, p.day, p.hour, p.minute).getTime()
+    // The second 02:00 to 02:59 when daylight saving ends reads the first one.
+    const repeat = p.hour === 2 && melbourneParts(new Date(t - HOUR)).hour === 2
+    assert.equal(got, repeat ? t - HOUR : t, new Date(t).toISOString())
   }
-  // shortcut kept from the copies: the hours just before each changeover (about 11 a time, 6 changeovers) read the new offset.
-  assert.ok(offByOne > 0 && offByOne <= 6 * 12, String(offByOne))
-  assert.equal(melbourneInstant(2026, 12, 1, 8).toISOString(), "2026-11-30T21:00:00.000Z", "1 Dec 08:00 AEDT")
-  assert.equal(melbourneInstant(2026, 6, 1, 8).toISOString(), "2026-05-31T22:00:00.000Z", "1 Jun 08:00 AEST")
-  assert.equal(melbourneInstant(2026, 7, 0).toISOString(), "2026-06-29T14:00:00.000Z", "day 0 rolls back")
+})
+
+test("melbourneInstant on change days: the rule for skipped and repeated times, and the hours the one-pass copy got wrong", () => {
+  const at = (y: number, m: number, d: number, h = 0, mi = 0) => melbourneInstant(y, m, d, h, mi).toISOString()
+  // Daylight saving ends Sun 5 Apr 2026 03:00 AEDT (16:00Z): 02:00 to 02:59 happens twice.
+  assert.equal(at(2026, 4, 5, 2, 30), "2026-04-04T15:30:00.000Z", "repeated: the first, AEDT, instant")
+  assert.equal(at(2026, 4, 5, 3), "2026-04-04T17:00:00.000Z", "03:00 AEST")
+  assert.equal(at(2026, 4, 5), "2026-04-04T13:00:00.000Z", "midnight of the change Sunday (the copy said 14:00Z)")
+  assert.equal(at(2026, 4, 4, 20), "2026-04-04T09:00:00.000Z", "Saturday 20:00 AEDT (the copy said 10:00Z)")
+  assert.equal(melbourneInstant(2026, 4, 4, 23, 59, 59, 999).toISOString(), "2026-04-04T12:59:59.999Z", "Saturday day end")
+  // Daylight saving starts Sun 4 Oct 2026 02:00 AEST (16:00Z): 02:00 to 02:59 does not happen.
+  assert.equal(at(2026, 10, 4, 2, 30), "2026-10-03T16:30:00.000Z", "skipped: forward an hour, 03:30 AEDT")
+  assert.equal(at(2026, 10, 4, 1, 59), "2026-10-03T15:59:00.000Z", "01:59 AEST")
+  assert.equal(at(2026, 10, 4, 3), "2026-10-03T16:00:00.000Z", "03:00 AEDT")
+  assert.equal(at(2026, 10, 4), "2026-10-03T14:00:00.000Z", "midnight of the change Sunday")
+  assert.equal(at(2026, 12, 1, 8), "2026-11-30T21:00:00.000Z", "1 Dec 08:00 AEDT")
+  assert.equal(at(2026, 6, 1, 8), "2026-05-31T22:00:00.000Z", "1 Jun 08:00 AEST")
+  assert.equal(at(2026, 7, 0), "2026-06-29T14:00:00.000Z", "day 0 rolls back")
+})
+
+test("melbourneInstant differs from the one-pass copy only on the Saturday and Sunday of a change, so every caller changes only then", () => {
+  const changeDays = new Set(["2025-04-05", "2025-04-06", "2025-10-04", "2025-10-05", "2026-04-04", "2026-04-05", "2026-10-03", "2026-10-04", "2027-04-03", "2027-04-04", "2027-10-02", "2027-10-03"])
+  let differs = 0
+  for (let t = Date.UTC(2025, 0, 1); t < Date.UTC(2028, 0, 1); t += HOUR) {
+    const p = melbourneParts(new Date(t))
+    if (melbourneInstant(p.year, p.month, p.day, p.hour, p.minute).getTime() === oldZoned(p.year, p.month, p.day, p.hour, p.minute)) continue
+    differs += 1
+    assert.ok(changeDays.has(p.ymd), `${p.ymd} ${p.hour}:00`)
+  }
+  assert.ok(differs > 0)
 })
 
 test("civil maths: add days, months, month end, days between, parse", () => {

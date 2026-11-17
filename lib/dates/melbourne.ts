@@ -58,20 +58,32 @@ export function melbourneParts(value: Date | string | number = new Date()): Melb
   }
 }
 
+/** Melbourne's UTC offset in ms at an instant (whole minutes). */
+function offsetAt(ms: number): number {
+  const p = melbourneParts(new Date(ms))
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(ms / 60_000) * 60_000
+}
+
 /**
  * The instant of a Melbourne wall-clock time (month 1 to 12; day 0 and other
- * overflow roll as in `Date.UTC`). The offset is read once, at the naive UTC
- * reading, as the three copies this replaced did.
- * shortcut: in the 10 to 11 hours before a daylight saving change the naive
- * reading is already past it, so the result is an hour out (pinned in
- * `businessClock.b49.test.ts`); read the offset a second time at the result
- * when a caller needs those hours right (a question for Luke in B49).
+ * overflow roll as in `Date.UTC`). The offset is the one in force at that
+ * wall time, so the hours either side of a daylight saving change are right
+ * (C-276). On a change day, as `new Date(y, m, d, h)` on a Melbourne host:
+ *   - a repeated time (02:00 to 02:59 when daylight saving ends) is its
+ *     first, daylight time, instant;
+ *   - a skipped time (02:00 to 02:59 when it starts) moves forward an hour
+ *     (02:30 is 03:30 AEDT).
+ * shortcut: reads the offset a day either side of the naive reading, which
+ * holds while a zone's changes are more than two days apart (Melbourne's
+ * are months apart).
  */
 export function melbourneInstant(year: number, month: number, day: number, hour = 0, minute = 0, second = 0, ms = 0): Date {
-  const guess = Date.UTC(year, month - 1, day, hour, minute, second, ms)
-  const p = melbourneParts(new Date(guess))
-  const offset = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(guess / 60_000) * 60_000
-  return new Date(guess - offset)
+  const naive = Date.UTC(year, month - 1, day, hour, minute, second, ms)
+  const before = offsetAt(naive - 86_400_000)
+  const after = offsetAt(naive + 86_400_000)
+  if (before === after) return new Date(naive - before)
+  const fits = [naive - before, naive - after].filter((t) => offsetAt(t) === naive - t)
+  return new Date(fits.length ? Math.min(...fits) : naive - before)
 }
 
 /** The Melbourne calendar day (`YYYY-MM-DD`) of an instant. Throws on an invalid date. */
