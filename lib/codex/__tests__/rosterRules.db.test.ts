@@ -116,6 +116,8 @@ describe("roster rules on Postgres (B53, 0119)", { skip }, () => {
     assert.deepEqual(ok?.email_aliases, [`sk@${D}`])
     const gone = await caught(() => createTeamMember({ email: `new.person@${D}`, name: "New Person", emailAliases: ["someone@gmail.com"] }, null, database))
     assert.ok(gone instanceof RosterRuleError)
+    const goneOnEdit = await caught(() => updateTeamMember(Number(keah.id), { emailAliases: ["someone@gmail.com"] }, null, database))
+    assert.ok(goneOnEdit instanceof RosterRuleError)
   })
 
   it("0119 refuses with nothing done while rows break a rule, and lists them", async () => {
