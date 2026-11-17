@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2, XCircle } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +19,9 @@ function hasText(value: string | null | undefined): value is string {
  * The sticky rail (`PlanWizardShell` aside) is not a scroll container.
  *
  * Zone order is priority, not source order: problems, then draft, then save
- * state. Empty = not rendered.
+ * state. Empty = not rendered. Each issue reads its `severity`: an error
+ * (a refusal) takes the critical style and an "Error:" label for screen
+ * readers; a warning keeps the zone's warning style.
  */
 export function PlanWizardSaveMessages(props: {
   issues?: BuilderIssue[]
@@ -74,7 +76,11 @@ export function PlanWizardSaveMessages(props: {
         </p>
         <ul className="mt-2 space-y-2" role="list">
           {issues.map((issue) => (
-            <li key={issue.id}>
+            <li
+              key={issue.id}
+              data-severity={issue.severity}
+              className={cn(issue.severity === "error" && "border-l-[3px] border-l-status-critical-fg pl-1.5")}
+            >
               <button
                 type="button"
                 className="block w-full rounded-input px-0.5 py-0.5 text-left transition-colors hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -85,8 +91,19 @@ export function PlanWizardSaveMessages(props: {
                     {[issue.stepLabel, issue.fieldLabel].filter(Boolean).join(" · ")}
                   </span>
                 ) : null}
-                <span className="block whitespace-normal break-words text-xs font-medium text-foreground">
-                  {issue.title}
+                <span
+                  className={cn(
+                    "flex items-start gap-1 whitespace-normal break-words text-xs font-medium",
+                    issue.severity === "error" ? "text-status-critical-fg" : "text-foreground"
+                  )}
+                >
+                  {issue.severity === "error" ? (
+                    <>
+                      <XCircle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                      <span className="sr-only">Error: </span>
+                    </>
+                  ) : null}
+                  <span className="min-w-0">{issue.title}</span>
                 </span>
                 {issue.detail ? (
                   <span className="mt-0.5 block whitespace-normal break-words text-[11px] text-muted-foreground">

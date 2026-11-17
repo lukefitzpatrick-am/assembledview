@@ -118,6 +118,31 @@ describe("PlanWizardSaveMessages", () => {
   })
 })
 
+describe("PlanWizardSaveMessages severity (B54fix)", () => {
+  it("styles a refusal (error) apart from a warning", () => {
+    const container = document.createElement("div")
+    container.innerHTML = renderToStaticMarkup(
+      <PlanWizardSaveMessages
+        issues={[
+          { id: "refused", severity: "error", title: "REFUSED-LINE" },
+          { id: "warned", severity: "warning", title: "WARNED-LINE" },
+        ]}
+      />
+    )
+    const items = Array.from(container.querySelectorAll("li[data-severity]"))
+    expect(items.map((li) => li.getAttribute("data-severity"))).toEqual(["error", "warning"])
+    const [error, warning] = items as [HTMLElement, HTMLElement]
+    expect(error.textContent).toContain("Error: REFUSED-LINE")
+    expect(error.className).toContain("border-l-status-critical-fg")
+    expect(error.querySelector(".text-status-critical-fg")?.textContent).toContain("REFUSED-LINE")
+    expect(error.querySelector("svg")).not.toBeNull()
+    expect(warning.textContent).not.toContain("Error:")
+    expect(warning.className).not.toContain("status-critical")
+    expect(warning.querySelector(".text-status-critical-fg")).toBeNull()
+    expect(warning.querySelector("svg")).toBeNull()
+  })
+})
+
 describe("PlanDraftActiveBanner compact", () => {
   it("compact active banner with no headline names the local draft and published version", () => {
     const html = renderToStaticMarkup(
