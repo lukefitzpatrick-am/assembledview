@@ -10,8 +10,8 @@ import { looksLikeEmail, rosterDisplayName, type RosterPerson } from "./rosterRe
  * The roster rules (S18 A, B53). Pure. Every roster write runs through
  * `prepareRosterWrite` when the `roster_rules` switch is on: the Team tab add
  * and edit (`createTeamMember`, `updateTeamMember`) and the Auth0 login and
- * sync inserts (`newRosterRow`, here so the write modules keep their export
- * lists).
+ * sync inserts (`newRosterRow`, one place for both writers). A write module
+ * by place (C-200): only the Tasks zone imports it.
  *
  *   1. Every person has a primary address (one email address).
  *   2. A name never holds an email address (no "@").

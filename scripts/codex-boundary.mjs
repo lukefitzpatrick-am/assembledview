@@ -99,19 +99,19 @@ export const CODEX_SERVER_WRITERS = [
     file: "lib/auth0.ts",
     may: { "lib/codex/auth0LoginUpsert.ts": ["syncAdminRosterOnLogin"] },
     callers: "any",
-    why: "an admin's login adds or refreshes their roster row, fail soft, inside the login hook",
+    why: "an admin's login adds or refreshes their roster row, fail soft, inside the login hook; a new row goes through the roster rules (S18, B53)",
   },
   {
     file: "app/api/cron/auth0-roster-sync/route.ts",
     may: { "lib/codex/auth0RosterSync.ts": ["runAuth0RosterSync"] },
     callers: {},
-    why: "the nightly Auth0 admin roster sync",
+    why: "the nightly Auth0 admin roster sync; a new row goes through the roster rules (S18, B53)",
   },
   {
     file: "app/api/admin/auth0-roster-sync/route.ts",
     may: { "lib/codex/auth0RosterSync.ts": ["runAuth0RosterSync"] },
     callers: {},
-    why: "an admin runs the same roster sync by hand",
+    why: "an admin runs the same roster sync by hand; a new row goes through the roster rules (S18, B53)",
   },
   {
     file: "app/api/cron/codex-notifications/route.ts",

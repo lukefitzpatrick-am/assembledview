@@ -127,6 +127,16 @@ test("a named writer takes only its listed exports, and only its callers take on
     'export const d = async () => { const m = await import("@/lib/codex/auth0LoginUpsert"); return m }',
   ]
   assert.deepEqual(failing("lib/auth0.ts", login), [2, 3, 4])
+  // B53 (S18): the roster rules module is a write module by place; the Auth0 entries take only their one export.
+  const roster = [
+    'import { runAuth0RosterSync } from "@/lib/codex/auth0RosterSync"',
+    'import { rosterRulesOn } from "@/lib/codex/rosterRead"',
+    'import { newRosterRow } from "@/lib/codex/rosterRules"',
+    'import { prepareRosterWrite } from "@/lib/codex/rosterRules"',
+    'import { upsertTeamMemberOnAdminLogin } from "@/lib/codex/auth0LoginUpsert"',
+  ]
+  for (const file of ["app/api/cron/auth0-roster-sync/route.ts", "app/api/admin/auth0-roster-sync/route.ts"]) assert.deepEqual(failing(file, roster), [3, 4, 5], file)
+  assert.deepEqual(failing("lib/auth0.ts", roster), [1, 3, 4, 5])
   const callers = ['import { acceptProposal } from "@/lib/fireflies/proposalRepo"', 'import { auth0 } from "@/lib/auth0"', 'import { GET } from "@/app/api/cron/codex-recurring/route"']
   assert.deepEqual(failing("components/pacing/Accept.tsx", callers), [1, 3])
   assert.deepEqual(failing("app/api/codex/proposals/other/route.ts", callers), [1, 3])
