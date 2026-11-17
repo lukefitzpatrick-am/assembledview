@@ -1,6 +1,7 @@
 /**
  * T0-4 — in-section finance links carry the currently applied scope.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"

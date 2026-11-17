@@ -4,6 +4,7 @@
  * Production bursts carry dates, so a blank production burst is refused.
  * Approval "excluded" is not an included line.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"

@@ -2,6 +2,7 @@
  * C-95 glenda008-shaped: social is client-pays; billing media 0 / fee $5,000;
  * approved slice feeCents = 500000.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

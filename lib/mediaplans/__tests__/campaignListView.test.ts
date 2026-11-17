@@ -1,3 +1,4 @@
+import "@/lib/testing/melbourneZone"
 import { describe, expect, it } from "vitest"
 
 import {

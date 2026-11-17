@@ -2,6 +2,7 @@
  * AV-SF1 — browser-draft campaign dates must survive JSON (UTC ISO) and
  * come back as the civil day the picker showed.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

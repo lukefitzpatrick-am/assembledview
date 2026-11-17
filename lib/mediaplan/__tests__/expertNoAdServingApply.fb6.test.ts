@@ -4,6 +4,7 @@
  * Digital Audio; the programmatic channels already did). Channels with no column keep
  * the previous standard value (see tests/lib/expertModeSwitch.test.ts).
  */
+import "@/lib/testing/melbourneZone"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"

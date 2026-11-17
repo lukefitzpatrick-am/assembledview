@@ -3,6 +3,7 @@
  * SF-6 — burst buyAmount is a rate (status_matrix/currency) or a spot count
  * (count), never a period count masquerading as $1.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import path from "node:path"
 import test from "node:test"

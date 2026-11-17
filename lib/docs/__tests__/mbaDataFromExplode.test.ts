@@ -3,6 +3,7 @@
  * Numbers come from the Excel adapter (DOC-3). Header date is published_at.
  */
 
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"

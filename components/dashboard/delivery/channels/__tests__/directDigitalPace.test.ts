@@ -6,6 +6,7 @@
  * impressions and CPM, and say "No impression tracking" (REP-5, Luke 28 Oct
  * 2026, option c).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

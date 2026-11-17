@@ -9,6 +9,7 @@
  * Popsta, cpv, $20,000, assumed; PENFOLD020DV2 Channel Factory, cpv, $30,000,
  * partner-file rows (HF1).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"

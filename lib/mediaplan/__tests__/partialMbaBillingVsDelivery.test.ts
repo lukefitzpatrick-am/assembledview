@@ -1,6 +1,7 @@
 /**
  * M8 (B21): billing vs delivery in a partial MBA's selected months.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

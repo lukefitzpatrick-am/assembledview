@@ -1,6 +1,7 @@
 /**
  * PC2 — approved slice + full-scope C1 gate goldens.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

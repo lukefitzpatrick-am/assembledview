@@ -3,6 +3,7 @@
  * the create and edit pages. Warn only; the live shapes are the ones named in
  * the brief (hema008PD2, buxton004DD7, PGAAUS015DD18, BOSS011NP2).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

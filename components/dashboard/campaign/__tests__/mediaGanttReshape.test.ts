@@ -1,3 +1,4 @@
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test, { type TestContext } from "node:test"
 

@@ -2,6 +2,7 @@
  * B2-1 — CSV shape round-trip for three representative surfaces
  * (dashboard donut, finance grouped bars, pacing band).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

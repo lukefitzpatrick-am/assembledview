@@ -4,6 +4,7 @@
  * Item 1 (Apply correctness) is the classic virtualization bug: Apply must
  * read the full logical rows state, not only DOM-mounted rows.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { format, startOfDay } from "date-fns"

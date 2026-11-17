@@ -10,6 +10,7 @@
  * which reads snake first). A ticked box stays ticked and an unticked one
  * stays unticked, through the card and through the expert grid. Tests only.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import path from "node:path"

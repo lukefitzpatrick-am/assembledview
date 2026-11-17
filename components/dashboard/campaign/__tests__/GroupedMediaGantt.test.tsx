@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import "@/lib/testing/melbourneZone"
 import { act, type ReactElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vitest"

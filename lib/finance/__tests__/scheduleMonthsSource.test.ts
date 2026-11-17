@@ -1,6 +1,7 @@
 /**
  * PC1 — schedule_months as finance derive source (pure rebuild + flag fallback).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

@@ -3,6 +3,7 @@
  * review resolver), not the old 8% compareRateStatus (C4), and the View
  * rate tile compares 3-second views ÷ impressions to the VTR target (C1b).
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

@@ -2,6 +2,7 @@
  * AS-2: ad-serving exclusion is LINE-level. Editor preview and server compute
  * must both honor line.noAdserving for the same fixture.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

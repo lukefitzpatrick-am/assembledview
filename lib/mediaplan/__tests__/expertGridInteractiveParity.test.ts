@@ -11,6 +11,7 @@
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridInteractiveParity.test.ts
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

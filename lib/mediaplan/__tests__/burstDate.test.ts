@@ -1,7 +1,9 @@
 /**
  * Unit tests for Australia/Sydney burst date helpers (Step 3).
- * Run under TZ=UTC to prove runtime-local independence.
+ * Runs in Melbourne, the browser's zone (RUNFIX2): `parseBurstDateLocal` gives
+ * a local-midnight Date there, and `formatBurstDateLocal` reads the Sydney day.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 

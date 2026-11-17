@@ -2,6 +2,7 @@
  * MR-12 — accept → editor card must look like a planner built it.
  * Simulates stamp → Postgres reassembly → OOH/Radio hydrate.
  */
+import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import path from "node:path"
 import test from "node:test"
