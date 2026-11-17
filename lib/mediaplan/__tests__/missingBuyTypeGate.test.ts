@@ -234,7 +234,8 @@ describe("server publish intent + twin-page 422 wiring", () => {
     ] as const) {
       assert.match(src, /MISSING_BUY_TYPE/, `${label} must handle MISSING_BUY_TYPE`)
       assert.match(src, /setMissingBuyTypeLineIds/, `${label} must mark Issues panel rows`)
-      assert.match(src, /missingBuyTypeBuilderIssues/, `${label} must fold ids into builderIssues`)
+      // B52: the fold is buildPlanBuilderIssues (behaviour in app/mediaplans/_form/__tests__/builderIssues).
+      assert.match(src, /buildPlanBuilderIssues\(/, `${label} must build builderIssues in the shared form`)
     }
   })
 })

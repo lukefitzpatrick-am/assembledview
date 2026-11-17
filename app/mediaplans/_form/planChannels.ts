@@ -1,3 +1,7 @@
+import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
+import type { BillingBurst } from "@/lib/billing/types"
+import { findLinesWithOverlappingBursts, type BurstOverlapLineInput } from "@/lib/mediaplan/burstOverlapLines"
+
 /**
  * The plan form's channels by billing key, with the form flag that turns each
  * on (B52, S33 A). Both plan pages map their channel state through this, so a
@@ -30,3 +34,27 @@ type PlanChannelKey = keyof typeof PLAN_CHANNEL_FORM_FLAG
 
 /** One value per channel: a missing channel is a type error. */
 export type PlanChannelRecord<T> = Record<PlanChannelKey, T>
+
+/**
+ * The channels the fee seed and billing read: on in the form and with lines,
+ * in this order (television first, production after integration).
+ */
+export function planFeeSeedConfigs(
+  lineItemsByKey: PlanChannelRecord<SeedLineFeesMediaConfig["lineItems"]>,
+  burstsByKey: PlanChannelRecord<BillingBurst[]>,
+  flagOn: (flag: string) => boolean
+): SeedLineFeesMediaConfig[] {
+  return (Object.keys(PLAN_CHANNEL_FORM_FLAG) as PlanChannelKey[])
+    .map((billingKey) => ({ billingKey, lineItems: lineItemsByKey[billingKey], containerBursts: burstsByKey[billingKey] }))
+    .filter((c) => flagOn(PLAN_CHANNEL_FORM_FLAG[c.billingKey]) && c.lineItems.length > 0)
+}
+
+/**
+ * B35 (switch `burst_overlap_warning`): lines with overlapping bursts, every
+ * channel, production last. Off: none. Warn only, never a save stop.
+ */
+export function planBurstOverlapLines(on: boolean, lineItemsByKey: PlanChannelRecord<readonly BurstOverlapLineInput[]>) {
+  if (!on) return []
+  const { production, ...rest } = lineItemsByKey
+  return findLinesWithOverlappingBursts({ ...rest, production })
+}

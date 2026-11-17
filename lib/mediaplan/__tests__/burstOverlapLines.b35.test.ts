@@ -4,8 +4,6 @@
  * the brief (hema008PD2, buxton004DD7, PGAAUS015DD18, BOSS011NP2).
  */
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import path from "node:path"
 import test from "node:test"
 
 import {
@@ -95,21 +93,6 @@ test("builder issues are warnings naming the line and first overlap; the rail co
   assert.deepEqual(burstOverlapBuilderIssues([]), [])
 })
 
-test("twin pages: both read the switch, list the lines in builder issues once (no rail text too), never as an error", () => {
-  for (const file of ["app/mediaplans/create/page.tsx", "app/mediaplans/mba/[mba_number]/edit/page.tsx"]) {
-    const page = readFileSync(path.join(process.cwd(), file), "utf8")
-    assert.match(page, /const burstOverlapWarningOn = clientFeatureOn\("burst_overlap_warning"\)/, file)
-    assert.match(page, /burstOverlapWarningOn\s*\?\s*findLinesWithOverlappingBursts\(\{/, file)
-    assert.match(page, /issues\.push\(\.\.\.burstOverlapBuilderIssues\(burstOverlapLines\)\)/, file)
-    // B35fix (N1): counted once in the rail heading (builder issues only).
-    assert.equal(page.match(/burstOverlapBuilderIssues\(/g)?.length, 1, file)
-    assert.doesNotMatch(page, /extraProblemTexts\.push\([^)]*[Oo]verlap/, file)
-    for (const key of ["television", "radio", "newspaper", "magazines", "ooh", "cinema", "digiDisplay", "digiAudio", "digiVideo", "bvod", "integration", "search", "socialMedia", "progDisplay", "progVideo", "progBvod", "progAudio", "progOoh", "influencers", "production"]) {
-      const start = page.indexOf("findLinesWithOverlappingBursts({")
-      const block = page.slice(start, page.indexOf("})", start))
-      assert.match(block, new RegExp(`\\b${key}: \\w+MediaLineItems,`), `${file} ${key}`)
-    }
-    // Never a save stop: the overlap lines are not read by any save gate.
-    assert.doesNotMatch(page, /burstOverlapLines\.length\s*>\s*0\s*\)\s*\{\s*toast/, file)
-  }
-})
+// B52: the twin page pins (every channel read, listed once in builder issues,
+// a warning and never a save stop) are behaviour tests of planBurstOverlapLines
+// and buildPlanBuilderIssues in app/mediaplans/_form/__tests__/builderIssues.test.ts.

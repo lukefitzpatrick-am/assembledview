@@ -47,8 +47,6 @@ import { MediaTypeChipRow } from "@/components/mediaplans/MediaTypeChipRow"
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { applyChannelTotalPair } from "@/lib/mediaplan/channelTotalChange"
-import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
-import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
 import {
   computeCampaignBudgetRemaining,
   isCampaignBudgetOverspend,
@@ -310,7 +308,6 @@ import {
 import {
   MISSING_BURST_DATES,
   formatMissingBurstDatesMessage,
-  missingBurstDatesBuilderIssues,
 } from "@/lib/mediaplan/missingBurstDatesGate"
 import {
   END_BEFORE_START_MESSAGE,
@@ -321,12 +318,10 @@ import { useCampaignDateOrderError } from "@/lib/mediaplan/useCampaignDateOrderE
 import {
   MISSING_BUY_TYPE,
   formatMissingBuyTypeMessage,
-  missingBuyTypeBuilderIssues,
 } from "@/lib/mediaplan/missingBuyTypeGate"
 import {
   PUBLISHER_NOT_IN_PUBLISHERS,
   clearResolvedPublisherFindings,
-  publisherGuardBuilderIssues,
   type PublisherGuardFinding,
 } from "@/lib/mediaplan/publisherGuard"
 import {
@@ -387,13 +382,11 @@ import {
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import { planSavePreflight } from "@/app/mediaplans/_form/savePreflight"
+import { buildPlanBuilderIssues } from "@/app/mediaplans/_form/builderIssues"
+import { planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "@/app/mediaplans/_form/planChannels"
 import { cloneBillingMonths } from "@/app/mediaplans/_form/billingMonths"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
-import {
-  burstOverlapBuilderIssues,
-  findLinesWithOverlappingBursts,
-} from "@/lib/mediaplan/burstOverlapLines"
 import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
 
 
@@ -1667,34 +1660,31 @@ function CreateMediaPlan() {
   // B35 (DQ-5, switch burst_overlap_warning): lines with two bursts whose dates overlap,
   // listed in the builder issues and on the save rail. Warn only, never blocks saving.
   const burstOverlapWarningOn = clientFeatureOn("burst_overlap_warning")
-  const burstOverlapLines = useMemo(
-    () =>
-      burstOverlapWarningOn
-        ? findLinesWithOverlappingBursts({
-            television: televisionMediaLineItems,
-            radio: radioMediaLineItems,
-            newspaper: newspaperMediaLineItems,
-            magazines: magazineMediaLineItems,
-            ooh: oohMediaLineItems,
-            cinema: cinemaMediaLineItems,
-            digiDisplay: digiDisplayMediaLineItems,
-            digiAudio: digiAudioMediaLineItems,
-            digiVideo: digiVideoMediaLineItems,
-            bvod: bvodMediaLineItems,
-            integration: integrationMediaLineItems,
-            search: searchMediaLineItems,
-            socialMedia: socialMediaMediaLineItems,
-            progDisplay: progDisplayMediaLineItems,
-            progVideo: progVideoMediaLineItems,
-            progBvod: progBvodMediaLineItems,
-            progAudio: progAudioMediaLineItems,
-            progOoh: progOohMediaLineItems,
-            influencers: influencersMediaLineItems,
-            production: productionMediaLineItems,
-          })
-        : [],
+  // B52: the channel state by billing key, once. Complete by type (PlanChannelRecord).
+  const mediaLineItemsByKey = useMemo(
+    (): PlanChannelRecord<SeedLineFeesMediaConfig["lineItems"]> => ({
+      television: televisionMediaLineItems,
+      radio: radioMediaLineItems,
+      newspaper: newspaperMediaLineItems,
+      magazines: magazineMediaLineItems,
+      ooh: oohMediaLineItems,
+      cinema: cinemaMediaLineItems,
+      digiDisplay: digiDisplayMediaLineItems,
+      digiAudio: digiAudioMediaLineItems,
+      digiVideo: digiVideoMediaLineItems,
+      bvod: bvodMediaLineItems,
+      integration: integrationMediaLineItems,
+      production: productionMediaLineItems,
+      search: searchMediaLineItems,
+      socialMedia: socialMediaMediaLineItems,
+      progDisplay: progDisplayMediaLineItems,
+      progVideo: progVideoMediaLineItems,
+      progBvod: progBvodMediaLineItems,
+      progAudio: progAudioMediaLineItems,
+      progOoh: progOohMediaLineItems,
+      influencers: influencersMediaLineItems,
+    }),
     [
-      burstOverlapWarningOn,
       televisionMediaLineItems,
       radioMediaLineItems,
       newspaperMediaLineItems,
@@ -1706,6 +1696,7 @@ function CreateMediaPlan() {
       digiVideoMediaLineItems,
       bvodMediaLineItems,
       integrationMediaLineItems,
+      productionMediaLineItems,
       searchMediaLineItems,
       socialMediaMediaLineItems,
       progDisplayMediaLineItems,
@@ -1714,8 +1705,57 @@ function CreateMediaPlan() {
       progAudioMediaLineItems,
       progOohMediaLineItems,
       influencersMediaLineItems,
-      productionMediaLineItems,
     ]
+  )
+  const burstsByKey = useMemo(
+    (): PlanChannelRecord<BillingBurst[]> => ({
+      television: televisionBursts,
+      radio: radioBursts,
+      newspaper: newspaperBursts,
+      magazines: magazineBursts,
+      ooh: oohBursts,
+      cinema: cinemaBursts,
+      digiDisplay: digiDisplayBursts,
+      digiAudio: digiAudioBursts,
+      digiVideo: digiVideoBursts,
+      bvod: bvodBursts,
+      integration: integrationBursts,
+      production: productionBursts,
+      search: searchBursts,
+      socialMedia: socialMediaBursts,
+      progDisplay: progDisplayBursts,
+      progVideo: progVideoBursts,
+      progBvod: progBvodBursts,
+      progAudio: progAudioBursts,
+      progOoh: progOohBursts,
+      influencers: influencersBursts,
+    }),
+    [
+      televisionBursts,
+      radioBursts,
+      newspaperBursts,
+      magazineBursts,
+      oohBursts,
+      cinemaBursts,
+      digiDisplayBursts,
+      digiAudioBursts,
+      digiVideoBursts,
+      bvodBursts,
+      integrationBursts,
+      productionBursts,
+      searchBursts,
+      socialMediaBursts,
+      progDisplayBursts,
+      progVideoBursts,
+      progBvodBursts,
+      progAudioBursts,
+      progOohBursts,
+      influencersBursts,
+    ]
+  )
+  const burstOverlapLines = useMemo(
+    () => planBurstOverlapLines(burstOverlapWarningOn, mediaLineItemsByKey),
+    [burstOverlapWarningOn, mediaLineItemsByKey]
   )
 
   const updateBurstBudget = useCallback(
@@ -2010,98 +2050,11 @@ function CreateMediaPlan() {
     })
 
 
-  const billingFeeSeedEnabledConfigs = useMemo((): SeedLineFeesMediaConfig[] => {
-    const formFlagByKey: Record<string, string> = {
-      television: "mp_television",
-      radio: "mp_radio",
-      newspaper: "mp_newspaper",
-      magazines: "mp_magazines",
-      ooh: "mp_ooh",
-      cinema: "mp_cinema",
-      digiDisplay: "mp_digidisplay",
-      digiAudio: "mp_digiaudio",
-      digiVideo: "mp_digivideo",
-      bvod: "mp_bvod",
-      integration: "mp_integration",
-      production: "mp_production",
-      search: "mp_search",
-      socialMedia: "mp_socialmedia",
-      progDisplay: "mp_progdisplay",
-      progVideo: "mp_progvideo",
-      progBvod: "mp_progbvod",
-      progAudio: "mp_progaudio",
-      progOoh: "mp_progooh",
-      influencers: "mp_influencers",
-    }
-    const seedConfigs: SeedLineFeesMediaConfig[] = [
-      { billingKey: "television", lineItems: televisionMediaLineItems, containerBursts: televisionBursts },
-      { billingKey: "radio", lineItems: radioMediaLineItems, containerBursts: radioBursts },
-      { billingKey: "newspaper", lineItems: newspaperMediaLineItems, containerBursts: newspaperBursts },
-      { billingKey: "magazines", lineItems: magazineMediaLineItems, containerBursts: magazineBursts },
-      { billingKey: "ooh", lineItems: oohMediaLineItems, containerBursts: oohBursts },
-      { billingKey: "cinema", lineItems: cinemaMediaLineItems, containerBursts: cinemaBursts },
-      { billingKey: "digiDisplay", lineItems: digiDisplayMediaLineItems, containerBursts: digiDisplayBursts },
-      { billingKey: "digiAudio", lineItems: digiAudioMediaLineItems, containerBursts: digiAudioBursts },
-      { billingKey: "digiVideo", lineItems: digiVideoMediaLineItems, containerBursts: digiVideoBursts },
-      { billingKey: "bvod", lineItems: bvodMediaLineItems, containerBursts: bvodBursts },
-      { billingKey: "integration", lineItems: integrationMediaLineItems, containerBursts: integrationBursts },
-      { billingKey: "production", lineItems: productionMediaLineItems, containerBursts: productionBursts },
-      { billingKey: "search", lineItems: searchMediaLineItems, containerBursts: searchBursts },
-      { billingKey: "socialMedia", lineItems: socialMediaMediaLineItems, containerBursts: socialMediaBursts },
-      { billingKey: "progDisplay", lineItems: progDisplayMediaLineItems, containerBursts: progDisplayBursts },
-      { billingKey: "progVideo", lineItems: progVideoMediaLineItems, containerBursts: progVideoBursts },
-      { billingKey: "progBvod", lineItems: progBvodMediaLineItems, containerBursts: progBvodBursts },
-      { billingKey: "progAudio", lineItems: progAudioMediaLineItems, containerBursts: progAudioBursts },
-      { billingKey: "progOoh", lineItems: progOohMediaLineItems, containerBursts: progOohBursts },
-      { billingKey: "influencers", lineItems: influencersMediaLineItems, containerBursts: influencersBursts },
-    ]
-    return seedConfigs.filter((c) => {
-      const flag = formFlagByKey[c.billingKey]
-      return Boolean(flag && watchedMediaTypesMap[flag] && c.lineItems.length > 0)
-    })
-  }, [
-    watchedMediaTypesMap,
-    televisionMediaLineItems,
-    radioMediaLineItems,
-    newspaperMediaLineItems,
-    magazineMediaLineItems,
-    oohMediaLineItems,
-    cinemaMediaLineItems,
-    digiDisplayMediaLineItems,
-    digiAudioMediaLineItems,
-    digiVideoMediaLineItems,
-    bvodMediaLineItems,
-    integrationMediaLineItems,
-    productionMediaLineItems,
-    searchMediaLineItems,
-    socialMediaMediaLineItems,
-    progDisplayMediaLineItems,
-    progVideoMediaLineItems,
-    progBvodMediaLineItems,
-    progAudioMediaLineItems,
-    progOohMediaLineItems,
-    influencersMediaLineItems,
-    televisionBursts,
-    radioBursts,
-    newspaperBursts,
-    magazineBursts,
-    oohBursts,
-    cinemaBursts,
-    digiDisplayBursts,
-    digiAudioBursts,
-    digiVideoBursts,
-    bvodBursts,
-    integrationBursts,
-    productionBursts,
-    searchBursts,
-    socialMediaBursts,
-    progDisplayBursts,
-    progVideoBursts,
-    progBvodBursts,
-    progAudioBursts,
-    progOohBursts,
-    influencersBursts,
-  ])
+  const billingFeeSeedEnabledConfigs = useMemo(
+    (): SeedLineFeesMediaConfig[] =>
+      planFeeSeedConfigs(mediaLineItemsByKey, burstsByKey, (flag) => Boolean(watchedMediaTypesMap[flag as keyof typeof watchedMediaTypesMap])),
+    [watchedMediaTypesMap, mediaLineItemsByKey, burstsByKey]
+  )
 
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
@@ -2326,114 +2279,41 @@ function CreateMediaPlan() {
     [billingFeeSeedEnabledConfigs, campaignFinancials.billingSchedule, kpiPublishers],
   )
 
-  const builderIssues = useMemo(() => {
-    const issues: BuilderIssue[] = []
-    const client = String(watchedClientName ?? "").trim()
-    const name = String(watchedCampaignName ?? "").trim()
-    if (!client) {
-      issues.push({
-        id: "required-client",
-        severity: "error",
-        title: "Client name is required",
-        stepLabel: "Campaign setup",
-        fieldLabel: "Client name",
-        scrollTargetId: "builder-section-campaign",
-      })
-    }
-    if (!name) {
-      issues.push({
-        id: "required-campaign-name",
-        severity: "error",
-        title: "Campaign name is required",
-        stepLabel: "Campaign setup",
-        fieldLabel: "Campaign name",
-        scrollTargetId: "builder-section-campaign",
-      })
-    }
-    if (dateWarning.hasViolation) {
-      issues.push({
-        id: "dates-outside-window",
-        severity: "warning",
-        title:
-          dateWarning.offendingCount === 1
-            ? "1 line item has flight dates outside the campaign window"
-            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
-        detail: "Open the channel cards and adjust burst dates, or widen campaign dates.",
-        stepLabel: "Campaign setup",
-        fieldLabel: "Campaign dates",
-        scrollTargetId: "builder-field-campaign-dates",
-      })
-    }
-    if (budgetRemainingOverspend) {
-      issues.push({
-        id: "budget-overspend",
-        severity: "warning",
-        title: "Budget remaining is negative",
-        detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
-        stepLabel: "Campaign setup",
-        fieldLabel: "Campaign budget",
-        scrollTargetId: "builder-field-campaign-budget",
-      })
-    }
-    pushFinanceBuilderIssues(issues, campaignFinancials, panelIndicators)
-    if (
-      campaignFinancials.mbaScopeTotals.adServing > 0 ||
-      campaignFinancials.mbaScopeTotals.production > 0
-    ) {
-      issues.push({
-        id: "adserving-unvalidated",
-        severity: "warning",
-        title: "Ad serving / production not auto-checked",
-        detail:
-          "These aren't included in the save equality check — confirm their monthly amounts before billing.",
-        stepLabel: "MBA & billing",
-        fieldLabel: "Ad serving / production",
-        scrollTargetId: "mba-billing",
-      })
-    }
-    if (missingPublisherKpiCount > 0) {
-      issues.push({
-        id: "missing-publisher-kpi",
-        severity: "warning",
-        title: `${missingPublisherKpiCount} missing publisher KPI`,
-        detail: "Does not block save — open KPIs to add publisher coverage.",
-        stepLabel: "KPIs",
-        fieldLabel: "Publisher KPI",
-        scrollTargetId: "builder-section-kpis",
-      })
-    }
-    issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
-    issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
-    issues.push(...burstOverlapBuilderIssues(burstOverlapLines))
-    issues.push(...publisherGuardBuilderIssues(publisherGuardBlocked, publisherGuardWarnings))
-    aaPublishWarnings.forEach((message, index) => {
-      issues.push({
-        id: `aa-publish-${index}`,
-        severity: "warning",
-        title: message,
-        detail: "Does not block publish.",
-        stepLabel: "Publish",
-        fieldLabel: "Advertising Associates",
-      })
-    })
-    return issues
-  }, [
-    watchedClientName,
-    watchedCampaignName,
-    dateWarning.hasViolation,
-    dateWarning.offendingCount,
-    budgetRemainingOverspend,
-    budgetRemaining,
-    campaignFinancials,
-    panelIndicators,
-    missingPublisherKpiCount,
-    missingBuyTypeLineIds,
-    missingBurstDateLineIds,
-    burstOverlapLines,
-    publisherGuardBlocked,
-    publisherGuardWarnings,
-    aaPublishWarnings,
-  ])
+  const builderIssues = useMemo(
+    () =>
+      buildPlanBuilderIssues({
+        mode: "create",
+        clientName: watchedClientName,
+        campaignName: watchedCampaignName,
+        dateWarning,
+        budgetRemainingOverspend,
+        budgetRemaining,
+        finance: { financials: campaignFinancials, panelIndicators },
+        mbaScopeTotals: campaignFinancials.mbaScopeTotals,
+        missingPublisherKpiCount,
+        missingBuyTypeLineIds,
+        missingBurstDateLineIds,
+        burstOverlapLines,
+        publisherGuard: { blocked: publisherGuardBlocked, warnings: publisherGuardWarnings },
+        aaPublishWarnings,
+      }),
+    [
+      watchedClientName,
+      watchedCampaignName,
+      dateWarning,
+      budgetRemainingOverspend,
+      budgetRemaining,
+      campaignFinancials,
+      panelIndicators,
+      missingPublisherKpiCount,
+      missingBuyTypeLineIds,
+      missingBurstDateLineIds,
+      burstOverlapLines,
+      publisherGuardBlocked,
+      publisherGuardWarnings,
+      aaPublishWarnings,
+    ]
+  )
 
 
 
