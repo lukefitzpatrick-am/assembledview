@@ -40,6 +40,24 @@ describe("publisherGuardPreflight", () => {
   })
 })
 
+describe("publisherGuardPreflight hands blank publishers to S1 (publish_validation on)", () => {
+  const blanks = [
+    { lineItemId: "PR1", channel: "production", publisher: "", bursts: [{ budget: "500", buyAmount: "500", calculatedValue: 1 }] },
+    { lineItemId: "S2", channel: "search", platform: "", buyType: "cpc", bursts: [{ budget: "100", buyAmount: "1", calculatedValue: 100 }] },
+  ]
+
+  it("off: a blank production line is blocked by the guard", () => {
+    assert.equal(publisherGuardPreflight("publish", blanks, PUBLISHERS, true, false).reject, true)
+  })
+
+  it("on (argument or layout snapshot): the guard leaves blanks to S1 and still blocks an unknown name", () => {
+    assert.deepEqual(publisherGuardPreflight("publish", blanks, PUBLISHERS, true, true), { reject: false, warnings: [] })
+    setClientFeatureSnapshot({ publisher_guard: true, publish_validation: true })
+    assert.deepEqual(publisherGuardPreflight("publish", blanks, PUBLISHERS), { reject: false, warnings: [] })
+    assert.equal(publisherGuardPreflight("publish", [LINES[0]], PUBLISHERS).reject, true)
+  })
+})
+
 describe("toasts", () => {
   it("blocked toast names the lines", () => {
     const r = publisherGuardPreflight("publish", LINES, PUBLISHERS, true)

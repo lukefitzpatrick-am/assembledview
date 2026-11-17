@@ -143,6 +143,16 @@ test("publishRefusalForVersion: off reads nothing; on reads the stored lines; no
   assert.equal(await publishRefusalForVersion(versionLinesDb(clean), { versionId: 9 }), null)
 })
 
+test("publishRefusalForVersion: the stored plan dates reach the dates rule (billing revisions, true-ups, the PATCH stamp)", async () => {
+  setSwitch(true)
+  const stored = (bursts: unknown) => [{ ...storedOverlap[0], bursts }]
+  const outside = await publishRefusalForVersion(versionLinesDb(stored([overlapping[1], { ...overlapping[1], startDate: "2026-12-01", endDate: "2026-12-02" }])), {
+    versionId: 9,
+  })
+  assert.deepEqual(outside?.publishProblems.map((p) => [p.rule, p.burst]), [["burst_outside_plan_dates", 2]])
+  assert.equal(await publishRefusalForVersion(versionLinesDb(stored([overlapping[1]])), { versionId: 9 }), null)
+})
+
 const revisionInput = {
   mbaNumber: "test001",
   baseVersionId: 9,

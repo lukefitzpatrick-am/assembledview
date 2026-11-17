@@ -162,3 +162,19 @@ test("the 422 body lists every refused line once; the rail styles refuse and war
   assert.match(off[0]!.detail!, /once publish validation is on/)
   assert.equal(new Set(on.map((i) => i.id)).size, 3)
 })
+
+test("edge: a one-day burst (start equals end) is valid", () => {
+  const line = cleanLine({ bursts: [burst("2026-11-10", "2026-11-10"), burst("2026-11-11T13:00:00.000Z", "2026-11-12")] })
+  assert.deepEqual(validatePlanForPublish(plan([line])), { refuse: [], warn: [] })
+})
+
+test("edge: a one-day plan runs the dates rule (inside passes, a day later is refused)", () => {
+  const oneDay = (bursts: unknown): PublishPlan => ({
+    campaignStartDate: "2026-11-10",
+    campaignEndDate: "2026-11-10",
+    lineItems: [cleanLine({ bursts })],
+  })
+  assert.deepEqual(validatePlanForPublish(oneDay([burst("2026-11-10", "2026-11-10")])), { refuse: [], warn: [] })
+  const late = validatePlanForPublish(oneDay([burst("2026-11-11", "2026-11-11")]))
+  assert.deepEqual(late.refuse.map((p) => [p.rule, p.burst]), [["burst_outside_plan_dates", 1]])
+})
