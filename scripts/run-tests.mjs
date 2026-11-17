@@ -14,6 +14,10 @@
  * - A node:test file that reports no test at all (none ran, skipped or todo)
  *   fails the run. A skipped suite counts as skipped, so a database suite with
  *   no database passes as skipped.
+ * - No `forceExit`: it made each child call process.exit() once its known tests
+ *   ended, which dropped the tail of its results still queued on the pipe and
+ *   never ran a test registered after a top-level await. A file that hangs is
+ *   stopped by FILE_TIMEOUT_MS instead.
  * - run() starts each file with this process's exec flags too, so start the
  *   runner as a file (`node scripts/run-tests.mjs`), never with `node -e`.
  *
@@ -39,6 +43,11 @@ const SHIMS = [
   "--import",
   "tsx",
 ]
+
+// A per-file cap (run()'s `timeout`, inherited by each file's test), so a file whose process never ends
+// fails by name. The slowest file of 240 took 6 s on a loaded 2-core box; 5 minutes leaves room and still
+// fits CI's 40-minute job. Node's own default is no limit.
+const FILE_TIMEOUT_MS = 5 * 60 * 1000
 
 /** The files a list of prefixes selects (all when there is none). */
 export function selectTests(tests, prefixes) {
@@ -72,7 +81,7 @@ async function runNode(files, root) {
     execArgv: SHIMS,
     isolation: "process",
     concurrency: os.availableParallelism(),
-    forceExit: true,
+    timeout: FILE_TIMEOUT_MS,
   })
   stream.on("test:fail", (e) => {
     if (e.todo === undefined) failed++

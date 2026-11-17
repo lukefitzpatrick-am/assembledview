@@ -147,3 +147,12 @@ test("a prefix that selects nothing fails the run", () => {
   assert.equal(r.status, 1)
   assert.match(r.stderr, /no test file starts with app\//)
 })
+
+const NODE_TEST = `import test from "node:test"\n`
+
+test("a test registered after a top-level await runs, so its late failure fails the run", () => {
+  const body = `test("early", () => {})\nawait new Promise((r) => setTimeout(r, 50))\ntest("late", () => { throw new Error("late") })\n`
+  const r = runMain(tempRoot({ "lib/a.test.mts": NODE_TEST + body })) // .mts: top-level await needs ESM
+  assert.equal(r.status, 1, r.stdout)
+  assert.match(r.stdout, /node:test files 1 \(ran 2, skipped 0, todo 0\)/)
+})
