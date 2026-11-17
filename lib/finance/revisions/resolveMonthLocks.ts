@@ -84,11 +84,15 @@ export function toMonthKey(raw: string | null | undefined): MonthKey | null {
   return null
 }
 
-export function resolveMonthLocks(input: ResolveMonthLocksInput): ResolvedMonthLocks {
-  const currentMonth = getMelbourneMonthISO(input.now)
+/**
+ * The finance reasons each month carries (records and closed periods), with
+ * no clock and no campaign rule. Shared by the revision locks and the billed
+ * months check at publish (S2).
+ */
+export function monthLockReasons(
+  input: Pick<ResolveMonthLocksInput, "mbaNumber" | "records" | "periods" | "financePeriodsLockEnforced">,
+): Map<MonthKey, Set<LockReason>> {
   const mba = input.mbaNumber.trim().toLowerCase()
-  const months = [...new Set(input.months.filter(isMonthKey))].sort()
-
   const reasonsByMonth = new Map<MonthKey, Set<LockReason>>()
   const add = (m: MonthKey, r: LockReason) => {
     const set = reasonsByMonth.get(m) ?? new Set<LockReason>()
@@ -119,6 +123,13 @@ export function resolveMonthLocks(input: ResolveMonthLocksInput): ResolvedMonthL
       if (m && LOCKED_PERIOD_STATUSES.has(String(p.status).toLowerCase())) add(m, "finance_period_locked")
     }
   }
+  return reasonsByMonth
+}
+
+export function resolveMonthLocks(input: ResolveMonthLocksInput): ResolvedMonthLocks {
+  const currentMonth = getMelbourneMonthISO(input.now)
+  const months = [...new Set(input.months.filter(isMonthKey))].sort()
+  const reasonsByMonth = monthLockReasons(input)
 
   const locks: MonthLock[] = months.map((month) => {
     const base = defaultMonthLock(month, currentMonth, input.lastCampaignMonth)
