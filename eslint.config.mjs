@@ -37,6 +37,20 @@ const RESTRICTED_IMPORTS = [
   },
 ]
 
+// B55fix (S27): a prerendered page or layout has no request, so its scripts get no CSP nonce.
+const PRERENDER_MESSAGE =
+  "Prerendered page or layout: its scripts get no CSP nonce and are blocked once the policy is enforced. Pages render per request (docs/brain/SECURITY-HEADERS.md)."
+const PRERENDER_SELECTORS = [
+  "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name='dynamic'][init.value=/^(force-static|error)$/]",
+  "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name='dynamic'][init.expression.value=/^(force-static|error)$/]",
+  "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^(revalidate|generateStaticParams)$/]",
+  "ExportNamedDeclaration > FunctionDeclaration[id.name='generateStaticParams']",
+  "ExportSpecifier[exported.name=/^(revalidate|generateStaticParams)$/]",
+].map((selector) => ({ selector, message: PRERENDER_MESSAGE }))
+// Pages and layouts only: API routes are not pages and keep their revalidate.
+const PAGE_FILES = ["app/**/{page,layout}.{ts,tsx}"]
+const TASKS_PAGE_FILES = ["app/tasks/**/{page,layout}.{ts,tsx}"]
+
 /** ESLint 9 reads this file. */
 const config = [
   ...compat.extends("next/core-web-vitals"),
@@ -110,6 +124,13 @@ const config = [
     ignores: [...HEX_BASELINE, ...CODEX_URL_IGNORES],
     rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS, ...CODEX_SPECIFIER_SELECTORS] },
   },
+  // Pages and layouts add the prerender selectors to what the two blocks above give them (the Tasks zone has no URL selectors).
+  {
+    files: PAGE_FILES,
+    ignores: [...HEX_BASELINE, ...CODEX_URL_IGNORES],
+    rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS, ...CODEX_SPECIFIER_SELECTORS, ...PRERENDER_SELECTORS] },
+  },
+  { files: TASKS_PAGE_FILES, rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...PRERENDER_SELECTORS] } },
   // C-200 (S32 A, B51): Codex task writes only in Tasks (scripts/codex-boundary.mjs).
   // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.
   ...codexImportBlocks(ROOT, {

@@ -51,7 +51,7 @@ After turning it on, run the same three commands. Expect the baseline on the fir
 
 Scripts use a per-request nonce with `'strict-dynamic'`:
 
-- Every page renders per request (the root layout reads the session), so a nonce costs no static page. `/privacy` and `/data-deletion` were `force-static`; B55 removed that, because a page prerendered at build has no nonce on its scripts. A new static page needs the same care (INVARIANTS).
+- Every page renders per request (the root layout reads the session), so a nonce costs no static page. `/privacy` and `/data-deletion` were `force-static`; B55 removed that, because a page prerendered at build has no nonce on its scripts. Lint refuses a page or layout that exports `dynamic = "force-static"` (or `"error"`), `revalidate` or `generateStaticParams`, with a message naming the nonce (`eslint.config.mjs`, self-test `scripts/__tests__/eslint-prerender.test.mjs`). `lib/security/__tests__/nonceRender.test.tsx` renders the layout and checks the theme script carries the request's nonce.
 - Next 15 reads the nonce from the policy on the request headers and stamps it on its own scripts. Scripts those load (chunks) are trusted through `'strict-dynamic'`.
 - The one inline script the app adds is next-themes' theme script. `ServerAuthScope` reads the nonce (`readNonce`) and passes it down to `ThemeProvider`.
 - Middleware drops any `Content-Security-Policy` or `Content-Security-Policy-Report-Only` header the client sent before it sets ours on the forwarded request, so Next and `readNonce` only ever see our nonce.

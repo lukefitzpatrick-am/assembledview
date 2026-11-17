@@ -492,7 +492,7 @@ pct === 100 → fee = 0 (division guard)
 - A new external origin the browser loads (script, fetch, frame, font, worker) is a change to `buildContentSecurityPolicy` and its pinned test in the same commit. Server-side calls need no change.
 - `script-src` never takes `'unsafe-inline'`. An inline script the app adds carries the page nonce (`readNonce`).
 - Browser code never needs `'unsafe-eval'`. zod runs jitless in the browser (`instrumentation-client.ts`); a library that calls `eval` or `new Function` in the browser needs its own off switch or a replacement.
-- Every page renders per request. No page sets `dynamic = "force-static"`, exports `revalidate` or `generateStaticParams`: a prerendered page has no nonce, so its scripts are blocked once the policy is enforced.
+- Every page renders per request. No page sets `dynamic = "force-static"`, exports `revalidate` or `generateStaticParams`: a prerendered page has no nonce, so its scripts are blocked once the policy is enforced. Lint refuses each in `app/**/page.tsx` and `layout.tsx` (`eslint.config.mjs`, self-test `scripts/__tests__/eslint-prerender.test.mjs`); API routes keep their `revalidate`.
 - Only the app frames its pages (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`).
 - `/api/csp-report` takes no session only while `security_headers` is on; switched off, middleware gates it like any other API route. It logs no query string, script sample, referrer, user agent or IP.
 
