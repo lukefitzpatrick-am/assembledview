@@ -120,12 +120,7 @@ import {
   getProductionLineItemsByMBA,
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
-import {
-  appendAutoLineItemTemplateIntoWorking as appendAutoLineItemTemplateIntoWorkingLib,
-  type AppendIntoWorkingOpts,
-  type BillingAliasReconcileEntry,
-} from "@/lib/billing/appendAutoReferenceIntoWorking"
-import { unionGeneratedBillingLines } from "@/lib/billing/unionGeneratedBillingLines"
+import type { BillingAliasReconcileEntry } from "@/lib/billing/appendAutoReferenceIntoWorking"
 import { buildBillingAliasNumberCheck } from "@/lib/billing/billingAliasNumberCheck"
 import type { BillingAliasNumberCheck } from "@/lib/billing/billingLineIdAlias"
 import {
@@ -134,9 +129,6 @@ import {
   summariseBillingAliasGhostPairs,
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
-import { PartialMbaUnmatchedNotice } from "@/components/billing/PartialMbaUnmatchedNotice"
-import { PartialMbaAddedSinceNotice } from "@/components/billing/PartialMbaAddedSinceNotice"
-import { PartialMbaBillingGuardNotice } from "@/components/billing/PartialMbaBillingGuardNotice"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   burstOverlapBuilderIssues,
@@ -305,7 +297,6 @@ import {
   countablePartialMbaLineCount,
   formatMbaScopeVersionPickerLabel,
   parsePersistedMbaScope,
-  selectedLineItemIdsByMediaFromMbaScope,
 } from "@/lib/mediaplan/mbaScopeClient"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
@@ -395,16 +386,10 @@ import {
 import {
   canonicalisePartialMbaSelectedLineItemIds,
   fetchMbaLineApprovalsClient,
-  selectedLineItemIdsFromApprovalRows,
 } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   currentLegacyPartialNotices,
-  describeLegacyPartialAddedSince,
-  describeLegacyPartialUnresolved,
-  legacyPartialUnmatchedToast,
-  reconcileLegacyPartialSelection,
   type LegacyPartialChannel,
-  type LegacyPartialLoadedLines,
   type LegacyPartialOnOpen,
 } from "@/lib/mediaplan/reconcileLegacyPartialSelection"
 import {
@@ -504,7 +489,15 @@ import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
 import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
 import { MEDIA_TYPE_ID_CODES, registerLineIdFloors } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
-import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers, type LineItemWithIdentity } from "@/lib/mediaplan/lineItemOrder"
+import { mbaScopeFromVersion, resolveMbaScopeOnLoad } from "@/app/mediaplans/_form/mbaScopeOnLoad"
+import {
+  appendAutoReferenceIntoWorkingBilling,
+  unionWithAliasIdentity,
+  type BillingAliasIdentity,
+} from "@/app/mediaplans/_form/workingBillingAppend"
+import { PartialMbaScopeNotices, partialMbaScopeNoticesShown } from "@/app/mediaplans/_form/PartialMbaScopeNotices"
+import type { PlanChannelRecord } from "@/app/mediaplans/_form/planChannels"
 import {
   partialMbaBaselineMonths,
   partialMbaBillingGuardWhenOn,
@@ -652,11 +645,6 @@ type BillingSaveValidationResult = {
   hasAnyIssue: boolean
 }
 
-/** JSON deep clone for billing month graphs (merge helpers at file scope). */
-function cloneBillingMonthGraph<T>(x: T): T {
-  return JSON.parse(JSON.stringify(x)) as T
-}
-
 /**
  * `billingPlanStructureKey` uses `flag#id1(bursts),…`; an empty tail (`mp_bvod#`) means the media type is on but
  * no billing line-item ids are materialized yet (containers / transforms / API).
@@ -674,45 +662,6 @@ function billingStructureKeyHasPendingEmptyLineSlots(structureKey: string): bool
 function isMediaTypeReadyForBillingAppend(enabled: boolean, lineItems: any[] | null | undefined): boolean {
   if (!enabled) return true
   return Array.isArray(lineItems) && lineItems.length > 0
-}
-
-/**
- * Build line-item template: prefer burst-derived auto months; if auto is empty but working has rows, use working
- * as the month skeleton so toggling media types still merges (attach reads live form + containers).
- */
-function buildWorkingBillingAppendTemplate(
-  autoReferenceMonths: BillingMonth[],
-  workingMonths: BillingMonth[],
-  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[]
-): BillingMonth[] {
-  const skeleton = autoReferenceMonths.length > 0 ? autoReferenceMonths : workingMonths
-  if (!skeleton.length) return []
-  return attachLineItemsToMonths(cloneBillingMonthGraph(skeleton), "billing")
-}
-
-/**
- * Append-only: merges template from auto ref + containers into working. New months/keys/line ids only;
- * existing line ids unchanged (preserved-state model).
- */
-function appendAutoReferenceIntoWorkingBilling(
-  workingMonths: BillingMonth[],
-  autoReferenceMonths: BillingMonth[],
-  formatter: Intl.NumberFormat,
-  attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[],
-  opts?: AppendIntoWorkingOpts
-): BillingMonth[] {
-  const templateWithLineItems = buildWorkingBillingAppendTemplate(
-    autoReferenceMonths,
-    workingMonths,
-    attachLineItemsToMonths
-  )
-  // MB-30: the lib merge (old-id alias match, placeholder skip, canonical dedupe backstop). B20 deleted the local copy.
-  return appendAutoLineItemTemplateIntoWorkingLib(
-    workingMonths,
-    templateWithLineItems,
-    formatter,
-    opts
-  )
 }
 
 /** Grand total line for the billing table from month `totalAmount` strings (aligned with auto-calculate). */
@@ -1631,33 +1580,31 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // no-code or production billing id pairs with a current id only when they prove
   // its number. Read through a ref so the billing merges don't re-run on it.
   // B35fix (L3): production lines too, so this sits below their state.
-  const billingAliasNumberCheck = useMemo(
-    () =>
-      buildBillingAliasNumberCheck(
-        {
-          television: televisionLineItems,
-          radio: radioLineItems,
-          newspaper: newspaperLineItems,
-          magazines: magazinesLineItems,
-          ooh: oohLineItems,
-          cinema: cinemaLineItems,
-          digiDisplay: digitalDisplayLineItems,
-          digiAudio: digitalAudioLineItems,
-          digiVideo: digitalVideoLineItems,
-          bvod: bvodLineItems,
-          integration: integrationLineItems,
-          search: searchLineItems,
-          socialMedia: socialMediaLineItems,
-          progDisplay: progDisplayLineItems,
-          progVideo: progVideoLineItems,
-          progBvod: progBvodLineItems,
-          progAudio: progAudioLineItems,
-          progOoh: progOohLineItems,
-          influencers: influencersLineItems,
-          production: productionLineItems,
-        },
-        mbaNumber
-      ),
+  // B21fix (finding 2) and B35fix (L3): the same loaded lines feed the old partial
+  // MBA reconcile, every billing channel, production included.
+  const loadedLinesByKey = useMemo(
+    (): PlanChannelRecord<readonly LineItemWithIdentity[]> => ({
+      television: televisionLineItems,
+      radio: radioLineItems,
+      newspaper: newspaperLineItems,
+      magazines: magazinesLineItems,
+      ooh: oohLineItems,
+      cinema: cinemaLineItems,
+      digiDisplay: digitalDisplayLineItems,
+      digiAudio: digitalAudioLineItems,
+      digiVideo: digitalVideoLineItems,
+      bvod: bvodLineItems,
+      integration: integrationLineItems,
+      search: searchLineItems,
+      socialMedia: socialMediaLineItems,
+      progDisplay: progDisplayLineItems,
+      progVideo: progVideoLineItems,
+      progBvod: progBvodLineItems,
+      progAudio: progAudioLineItems,
+      progOoh: progOohLineItems,
+      influencers: influencersLineItems,
+      production: productionLineItems,
+    }),
     [
       televisionLineItems,
       radioLineItems,
@@ -1679,10 +1626,23 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       progOohLineItems,
       influencersLineItems,
       productionLineItems,
-      mbaNumber,
     ]
   )
+  const billingAliasNumberCheck = useMemo(
+    () => buildBillingAliasNumberCheck(loadedLinesByKey, mbaNumber),
+    [loadedLinesByKey, mbaNumber]
+  )
   billingAliasNumberCheckRef.current = billingAliasNumberCheck
+  // B20, B35 (MB-30, MB-40): the plan's alias identity for every billing merge and
+  // union, read through refs so the merges don't re-run on it.
+  const billingAliasIdentity = useCallback(
+    (): BillingAliasIdentity => ({
+      mbaNumber: mbaNumberRef.current,
+      aliasNumberCheck: billingAliasNumberCheckRef.current,
+      onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
+    }),
+    []
+  )
   const [productionItems, setProductionItems] = useState<LineItem[]>([])
   const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([])
   const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([])
@@ -2718,12 +2678,10 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         billingMonthsCalculated,
         fmt,
         attachLineItemsToMonthsRef.current,
+        billingAliasIdentity(),
         {
           isManualBilling: isManualBillingRef.current,
           resyncExistingFromTemplate: true,
-          mbaNumber: mbaNumberRef.current,
-          aliasNumberCheck: billingAliasNumberCheckRef.current,
-          onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
           onCanonicalDedupe: (collapses) => {
             // Read identity via refs (not deps): this callback is anomaly telemetry only;
             // adding mbaNumber/mediaPlanVersionId would recreate calculateBillingSchedule and re-fire billing append.
@@ -2742,6 +2700,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       workingBillingMonthsRef.current = merged
     }
   }, [
+    billingAliasIdentity,
     searchBursts,
     socialMediaBursts,
     progAudioBursts,
@@ -4027,11 +3986,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       deepCopiedMonths.forEach((m) => {
         if (!m.lineItems) m.lineItems = {}
         const li = m.lineItems as Record<string, BillingLineItemType[]>
-        const union = unionGeneratedBillingLines(li[mediaKey], generatedList, {
-          mediaKey,
-          mbaNumber: mbaNumberRef.current,
-          aliasNumberCheck: billingAliasNumberCheckRef.current,
-        })
+        const union = unionWithAliasIdentity(li[mediaKey], generatedList, mediaKey, billingAliasIdentity())
         if (union.changed) li[mediaKey] = union.list
         for (const a of union.aliasAdoptions) {
           modalReconcile.push({ kind: "alias_adoption", mediaKey, monthYear: m.monthYear, ...a })
@@ -4873,12 +4828,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           monthCopy.lineItems = { ...monthCopy.lineItems }
         }
         const li = monthCopy.lineItems as Record<string, BillingLineItemType[]>
-        // MB-30 (B20): canonical id, then old-id alias, placeholder skip (unionGeneratedBillingLines).
-        const union = unionGeneratedBillingLines(li[key], generatedList, {
-          mediaKey: key,
-          mbaNumber: mbaNumberRef.current,
-          aliasNumberCheck: billingAliasNumberCheckRef.current,
-        })
+        // MB-30 (B20): canonical id, then old-id alias, placeholder skip (unionWithAliasIdentity).
+        const union = unionWithAliasIdentity(li[key], generatedList, key, billingAliasIdentity())
         if (union.changed) li[key] = union.list
         for (const a of union.aliasAdoptions) {
           attachReconcile.push({ kind: "alias_adoption", mediaKey: key, monthYear: month.monthYear, ...a })
@@ -4893,6 +4844,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
     return monthsWithLineItems
   }, [
+    billingAliasIdentity,
     form,
     televisionMediaLineItems,
     radioMediaLineItems,
@@ -9062,97 +9014,49 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
       }
 
-      const persisted = parsePersistedMbaScope(
+      const fromVersion = mbaScopeFromVersion(
         (mediaPlan as { mba_scope?: unknown } | null)?.mba_scope ??
-          (
-            mediaPlan as {
-              versionData?: { mba_scope?: unknown }
-            } | null
-          )?.versionData?.mba_scope
+          (mediaPlan as { versionData?: { mba_scope?: unknown } } | null)?.versionData?.mba_scope,
+        allByMedia
       )
-      if (persisted) {
-        if (cancelled) return
+      if (fromVersion) {
         approvalsHydratedRef.current = true
-        const selected = selectedLineItemIdsByMediaFromMbaScope({
-          lineItemIds: persisted.lineItemIds,
-          allLineIdsByMedia: allByMedia,
-        })
-        applySelected(selected, persisted.partial, persisted.monthYears)
+        applySelected(fromVersion.selected, fromVersion.isPartial, fromVersion.monthYears)
         return
       }
 
-      // MB-33 (B21): an old partial MBA is matched once every channel has its lines,
-      // so a channel that loads late isn't read as having none.
-      const legacyChannels = legacyPartialChannelsRef.current
-      if (legacyChannels && !allChannelsHydrated) return
-      const applyLegacyPartial = () => {
-        if (!legacyChannels) return
-        // B21fix (finding 2): the lines as loaded, before the editor renumbers them,
-        // so an alias pair onto a renumbered line is refused.
-        const loadedLinesByMedia: LegacyPartialLoadedLines = {
-          television: televisionLineItems,
-          radio: radioLineItems,
-          newspaper: newspaperLineItems,
-          magazines: magazinesLineItems,
-          ooh: oohLineItems,
-          cinema: cinemaLineItems,
-          digiDisplay: digitalDisplayLineItems,
-          digiAudio: digitalAudioLineItems,
-          digiVideo: digitalVideoLineItems,
-          bvod: bvodLineItems,
-          integration: integrationLineItems,
-          production: productionLineItems,
-          search: searchLineItems,
-          socialMedia: socialMediaLineItems,
-          progDisplay: progDisplayLineItems,
-          progVideo: progVideoLineItems,
-          progBvod: progBvodLineItems,
-          progAudio: progAudioLineItems,
-          progOoh: progOohLineItems,
-          influencers: influencersLineItems,
-        }
-        const r = reconcileLegacyPartialSelection({
-          channels: legacyChannels,
-          editorIdsByMedia: allByMedia,
-          loadedLinesByMedia,
-          mbaNumber: String(mbaNumber),
-        })
-        setLegacyPartialOnOpen({
-          unresolved: r.unresolved,
-          addedSince: r.addedSince,
-          leftOutByMedia: r.leftOutByMedia,
-        })
-        setLegacyPartialLaterAddedKeys(r.laterAddedMediaKeys)
-        if (r.changed) {
-          // Months stay as saved. Only the ids move to the current line ids, and a
-          // channel added since joins with its lines, so a save keeps it (B21fix R1).
-          setPartialMBASelectedLineItemIds(canonicalisePartialMbaSelectedLineItemIds(r.selected))
-          setPartialMBAMediaEnabled(
-            Object.fromEntries(Object.entries(r.selected).map(([k, ids]) => [k, ids.length > 0]))
-          )
-        }
-        const unmatchedToast = legacyPartialUnmatchedToast(r.unresolved, mediaLabelByBillingKey)
-        if (unmatchedToast) toast(unmatchedToast)
-      }
-
-      const result = await fetchMbaLineApprovalsClient({
+      const scope = await resolveMbaScopeOnLoad({
+        editorIdsByMedia: allByMedia,
+        legacyChannels: legacyPartialChannelsRef.current,
+        allChannelsHydrated,
+        loadedLinesByMedia: loadedLinesByKey,
         mbaNumber: String(mbaNumber),
-        mediaPlanVersion: Number(selectedVersionNumber),
+        mediaLabelByKey: mediaLabelByBillingKey,
+        fetchApprovals: () =>
+          fetchMbaLineApprovalsClient({
+            mbaNumber: String(mbaNumber),
+            mediaPlanVersion: Number(selectedVersionNumber),
+          }),
       })
-      if (cancelled) return
+      if (cancelled || scope.kind === "wait") return
       approvalsHydratedRef.current = true
-      if (!result.ok || !result.available || !result.rows.length) {
-        applyLegacyPartial()
+      if (scope.kind === "selected") {
+        applySelected(scope.selected, scope.isPartial, scope.monthYears)
         return
       }
-      const selected = selectedLineItemIdsFromApprovalRows({
-        rows: result.rows,
-        allLineIdsByMedia: allByMedia,
-      })
-      const hasExclusion = Object.entries(selected).some(
-        ([k, ids]) => ids.length < (allByMedia[k]?.length ?? 0)
-      )
-      applySelected(selected, hasExclusion, null)
+      const legacy = scope.legacy
+      if (!legacy) return
+      // Months stay as saved. Only the ids move to the current line ids, and a
+      // channel added since joins with its lines, so a save keeps it (B21fix R1).
+      setLegacyPartialOnOpen(legacy.onOpen)
+      setLegacyPartialLaterAddedKeys(legacy.laterAddedMediaKeys)
+      if (legacy.selected) {
+        setPartialMBASelectedLineItemIds(canonicalisePartialMbaSelectedLineItemIds(legacy.selected))
+        setPartialMBAMediaEnabled(
+          Object.fromEntries(Object.entries(legacy.selected).map(([k, ids]) => [k, ids.length > 0]))
+        )
+      }
+      if (legacy.toast) toast(legacy.toast)
     })()
 
     return () => {
@@ -9482,13 +9386,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         autoRef,
         formatter,
         attachLineItemsToMonths,
+        billingAliasIdentity(),
         followAuto
           ? {
               isManualBilling: isManualBillingRef.current,
               resyncExistingFromTemplate: true,
-              mbaNumber: mbaNumberRef.current,
-              aliasNumberCheck: billingAliasNumberCheckRef.current,
-              onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               // Identity via refs: anomaly telemetry only — deps would re-run this append merge.
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
@@ -9501,9 +9403,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               },
             }
           : {
-              mbaNumber: mbaNumberRef.current,
-              aliasNumberCheck: billingAliasNumberCheckRef.current,
-              onReconcile: (entries) => reportAliasReconcileRef.current("merge", entries),
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
                   buildWorkingBillingCanonicalDedupePayload({
@@ -9525,6 +9424,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
     return () => window.clearTimeout(tid)
   }, [
+    billingAliasIdentity,
     billingHydrationComplete,
     campaignStartDate,
     campaignEndDate,
@@ -11957,26 +11857,17 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         overridesLoadNotice={billingOverridesLoadNotice}
         aliasDuplicateNotice={billingAliasDuplicateNotice("modal")}
         scopeNotice={
-          isPartialMBA &&
-          (legacyPartialNotices.unresolved.length > 0 ||
-            legacyPartialNotices.addedSince.length > 0 ||
-            partialMbaBillingGuard) ? (
-            <div className="space-y-2">
-              {legacyPartialNotices.unresolved.length > 0 ? (
-                <PartialMbaUnmatchedNotice
-                  message={describeLegacyPartialUnresolved(legacyPartialNotices.unresolved, mediaLabelByBillingKey)}
-                />
-              ) : null}
-              {legacyPartialNotices.addedSince.length > 0 ? (
-                <PartialMbaAddedSinceNotice
-                  message={describeLegacyPartialAddedSince(legacyPartialNotices.addedSince, mediaLabelByBillingKey)}
-                />
-              ) : null}
-              <PartialMbaBillingGuardNotice
-                result={partialMbaBillingGuard}
-                mediaLabelByKey={mediaLabelByBillingKey}
-              />
-            </div>
+          partialMbaScopeNoticesShown({
+            isPartial: isPartialMBA,
+            notices: legacyPartialNotices,
+            guard: partialMbaBillingGuard,
+          }) ? (
+            <PartialMbaScopeNotices
+              isPartial={isPartialMBA}
+              notices={legacyPartialNotices}
+              guard={partialMbaBillingGuard}
+              mediaLabelByKey={mediaLabelByBillingKey}
+            />
           ) : null
         }
         pendingOverrideRows={pendingBillingOverrideRows}
