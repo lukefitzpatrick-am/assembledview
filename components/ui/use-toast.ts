@@ -148,7 +148,9 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
-  const id = genId()
+  // A repeat of an open toast (same variant, title and description) reuses it.
+  const same = memoryState.toasts.find((t) => t.open && t.variant === props.variant && t.title === props.title && t.description === props.description)
+  const id = same?.id ?? genId()
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -157,7 +159,7 @@ function toast({ ...props }: Toast) {
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
-  dispatch({
+  if (!same) dispatch({
     type: "ADD_TOAST",
     toast: {
       ...props,

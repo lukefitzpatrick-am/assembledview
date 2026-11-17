@@ -115,6 +115,35 @@ describe("Toaster with the one toast store", () => {
     expect(document.querySelectorAll("li")).toHaveLength(3)
   })
 
+  it("shows a repeat of an open toast once, and again after it closes (B46fix R3)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    // One publishers outage: every channel container sends the same error.
+    act(() => {
+      for (let i = 0; i < 13; i++) {
+        handles.push(toast({ variant: "destructive", title: "Error loading publishers", description: "Failed to fetch" }))
+      }
+    })
+    expect(document.querySelectorAll("li")).toHaveLength(1)
+
+    act(() => {
+      handles.push(toast({ variant: "destructive", title: "Error loading publishers", description: "Timed out" }))
+      handles.push(toast({ title: "Error loading publishers", description: "Failed to fetch" }))
+    })
+    expect(document.querySelectorAll("li")).toHaveLength(3)
+
+    // A closing toast is not reused: the repeat sent during its exit shows.
+    act(() => {
+      handles[0].dismiss()
+      handles.push(toast({ variant: "destructive", title: "Error loading publishers", description: "Failed to fetch" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(document.querySelectorAll("li")).toHaveLength(3)
+  })
+
   it("frees the slot of a closed toast, so an open error outlasts many later toasts", () => {
     act(() => {
       root.render(<Toaster />)
