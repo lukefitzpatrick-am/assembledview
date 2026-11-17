@@ -19,11 +19,8 @@ const PARTS = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
-  weekday: "short",
   hourCycle: "h23",
 })
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export type MelbourneParts = {
   /** `YYYY-MM-DD` */
@@ -47,14 +44,16 @@ export function melbourneParts(value: Date | string | number = new Date()): Melb
   }
   const map: Record<string, string> = {}
   for (const p of PARTS.formatToParts(date)) map[p.type] = p.value
+  const [year, month, day] = [Number(map.year), Number(map.month), Number(map.day)]
   return {
     ymd: `${map.year}-${map.month}-${map.day}`,
-    year: Number(map.year),
-    month: Number(map.month),
-    day: Number(map.day),
+    year,
+    month,
+    day,
     hour: Number(map.hour),
     minute: Number(map.minute),
-    weekday: WEEKDAYS.indexOf(map.weekday),
+    // From the date, not a localised weekday name (a browser may say "Wed.").
+    weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
   }
 }
 
