@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
+import { isMelbourneCronHour } from "@/lib/cron/melbourneCrons"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 import { buildAndStorePortfolioSnapshot } from "@/lib/pacing/portfolio/buildAndStorePortfolioSnapshot"
@@ -17,8 +18,10 @@ export const preferredRegion = ["syd1"]
 /**
  * Build the admin-scope daily portfolio snapshot for today's Melbourne as-of.
  * Rows count to Melbourne yesterday (P1, `lib/pacing/countTo.ts`).
- * Auth: CRON_SECRET. Cron: 0 21 * * * — 21:00 UTC (08:00 Melbourne AEDT, 07:00 AEST), after the 06:30 warehouse refresh.
- * Retry: 30 21 * * * with ?retry=1 builds only when today's (as_of, all, live_only) row is missing.
+ * Auth: CRON_SECRET. Cron: 0 21,22 * * * UTC; only the run in the Melbourne
+ * 08:00 hour builds (08:00 Melbourne in AEDT and AEST, S31,
+ * `lib/cron/melbourneCrons`), after the 06:30 warehouse refresh.
+ * Retry: 30 21,22 * * * with ?retry=1 (08:30 Melbourne) builds only when today's (as_of, all, live_only) row is missing.
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
@@ -28,11 +31,14 @@ export async function GET(request: Request) {
     )
   }
 
+  const retry = new URL(request.url).searchParams.get("retry") === "1"
+  if (!isMelbourneCronHour(retry ? "/api/cron/pacing-portfolio?retry=1" : "/api/cron/pacing-portfolio", new Date())) {
+    return NextResponse.json({ status: "skipped", reason: "not_melbourne_0800_hour" })
+  }
   const { asOfDate, countToDate } = resolveAdminPacingDays()
   const liveOnly = true
   const scopeKey = pacingScopeKey(null)
   const handlerStarted = Date.now()
-  const retry = new URL(request.url).searchParams.get("retry") === "1"
 
   try {
     const action = await runPortfolioCronBuild({

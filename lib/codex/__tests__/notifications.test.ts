@@ -8,7 +8,6 @@ import {
   dueReminderKind,
   effectiveFollowers,
   groupDigest,
-  isDailyJobHour,
   isQuietHours,
   nextFollowReason,
   notificationText,
@@ -172,13 +171,6 @@ test("quiet hours on the Melbourne clock, both sides of daylight saving", () => 
   assert.equal(isQuietHours(new Date("2026-11-13T01:00:00Z"), "09:00", "17:00"), true)
   assert.equal(isQuietHours(new Date("2026-11-13T01:00:00Z"), "09:00", "09:00"), false)
   assert.equal(isQuietHours(new Date("2026-11-12T20:59:00Z"), "nonsense", "08:00:00"), true)
-})
-
-test("daily job: only the cron run in the Melbourne 08:00 hour", () => {
-  assert.equal(isDailyJobHour(new Date("2026-11-12T21:30:00Z")), true, "AEDT 08:30")
-  assert.equal(isDailyJobHour(new Date("2026-11-12T22:30:00Z")), false, "AEDT 09:30")
-  assert.equal(isDailyJobHour(new Date("2026-06-15T22:30:00Z")), true, "AEST 08:30")
-  assert.equal(isDailyJobHour(new Date("2026-06-15T21:30:00Z")), false, "AEST 07:30")
 })
 
 test("reminder dates use the Melbourne day", () => {

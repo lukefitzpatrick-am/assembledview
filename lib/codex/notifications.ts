@@ -246,7 +246,7 @@ export function notificationText(kind: NotificationKind, actorName: string | nul
 }
 
 // ---------------------------------------------------------------------------
-// Melbourne clock: quiet hours, the daily job, reminder dates
+// Melbourne clock: quiet hours, reminder dates (the daily job hour is lib/cron/melbourneCrons)
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_QUIET_START = "18:00"
@@ -274,11 +274,6 @@ export function isQuietHours(now: Date, quietStart?: string | null, quietEnd?: s
   const { hour, minute } = melbourneParts(now)
   const m = hour * 60 + minute
   return start > end ? m >= start || m < end : m >= start && m < end
-}
-
-/** The daily cron's two runs: only the one in the Melbourne 08:00 hour does anything. */
-export function isDailyJobHour(now: Date): boolean {
-  return melbourneParts(now).hour === 8
 }
 
 /** Overdue reminders look back this many days, so an old overdue task is not announced once 0118 runs. */
