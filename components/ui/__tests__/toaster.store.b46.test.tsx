@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Toaster } from "@/components/ui/toaster"
-import { useToast } from "@/components/ui/use-toast"
+import { toast, useToast } from "@/components/ui/use-toast"
 
 // A typical caller: a component that takes `toast` from the hook.
 function SaveButtonLike({ title, variant }: { title: string; variant?: "destructive" }) {
@@ -56,5 +56,63 @@ describe("Toaster with the one toast store", () => {
       )
     })
     expect(shown()).toContain("Client name is required")
+  })
+
+  it("auto-closes a default toast and keeps an error until dismissed", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ title: "Saved draft" }))
+      handles.push(toast({ title: "Save failed", variant: "destructive" }))
+    })
+    expect(shown()).toContain("Saved draft")
+    expect(shown()).toContain("Save failed")
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(shown()).not.toContain("Saved draft")
+    expect(shown()).toContain("Save failed")
+
+    act(() => {
+      handles[1].dismiss()
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(shown()).not.toContain("Save failed")
+  })
+
+  it("does not let the next toasts replace an open error", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ title: "Burst dates missing", variant: "destructive" }))
+    })
+    act(() => {
+      handles.push(toast({ title: "Copied" }))
+      handles.push(toast({ title: "Downloaded" }))
+    })
+    expect(shown()).toContain("Burst dates missing")
+    expect(shown()).toContain("Copied")
+    expect(shown()).toContain("Downloaded")
+  })
+
+  it("frees the slot of a closed toast, so an open error outlasts many later toasts", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ title: "KPIs not saved", variant: "destructive" }))
+    })
+    for (const title of ["Copied 1", "Copied 2", "Copied 3", "Copied 4"]) {
+      act(() => {
+        handles.push(toast({ title }))
+      })
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+    }
+    expect(shown()).toContain("KPIs not saved")
   })
 })

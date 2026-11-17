@@ -8,8 +8,10 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+// Three open at once, so a later toast does not push an error off screen.
+const TOAST_LIMIT = 3
+// Time a dismissed toast stays in state for its exit animation, then it frees its slot.
+const TOAST_REMOVE_DELAY = 1000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -156,6 +158,8 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      // An error stays until the user dismisses it.
+      duration: props.duration ?? (props.variant === "destructive" ? Infinity : undefined),
       id,
       open: true,
       onOpenChange: (open) => {
