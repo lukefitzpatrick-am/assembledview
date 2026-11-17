@@ -115,8 +115,9 @@ test("a named writer takes only its listed exports, and only its callers take on
     'export const c = () => require("@/lib/codex/repo")',
     'import { createProject } from "@/lib/codex/projectsRepo"',
     'import { toast } from "@/hooks/use-toast"',
+    'export const u = () => fetch("/api/codex/tasks", { method: "POST" })',
   ]
-  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9])
+  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9, 10])
   const fireflies = ['import { createTask, softDeleteTask } from "@/lib/codex/repo"', 'import { bulkSoftDeleteTasks } from "@/lib/codex/repo"']
   assert.deepEqual(failing("lib/fireflies/proposalRepo.ts", fireflies), [2])
   const login = [
@@ -133,8 +134,8 @@ test("a named writer takes only its listed exports, and only its callers take on
   assert.deepEqual(failing("app/api/codex/proposals/[id]/accept/route.ts", callers), [3])
   const cron = ['import { expireStaleProposals } from "@/lib/fireflies/proposalRepo"', 'import { acceptProposal } from "@/lib/fireflies/proposalRepo"', 'import { runCodexRecurring } from "@/lib/codex/runRecurring"']
   assert.deepEqual(failing("app/api/cron/codex-recurring/route.ts", cron), [2])
-  const relabelRoute = ['import { runRelabelList } from "@/lib/pacing/relabel/handlers"', 'import { runRelabelApply } from "@/lib/pacing/relabel/handlers"', 'import { runCloseUntouchedRelabelTasks } from "@/lib/pacing/relabel/autoClose"']
-  assert.deepEqual(failing("app/api/pacing/relabels/route.ts", relabelRoute), [2, 3])
+  const relabelRoute = ['import { runRelabelList } from "@/lib/pacing/relabel/handlers"', 'import { runRelabelApply } from "@/lib/pacing/relabel/handlers"', 'import { runCloseUntouchedRelabelTasks } from "@/lib/pacing/relabel/autoClose"', 'export const hex = "#fff"']
+  assert.deepEqual(failing("app/api/pacing/relabels/route.ts", relabelRoute), [2, 3, 4])
 })
 
 test("a read module holds no write and imports only read modules and non-Codex code", () => {
@@ -200,6 +201,14 @@ test("every allowance is still used export by export; allowlisted pages keep exa
   for (const a of CODEX_SWITCH_ALLOWLIST) assert.equal(urlLines(a.file), a.urls, `${a.file}: /api/codex lines changed (each old one has its C-200 disable comment; add none)`)
   for (const f of CODEX_URL_PROSE) assert.ok(urlLines(f) > 0, `${f} ${stale}`)
   for (const f of CODEX_READ_MODULES) assert.ok(hits[f], `${f} is gone: drop it from CODEX_READ_MODULES`)
+})
+
+test("a C-200 disable comment on a switch-off page that silences nothing fails lint", () => {
+  const file = CODEX_SWITCH_ALLOWLIST[0].file
+  const src = ["// eslint-disable-next-line no-restricted-syntax -- C-200 switch-off path", "export const a = 1"].join("\n")
+  const run = spawnSync(path.join(repo, "node_modules/.bin/eslint"), ["--format", "json", "--stdin", "--stdin-filename", file], { cwd: repo, input: src, encoding: "utf8" })
+  const [result] = JSON.parse(run.stdout)
+  assert.deepEqual(result.messages.map((m) => [m.line, m.severity, m.ruleId]), [[1, 2, null]])
 })
 
 test("next lint keeps hooks, contexts and middleware.ts in its paths", () => {
