@@ -107,6 +107,25 @@ describe("prepareRosterWrite: the four rules, each refusal names its field", () 
     assert.deepEqual(sarah.aliases, [])
   })
 
+  describe("two people with the same initials, neither holding the alias: neither gets it (C-58, F1)", () => {
+    const KING: RosterPerson = { email: `sam.king@${D}`, name: "Sam King", aliases: [], active: true }
+    const pair = [KEAH, KING]
+    const table: Array<[string, RosterWrite, readonly RosterPerson[], string | undefined]> = [
+      ["an edit of the first (the Active toggle sends the whole row)", { email: KEAH.email, name: KEAH.name, aliases: [] }, pair, KEAH.email],
+      ["an edit of the second", { email: KING.email, name: KING.name, aliases: [] }, pair, KING.email],
+      ["a new row whose initials match one person", { email: `sean.kelly@${D}`, name: "Sean Kelly", aliases: [] }, [KEAH], undefined],
+      ["an edit when the other person is inactive", { email: KEAH.email, name: KEAH.name, aliases: [] }, [KEAH, { ...KING, active: false }], KEAH.email],
+    ]
+    for (const [label, write, roster, owner] of table) {
+      it(label, () => assert.deepEqual(prepareRosterWrite(write, roster, owner).aliases, []))
+    }
+    it("a hand-given alias still saves, and a person who holds it keeps it", () => {
+      assert.deepEqual(prepareRosterWrite({ email: KEAH.email, name: KEAH.name, aliases: [`ska@${D}`] }, pair, KEAH.email).aliases, [`ska@${D}`])
+      const holder = { ...KEAH, aliases: [`sk@${D}`] }
+      assert.deepEqual(prepareRosterWrite({ email: KEAH.email, name: KEAH.name, aliases: [`sk@${D}`] }, [holder, KING], KEAH.email).aliases, [`sk@${D}`])
+    })
+  })
+
   it("a free-mail primary gets no initials alias", () => {
     assert.deepEqual(prepareRosterWrite({ email: "someone@gmail.com", name: "Some One", aliases: [] }, []).aliases, [])
   })

@@ -238,6 +238,24 @@ describe("B53: the login insert goes through the roster rules", () => {
     assert.deepEqual(store.inserts[0]?.emailAliases, ["luke@assembledmedia.com.au", "lf@assembledmedia.com.au"])
   })
 
+  it("roster_rules on: a newcomer whose initials match someone who lacks the alias gets neither it nor gives it (C-58)", async () => {
+    const store = memoryStore([
+      {
+        email: "lara.ford@assembledmedia.com.au",
+        name: "Lara Ford",
+        auth0UserId: "auth0|lara",
+        emailAliases: [],
+        roleTitle: null,
+        lastLoginAt: null,
+        rosterSource: "manual",
+      },
+    ])
+    const out = await upsertTeamMemberOnAdminLogin(adminUser(), store, new Date(), { rules: true })
+    assert.equal(out, "created")
+    assert.deepEqual(store.inserts[0]?.emailAliases, ["luke@assembledmedia.com.au"])
+    assert.deepEqual(store.rows.get("lara.ford@assembledmedia.com.au")?.emailAliases, [])
+  })
+
   it("roster_rules on: a login whose address is someone's alias writes nothing", async () => {
     const store = memoryStore([
       {

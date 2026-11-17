@@ -159,4 +159,18 @@ describe("roster rules on Postgres (B53, 0119)", { skip }, () => {
     const own = await client`UPDATE public.team_members SET email_aliases = email_aliases WHERE email = ${`samantha.murphy@${D}`} RETURNING id`
     assert.equal(own.length, 1, "a row may keep its own addresses")
   })
+
+  it("switch on: two people with the same initials, neither holding it: a save of either, the Active toggle too, gives it to neither (C-58)", async () => {
+    rulesSwitch(true)
+    await client`INSERT INTO public.team_members (email, name, active) VALUES (${`sam.king@${D}`}, 'Sam King', false), (${`sean.kelly@${D}`}, 'Sean Kelly', true)`
+    const [king] = await client`SELECT id FROM public.team_members WHERE email = ${`sam.king@${D}`}`
+    const [kelly] = await client`SELECT id FROM public.team_members WHERE email = ${`sean.kelly@${D}`}`
+    assert.deepEqual((await updateTeamMember(Number(king.id), { active: true }, null, database))?.email_aliases, [])
+    assert.deepEqual((await updateTeamMember(Number(kelly.id), { roleTitle: "Planner" }, null, database))?.email_aliases, [])
+    const created = await createTeamMember({ email: `sophie.kerr@${D}`, name: "Sophie Kerr" }, null, database)
+    assert.deepEqual(created.email_aliases, [])
+    const [{ n }] = await client`SELECT count(*)::int AS n FROM public.team_members WHERE email_aliases ? ${`sk@${D}`}`
+    assert.equal(n, 0)
+  })
+
 })

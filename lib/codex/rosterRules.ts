@@ -18,9 +18,9 @@ import { looksLikeEmail, rosterDisplayName, type RosterPerson } from "./rosterRe
  *   3. An address (primary or alias) belongs to one person across the whole
  *      roster, active or not. Migration 0119 enforces 2 and 3 in Postgres.
  *   4. Everyone gets an initials alias: `initialsAliasOf`. It is added when
- *      no one holds it. When someone else holds it, it is not added and the
- *      Team tab lists the clash for a manual alias (C-58: never pick one of
- *      two).
+ *      no one else holds it and no one else, active or not, would get the
+ *      same one. Otherwise it is not added and the Team tab lists the clash
+ *      for a manual alias (C-58: never pick one of two).
  */
 
 export type RosterRuleField = "email" | "name" | "email_aliases"
@@ -105,8 +105,11 @@ export function prepareRosterWrite(
   }
   if (problems.length > 0) throw new RosterRuleError(problems)
 
+  // C-58: the initials alias is added only when no one else holds it and no
+  // one else, active or not, would get the same one (the B53 script's rule).
   const initials = initialsAliasOf({ email, name })
-  if (initials && initials !== email && !aliases.includes(initials) && !holderOf(initials, others)) aliases.push(initials)
+  const free = (alias: string) => !holderOf(alias, others) && !others.some((o) => initialsAliasOf(o) === alias)
+  if (initials && initials !== email && !aliases.includes(initials) && free(initials)) aliases.push(initials)
   return { email, name, aliases }
 }
 
