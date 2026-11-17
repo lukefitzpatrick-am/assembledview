@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { safeErrorMessage } from "@/lib/db/pgError"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { updateTeamMember } from "@/lib/codex/repo"
 import { rosterWriteRefusal } from "@/lib/codex/rosterRules"
@@ -96,7 +97,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json(
       {
         error: "Failed to update team member",
-        message: error instanceof Error ? error.message : String(error),
+        message: safeErrorMessage(error),
       },
       { status: 500 }
     )

@@ -1,7 +1,8 @@
 /**
  * B53: the Team tab routes answer a roster refusal with a plain message
  * naming the field (one mapping, `rosterWriteRefusal`, for add and edit),
- * and GET lists initials clashes only when `roster_rules` is on.
+ * and GET lists initials clashes only when `roster_rules` is on. Any other
+ * failure is a 500 whose body never carries the database's text (B53fix F2).
  * Requires --experimental-test-module-mocks.
  */
 import assert from "node:assert/strict"
@@ -45,7 +46,8 @@ if (supportsMockModule()) {
     namedExports: {
       createTeamMember: fail,
       updateTeamMember: fail,
-      listTeamMembers: async () => ({ items: [], itemsTotal: 0, curPage: 1, pageTotal: 1, nextPage: null, prevPage: null }),
+      listTeamMembers: async () =>
+        nextError ? fail() : { items: [], itemsTotal: 0, curPage: 1, pageTotal: 1, nextPage: null, prevPage: null },
       listRosterLoginRows: async () => [],
       listEmailAliasCollisions: async () => [],
     },
@@ -99,4 +101,34 @@ test("GET lists initials clashes with roster_rules on, and none with it off", { 
   )
   const off = await (await withRules(false, () => GET(new Request("http://l/api/codex/team")))).json()
   assert.deepEqual(off.initials_gaps, [])
+})
+
+/** A Drizzle-shaped failure no roster refusal maps (a deadlock), holding a person's email in its SQL params. */
+const drizzleDeadlock = () => ({
+  name: "DrizzleQueryError",
+  message: `Failed query: update "team_members" set "email_aliases" = $1 where "id" = $2\nparams: ["sk@${D}"],samantha.keah@${D}`,
+  cause: { code: "40P01", message: `deadlock detected while saving samantha.keah@${D}` },
+})
+
+test("a 500 from GET, add or edit never carries the database's text or an email (F2)", { skip }, async () => {
+  const { GET, POST } = await import("../../../app/api/codex/team/route.js")
+  const { PATCH } = await import("../../../app/api/codex/team/[id]/route.js")
+  const calls: Array<() => Promise<Response>> = [
+    () => GET(new Request("http://l/api/codex/team")),
+    () => POST(json("POST", "http://l/api/codex/team", { email: `samantha.keah@${D}`, name: "Samantha Keah" })),
+    () => PATCH(json("PATCH", "http://l/api/codex/team/3", { active: true }), { params: Promise.resolve({ id: "3" }) }),
+  ]
+  const errorLog = mock.method(console, "error", () => {})
+  try {
+    for (const call of calls) {
+      nextError = drizzleDeadlock()
+      const res = await withRules(true, call)
+      assert.equal(res.status, 500)
+      const text = await res.text()
+      assert.doesNotMatch(text, /samantha\.keah|sk@|Failed query|deadlock|team_members/)
+      assert.match(text, /Nothing was changed/)
+    }
+  } finally {
+    errorLog.mock.restore()
+  }
 })

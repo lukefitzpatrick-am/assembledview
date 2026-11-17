@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { safeErrorMessage } from "@/lib/db/pgError"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import {
   isAuth0ManagementClientConfigured,
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         error: "Failed to list team",
-        message: error instanceof Error ? error.message : String(error),
+        message: safeErrorMessage(error),
       },
       { status: 500 }
     )
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "Failed to create team member",
-        message: error instanceof Error ? error.message : String(error),
+        message: safeErrorMessage(error),
       },
       { status: 500 }
     )
