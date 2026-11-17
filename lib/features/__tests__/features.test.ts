@@ -547,6 +547,8 @@ test("B56: billed_months_choice is off by default, a finance switch the browser 
   assert.equal(def.clientVisible, false)
   assert.equal(def.owner, "Luke")
   assert.equal("requires" in def, false)
+  // B56fix: the admin page says not to turn it on before V48 (no hard block exists for that).
+  assert.match(def.description, /^Do not turn on until V48 \(keep as a carry\) is built\. /)
   try {
     setFeatureRowReaderForTests(async () => new Map())
     assert.equal(await isFeatureOn(key, {}), false)
