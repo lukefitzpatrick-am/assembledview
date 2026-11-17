@@ -999,7 +999,7 @@ export function MbaBillingModal({
           {aliasDuplicateNotice ? (
             <div className="border-b border-border px-6 py-3">{aliasDuplicateNotice}</div>
           ) : null}
-          {/* Single banner instance — do not also mount BillingDivergenceModal.
+          {/* Single divergence banner instance.
               BUX-5: hide while channels still hydrating (same as "Loading channels…"). */}
           {showDivergenceBanner &&
           reconciliationReady &&

@@ -157,8 +157,9 @@ jobs:
         run: npm run build
 
   knip:
-    # B7 (G4): unused files, unused and unlisted dependencies are gated against
-    # scripts/knip-baseline.json. The full report (exports too) stays advisory.
+    # B7 (G4), B50: unused files, dependencies, unlisted dependencies, exports,
+    # exported types and duplicate exports are gated against
+    # scripts/knip-baseline.json. The full report below is for reading only.
     name: knip (baseline gate)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -175,7 +176,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: No new unused files or dependency problems
+      - name: No new unused files, exports, types or dependency problems
         run: npm run check:knip
 
       - name: knip baseline self-test

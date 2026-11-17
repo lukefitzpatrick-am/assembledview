@@ -65,7 +65,7 @@ function buildRows(n: number): SearchExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`search-v-${i}`))
 }
 
-/** Mirrors SearchExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals over the FULL logical array (the SearchExpertGrid adapter went in B50). */
 function computeSearchWeeklyTotals(
   rows: readonly SearchExpertScheduleRow[],
   feePct: number

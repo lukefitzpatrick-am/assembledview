@@ -104,7 +104,7 @@ export type AdapterResult = {
   channels: AdaptedChannel[]
   /** Level-total + leaf RM rows for the legacy reach profile list. */
   reachProfile: ReachProfileRow[]
-  /** audience_wc in '000s → millions for MetricCards (÷ 1000). */
+  /** audience_wc in '000s → millions (÷ 1000). */
   audienceMillions: number
   audienceWc: number
   /** Σ UNWEIGHTED over selected POPULATION cells. */

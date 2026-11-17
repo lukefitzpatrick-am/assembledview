@@ -66,7 +66,7 @@ function buildRows(n: number): ProgAudioExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`progaudio-v-${i}`))
 }
 
-/** Mirrors ProgAudioExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals over the FULL logical array (the ProgAudioExpertGrid adapter went in B50). */
 function computeProgAudioWeeklyTotals(
   rows: readonly ProgAudioExpertScheduleRow[],
   feePct: number

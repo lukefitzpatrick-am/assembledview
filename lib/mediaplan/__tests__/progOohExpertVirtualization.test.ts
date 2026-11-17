@@ -66,7 +66,7 @@ function buildRows(n: number): ProgOohExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`progooh-v-${i}`))
 }
 
-/** Mirrors ProgOOHExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals over the FULL logical array (the ProgOOHExpertGrid adapter went in B50). */
 function computeProgOohWeeklyTotals(
   rows: readonly ProgOohExpertScheduleRow[],
   feePct: number

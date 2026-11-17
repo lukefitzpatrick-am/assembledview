@@ -66,7 +66,7 @@ function buildRows(n: number): ProgVideoExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`progvideo-v-${i}`))
 }
 
-/** Mirrors ProgVideoExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals over the FULL logical array (the ProgVideoExpertGrid adapter went in B50). */
 function computeProgVideoWeeklyTotals(
   rows: readonly ProgVideoExpertScheduleRow[],
   feePct: number

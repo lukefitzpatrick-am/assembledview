@@ -66,7 +66,7 @@ function buildRows(n: number): ProgBvodExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`progbvod-v-${i}`))
 }
 
-/** Mirrors ProgBVODExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals over the FULL logical array (the ProgBVODExpertGrid adapter went in B50). */
 function computeProgBvodWeeklyTotals(
   rows: readonly ProgBvodExpertScheduleRow[],
   feePct: number

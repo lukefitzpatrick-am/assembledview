@@ -125,7 +125,7 @@ export const KPI_ROW_STATUS: Record<RowKpiStatus, { tone: Tone; label: string }>
   "kpi-off-target": { tone: "critical", label: "KPIs off" },
 }
 
-/** Same 10 / 20 point bands as `pacingDeviationSparklineClass`. */
+/** 10 / 20 point deviation bands. */
 export function DEVIATION_TONE(absDeviationPoints: number): Tone {
   if (!Number.isFinite(absDeviationPoints) || absDeviationPoints <= 10) return "action"
   if (absDeviationPoints <= 20) return "attention"

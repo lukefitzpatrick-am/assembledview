@@ -17,6 +17,10 @@
  *   --reseed   writes the current findings. Only for a commit that changes
  *              knip.json or what this script includes.
  * Accepting a new finding on purpose means editing the JSON by hand, in review.
+ * Keys hold the file path, so moving or renaming a file with baselined dead
+ * exports makes new keys: drop (delete or un-export) its dead exports in the
+ * move. `--reseed` only with a knip.json or include change, named in the
+ * commit message. Reviewers check every baseline line a commit adds.
  *
  * knip.json no longer hides unused packages (B7). Its one ignoreDependencies
  * entry, eslint-config-next, is a knip false positive: eslint.config.mjs loads
