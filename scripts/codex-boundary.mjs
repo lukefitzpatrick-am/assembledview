@@ -195,11 +195,17 @@ export function codexAllowances() {
 }
 
 const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")
-/** A regex (source) for the specifiers that name `module` from `file`: the `@/` alias or the relative path, any extension. */
+/**
+ * A regex (source) for the specifiers that name `module` from `file`, any
+ * extension: the `@/` alias, the relative path, or any other spelling that
+ * ends at its folder and name (`../../../lib/codex/repo`, `@/lib/codex/./repo`).
+ * Only governed files get these patterns, so a wider match only holds a file to its list.
+ */
 export function codexSpecifier(file, module) {
   const bare = module.replace(/\.[cm]?[jt]sx?$/, "")
   const rel = path.posix.relative(path.posix.dirname(file), bare)
-  return `^(${reEscape(`@/${bare}`)}|${reEscape(rel.startsWith(".") ? rel : `./${rel}`)})(\\.[cm]?[jt]sx?)?$`
+  const end = `${reEscape(path.posix.basename(path.posix.dirname(bare)))}\\/(.*\\/)?${reEscape(path.posix.basename(bare))}`
+  return `^(${reEscape(`@/${bare}`)}|${reEscape(rel.startsWith(".") ? rel : `./${rel}`)}|(.*\\/)?${end})(\\.[cm]?[jt]sx?)?$`
 }
 
 /** `no-restricted-syntax` entries: `import()` and `require()` of an allowance take only its exports, destructured. */

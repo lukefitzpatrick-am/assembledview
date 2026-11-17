@@ -116,8 +116,15 @@ test("a named writer takes only its listed exports, and only its callers take on
     'import { createProject } from "@/lib/codex/projectsRepo"',
     'import { toast } from "@/hooks/use-toast"',
     'export const u = () => fetch("/api/codex/tasks", { method: "POST" })',
+    // B53fix G1: any other spelling of the same file is held to the same list.
+    'import { softDeleteTask } from "../../../lib/codex/repo"',
+    'import { softDeleteTask } from "@/lib/codex/./repo"',
+    'import { softDeleteTask } from "@/lib/codex/../codex/repo"',
+    'export const e = async () => { const { softDeleteTask } = await import("@/lib//codex/repo"); return softDeleteTask }',
+    'export const f = () => require("../../../lib/codex/./repo")',
+    'import { createTask } from "../../../lib/codex/./repo"',
   ]
-  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9, 10])
+  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
   const fireflies = ['import { createTask, softDeleteTask } from "@/lib/codex/repo"', 'import { bulkSoftDeleteTasks } from "@/lib/codex/repo"']
   assert.deepEqual(failing("lib/fireflies/proposalRepo.ts", fireflies), [2])
   const login = [
@@ -127,6 +134,12 @@ test("a named writer takes only its listed exports, and only its callers take on
     'export const d = async () => { const m = await import("@/lib/codex/auth0LoginUpsert"); return m }',
   ]
   assert.deepEqual(failing("lib/auth0.ts", login), [2, 3, 4])
+  const loginSpellings = [
+    'import { upsertTeamMemberOnAdminLogin } from "./codex/../codex/auth0LoginUpsert"',
+    'import { upsertTeamMemberOnAdminLogin } from "@/lib/codex/./auth0LoginUpsert"',
+    'import { syncAdminRosterOnLogin } from "./codex/./auth0LoginUpsert"',
+  ]
+  assert.deepEqual(failing("lib/auth0.ts", loginSpellings), [1, 2])
   // B53 (S18): the roster rules module is a write module by place; the Auth0 entries take only their one export.
   const roster = [
     'import { runAuth0RosterSync } from "@/lib/codex/auth0RosterSync"',
