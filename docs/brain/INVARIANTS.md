@@ -491,6 +491,7 @@ pct === 100 → fee = 0 (division guard)
 - `lib/security/headers.ts` is the one place the security headers and the content security policy are built. `middleware.ts` applies them. No page or config adds its own copy. An API route may send its own policy (the HTML5 preview's `sandbox allow-scripts`); middleware puts the page policy on pages only.
 - A new external origin the browser loads (script, fetch, frame, font, worker) is a change to `buildContentSecurityPolicy` and its pinned test in the same commit. Server-side calls need no change.
 - `script-src` never takes `'unsafe-inline'`. An inline script the app adds carries the page nonce (`readNonce`).
+- Browser code never needs `'unsafe-eval'`. zod runs jitless in the browser (`instrumentation-client.ts`); a library that calls `eval` or `new Function` in the browser needs its own off switch or a replacement.
 - Every page renders per request. No page sets `dynamic = "force-static"`, exports `revalidate` or `generateStaticParams`: a prerendered page has no nonce, so its scripts are blocked once the policy is enforced.
 - Only the app frames its pages (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`).
 - `/api/csp-report` takes no session only while `security_headers` is on; switched off, middleware gates it like any other API route. It logs no query string, script sample, referrer, user agent or IP.

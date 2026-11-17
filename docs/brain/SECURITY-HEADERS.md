@@ -5,7 +5,7 @@ Decision S27 A: check what Vercel sends, add a baseline of security headers, run
 - Builder: `lib/security/headers.ts` (the one place the headers and the policy string are built).
 - Applied by: `middleware.ts` (`applySecurityHeaders`, on every response middleware handles).
 - Reports: `POST /api/csp-report` (`app/api/csp-report/route.ts`, parser `lib/security/cspReport.ts`). Open with no session only while `security_headers` is on (middleware). Switched off, it is gated like any API route: 401 with no session, 403 in a client view.
-- Tests: `lib/security/__tests__/headers.test.ts` (pins the policy string), `app/api/csp-report/__tests__/route.test.ts`.
+- Tests: `lib/security/__tests__/headers.test.ts` (pins the policy string), `headers.auth0.test.ts` (Auth0's cookies, cache headers and redirects survive, real Auth0 client), `zodJitless.test.ts`, `app/api/csp-report/__tests__/route.test.ts`.
 
 ## Switches (both `source: "vercel"`, owner Luke, off)
 
@@ -57,6 +57,7 @@ Scripts use a per-request nonce with `'strict-dynamic'`:
 - Middleware drops any `Content-Security-Policy` or `Content-Security-Policy-Report-Only` header the client sent before it sets ours on the forwarded request, so Next and `readNonce` only ever see our nonce.
 - Hashes can't work: Next streams per-request inline scripts.
 - `'unsafe-inline'` for scripts would let any injected script run, which is what the policy is for.
+- zod runs jitless in the browser: `instrumentation-client.ts` calls `config({ jitless: true })` before any app module loads. Without it zod 4 probes `new Function("")` the first time an object schema is built (plan, scope, publisher, team and task forms), and every such page load would send an `eval` report from our own chunk. The forms validate through zodResolver's async parse, which never used zod's compiled parsers: same results and the same speed (B55fix notes). Test: `lib/security/__tests__/zodJitless.test.ts`.
 
 | Directive | Sources | What needs it |
 |---|---|---|
