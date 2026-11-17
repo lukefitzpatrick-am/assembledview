@@ -16,14 +16,22 @@ const REPORT = {
     { file: "lib/dead.ts", files: [{ name: "lib/dead.ts" }], dependencies: [], unlisted: [], exports: [{ name: "x" }] },
     { file: "package.json", dependencies: [{ name: "left-pad" }], devDependencies: [{ name: "old-tool" }], files: [] },
     { file: "lib/img.ts", unlisted: [{ name: "sharp" }], unresolved: [{ name: "./gone" }] },
+    {
+      file: "lib/alias.ts",
+      types: [{ name: "Row" }],
+      duplicates: [[{ name: "rowHeight" }, { name: "ROW_HEIGHT" }]],
+    },
   ],
 }
 
-test("findingsFromKnipJson keeps files, deps, devDeps and unlisted; ignores exports and unresolved", () => {
+test("findingsFromKnipJson keeps files, deps, unlisted, exports, types and duplicates; ignores unresolved", () => {
   assert.deepEqual(findingsFromKnipJson(REPORT), [
     "dependencies:left-pad",
     "devDependencies:old-tool",
+    "duplicates:lib/alias.ts ROW_HEIGHT|rowHeight",
+    "exports:lib/dead.ts x",
     "files:lib/dead.ts",
+    "types:lib/alias.ts Row",
     "unlisted:sharp lib/img.ts",
   ])
 })
@@ -55,7 +63,16 @@ test("a new finding fails, and --update does not add it", () => {
 
 test("a fixed finding passes, and --update removes it", () => {
   const t = setup(
-    ["dependencies:left-pad", "devDependencies:old-tool", "files:lib/dead.ts", "files:lib/was-dead.ts", "unlisted:sharp lib/img.ts"],
+    [
+      "dependencies:left-pad",
+      "devDependencies:old-tool",
+      "duplicates:lib/alias.ts ROW_HEIGHT|rowHeight",
+      "exports:lib/dead.ts x",
+      "files:lib/dead.ts",
+      "files:lib/was-dead.ts",
+      "types:lib/alias.ts Row",
+      "unlisted:sharp lib/img.ts",
+    ],
     REPORT,
   )
   try {
@@ -64,6 +81,20 @@ test("a fixed finding passes, and --update removes it", () => {
     assert.match(r.stdout, /1 fixed/)
     assert.equal(run(t, "--update").status, 0)
     assert.deepEqual(baselineOf(t), findingsFromKnipJson(REPORT))
+  } finally {
+    fs.rmSync(t.root, { recursive: true, force: true })
+  }
+})
+
+test("a new unused export fails even when the file is known", () => {
+  const known = findingsFromKnipJson(REPORT)
+  const next = structuredClone(REPORT)
+  next.issues[0].exports.push({ name: "y" })
+  const t = setup(known, next)
+  try {
+    const r = run(t)
+    assert.equal(r.status, 1)
+    assert.match(r.stderr, /exports:lib\/dead\.ts y/)
   } finally {
     fs.rmSync(t.root, { recursive: true, force: true })
   }

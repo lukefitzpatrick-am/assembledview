@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 /**
- * knip with a baseline (B7, G4). Unused files and dependencies first.
+ * knip with a baseline (B7, G4; exports gated in B50).
  *
- * Runs `knip --include files,dependencies,devDependencies,unlisted` and
- * compares every finding to scripts/knip-baseline.json:
+ * Runs `knip --include files,dependencies,devDependencies,unlisted,exports,types,duplicates`
+ * and compares every finding to scripts/knip-baseline.json:
  *   files:<path>                  an unused file
  *   dependencies:<name>           an unused dependency
  *   devDependencies:<name>        an unused devDependency
  *   unlisted:<name> <file>        an import of a package that is not in package.json
+ *   exports:<file> <name>         an export nothing imports
+ *   types:<file> <name>           an exported type nothing imports
+ *   duplicates:<file> <a>|<b>     one value exported under two names
  * A finding not in the baseline fails. A baseline entry knip no longer reports
  * passes (it was fixed). The baseline only goes down:
  *   --update   drops entries knip no longer reports; never adds one.
@@ -18,7 +21,8 @@
  * knip.json no longer hides unused packages (B7). Its one ignoreDependencies
  * entry, eslint-config-next, is a knip false positive: eslint.config.mjs loads
  * it through FlatCompat ("next/core-web-vitals"), which knip cannot follow.
- * Unused exports and unresolved imports are not gated yet.
+ * An export only a test imports counts as used (tests are knip entries).
+ * Unresolved imports are not gated.
  *
  * `--root <dir>` runs against another tree; `--from-json <file>` reads a
  * saved `knip --reporter json` result instead of running knip (self-test).
@@ -28,7 +32,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-const KINDS = ["files", "dependencies", "devDependencies", "unlisted"]
+const KINDS = ["files", "dependencies", "devDependencies", "unlisted", "exports", "types", "duplicates"]
 
 /** Baseline keys from a `knip --reporter json` result. */
 export function findingsFromKnipJson(report) {
@@ -36,9 +40,16 @@ export function findingsFromKnipJson(report) {
   for (const issue of report?.issues ?? []) {
     for (const kind of KINDS) {
       for (const item of issue[kind] ?? []) {
+        if (kind === "duplicates") {
+          const names = (Array.isArray(item) ? item : []).map((d) => String(d?.name ?? "")).filter(Boolean)
+          if (names.length) keys.add(`duplicates:${issue.file} ${names.sort().join("|")}`)
+          continue
+        }
         const name = String(item?.name ?? "")
         if (!name) continue
-        keys.add(kind === "unlisted" ? `unlisted:${name} ${issue.file}` : `${kind}:${name}`)
+        if (kind === "unlisted") keys.add(`unlisted:${name} ${issue.file}`)
+        else if (kind === "exports" || kind === "types") keys.add(`${kind}:${issue.file} ${name}`)
+        else keys.add(`${kind}:${name}`)
       }
     }
   }
@@ -95,7 +106,7 @@ function main(argv) {
     console.error(
       update
         ? "check:knip: --update only removes fixed entries; these are new findings.\n"
-        : "knip found new unused files or dependency problems (delete or wire them up):\n",
+        : "knip found new unused files, exports or dependency problems (delete them, drop the export, or wire them up):\n",
     )
     for (const k of added) console.error(`  ${k}`)
     return 1

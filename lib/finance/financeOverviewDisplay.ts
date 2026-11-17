@@ -45,9 +45,6 @@ export function resolveAsyncKpiState(opts: {
   return "ready"
 }
 
-/** @deprecated alias — prefer resolveAsyncKpiState */
-export const resolveScheduleFytdKpiState = resolveAsyncKpiState
-
 export type NetAccrualKpiState = "deferred" | "loading" | "ready"
 
 export function resolveNetAccrualKpiState(opts: {

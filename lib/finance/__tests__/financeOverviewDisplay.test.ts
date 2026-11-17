@@ -3,9 +3,9 @@ import { describe, it } from "node:test"
 import {
   formatCurrentMonthKpiLabel,
   monthRangeCoversFyToDate,
+  resolveAsyncKpiState,
   resolveNetAccrualKpiState,
   resolveOverviewSpendChartMode,
-  resolveScheduleFytdKpiState,
 } from "@/lib/finance/financeOverviewDisplay"
 
 describe("formatCurrentMonthKpiLabel", () => {
@@ -42,17 +42,17 @@ describe("monthRangeCoversFyToDate", () => {
   })
 })
 
-describe("resolveScheduleFytdKpiState", () => {
+describe("resolveAsyncKpiState", () => {
   it("is loading while the schedule feed is in flight", () => {
-    assert.equal(resolveScheduleFytdKpiState({ loading: true, error: null }), "loading")
+    assert.equal(resolveAsyncKpiState({ loading: true, error: null }), "loading")
   })
 
   it("is error when the schedule feed failed", () => {
-    assert.equal(resolveScheduleFytdKpiState({ loading: false, error: "boom" }), "error")
+    assert.equal(resolveAsyncKpiState({ loading: false, error: "boom" }), "error")
   })
 
   it("is ready when loaded without error", () => {
-    assert.equal(resolveScheduleFytdKpiState({ loading: false, error: null }), "ready")
+    assert.equal(resolveAsyncKpiState({ loading: false, error: null }), "ready")
   })
 })
 
