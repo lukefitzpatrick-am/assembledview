@@ -1,7 +1,6 @@
 /**
  * PM-4 — partial MBA scope drops excluded lines from the Media Plan workbook.
  */
-import "@/lib/testing/melbourneZone"
 import assert from "node:assert/strict"
 import test from "node:test"
 
