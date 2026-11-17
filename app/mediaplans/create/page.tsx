@@ -387,6 +387,7 @@ import {
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import { planSavePreflight } from "@/app/mediaplans/_form/savePreflight"
+import { cloneBillingMonths } from "@/app/mediaplans/_form/billingMonths"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
@@ -1394,12 +1395,6 @@ function CreateMediaPlan() {
     form,
   ])
 
-  const deepCloneBillingMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
-    if (typeof globalThis.structuredClone === "function") {
-      return globalThis.structuredClone(months) as BillingMonth[]
-    }
-    return JSON.parse(JSON.stringify(months)) as BillingMonth[]
-  }, [])
 
   const getRateForMediaType = useCallback((mediaType: string): number => {
     return createAdServingRateResolver({
@@ -1578,7 +1573,7 @@ function CreateMediaPlan() {
 
   // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
   if (deliveryMonthsCalculated.length > 0) {
-    deliveryScheduleSnapshotRef.current = deepCloneBillingMonths(deliveryMonthsCalculated);
+    deliveryScheduleSnapshotRef.current = cloneBillingMonths(deliveryMonthsCalculated);
   }
 
   setAutoBillingMonths(billingMonthsCalculated);
@@ -1610,7 +1605,6 @@ function CreateMediaPlan() {
     productionBursts,
     getRateForMediaType,
     adservaudio,
-    deepCloneBillingMonths,
     form,
   ])
 
@@ -4066,7 +4060,7 @@ function CreateMediaPlan() {
     months: BillingMonth[]
     allLineItems: Record<string, BillingLineItem[]>
   } {
-    const deepCopiedMonths = deepCloneBillingMonths(months)
+    const deepCopiedMonths = cloneBillingMonths(months)
     const mediaTypeMap = buildCreateManualBillingMediaTypeMap()
     const allLineItems: Record<string, BillingLineItem[]> = {}
 
@@ -4161,7 +4155,7 @@ function CreateMediaPlan() {
 
     const { months: deepCopiedMonths } = attachLineItemsForManualBillingEditor(sourceMonths)
     // Auto reference for media-sum gate / persist — same attach, separate clone
-    const autoRef = deepCloneBillingMonths(deepCopiedMonths)
+    const autoRef = cloneBillingMonths(deepCopiedMonths)
     manualBillingAutoReferenceMonthsRef.current = autoRef
     setManualBillingAutoReferenceMonths(autoRef)
     manualBillingOverrideMetaRef.current = new Map()
@@ -4416,7 +4410,7 @@ function CreateMediaPlan() {
 
     rememberPrebillScope(prebillScopeMemoryRef.current, lineItemId, scope)
 
-    const copy = deepCloneBillingMonths(base)
+    const copy = cloneBillingMonths(base)
     const autoMonths =
       manualBillingAutoReferenceMonths.length > 0 ? manualBillingAutoReferenceMonths : copy
     const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
@@ -4474,7 +4468,7 @@ function CreateMediaPlan() {
       return
     }
 
-    const copy = deepCloneBillingMonths(manualBillingMonths)
+    const copy = cloneBillingMonths(manualBillingMonths)
     if (copy.length === 0) return
     const formatter = mbaCurrencyFormatter
     if (!restoreLinePrebillSnapshot(copy, mediaKey, lineItemId)) return
@@ -4522,7 +4516,7 @@ function CreateMediaPlan() {
     const template = attachLineItemsForManualBillingEditor(autoSource).months
     const formatter = mbaCurrencyFormatter
     const next = resetLineToAutoTemplate(
-      deepCloneBillingMonths(manualBillingMonths),
+      cloneBillingMonths(manualBillingMonths),
       template,
       mediaKey,
       lineItemId,
@@ -4543,7 +4537,7 @@ function CreateMediaPlan() {
     if (applied) {
       clearLineOverrideMeta(applied.meta, lineItemId)
       const appliedNext = resetLineToAutoTemplate(
-        deepCloneBillingMonths(applied.months),
+        cloneBillingMonths(applied.months),
         template,
         mediaKey,
         lineItemId,
@@ -4792,7 +4786,7 @@ function CreateMediaPlan() {
     }
 
     // Snapshot auto reference at apply so save payload uses the same basis
-    const autoSnap = deepCloneBillingMonths(autoMonths)
+    const autoSnap = cloneBillingMonths(autoMonths)
     manualBillingAutoReferenceMonthsRef.current = autoSnap
     setManualBillingAutoReferenceMonths(autoSnap)
     // B2a (M1): Apply turns the typed timing and Prebill into the pending override

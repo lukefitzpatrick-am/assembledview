@@ -137,10 +137,6 @@ import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDu
 import { PartialMbaUnmatchedNotice } from "@/components/billing/PartialMbaUnmatchedNotice"
 import { PartialMbaAddedSinceNotice } from "@/components/billing/PartialMbaAddedSinceNotice"
 import { PartialMbaBillingGuardNotice } from "@/components/billing/PartialMbaBillingGuardNotice"
-import {
-  computePartialMbaBillingVsDelivery,
-  describePartialMbaGuardRail,
-} from "@/lib/mediaplan/partialMbaBillingVsDelivery"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
   burstOverlapBuilderIssues,
@@ -298,7 +294,6 @@ import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
-  describePartialMbaPublishRail,
   describeVersionHeaderTrail,
   formatDraftSavedTime,
   resolveTipVersionIdAtLoad,
@@ -510,6 +505,14 @@ import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
 import { MEDIA_TYPE_ID_CODES, registerLineIdFloors } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  partialMbaBaselineMonths,
+  partialMbaBillingGuardWhenOn,
+  partialMbaFinancialsOptions,
+  partialMbaLineItemMonths,
+  partialMbaSaveScopeNote,
+  type PartialMbaMonthSources,
+} from "@/app/mediaplans/_form/partialMba"
 import {
   billingAliasGhostPairsWhenOn,
   keepCurrentBillingRows,
@@ -2515,12 +2518,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }))
   }, [mediaFlagMap])
 
-  const deepCloneBillingMonths = useCallback((months: BillingMonth[]): BillingMonth[] => {
-    if (typeof globalThis.structuredClone === "function") {
-      return globalThis.structuredClone(months) as BillingMonth[]
-    }
-    return JSON.parse(JSON.stringify(months)) as BillingMonth[]
-  }, [])
 
   useEffect(() => {
     const result = checkLineItemDatesOutsideCampaign({
@@ -5929,13 +5926,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   )
   const partialMbaBillingGuard = useMemo(
     () =>
-      partialMbaBillingGuardOn && isPartialMBA && allChannelsHydrated
-        ? computePartialMbaBillingVsDelivery({
-            perLine: campaignFinancials.perLine,
-            selectedMonthYears: partialMBAMonthYears,
-            laterAddedMediaKeys: legacyPartialLaterAddedKeys,
-          })
-        : null,
+      partialMbaBillingGuardWhenOn({
+        on: partialMbaBillingGuardOn,
+        isPartial: isPartialMBA,
+        allChannelsHydrated,
+        perLine: campaignFinancials.perLine,
+        selectedMonthYears: partialMBAMonthYears,
+        laterAddedMediaKeys: legacyPartialLaterAddedKeys,
+      }),
     [
       partialMbaBillingGuardOn,
       isPartialMBA,
@@ -8798,37 +8796,22 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
   // --- Partial MBA Handlers ---
 
-  function getPartialMbaPrimaryBillingMonths(): BillingMonth[] {
-    return workingBillingMonths
-  }
-
-  // M8 (B21, switch partial_mba_billing_guard, Q14): with no line rows in working
-  // billing, the partial MBA starts from the auto billing months (with lines), not
-  // the delivery months. Off: delivery months, as before.
-  function getPartialMbaBillingFallbackMonths(): BillingMonth[] | null {
-    if (!partialMbaBillingGuardOn) return null
-    return (manualBillingAutoReferenceMonths?.length ?? 0) > 0
-      ? (manualBillingAutoReferenceMonths as BillingMonth[])
-      : null
+  // The month sources and their order (M8, B21) are app/mediaplans/_form/partialMba.ts.
+  function partialMbaMonthSources(): PartialMbaMonthSources {
+    return {
+      guardOn: partialMbaBillingGuardOn,
+      working: workingBillingMonths,
+      autoReference: manualBillingAutoReferenceMonths,
+      autoDelivery: autoDeliveryMonths,
+    }
   }
 
   function getPartialMbaRawMonthsForBaseline(): BillingMonth[] {
-    const primary = getPartialMbaPrimaryBillingMonths()
-    if (billingMonthsHaveDetailedLineItems(primary)) return primary
-    const billingFallback = getPartialMbaBillingFallbackMonths()
-    if (billingFallback) return billingFallback
-    return autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
+    return partialMbaBaselineMonths(partialMbaMonthSources())
   }
 
   function getPartialMbaLineItemMonths(): BillingMonth[] {
-    const primary = getPartialMbaPrimaryBillingMonths()
-    if (billingMonthsHaveDetailedLineItems(primary)) {
-      return deepCloneBillingMonths(primary)
-    }
-    const billingFallback = getPartialMbaBillingFallbackMonths()
-    if (billingFallback) return deepCloneBillingMonths(billingFallback)
-    const base = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths
-    return attachLineItemsToMonths(deepCloneBillingMonths(base), "delivery")
+    return partialMbaLineItemMonths(partialMbaMonthSources(), (months) => attachLineItemsToMonths(months, "delivery"))
   }
 
   function recomputePartialMBAFromLineItems(
@@ -8860,24 +8843,15 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         clearedBillingOverrideLineIds
       )
     )
-    const start =
-      campaignStartDate instanceof Date && !Number.isNaN(campaignStartDate.getTime())
-        ? campaignStartDate
-        : undefined
-    const end =
-      campaignEndDate instanceof Date && !Number.isNaN(campaignEndDate.getTime())
-        ? campaignEndDate
-        : undefined
     const provisionalFinancials = computeCampaignFinancials(
       provisionalLineItems,
       { feeLoading: billingSaveInputs.feeLoading },
-      {
-        campaignStart: start,
-        campaignEnd: end,
-        selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
-        // M8 (B21): fee from its fee billing months, as the published MBA slice.
-        partialFeeFromFeeMonths: partialMbaBillingGuardOn,
-      }
+      partialMbaFinancialsOptions({
+        campaignStart: campaignStartDate,
+        campaignEnd: campaignEndDate,
+        selectedMonthYears: nextMonthYears,
+        guardOn: partialMbaBillingGuardOn,
+      })
     )
 
     void nextEnabledMedia
@@ -10316,20 +10290,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           ? `v${publishedPointerNumber}`
           : null
       }
-      saveScopeNote={
-        [
-          describePartialMbaPublishRail({
-            isPartial: isPartialMBA,
-            inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
-              .length,
-            totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
-          }),
-          // B21 (Q13): one line on the rail when the partial MBA guard has findings.
-          partialMbaBillingGuard ? describePartialMbaGuardRail(partialMbaBillingGuard) : null,
-        ]
-          .filter(Boolean)
-          .join(" ") || null
-      }
+      saveScopeNote={partialMbaSaveScopeNote({
+        isPartial: isPartialMBA,
+        inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds).length,
+        totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
+        guard: partialMbaBillingGuard,
+      })}
       isSaving={isSaving}
     />
   )

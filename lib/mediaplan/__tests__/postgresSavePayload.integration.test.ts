@@ -769,7 +769,8 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.match(panel, /saveTip=/)
       assert.match(panel, /saveScopeNote=/)
       // B2a fix 3: create is full MBA only, so its scope note is null.
-      if (src === editSrc) assert.match(panel, /describePartialMbaPublishRail/)
+      // B52: edit's line is partialMbaSaveScopeNote (behaviour in app/mediaplans/_form/__tests__/partialMba).
+      if (src === editSrc) assert.match(panel, /saveScopeNote=\{partialMbaSaveScopeNote\(\{/)
       else assert.match(panel, /saveScopeNote=\{null\}/)
       assert.match(panel, /isSaving=/)
       assert.doesNotMatch(panel, /compact/)
