@@ -368,6 +368,8 @@ export async function POST(request: NextRequest) {
         err.code === "LINE_ITEM_ID_RETIRED" ||
         err.code === "TRUE_UP_LOCKED"
           ? 409
+          : err.code === "PUBLISH_VALIDATION_REFUSED"
+            ? 422
           : err.code === "MASTER_NOT_FOUND"
             ? 404
             : err.code === "DUPLICATE_LINE_ITEM_ID" ||

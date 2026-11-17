@@ -28,6 +28,7 @@ import {
   countPublishIntegrityChildren,
   isPublishVersionAdvance,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import { publishRefusalForVersion } from "@/lib/mediaplan/publishValidation.server"
 import {
   PLAN_DETAIL_POSTGRES_ERROR_CODE,
   readMbaPlanDetailFromPostgres,
@@ -600,6 +601,14 @@ export async function PATCH(
         if (!integrity.ok) {
           return NextResponse.json({ error: integrity.error }, { status: integrity.status })
         }
+        // S1 A: the same publish validation set as every other publish, on the
+        // version's stored lines, before any write (switch publish_validation).
+        const { getDb: getPublishDb } = await import("@/db")
+        const refusal = await publishRefusalForVersion(getPublishDb(), {
+          mbaNumber: mba_number,
+          versionNumber: targetPublishVersion,
+        })
+        if (refusal) return NextResponse.json(refusal, { status: 422 })
       }
     }
 

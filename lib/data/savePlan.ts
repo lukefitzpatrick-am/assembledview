@@ -111,6 +111,7 @@ import {
 } from "@/scripts/migration/_scheduleTransform"
 import { toCents } from "@/lib/money"
 import { isFeatureOn } from "@/lib/features/server"
+import { publishRefusal } from "@/lib/mediaplan/publishValidation.server"
 import { isUniqueViolation } from "@/lib/db/pgError"
 
 export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
@@ -266,6 +267,7 @@ export type SavePlanErrorCode =
   | "VERSION_PUBLISHED_IMMUTABLE"
   | "LINE_ITEM_ID_RETIRED"
   | "TRUE_UP_LOCKED"
+  | "PUBLISH_VALIDATION_REFUSED"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -873,6 +875,19 @@ export async function savePlanVersion(
   db: Db = getDb()
 ): Promise<SavePlanVersionResult> {
   validateLineItemIds(input.lineItems)
+
+  // S1 A: every publish through this function runs the one validation set
+  // before anything is read or written (switch publish_validation).
+  if (input.mode === "publish") {
+    const refusal = await publishRefusal({
+      campaignStartDate: input.campaignStartDate,
+      campaignEndDate: input.campaignEndDate,
+      lineItems: input.lineItems,
+    })
+    if (refusal) {
+      throw new SavePlanError("PUBLISH_VALIDATION_REFUSED", refusal.error, undefined, { ...refusal })
+    }
+  }
 
   const [master] = await db
     .select({ id: schema.mediaPlanMasters.id })

@@ -503,3 +503,30 @@ test("B35: burst_overlap_warning is off by default, a planning switch sent to th
     setFeatureRowReaderForTests(null)
   }
 })
+
+test("B54: publish_validation is off by default, a planning switch sent to the browser, no env, owned by Luke", async () => {
+  const key = "publish_validation" as const
+  const def = featureDefinition(key)!
+  assert.ok(def, key)
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.source, "switch")
+  assert.equal(def.toggleRole, "admin")
+  assert.equal(def.area, "planning")
+  assert.equal(def.clientVisible, true)
+  assert.equal(def.owner, "Luke")
+  assert.equal("requires" in def, false)
+  setClientFeatureSnapshot(null)
+  assert.equal(clientFeatureOn(key), false)
+  setClientFeatureSnapshot({ [key]: true })
+  assert.equal(clientFeatureOn(key), true)
+  setClientFeatureSnapshot(null)
+  try {
+    setFeatureRowReaderForTests(async () => new Map())
+    assert.equal(await isFeatureOn(key, {}), false)
+    setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), true)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})

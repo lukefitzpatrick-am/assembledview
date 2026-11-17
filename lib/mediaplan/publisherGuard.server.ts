@@ -31,11 +31,14 @@ async function loadPublisherIdentityRows(): Promise<PublisherIdentityRow[]> {
 export type PublisherGuardDeps = {
   isOn: () => Promise<boolean>
   loadPublishers: () => Promise<PublisherIdentityRow[]>
+  /** `publish_validation` (S1 A) owns blank publishers when on. Unset: off. */
+  publishValidationOn?: () => Promise<boolean>
 }
 
 const defaultDeps: PublisherGuardDeps = {
   isOn: () => isFeatureOn("publisher_guard"),
   loadPublishers: loadPublisherIdentityRows,
+  publishValidationOn: () => isFeatureOn("publish_validation"),
 }
 
 /**
@@ -66,5 +69,6 @@ export async function publisherGuardForSave(
     console.error("[plans/save] publisher guard could not read publishers; save not checked", err)
     return { reject: false, warnings: [] }
   }
-  return publisherGuardGateResult({ mode, enabled, lineItems, publishers })
+  const publishValidationOn = (await deps.publishValidationOn?.()) === true
+  return publisherGuardGateResult({ mode, enabled, lineItems, publishers, publishValidationOn })
 }

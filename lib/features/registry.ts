@@ -309,6 +309,18 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "publish_validation",
+    label: "Publish validation: refuse the hard list",
+    description:
+      "Every publish (the plan pages' Save and Publish, POST /api/plans/save, the schedule ingest accept, billing revisions and true-ups, and the PATCH publish stamp) runs one validation set (decision S1 A). On: publish is refused with a 422 that names each line when a line has no publisher, a burst ends before it starts, two bursts on one line share a day, a burst runs outside the plan dates, or a package line has a burst with a budget and no quantity (bursts[].calculatedValue 0 or blank, until S3 adds a typed quantity). The plan pages stop the publish before the request and list each problem in the issues rail; Save draft still works. The publisher guard then checks only typed names that aren't in Publishers (blank publishers are this switch's). Off: the plan pages still list the same problems as warnings after a publish, and nothing is refused, as before. Before turning on: run the S1 SELECT in the media plans module page and have each plan owner fix the lines it lists (17 Nov 2026: 19 plans with no publisher, 12 with overlapping bursts, 33 with bursts outside the plan dates, 3 with a burst ending before it starts, 4 with a package burst with no quantity), and keep expert_package_quantity on or package lines saved from the digital, social, search, integration and programmatic grids are refused.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "partial_mba_billing_guard",
     label: "Partial MBA: billing months and the billing vs delivery check",
     description:

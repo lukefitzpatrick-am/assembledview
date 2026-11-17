@@ -25,10 +25,11 @@ export function publisherGuardPreflight(
   lineItems: readonly (PublisherGuardLine & EmptyLineFields)[],
   publishers: readonly PublisherIdentityRow[],
   enabled: boolean = clientFeatureOn("publisher_guard"),
+  publishValidationOn: boolean = clientFeatureOn("publish_validation"),
 ): ReturnType<typeof publisherGuardGateResult> {
   if (mode == null) return { reject: false, warnings: [] }
   const checked = stripEmptyLinesOnPublish(mode, [...lineItems]).lineItems
-  return publisherGuardGateResult({ mode, enabled, lineItems: checked, publishers })
+  return publisherGuardGateResult({ mode, enabled, lineItems: checked, publishers, publishValidationOn })
 }
 
 export function publisherGuardBlockedToast(blocked: readonly PublisherGuardFinding[]): {

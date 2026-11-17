@@ -44,6 +44,7 @@ import {
   subtractCentsMaps,
 } from "@/lib/finance/revisions/revisionWriteModel"
 import type { RevisionFail, RevisionOk, RevisionOptions, RevisionRequest } from "@/lib/finance/revisions/types"
+import { publishRefusalForVersion } from "@/lib/mediaplan/publishValidation.server"
 import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { explodeScheduleToMonthRows } from "@/scripts/migration/_scheduleTransform"
@@ -61,6 +62,7 @@ export type BillingRevisionWriteCode =
   | "ROUND_TRIP_MISMATCH"
   | "OVERRIDE_SUM_VIOLATION"
   | "RESTORE_TARGET_NOT_FOUND"
+  | "PUBLISH_VALIDATION_REFUSED"
 
 export class BillingRevisionWriteError extends Error {
   constructor(
@@ -166,6 +168,12 @@ export async function publishBillingRevision(
 ): Promise<PublishBillingRevisionResult> {
   if (!input.reason || !input.reason.trim()) {
     throw new BillingRevisionWriteError("PLAN_REFUSED", "A reason is required.", 400)
+  }
+  // S1 A: a revision publishes a copy of the base version's lines, so they
+  // pass the one publish validation set first (switch publish_validation).
+  const refusal = await publishRefusalForVersion(db, { versionId: input.baseVersionId })
+  if (refusal) {
+    throw new BillingRevisionWriteError("PUBLISH_VALIDATION_REFUSED", refusal.error, 422)
   }
   const now = input.now ?? new Date()
 

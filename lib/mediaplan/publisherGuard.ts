@@ -176,10 +176,13 @@ function findingMessage(kind: PublisherGuardKind, channel: string, lineItemId: s
 /**
  * Checks every line. An empty publisher list returns nothing: the list
  * failed to load, so "unknown" can't be told apart (the server re-checks).
+ * `blankChecked`: false while `publish_validation` is on, which refuses a
+ * blank publisher on every channel (S1 A); this guard then checks names only.
  */
 export function evaluatePublisherGuard(
   lines: readonly PublisherGuardLine[],
   publishers: readonly PublisherIdentityRow[],
+  blankChecked = true,
 ): PublisherGuardResult {
   const result: PublisherGuardResult = { blocked: [], warnings: [] }
   if (publishers.length === 0) return result
@@ -190,6 +193,7 @@ export function evaluatePublisherGuard(
     const value = linePublisherValue(line)
     let kind: PublisherGuardKind | null = null
     if (!value) {
+      if (!blankChecked) continue
       kind = line.channel === PRODUCTION_LINE_CHANNEL ? "production_blank" : "media_blank"
     } else if (!resolve(value)) {
       kind = "unknown"
@@ -245,11 +249,13 @@ export function publisherGuardGateResult(args: {
   enabled: boolean
   lineItems: readonly PublisherGuardLine[]
   publishers: readonly PublisherIdentityRow[]
+  /** `publish_validation` is on: it owns blank publishers (S1 A). */
+  publishValidationOn?: boolean
 }):
   | { reject: false; warnings: PublisherGuardFinding[] }
   | { reject: true; body: PublisherGuardRejectBody } {
   if (!shouldRunPublisherGuard(args.mode, args.enabled)) return { reject: false, warnings: [] }
-  const { blocked, warnings } = evaluatePublisherGuard(args.lineItems, args.publishers)
+  const { blocked, warnings } = evaluatePublisherGuard(args.lineItems, args.publishers, !args.publishValidationOn)
   if (blocked.length === 0) return { reject: false, warnings }
   return {
     reject: true,
