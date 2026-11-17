@@ -1,8 +1,11 @@
 /**
  * S31: the only crons held to a fixed Melbourne time. Vercel crons are UTC,
  * so each one has an AEDT slot and an AEST slot in `vercel.json` (one hour
- * apart) and acts only on the run that falls in its Melbourne hour. Every
- * other cron keeps its UTC schedule and moves an hour with daylight saving.
+ * apart) and acts only on the run that falls in its Melbourne hour.
+ * finance-pre-run, finance-run, finance-lock and true-up also run at fixed
+ * Sydney times with two slots, behind their own window guards (PC5
+ * `lib/finance/periods/sydneyClock`, T10); not moved here yet (RELFIX1).
+ * Every other cron keeps one UTC slot and moves an hour with daylight saving.
  * `melbourneCrons.b49.test.ts` checks `vercel.json` holds both slots.
  */
 import { melbourneParts } from "@/lib/dates/melbourne"
