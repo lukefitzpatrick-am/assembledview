@@ -173,8 +173,14 @@ function FeaturesPageInner() {
                     <span className="font-medium">{row.label}</span>
                     <StatusPill tone={row.enabled ? "outcome" : "neutral"} label={row.enabled ? "On" : "Off"} size="sm" />
                     <span className="text-xs text-muted-foreground">{row.sourceLabel}</span>
+                    {row.pastRetirement ? <StatusPill tone="attention" label="Past retirement" size="sm" /> : null}
                   </div>
                   <p className="text-sm text-muted-foreground">{row.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Owner {row.owner}
+                    {row.onSince ? ` · On since ${row.onSince} · Retire after ${row.retireAfter}` : ""}
+                    {row.pastRetirement ? ". Ask the owner to confirm it has run on in production, then retire it in a code batch." : ""}
+                  </p>
                   {row.lastChanged ? (
                     <p className="text-xs text-muted-foreground">
                       Last changed {row.lastChanged}

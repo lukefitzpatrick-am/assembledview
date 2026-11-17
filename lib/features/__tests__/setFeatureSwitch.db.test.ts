@@ -80,4 +80,24 @@ describe("setFeatureSwitch", { skip }, () => {
       { key: "true_up", from_enabled: true, to_enabled: false },
     ])
   })
+
+  test("on since: the latest event that turned it on, not a later save at the same value; a row with no such event uses its updated time", async () => {
+    await sql`DELETE FROM feature_switches`
+    await sql`DELETE FROM feature_switch_events`
+    await sql`INSERT INTO feature_switches (key, enabled, updated_at) VALUES ('web_search', true, '2026-11-02T00:00:00Z'), ('creative_performance', true, '2026-11-03T00:00:00Z'), ('auto_reports', false, '2026-11-03T00:00:00Z')`
+    await sql`INSERT INTO feature_switch_events (created_at, key, from_enabled, to_enabled) VALUES
+      ('2026-10-20T00:00:00Z', 'web_search', false, true),
+      ('2026-10-25T00:00:00Z', 'web_search', true, false),
+      ('2026-10-30T00:00:00Z', 'web_search', null, true),
+      ('2026-11-02T00:00:00Z', 'web_search', true, true),
+      ('2026-11-03T00:00:00Z', 'creative_performance', true, true),
+      ('2026-10-01T00:00:00Z', 'auto_reports', false, true)`
+    server.invalidateFeatureSwitches()
+    const { states } = await server.readFeatureStates({})
+    const on = (key: string) => states.find((s) => s.key === key)!.onSince
+    assert.equal(Date.parse(on("web_search")!), Date.parse("2026-10-30T00:00:00Z"))
+    assert.equal(Date.parse(on("creative_performance")!), Date.parse("2026-11-03T00:00:00Z"), "Save current values: the row's time")
+    assert.equal(on("auto_reports"), null, "off now")
+    assert.equal(on("true_up"), null, "no row")
+  })
 })

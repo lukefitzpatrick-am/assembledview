@@ -2,12 +2,15 @@
  * /admin/features view model (pure). Rows grouped by area, with where each
  * value comes from and whether this user may toggle it.
  */
+import { getMelbourneTodayISO, shiftISODate } from "@/lib/dates/melbourne"
+
 import {
   canToggleFeature,
   effectiveFeatureOn,
   FEATURE_DEFINITIONS,
   featureDefinition,
   featureToggleRefusal,
+  RETIRE_AFTER_ON_DAYS,
   type FeatureArea,
   type FeatureRow,
   type FeatureSource,
@@ -18,6 +21,8 @@ export type FeatureStateInput = {
   enabled: boolean
   source: FeatureSource
   row: FeatureRow | null
+  /** ISO instant the switch was turned on (`readFeatureStates`). */
+  onSince?: string | null
 }
 
 export type FeaturePageRow = {
@@ -33,6 +38,13 @@ export type FeaturePageRow = {
   canToggle: boolean
   /** Why the toggle is disabled, or a dependency hint when it isn't. */
   hint: string | null
+  owner: string
+  /** Melbourne date the switch was turned on, while it is on. */
+  onSince: string | null
+  /** Melbourne date its retirement falls due (on since plus `retireAfterOn` days). */
+  retireAfter: string | null
+  /** Past `retireAfter`: the next batch should retire it once Luke confirms (S16). */
+  pastRetirement: boolean
 }
 
 export type FeaturePageGroup = { area: FeatureArea; label: string; rows: FeaturePageRow[] }
@@ -70,7 +82,10 @@ export function buildFeaturePageModel(args: {
   ready: boolean
   states: readonly FeatureStateInput[]
   roles: { admin: boolean; financeAdmin: boolean }
+  /** Melbourne today, YYYY-MM-DD. */
+  today?: string
 }): FeaturePageGroup[] {
+  const today = args.today ?? getMelbourneTodayISO()
   const byKey = new Map(args.states.map((s) => [s.key, s]))
   const raw = (key: string) => byKey.get(key)?.enabled ?? featureDefinition(key)?.defaultOn ?? false
   const live = (key: string) => effectiveFeatureOn(key, raw)
@@ -90,6 +105,9 @@ export function buildFeaturePageModel(args: {
       const off = def.requires.filter((k) => !live(k))
       if (off.length) hint = `Also needs ${off.map((k) => featureDefinition(k)?.label ?? k).join(" and ")} on.`
     }
+    const onAt = s?.onSince ? new Date(s.onSince) : null
+    const onSince = onAt && Number.isFinite(onAt.getTime()) ? getMelbourneTodayISO(onAt) : null
+    const retireAfter = onSince ? shiftISODate(onSince, featureDefinition(def.key)?.retireAfterOn ?? RETIRE_AFTER_ON_DAYS) : null
     return {
       key: def.key,
       label: def.label,
@@ -102,6 +120,10 @@ export function buildFeaturePageModel(args: {
       note: s?.row?.note ?? null,
       canToggle: args.ready && allowed && def.source !== "vercel" && refusal == null,
       hint,
+      owner: def.owner,
+      onSince,
+      retireAfter,
+      pastRetirement: retireAfter != null && today > retireAfter,
     }
   })
   return AREA_ORDER.map((area) => ({

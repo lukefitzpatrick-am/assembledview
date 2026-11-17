@@ -138,6 +138,29 @@ export type FeatureState = {
   source: FeatureSource
   row: FeatureRow | null
   definition: FeatureDefinition
+  /** When the switch row last went from off (or no row) to on, as an ISO instant; null when off or env-only. */
+  onSince: string | null
+}
+
+/**
+ * S16: when each switch that is on now was turned on. The latest audit event
+ * that turned it on (not a save at the same value); a row saved on with no
+ * such event (Save current values) falls back to the row's updated time.
+ */
+async function readOnSince(): Promise<Map<string, string>> {
+  const rows = rowsOf<{ key: string; on_since: string }>(
+    await getDb().execute(sql`
+      SELECT s.key, to_json(coalesce(e.on_at, s.updated_at)) #>> '{}' AS on_since
+      FROM feature_switches s
+      LEFT JOIN (
+        SELECT key, max(created_at) AS on_at FROM feature_switch_events
+        WHERE to_enabled AND from_enabled IS DISTINCT FROM true
+        GROUP BY key
+      ) e USING (key)
+      WHERE s.enabled
+    `),
+  )
+  return new Map(rows.map((r) => [r.key, String(r.on_since)]))
 }
 
 export async function readFeatureStates(env: Record<string, string | undefined> = process.env): Promise<{
@@ -145,6 +168,12 @@ export async function readFeatureStates(env: Record<string, string | undefined> 
   states: FeatureState[]
 }> {
   const rows = await readFeatureRows()
+  const onSince = rows
+    ? await readOnSince().catch((err) => {
+        console.warn("[features] on-since read failed; page shows no dates", err)
+        return new Map<string, string>()
+      })
+    : new Map<string, string>()
   return {
     ready: rows != null,
     states: FEATURE_DEFINITIONS.map((def) => {
@@ -155,6 +184,7 @@ export async function readFeatureStates(env: Record<string, string | undefined> 
         source: r.source,
         row: rows?.get(def.key) ?? null,
         definition: def,
+        onSince: r.source === "switch" && r.enabled ? (onSince.get(def.key) ?? null) : null,
       }
     }),
   }

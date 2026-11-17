@@ -57,7 +57,17 @@ export type FeatureDefinition = {
   requires?: readonly string[]
   /** Why a "vercel" switch can't move to the page. */
   vercelReason?: string
+  /** Who confirms the switch is on in production and settles its retirement (S16). */
+  owner: string
+  /**
+   * Days on in production before the next batch retires the switch: deletes
+   * it, its off path, its off tests and any env fallback (S16, Q4). Default
+   * `RETIRE_AFTER_ON_DAYS`. Retirement is a code batch, never automatic.
+   */
+  retireAfterOn?: number
 }
+
+export const RETIRE_AFTER_ON_DAYS = 14
 
 export const FEATURE_DEFINITIONS = [
   {
@@ -72,6 +82,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "true_up_actions",
@@ -85,6 +96,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
     requires: ["true_up"],
   },
   {
@@ -98,6 +110,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
     requires: ["true_up"],
   },
   {
@@ -111,6 +124,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "billing_revisions",
@@ -123,6 +137,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "fee_snapshot_write_once",
@@ -135,6 +150,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "client_invoices",
@@ -147,6 +163,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "overdue_digest",
@@ -159,6 +176,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "finance_admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "fixed_cost_margin_from_date",
@@ -170,6 +188,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["fixed_cost_from_date", "fixed_cost_report_net"],
   },
   {
@@ -182,6 +201,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "finance_melbourne_month",
@@ -193,6 +213,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "billing_balancer",
@@ -205,6 +226,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "plan_drafts",
@@ -217,6 +239,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "expert_package_quantity",
@@ -228,6 +251,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["fixed_cost_report_net"],
   },
   {
@@ -240,6 +264,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "billing_ghost_row_guard",
@@ -251,6 +276,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "billing_ghost_row_finance_guard",
@@ -262,6 +288,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "burst_overlap_warning",
@@ -273,6 +300,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "partial_mba_billing_guard",
@@ -284,6 +312,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "channel_client_fees",
@@ -295,6 +324,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "fixed_cost_from_date",
@@ -306,6 +336,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["fixed_cost_report_net"],
   },
   {
@@ -318,6 +349,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "hub_delivered_dedupe",
@@ -329,6 +361,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "web_search",
@@ -341,6 +374,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "creative_performance",
@@ -353,6 +387,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "auto_reports",
@@ -365,6 +400,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "platform_accounts_web",
@@ -377,6 +413,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   /*
    * codex_v2 keeps its CODEX_V2 env fallback until a switch row exists in
@@ -409,6 +446,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "codex_roster_aliases",
@@ -420,6 +458,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_v2"],
   },
   {
@@ -432,6 +471,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_v2"],
   },
   {
@@ -444,6 +484,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_v2"],
   },
   {
@@ -456,6 +497,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_v2"],
   },
   {
@@ -468,6 +510,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_projects"],
   },
   {
@@ -480,6 +523,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_projects"],
   },
   {
@@ -492,6 +536,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_projects"],
   },
   {
@@ -504,6 +549,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
     requires: ["codex_v2"],
   },
   {
@@ -516,6 +562,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "pacing_digest_data_checks",
@@ -527,6 +574,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "relabel_map_one_active_guard",
@@ -538,6 +586,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "switch",
+    owner: "Luke",
   },
   {
     key: "view_as",
@@ -550,6 +599,7 @@ export const FEATURE_DEFINITIONS = [
     clientVisible: false,
     toggleRole: "admin",
     source: "vercel",
+    owner: "Luke",
     vercelReason: "Read in middleware on every request, which can't query the database. Change it in Vercel.",
   },
 ] as const satisfies readonly FeatureDefinition[]
