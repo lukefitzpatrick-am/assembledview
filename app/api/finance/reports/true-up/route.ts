@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
         },
       })
     }
-    // Stage 2: the page shows the fix buttons only when true_up_actions is on and 0109 is in.
-    return NextResponse.json({ ...report, actionsEnabled: (await isFeatureOn("true_up_actions")) && report.stage2Ready })
+    // Stage 2: the page shows the fix buttons only when true_up_actions is on.
+    return NextResponse.json({ ...report, actionsEnabled: await isFeatureOn("true_up_actions") })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not build the true-up."
     return NextResponse.json({ error: "report_failed", message }, { status: 500 })
