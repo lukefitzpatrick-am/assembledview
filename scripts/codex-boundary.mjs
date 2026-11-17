@@ -15,27 +15,39 @@ const TESTS = ["**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
 export const CODEX_SOURCE = ["{app,components,lib,src,hooks,contexts}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}", "middleware.ts"]
 
 /**
- * The lib/codex modules code outside the zone may import. They hold no writes.
- * Every other lib/codex module is a write module by place: a new one stays
- * inside the zone until it is listed here.
+ * The lib/codex modules code outside the zone may import. They hold no writes:
+ * each may import only other read modules and non-Codex code, and holds no
+ * SQL write, no db insert, update or delete and no non-GET fetch
+ * (`CODEX_WRITE_SELECTORS`). Every other lib/codex module is a write module by
+ * place: a new one stays inside the zone until it is listed here.
  */
 export const CODEX_READ_MODULES = [
   "clientExists.ts",
   "clientMbas.ts",
   "composeLink.ts",
   "dueDate.ts",
+  "estimateParse.ts",
   "estimatedMinutesColumn.ts",
   "helpRoster.ts",
   "notificationsEmail.ts",
+  "projects.ts",
   "queryHelpers.ts",
+  "quickAddParse.ts",
   "readFetch.ts",
   "recurringRule.ts",
+  "rosterRead.ts",
   "rosterResolve.ts",
   "shadowRoles.ts",
   "systemActors.ts",
   "taskVisibility.ts",
   "types.ts",
 ].map((f) => `lib/codex/${f}`)
+
+/** Read modules that take types (never values) from a write module. */
+const CODEX_READ_TYPE_IMPORTS = {
+  "lib/codex/notificationsEmail.ts": ["lib/codex/notifications.ts"],
+  "lib/codex/taskVisibility.ts": ["lib/codex/repo.ts"],
+}
 
 /**
  * The named server writers outside the zone (system writers, not UI). `may`:
@@ -138,6 +150,19 @@ export const CODEX_URL_SELECTORS = [
   { selector: "TemplateElement[value.raw=/\\/api\\/codex(?![\\w-])/]", message: MESSAGE },
 ]
 
+const WRITE_MESSAGE = "C-200: a lib/codex read module holds no write. Put the write in a write module (it stays inside the Tasks zone)."
+/** `no-restricted-syntax` entries for a write in a read module. `FOR UPDATE` row locks and `URLSearchParams.delete` pass. */
+const UPDATE_SQL = "(?<!\\bFOR\\s+(NO\\s+KEY\\s+)?)\\bUPDATE(\\s+ONLY)?(\\s+[\\w.\"]+(\\s+(AS\\s+)?\\w+)?\\s+SET\\b|\\s*$)"
+const CODEX_WRITE_SELECTORS = [
+  ...["Literal[value", "TemplateElement[value.raw"].flatMap((at) => [
+    { selector: `${at}=/\\b(INSERT\\s+INTO|DELETE\\s+FROM|MERGE\\s+INTO)\\b/i]`, message: WRITE_MESSAGE },
+    { selector: `${at}=/${UPDATE_SQL}/]`, message: WRITE_MESSAGE },
+  ]),
+  { selector: "CallExpression[callee.property.name=/^(insert|update|delete)$/][callee.object.name=/^(db|tx|trx|database|executor)$/]", message: WRITE_MESSAGE },
+  { selector: "MemberExpression[property.name=/^(values|set|where)$/] > CallExpression.object[callee.property.name=/^(insert|update|delete)$/]", message: WRITE_MESSAGE },
+  { selector: "CallExpression[callee.name='fetch'] > ObjectExpression > Property[key.name='method'][value.value!=/^GET$/i]", message: WRITE_MESSAGE },
+]
+
 /** True for a repo path inside the Tasks zone. */
 const inCodexZone = (file) => CODEX_ZONE.some((d) => file.startsWith(`${d}/`))
 const globEscape = (file) => file.replace(/[[\]()*?{}!+@]/g, "\\$&")
@@ -153,8 +178,8 @@ export const CODEX_URL_IGNORES = [
 
 /**
  * Every import allowance by file: `module` the file may import, `names` the
- * exports it may take. A named writer's own modules, an allowlisted page's,
- * a caller's writer.
+ * exports it may take (null: types only). A named writer's own modules, an
+ * allowlisted page's, a caller's writer, a read module's type imports.
  */
 export function codexAllowances() {
   const own = (e) => Object.entries(e.may).map(([module, names]) => ({ file: e.file, module, names }))
@@ -164,6 +189,7 @@ export function codexAllowances() {
       ...(w.callers === "any" ? [] : Object.entries(w.callers).map(([file, names]) => ({ file, module: w.file, names }))),
     ]),
     ...CODEX_SWITCH_ALLOWLIST.flatMap(own),
+    ...Object.entries(CODEX_READ_TYPE_IMPORTS).flatMap(([file, mods]) => mods.map((module) => ({ file, module, names: null }))),
   ]
 }
 
@@ -178,19 +204,19 @@ export function codexSpecifier(file, module) {
 /** `no-restricted-syntax` entries: `import()` and `require()` of an allowance take only its exports, destructured. */
 function dynamicSelectors({ file, module, names }) {
   const re = codexSpecifier(file, module)
-  const message = `C-200: from ${module} this file may import only ${names.join(", ")}, statically or as \`const { name } = await import(...)\`.`
+  const message = `C-200: from ${module} this file may import only ${names?.length ? names.join(", ") : "types"}, statically or as \`const { name } = await import(...)\`.`
   const destructured = `VariableDeclarator[init.argument.source.value=/${re}/] > ObjectPattern`
   return [
     `ImportExpression[source.value=/${re}/]:not(VariableDeclarator[id.type="ObjectPattern"] > AwaitExpression > ImportExpression)`,
-    `${destructured} > Property[key.name!=/^(${names.map(reEscape).join("|")})$/]`,
+    `${destructured} > Property[key.name!=/^(${(names ?? []).map(reEscape).join("|")})$/]`,
     `${destructured} > RestElement`,
     `CallExpression[callee.name="require"][arguments.0.value=/${re}/]`,
   ].map((selector) => ({ selector, message }))
 }
 
 /**
- * The `import/no-restricted-paths` zones for a file outside the zone when
- * `outside`, else for a zone file. `file` null: no allowance.
+ * The `import/no-restricted-paths` zones for a file outside the zone (or a
+ * read module) when `outside`, else for a zone file. `file` null: no allowance.
  */
 function codexZones(file, outside) {
   const may = codexAllowances().filter((a) => a.file === file).map((a) => a.module)
@@ -213,7 +239,7 @@ function codexZones(file, outside) {
 /**
  * Flat config blocks for the import boundary: outside the zone, inside it,
  * then one block per governed file (named writers, their callers, allowlisted
- * pages). A later block replaces a rule's options, so each
+ * pages, read modules). A later block replaces a rule's options, so each
  * per-file block repeats what the file gets from the rest of the config:
  * `restrictedImports` (the `no-restricted-imports` patterns every file has)
  * and `syntaxFor(file)` (its other `no-restricted-syntax` selectors).
@@ -223,23 +249,24 @@ export function codexImportBlocks(root, { restrictedImports, syntaxFor }) {
     "import/no-restricted-paths": zones.length ? ["error", { basePath: root, zones }] : "off",
   })
   const allowances = codexAllowances()
-  const governed = [...new Set([...allowances.map((a) => a.file), ...CODEX_SERVER_WRITERS.map((w) => w.file)])]
+  const governed = [...new Set([...allowances.map((a) => a.file), ...CODEX_SERVER_WRITERS.map((w) => w.file), ...CODEX_READ_MODULES])]
   return [
     { files: CODEX_SOURCE, ignores: [...zoneGlobs, ...TESTS], rules: paths(codexZones(null, true)) },
     { files: zoneGlobs, ignores: TESTS, rules: paths(codexZones(null, false)) },
     ...governed.map((file) => {
+      const read = CODEX_READ_MODULES.includes(file)
       const own = allowances.filter((a) => a.file === file)
-      const syntax = [...syntaxFor(file), ...own.flatMap(dynamicSelectors)]
+      const syntax = [...syntaxFor(file), ...(read ? CODEX_WRITE_SELECTORS : []), ...own.flatMap(dynamicSelectors)]
       const imports = own.map((a) => ({
         regex: codexSpecifier(file, a.module),
         caseSensitive: true,
-        allowImportNames: a.names,
-        message: `C-200: ${file} may import only ${a.names.join(", ")} from ${a.module}.`,
+        ...(a.names ? { allowImportNames: a.names } : { allowTypeImports: true }),
+        message: `C-200: ${file} may import only ${a.names ? a.names.join(", ") : "types"} from ${a.module}.`,
       }))
       return {
         files: [globEscape(file)],
         rules: {
-          ...paths(codexZones(file, !inCodexZone(file))),
+          ...paths(codexZones(file, read || !inCodexZone(file))),
           "no-restricted-imports": ["error", { patterns: [...restrictedImports, ...imports] }],
           "no-restricted-syntax": syntax.length ? ["error", ...syntax] : "off",
         },

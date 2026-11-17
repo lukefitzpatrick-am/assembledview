@@ -1,8 +1,8 @@
 /**
  * Self-test for the C-200 lint boundary (scripts/codex-boundary.mjs, S32 A,
  * B51, B51fix). Each planted shape fails on its line, the allowed shapes pass,
- * named writers and callers take only their listed exports, every allowance is
- * still used export by export, the lint scope
+ * named writers and callers take only their listed exports, read modules hold
+ * no write, every allowance is still used export by export, the lint scope
  * keeps hooks, contexts and middleware.ts, and the switch allowlist cannot
  * outlive its switch. GAPS pins what lint does not catch (KNOWN-ISSUES C-285).
  * ESLint runs as a process (`eslint` is not a listed dependency).
@@ -134,11 +134,47 @@ test("a named writer takes only its listed exports, and only its callers take on
   assert.deepEqual(failing("app/api/pacing/relabels/route.ts", relabelRoute), [2, 3])
 })
 
+test("a read module holds no write and imports only read modules and non-Codex code", () => {
+  const writes = [
+    'export const a = (db: Db) => db.execute(sql`UPDATE public.tasks SET title = ${"x"} WHERE id = 1`)',
+    'export const b = (db: Db, t: string) => db.execute(sql`UPDATE ${t} SET done = true`)',
+    'export const c = (db: Db) => db.execute(sql`INSERT INTO public.tasks (title) VALUES (${"x"})`)',
+    'export const d = "delete from public.tasks where id = $1"',
+    'export const e = (tx: Db, t: Table) => tx.insert(t).values({})',
+    'export const f = (getDb: () => Db, t: Table) => getDb().update(t).set({ a: 1 })',
+    'export const g = (database: Db, t: Table) => database.delete(t)',
+    'export const h = () => fetch("/x", { method: "PATCH" })',
+    'export const i = (method: string) => fetch("/x", { method })',
+    'export { createTask } from "@/lib/codex/repo"',
+    'import { listTasks } from "./repo"',
+    'export const j = () => import("@/lib/codex/collabRepo")',
+    'import { acceptProposal } from "@/lib/fireflies/proposalRepo"',
+    'import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"',
+  ]
+  assert.deepEqual(failing("lib/codex/clientMbas.ts", writes), each(writes))
+  assert.deepEqual(failing("lib/codex/types.ts", writes.slice(9)), each(writes.slice(9)))
+  const reads = [
+    'export const a = (db: Db) => db.execute(sql`SELECT id FROM public.tasks WHERE id = 1 FOR UPDATE`)',
+    'export const b = (db: Db) => db.execute(sql`SELECT id FROM public.tasks FOR NO KEY UPDATE`)',
+    'export const c = (q: URLSearchParams, m: Map<number, number>) => { q.delete("x"); m.delete(1) }',
+    'export const d = () => fetch("/x", { method: "GET" })',
+    'export const e = "Last UPDATE was fine"',
+    'import { normaliseEmail } from "@/lib/email/address"',
+    'import { buildTasksComposeHref } from "./composeLink"',
+    'import { loadRosterPeople } from "@/lib/codex/rosterRead"',
+  ]
+  assert.deepEqual(failing("lib/codex/clientMbas.ts", reads), [])
+  const types = ['import type { DbExecutor } from "@/lib/codex/repo"', 'import { createTask } from "@/lib/codex/repo"', 'export const k = () => import("@/lib/codex/repo")']
+  assert.deepEqual(failing("lib/codex/taskVisibility.ts", types), [2, 3])
+  assert.deepEqual(failing("lib/codex/clientMbas.ts", types.slice(0, 1)), [1])
+})
+
 test("every allowance is still used export by export", () => {
   const allowances = codexAllowances()
-  const use = (a, name) => `uses ${a.module}#${name}`
+  const use = (a, name) => `uses ${a.module}#${name ?? "types"}`
   const selectors = allowances.flatMap((a) => {
     const re = codexSpecifier(a.file, a.module)
+    if (!a.names) return [{ selector: `ImportDeclaration[importKind="type"][source.value=/${re}/]`, message: use(a) }]
     return a.names.flatMap((n) =>
       [
         `ImportDeclaration[source.value=/${re}/] > ImportSpecifier[imported.name="${n}"]`,
@@ -155,7 +191,7 @@ test("every allowance is still used export by export", () => {
   const hits = lint([...args, ...files])
   const stale = "no longer needs its C-200 allowance: drop it from scripts/codex-boundary.mjs"
   for (const a of allowances) {
-    for (const n of a.names) assert.ok(hits[a.file]?.some((m) => m.message === use(a, n)), `${a.file} ${use(a, n)} ${stale}`)
+    for (const n of a.names ?? [null]) assert.ok(hits[a.file]?.some((m) => m.message === use(a, n)), `${a.file} ${use(a, n)} ${stale}`)
   }
   const urlLines = (f) => lines(hits[f]?.filter((m) => m.message === "url")).length
   for (const f of [...CODEX_SWITCH_ALLOWLIST.map((a) => a.file), ...CODEX_URL_PROSE]) assert.ok(urlLines(f) > 0, `${f} ${stale}`)
