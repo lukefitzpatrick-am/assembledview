@@ -1,4 +1,4 @@
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { explodeExcelLineItems } from "../../lib/docs/explodeExcelLineItems.js"
@@ -7,8 +7,8 @@ import {
   keepOohLineIdsOnReorder,
   orderOohLinesForExport,
   prepareOohEditorLines,
+  reassignOohLineItemNumbers,
 } from "../../lib/mediaplan/lineItemOrder.js"
-import { reassignOohLineItemNumbers } from "../../lib/mediaplan/oohLineItemOrder.js"
 import {
   mapOohExpertRowsToStandardLineItems,
   type StandardOohFormLineItem,
