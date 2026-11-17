@@ -7,7 +7,7 @@ const compat = new FlatCompat({
 })
 
 /** ESLint 9 reads this file. */
-export default [
+const config = [
   ...compat.extends("next/core-web-vitals"),
   {
     files: [
@@ -46,6 +46,23 @@ export default [
         {
           name: "event",
           message: "Bare `event` is Window.event (lib.dom). Use the handler argument.",
+        },
+      ],
+    },
+  },
+  {
+    // B46: one toast store. The mounted Toaster reads components/ui/use-toast.
+    files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/hooks/use-toast"],
+              message: "Deleted duplicate toast store. Import from @/components/ui/use-toast.",
+            },
+          ],
         },
       ],
     },
@@ -91,3 +108,5 @@ export default [
     },
   },
 ]
+
+export default config
