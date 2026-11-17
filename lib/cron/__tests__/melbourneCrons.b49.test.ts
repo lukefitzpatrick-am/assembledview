@@ -1,4 +1,7 @@
 /** B49 (S31): fixed Melbourne times for three jobs, both UTC slots in vercel.json. */
+// UTC, the CI and Vercel zone: host-local date code fails here on a Sydney host too (RELFIX1, B49 R5).
+process.env.TZ = "UTC"
+
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import path from "node:path"

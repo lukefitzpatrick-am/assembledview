@@ -124,6 +124,9 @@ jobs:
         run: npm run test:runner
 
       - name: Every test file
+        # UTC as on Vercel, stated here rather than left to the runner image.
+        env:
+          TZ: UTC
         run: npm test
 
   production-build:

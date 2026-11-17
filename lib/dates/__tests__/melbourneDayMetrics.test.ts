@@ -1,3 +1,6 @@
+// UTC, the CI and Vercel zone: host-local date code fails here on a Sydney host too (RELFIX1, B49 R5).
+process.env.TZ = "UTC"
+
 import assert from "node:assert/strict"
 import test from "node:test"
 
