@@ -44,6 +44,9 @@ import {
   subtractCentsMaps,
 } from "@/lib/finance/revisions/revisionWriteModel"
 import type { RevisionFail, RevisionOk, RevisionOptions, RevisionRequest } from "@/lib/finance/revisions/types"
+import { checkBilledMonths, invoicedMonthsFromLocks } from "@/lib/finance/billedMonths/billedMonths"
+import { decideBilledMonths } from "@/lib/finance/billedMonths/choice"
+import { isFeatureOn } from "@/lib/features/server"
 import { publishRefusalForVersion } from "@/lib/mediaplan/publishValidation.server"
 import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { rowsOf } from "@/lib/xero/dbRows"
@@ -63,6 +66,7 @@ export type BillingRevisionWriteCode =
   | "OVERRIDE_SUM_VIOLATION"
   | "RESTORE_TARGET_NOT_FOUND"
   | "PUBLISH_VALIDATION_REFUSED"
+  | "BILLED_MONTHS_CHANGED"
 
 export class BillingRevisionWriteError extends Error {
   constructor(
@@ -170,6 +174,8 @@ export async function publishBillingRevision(
     throw new BillingRevisionWriteError("PLAN_REFUSED", "A reason is required.", 400)
   }
   const now = input.now ?? new Date()
+  // S2 A, read before the transaction (cached switch read).
+  const billedMonthsOn = await isFeatureOn("billed_months_choice")
 
   const result = await db.transaction(async (rawTx) => {
     const tx = rawTx as unknown as Tx
@@ -293,6 +299,23 @@ export async function publishBillingRevision(
     }
     if (!baseConsistent) {
       warnings.push("The base version's blob and schedule rows already differed. Only the revised cells were checked.")
+    }
+
+    // S2 A: a revision copies the tip, so it cannot keep; it may not change an
+    // invoiced month (the planner's hard locks already stop that). A true-up
+    // is exempt: it sets invoiced months to what Xero invoiced.
+    const billed = decideBilledMonths({
+      on: billedMonthsOn && input.request.mode !== "true_up",
+      check: checkBilledMonths({
+        invoiced: invoicedMonthsFromLocks(ctx.locks),
+        base: explodedBase.rows,
+        candidate: explodedNew.rows,
+      }),
+      choice: null,
+      choiceAllowed: false,
+    })
+    if (billed.kind === "refuse") {
+      throw new BillingRevisionWriteError("BILLED_MONTHS_CHANGED", billed.message, 409)
     }
 
     // 5. Override months and the C2 sum law.

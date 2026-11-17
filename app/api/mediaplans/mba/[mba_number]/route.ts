@@ -30,6 +30,8 @@ import {
   isPublishVersionAdvance,
 } from "@/lib/mediaplan/publishVersionIntegrity"
 import { publishRefusalForVersion } from "@/lib/mediaplan/publishValidation.server"
+import { billedMonthsGateForStoredVersion } from "@/lib/finance/billedMonths/server"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   PLAN_DETAIL_POSTGRES_ERROR_CODE,
   readMbaPlanDetailFromPostgres,
@@ -613,6 +615,20 @@ export async function PATCH(
           versionNumber: targetPublishVersion,
         })
         if (refusal) return NextResponse.json(refusal, { status: 422 })
+        // S2 A: the stamped version becomes the tip as it is, so it cannot keep
+        // billed rows; a change to an invoiced month is refused (switch
+        // billed_months_choice).
+        const billed = await billedMonthsGateForStoredVersion(getPublishDb(), {
+          on: await isFeatureOn("billed_months_choice"),
+          mbaNumber: mba_number,
+          versionNumber: targetPublishVersion,
+        })
+        if (billed.kind === "refuse") {
+          return NextResponse.json(
+            { error: billed.message, code: billed.code, billedMonths: billed.billedMonths },
+            { status: 409 },
+          )
+        }
       }
     }
 

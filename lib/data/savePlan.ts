@@ -112,6 +112,9 @@ import {
 import { toCents } from "@/lib/money"
 import { isFeatureOn } from "@/lib/features/server"
 import { publishRefusal } from "@/lib/mediaplan/publishValidation.server"
+import { spliceBilledMonths } from "@/lib/finance/billedMonths/billedMonths"
+import type { BilledMonthsChoice } from "@/lib/finance/billedMonths/choice"
+import { billedMonthsGate } from "@/lib/finance/billedMonths/server"
 import { isUniqueViolation } from "@/lib/db/pgError"
 
 export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
@@ -210,6 +213,12 @@ export type SavePlanVersionInput = {
    */
   baseVersionId?: number | null
   /**
+   * S2 A: what happens to invoiced months this publish would change. Read
+   * only with `billed_months_choice` on; `keep` copies the published tip's
+   * billing for those months.
+   */
+  billedMonthsChoice?: BilledMonthsChoice | null
+  /**
    * Test-only injection point for the PENFOLD016/BOSS006 kill-shot.
    * Must throw to abort between line_items and schedule_months writes.
    */
@@ -268,6 +277,10 @@ export type SavePlanErrorCode =
   | "LINE_ITEM_ID_RETIRED"
   | "TRUE_UP_LOCKED"
   | "PUBLISH_VALIDATION_REFUSED"
+  | "BILLED_MONTHS_CHOICE_REQUIRED"
+  | "BILLED_MONTHS_CREDIT_UNAVAILABLE"
+  | "BILLED_MONTHS_CHANGED"
+  | "BILLED_MONTHS_KEEP_FAILED"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -921,6 +934,7 @@ export async function savePlanVersion(
   let attemptedVersionNumber = input.versionNumber
   // Read once before the transaction (cached switch read, never inside the txn).
   const feeSnapshotWriteOnce = await getFeeSnapshotWriteOnce()
+  const billedMonthsOn = input.mode === "publish" && (await isFeatureOn("billed_months_choice"))
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -1187,11 +1201,6 @@ export async function savePlanVersion(
         }
       }
 
-      const legacySchedules = {
-        billingSchedule: financials.billingSchedule,
-        deliverySchedule: financials.deliverySchedule,
-      }
-
       const billingExplode = explodeScheduleToMonthRows(
         versionId,
         "billing",
@@ -1215,7 +1224,7 @@ export async function savePlanVersion(
       }
 
       // Belt-and-braces: stamp source='override' (amounts already match via compute).
-      const scheduleRows = reconcileOverrideSources(
+      let scheduleRows = reconcileOverrideSources(
         [...billingExplode.rows, ...deliveryExplode.rows],
         overrideRows.map((r) => ({
           lineItemId: r.lineItemId,
@@ -1223,6 +1232,41 @@ export async function savePlanVersion(
           months: r.months,
         }))
       )
+
+      // S2 A: a publish that changes an invoiced month needs a choice
+      // (switch billed_months_choice). Keep copies the published tip's
+      // billing for those months; nothing else changes.
+      let billingSchedule = financials.billingSchedule
+      const billed = await billedMonthsGate(tx, {
+        on: billedMonthsOn,
+        mbaNumber: input.mbaNumber,
+        candidateSchedule: billingSchedule,
+        choice: input.billedMonthsChoice,
+        choiceAllowed: true,
+      })
+      if (billed.decision.kind === "refuse") {
+        throw new SavePlanError(billed.decision.code, billed.decision.message, undefined, {
+          billedMonths: billed.decision.billedMonths,
+        })
+      }
+      if (billed.decision.kind === "keep" && billed.base) {
+        const spliced = spliceBilledMonths({
+          months: billed.decision.months,
+          candidateSchedule: billingSchedule,
+          candidateRows: scheduleRows,
+          baseSchedule: billed.base.schedule,
+          baseRows: billed.base.rows,
+          versionId,
+        })
+        if (!spliced.ok) throw new SavePlanError("BILLED_MONTHS_KEEP_FAILED", spliced.message)
+        billingSchedule = spliced.schedule
+        scheduleRows = spliced.rows
+      }
+
+      const legacySchedules = {
+        billingSchedule,
+        deliverySchedule: financials.deliverySchedule,
+      }
 
       await tx
         .delete(schema.scheduleMonths)
@@ -1301,7 +1345,7 @@ export async function savePlanVersion(
         let approvedSlice = existingSliceRow?.approvedSlice as ApprovedSlice | null | undefined
         if (approvedSlice == null || typeof approvedSlice !== "object") {
           approvedSlice = computeApprovedSlice({
-            financials,
+            financials: { ...financials, billingSchedule },
             selectedMonthYears,
             approvedLineItemIds: approvedLineIdsFromInput(scopedLineItems),
           })

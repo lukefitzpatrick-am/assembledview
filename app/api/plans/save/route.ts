@@ -286,6 +286,7 @@ export async function POST(request: NextRequest) {
     billingOverrides: body.billingOverrides ?? null,
     publishedByEmail,
     baseVersionId: body.baseVersionId ?? null,
+    billedMonthsChoice: body.billedMonthsChoice ?? null,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],
@@ -366,7 +367,8 @@ export async function POST(request: NextRequest) {
         err.code === "BILLING_OVERRIDE_SUM_VIOLATION" ||
         err.code === "VERSION_PUBLISHED_IMMUTABLE" ||
         err.code === "LINE_ITEM_ID_RETIRED" ||
-        err.code === "TRUE_UP_LOCKED"
+        err.code === "TRUE_UP_LOCKED" ||
+        err.code.startsWith("BILLED_MONTHS_")
           ? 409
           : err.code === "PUBLISH_VALIDATION_REFUSED"
             ? 422
@@ -378,7 +380,8 @@ export async function POST(request: NextRequest) {
                 err.code === "UNIQUE_VIOLATION"
               ? 400
               : 500
-      // LINE_ITEM_ID_RETIRED adds `retiredLineItemIds` and `lineIdFloors`.
+      // LINE_ITEM_ID_RETIRED adds `retiredLineItemIds` and `lineIdFloors`;
+      // the BILLED_MONTHS_ refusals add `billedMonths`.
       const details =
         err.details && typeof err.details === "object" ? err.details : {}
       return NextResponse.json(

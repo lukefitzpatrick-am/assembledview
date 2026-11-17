@@ -59,6 +59,49 @@ Finance changes billing timing on a published plan by publishing a revision, nev
 
 **Monthly true-up run (T10).** `GET /api/cron/true-up` (Vercel `0 20,21 1 * *`, so 07:00 Sydney on the 2nd in daylight saving and standard time; the route checks the Sydney window) runs `runTrueUpMonthly` when `TRUE_UP` and `TRUE_UP_CRON` are on and 0109 is applied. It builds the report to the month just ended from the start of its financial year, inserts a `true_up_runs` row (compact rows, no month grid), emails `OPS_EMAIL_TO` through `sendHtmlEmail` (SendGrid) with a link to `APP_BASE_URL/finance/reports/true-up`, then stamps `emailed_at`. One cron run per as-of month (a cron row with `emailed_at` set). An email failure keeps the row with `emailed_at` null. "Run now and email" on the page (`POST /api/finance/true-up/run`, finance admin, `TRUE_UP_ACTIONS`) runs for the selected month at any time. Read only on plans.
 
+## Publishing over invoiced months (S2 A, B56, switch `billed_months_choice`)
+
+- **Invoiced** (`lib/finance/billedMonths/billedMonths.ts` `invoicedMonths`): a `finance_billing_records` row for the MBA and month with `exported_at`, `matched_xero_invoice_id`, `billed` or `billed_at`, or a `xero:` row with that `mba_number` and `billing_month`; with FINANCE_PERIODS on, a `finance_periods` month that is locked, invoiced or reconciled. Approved and not sent is not invoiced. Same record rules as the revision locks (`monthLockReasons`).
+- **The check** (`checkBilledMonths`): per invoiced month, the published tip's blob read back (`explodeScheduleToMonthRows`) against the new version's, by bare line id and component. Any cell that differs is a change, even with the same month total.
+- **The decision** (`choice.ts` `decideBilledMonths`, the one choke point): off or no change goes on. Plan save publish (`savePlanVersion`): no choice is 409 `BILLED_MONTHS_CHOICE_REQUIRED`, `credit` is 409 `BILLED_MONTHS_CREDIT_UNAVAILABLE`, `keep` goes on. Billing revisions and the PATCH publish stamp cannot keep: 409 `BILLED_MONTHS_CHANGED`. A `true_up` revision is exempt.
+- **Keep** (`spliceBilledMonths`): the changed months take the tip's blob month entries and its billing `schedule_months` rows (with their `source`) as they are; every other month and every delivery row is the new version's. The approved slice and the checksum are built from the spliced schedule. The splice is read back; a mismatch refuses (409 `BILLED_MONTHS_KEEP_FAILED`), nothing is written.
+- **Keep does not move money.** An amount a new version moves out of an invoiced month into a later month still bills in the later month (C-322). The monthly true-up flags the month.
+- **Credit** is shown and disabled until S11 (C-321). Today the only credit path is the billing revision underspend "credit" (Q5): a change-log note, no version, nothing to Xero. Finance readers drop negative lines (C-163).
+- **The blob is the record.** On 32 of 94 published tips with invoiced months (18 Nov 2026) the stored billing rows lack the `__service__fees` header rows the blob holds (C-323). The check reads blobs on both sides, so this is not a change.
+
+Plans with invoiced months whose published billing differs from what was invoiced (ex GST, $1 or more; read only). Invoice month is the record's `billing_month` (Xero rows) or its key month (matched app rows). 18 Nov 2026: 280 invoiced MBA-months on 94 plans; 213 months on 84 plans differ (23 published above invoiced, 190 below).
+
+```sql
+WITH invoiced AS (
+  SELECT lower(btrim(r.mba_number)) AS mba, left(r.billing_month, 7) AS month, x.sub_total
+  FROM finance_billing_records r
+  JOIN xero_ar_invoices x ON 'xero:' || x.xero_invoice_id = r.invoice_key
+  WHERE lower(r.invoice_key) LIKE 'xero:%' AND x.status NOT IN ('VOIDED', 'DELETED')
+  UNION ALL
+  SELECT lower(split_part(r.invoice_key, ':', 2)), split_part(r.invoice_key, ':', 3), x.sub_total
+  FROM finance_billing_records r
+  JOIN xero_ar_invoices x ON x.xero_invoice_id = r.matched_xero_invoice_id
+  WHERE lower(r.invoice_key) LIKE 'media:%' AND x.status NOT IN ('VOIDED', 'DELETED')
+), by_month AS (
+  SELECT mba, month, round(sum(sub_total) * 100)::bigint AS invoiced_cents, count(*) AS invoices
+  FROM invoiced WHERE mba <> '' GROUP BY 1, 2
+), tip AS (
+  SELECT lower(m.mba_number) AS mba, m.mba_number, v.id AS version_id, v.version_number
+  FROM media_plan_masters m
+  JOIN media_plan_versions v ON v.id = m.published_version_id AND v.published_at IS NOT NULL
+), compared AS (
+  SELECT tip.mba_number, b.month, tip.version_number AS published_version, b.invoices, b.invoiced_cents,
+    coalesce((SELECT sum(s.amount_cents) FROM schedule_months s
+              WHERE s.version_id = tip.version_id AND s.basis = 'billing'
+                AND to_char(s.month, 'YYYY-MM') = b.month), 0) AS published_cents
+  FROM by_month b JOIN tip ON tip.mba = b.mba
+)
+SELECT *, published_cents - invoiced_cents AS difference_cents
+FROM compared
+WHERE abs(published_cents - invoiced_cents) >= 100
+ORDER BY mba_number, month;
+```
+
 ## Consumed by
 
 61 files import `lib/finance/*`: both mega-pages (edit page has ~25 finance/billing imports), `components/billing/*` (9), client hub billing + Excel export, dashboard chart reshapes, AVA client-brain tools, creative upload digest (via `lib/billing/scheduleHeaders`). All 19 media containers import `lib/billing/*`.

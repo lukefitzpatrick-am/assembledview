@@ -140,4 +140,6 @@ export const plansSaveBodySchema = z.object({
    * Null on create.
    */
   tipVersionIdAtLoad: z.number().int().positive().optional().nullable(),
+  /** S2 A: what happens to invoiced months this publish changes (after a 409 asked). */
+  billedMonthsChoice: z.enum(["keep", "credit"]).optional().nullable(),
 })

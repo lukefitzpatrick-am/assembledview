@@ -534,3 +534,25 @@ test("B54: publish_validation is off by default, a planning switch sent to the b
     setFeatureRowReaderForTests(null)
   }
 })
+
+test("B56: billed_months_choice is off by default, a finance switch the browser never reads, no env, owned by Luke", async () => {
+  const key = "billed_months_choice" as const
+  const def = featureDefinition(key)!
+  assert.ok(def, key)
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.source, "switch")
+  assert.equal(def.toggleRole, "admin")
+  assert.equal(def.area, "finance")
+  assert.equal(def.clientVisible, false)
+  assert.equal(def.owner, "Luke")
+  assert.equal("requires" in def, false)
+  try {
+    setFeatureRowReaderForTests(async () => new Map())
+    assert.equal(await isFeatureOn(key, {}), false)
+    setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), true)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+})
