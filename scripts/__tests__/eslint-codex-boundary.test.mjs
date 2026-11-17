@@ -168,8 +168,8 @@ test("a read module holds no write and imports only read modules and non-Codex c
     'import { loadRosterPeople } from "@/lib/codex/rosterRead"',
   ]
   assert.deepEqual(failing("lib/codex/clientMbas.ts", reads), [])
-  const types = ['import type { DbExecutor } from "@/lib/codex/repo"', 'import { createTask } from "@/lib/codex/repo"', 'export const k = () => import("@/lib/codex/repo")']
-  assert.deepEqual(failing("lib/codex/taskVisibility.ts", types), [2, 3])
+  const types = ['import type { DbExecutor } from "@/lib/codex/repo"', 'import { createTask } from "@/lib/codex/repo"', 'export const k = () => import("@/lib/codex/repo")', 'import { DbExecutor } from "@/lib/codex/repo"']
+  assert.deepEqual(failing("lib/codex/taskVisibility.ts", types), [2, 3, 4])
   assert.deepEqual(failing("lib/codex/clientMbas.ts", types.slice(0, 1)), [1])
 })
 
