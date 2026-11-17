@@ -166,11 +166,11 @@ Routes under `app/api/codex/`:
 | GET, POST, DELETE | `/api/codex/tasks/[id]/followers` | `listFollowers`, `followTask` (`{}` yourself, `{ email }` a colleague; active roster members only, 400 `not_on_roster` or `ambiguous_address`; 409 `follower_no_access`), `unfollowTask` (yourself) (B41, `codex_projects`) |
 | GET, POST | `/api/codex/tasks/[id]/attachments` | `listAttachments`, `createAttachment` (multipart one `file`: 413 over 4 MB, 415 a type not allowed; or JSON `{ url, name? }`; 409 `too_many_attachments`; 201) (B41, `codex_projects`) |
 | GET, DELETE | `/api/codex/tasks/[id]/attachments/[attachmentId]` | `getAttachmentFile` then the private blob streamed (a link is 404), `deleteAttachment` (403 `not_uploader`; the blob after the row) (B41, `codex_projects`) |
-| GET | `/api/codex/notifications` | `listBell` (`?limit=` 1 to 100): items, `unread`, `email_digest` (B41, `codex_notifications`; 503 before 0118) |
+| GET | `/api/codex/notifications` | `listBell` (`?limit=` 1 to 100): items, `unread`, `email_digest` (B41, `codex_notifications`) |
 | POST | `/api/codex/notifications/read` | `markNotificationsRead` (`{ ids }` 1 to 200 of your own, or `{ all: true }`) (B41) |
 | PUT | `/api/codex/notifications/prefs` | `setEmailDigest` (`{ email_digest }`) (B41) |
-| GET, POST | `/api/cron/codex-notifications` | `runDailyNotifications` (`generateDueReminders` then `runDigest`, which carries them): `CRON_SECRET`; skipped with `codex_notifications` off, outside the Melbourne 08:00 hour or before 0118 (B41) |
-| GET | `/api/codex/workload` | `loadWorkload` (`?weeks=`; behind `codex_projects`; 503 before 0118) (B42) |
+| GET, POST | `/api/cron/codex-notifications` | `runDailyNotifications` (`generateDueReminders` then `runDigest`, which carries them): `CRON_SECRET`; skipped with `codex_notifications` off, or outside the Melbourne 08:00 hour (B41) |
+| GET | `/api/codex/workload` | `loadWorkload` (`?weeks=`; behind `codex_projects`) (B42) |
 | GET | `/api/codex/search` | `searchCodex` (`lib/codex/searchRepo.ts`): `?q=` (2 to 100 characters) `&limit=` (default 8, max 25 per group). Behind `codex_search` (404 before auth when off) |
 | GET, POST | `/api/codex/templates` | `listTemplates`, `createTemplate` |
 | GET, PUT, PATCH, DELETE | `/api/codex/templates/[id]` | `getTemplate`, `updateTemplate`, `deleteTemplate` |

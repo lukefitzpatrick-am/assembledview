@@ -488,7 +488,6 @@ export function TasksPageClient({
   const urlFilters = parseTasksFilterParams(seededSearchParams)
   /** Projects tab (B39): only with codex_projects on; `?tab=projects` opens it. */
   const projectsOn = clientFeatureOn("codex_projects")
-  /** B40fix: the Tasks GET says 0118 is applied (codex_projects on); ASAP is offered as a filter only then. */
   const [mainTab, setMainTab] = useState<
     "tasks" | "team" | "templates" | "inbox" | "projects" | "workload"
   >(() => {

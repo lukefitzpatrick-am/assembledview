@@ -136,7 +136,6 @@ export function TaskDetailClient({ taskId }: Props) {
   const meEmail = (user?.email ?? "").trim().toLowerCase() || null
   /** Project details, subtasks, fields and ASAP (B40): codex_projects on. */
   const projectsOn = clientFeatureOn("codex_projects")
-  /** B40fix: the project panel's read answered (0118 applied), so ASAP can be saved. */
 
   const [task, setTask] = useState<CodexTask | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)

@@ -9,7 +9,7 @@
 
 ### 1a — Flag gate and role gate (quoted)
 
-**Flag** (`lib/codex/flag.ts`):
+**Flag** (`lib/codex/flag.ts` at the time; deleted in B48. Today the gate is `isFeatureOn("codex_v2")` in `codexFlagGuard`, `app/api/codex/_shared.ts`):
 
 ```ts
 export function isCodexV2Enabled(): boolean {
