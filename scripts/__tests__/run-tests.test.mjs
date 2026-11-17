@@ -238,7 +238,9 @@ test("findTests flags a file that imports the both-zones pin, and only that impo
 })
 
 test("a both-zones file runs in Melbourne, then again in UTC, and each pass counts", () => {
-  const r = runMain(tempRoot({ "lib/a.test.ts": BOTH + `test("zone", () => { console.log("zone=" + zone) })\n`, "lib/b.test.ts": PASS }), [], { TZ: "Australia/Sydney" })
+  // A stray RUN_TESTS_UTC_PASS from the shell does not move the first pass to UTC.
+  const env = { TZ: "Australia/Sydney", RUN_TESTS_UTC_PASS: "1" }
+  const r = runMain(tempRoot({ "lib/a.test.ts": BOTH + `test("zone", () => { console.log("zone=" + zone) })\n`, "lib/b.test.ts": PASS }), [], env)
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /node:test files 2 \(ran 2, skipped 0, todo 0\)/)
   assert.match(r.stdout, /UTC pass of both-zone files: node:test files 1 \(ran 1, skipped 0, todo 0\)/)
