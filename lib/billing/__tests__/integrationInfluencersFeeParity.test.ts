@@ -2,7 +2,7 @@
  * Integration = 0 when feeintegration absent; Influencers inherit feecontentcreator
  * (all clients). Billing feeTotal must match summed persisted line feeAmount.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

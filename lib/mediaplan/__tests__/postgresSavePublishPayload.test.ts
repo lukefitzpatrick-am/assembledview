@@ -5,7 +5,7 @@
  * O4.5: publish/status-change carries feeLoading; stamped feePct survives assembly;
  * billing total = media + fee for the krusty015-shaped fixture.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

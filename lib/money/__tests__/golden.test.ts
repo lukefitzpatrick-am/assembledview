@@ -2,7 +2,7 @@
  * One fixture set. Each money surface is checked in cents.
  * A disagreement is a todo with the numbers. It does not fail the suite and it is not fixed here.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"

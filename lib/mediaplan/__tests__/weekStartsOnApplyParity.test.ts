@@ -3,7 +3,7 @@
  * containers that own the same weekStartsOn state must build Apply columns with
  * matching keys so quantities are conserved.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

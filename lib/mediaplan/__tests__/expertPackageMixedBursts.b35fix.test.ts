@@ -13,7 +13,7 @@
  * L4: the zero-package skip in the card budget projection applies to
  * `package` rows only.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 

@@ -1,4 +1,4 @@
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { describe, expect, it } from "vitest"
 
 import { formatDateLong, formatDateRange, formatDateShort } from "@/lib/format/date"

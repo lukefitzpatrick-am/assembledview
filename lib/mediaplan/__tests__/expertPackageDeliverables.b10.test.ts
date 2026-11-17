@@ -11,7 +11,7 @@
  * - Budgets never change with the switch: the grid's cost is quantity × rate.
  * - Non-package buy types keep their old per-grid result.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"

@@ -7,7 +7,7 @@
  * Regenerate Search/OOH/ProgVideo via: npx tsx lib/mediaplan/__tests__/_dumpExpertGoldens.ts
  * Regenerate Radio/Cinema/DigiVideo via: npx tsx lib/mediaplan/__tests__/_dumpP1Goldens.ts
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { format, startOfDay } from "date-fns"

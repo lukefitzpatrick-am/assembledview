@@ -3,7 +3,7 @@
  * line's fee billing months in the selection, the same as the approved slice.
  * Unset: the media share, as before.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

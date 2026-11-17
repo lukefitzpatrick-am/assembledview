@@ -6,7 +6,7 @@
  * B48: the registry resolves it (lib/features/__tests__/requires.b48.test.ts);
  * the grid reads the live browser snapshot.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

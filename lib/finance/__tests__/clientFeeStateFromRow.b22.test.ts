@@ -14,7 +14,7 @@
  * - Source pins: both pages call the helper and read the switch once; create
  *   sets all 20; the dead refreshClientFeesFromApi is gone.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"

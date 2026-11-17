@@ -66,12 +66,12 @@ test("findTests finds bracket paths and skips node_modules everywhere, build and
     "lib/helper.ts": PASS,
   })
   assert.deepEqual(findTests(root), [
-    { file: "app/[slug]/__tests__/a.route.test.ts", runner: "node" },
-    { file: "lib/.hidden/g.test.cjs", runner: "node" },
-    { file: "lib/b.node-test.ts", runner: "node" },
-    { file: "lib/c.test.tsx", runner: "vitest" },
-    { file: "lib/coverage/__tests__/e.test.mts", runner: "node" },
-    { file: "lib/dist/f.test.mjs", runner: "node" },
+    { file: "app/[slug]/__tests__/a.route.test.ts", runner: "node", bothZones: false },
+    { file: "lib/.hidden/g.test.cjs", runner: "node", bothZones: false },
+    { file: "lib/b.node-test.ts", runner: "node", bothZones: false },
+    { file: "lib/c.test.tsx", runner: "vitest", bothZones: false },
+    { file: "lib/coverage/__tests__/e.test.mts", runner: "node", bothZones: false },
+    { file: "lib/dist/f.test.mjs", runner: "node", bothZones: false },
   ])
 })
 
@@ -223,4 +223,45 @@ test("the CLI exits once main returns, even while a child that ignored SIGTERM i
   assert.equal(r.signal, null, "the CLI was still running at 60 s")
   assert.equal(r.status, 1, r.stderr)
   assert.match(r.stderr, /no test file starts with no\/such\/prefix\//)
+})
+
+// RUNFIX2fix (RUNFIX2 review R2, V32): a file whose subject the browser and the server both reach runs in Melbourne, then in UTC.
+// The fixtures import the real pin: tsx maps `@/` through the repo's tsconfig, as the children run with the repo as cwd.
+const BOTH = `import "@/lib/testing/bothZones"\nimport test from "node:test"\nconst zone = new Intl.DateTimeFormat().resolvedOptions().timeZone\n`
+
+test("findTests flags a file that imports the both-zones pin, and only that import", () => {
+  const root = tempRoot({ "lib/a.test.ts": BOTH + `test("x", () => {})\n`, "lib/b.test.ts": `// import "@/lib/testing/bothZones"\n` + PASS })
+  assert.deepEqual(findTests(root).map((t) => t.bothZones), [true, false])
+})
+
+test("a both-zones file runs in Melbourne, then again in UTC, and each pass counts", () => {
+  const r = runMain(tempRoot({ "lib/a.test.ts": BOTH + `test("zone", () => { console.log("zone=" + zone) })\n`, "lib/b.test.ts": PASS }), [], { TZ: "Australia/Sydney" })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /node:test files 2 \(ran 2, skipped 0, todo 0\)/)
+  assert.match(r.stdout, /UTC pass of both-zone files: node:test files 1 \(ran 1, skipped 0, todo 0\)/)
+  assert.deepEqual(r.stdout.match(/zone=\S+/g), ["zone=Australia/Melbourne", "zone=UTC"])
+})
+
+test("a both-zones file that fails in either zone fails the run", () => {
+  for (const bad of ["UTC", "Australia/Melbourne"]) {
+    const r = runMain(tempRoot({ "lib/a.test.ts": BOTH + `test("zone", () => { if (zone === "${bad}") throw new Error("bad zone") })\n` }))
+    assert.equal(r.status, 1, `${bad}: ${r.stdout}`)
+  }
+})
+
+test("the UTC pass fails closed: a both-zones file with no test there fails the run", () => {
+  const r = runMain(tempRoot({ "lib/a.test.ts": BOTH + `if (zone !== "UTC") test("only in Melbourne", () => {})\n` }))
+  assert.equal(r.status, 1, r.stdout)
+  assert.match(r.stderr, /lib\/a\.test\.ts: no test ran, skipped or todo/)
+})
+
+test("a both-zones Vitest file runs again in UTC, and a failure there fails the run", () => {
+  const config = `export default { resolve: { alias: { "@": ${JSON.stringify(REPO)} } } }\n`
+  const body = (check) => `import "@/lib/testing/bothZones"\n` + VITEST(`const zone = new Intl.DateTimeFormat().resolvedOptions().timeZone\n  ${check}`)
+  const ok = runMain(vitestRoot({ "vitest.config.mjs": config, "lib/a.test.ts": body(`if (!["UTC", "Australia/Melbourne"].includes(zone)) throw new Error(zone)`) }))
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr)
+  assert.match(ok.stdout, /UTC pass of both-zone files: node:test files 0 .*vitest files 1/)
+  const bad = runMain(vitestRoot({ "vitest.config.mjs": config, "lib/a.test.ts": body(`if (zone === "UTC") throw new Error("bad zone")`) }))
+  assert.equal(bad.status, 1, bad.stdout + bad.stderr)
+  assert.match(bad.stdout, /UTC pass of both-zone files/)
 })

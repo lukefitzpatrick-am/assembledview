@@ -7,7 +7,7 @@
  * quantity x rate. Fixed cost and package inclusions still open as 1
  * (C-168 (c) is still open). Create and edit share these containers.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 

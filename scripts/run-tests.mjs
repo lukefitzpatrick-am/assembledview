@@ -25,6 +25,12 @@
  *   even when a timed-out child ignores SIGTERM and is still alive.
  * - Every test child runs with TZ=UTC, as CI and Vercel do, so a zone-less
  *   formatter built at module load cannot pass here on a Melbourne host.
+ * - A file may move itself to Melbourne with a first-line pin (RUNFIX2fix,
+ *   V32): `@/lib/testing/melbourneZone` when only the browser runs its subject,
+ *   `@/lib/testing/bothZones` when the browser and the server both do. After
+ *   the first pass the runner runs every `bothZones` file again with
+ *   RUN_TESTS_UTC_PASS=1, which keeps it in UTC. The second pass fails the run
+ *   on the same terms as the first.
  * - run() starts each file with this process's exec flags too, so start the
  *   runner as a file (`node scripts/run-tests.mjs`), never with `node -e`.
  *
@@ -160,6 +166,7 @@ function runVitest(files, root) {
 export async function main(prefixes, root = ROOT) {
   const started = Date.now()
   process.env.TZ = "UTC" // inherited by every test child (node:test and Vitest), as on CI and Vercel
+  delete process.env.RUN_TESTS_UTC_PASS // first pass: a bothZones file runs in Melbourne
   const tests = findTests(root)
   if (tests.length === 0) {
     console.error(`[run-tests] found no test files under ${root}`)
@@ -185,7 +192,26 @@ export async function main(prefixes, root = ROOT) {
     `# run-tests: node:test files ${nodeFiles.length} (ran ${node.ran}, skipped ${node.skipped}, todo ${node.todo}), ` +
       `vitest files ${vitestFiles.length}, ${secs}s`,
   )
-  return node.ok && vitestOk && orphans.length === 0 ? 0 : 1
+  const utcOk = await runUtcPass(picked.filter((t) => t.bothZones && t.runner !== null), root)
+  return node.ok && vitestOk && utcOk && orphans.length === 0 ? 0 : 1
+}
+
+/** Second pass: files whose subject the browser and the server both reach run again in UTC, the server's zone. */
+async function runUtcPass(tests, root) {
+  if (tests.length === 0) return true
+  const started = Date.now()
+  const nodeFiles = tests.filter((t) => t.runner === "node").map((t) => t.file)
+  const vitestFiles = tests.filter((t) => t.runner === "vitest").map((t) => t.file)
+  process.env.RUN_TESTS_UTC_PASS = "1" // read by lib/testing/bothZones in every child of this pass
+  const node = nodeFiles.length ? await runNode(nodeFiles, root) : { ok: true, ran: 0, skipped: 0, todo: 0 }
+  const vitestOk = vitestFiles.length ? runVitest(vitestFiles, root) : true
+  delete process.env.RUN_TESTS_UTC_PASS
+  const secs = Math.round((Date.now() - started) / 1000)
+  console.log(
+    `# run-tests: UTC pass of both-zone files: node:test files ${nodeFiles.length} (ran ${node.ran}, skipped ${node.skipped}, todo ${node.todo}), ` +
+      `vitest files ${vitestFiles.length}, ${secs}s`,
+  )
+  return node.ok && vitestOk
 }
 
 // By file name, not a resolved path: a drive letter case or junction on Windows would make a path compare fail and exit 0 having run nothing.

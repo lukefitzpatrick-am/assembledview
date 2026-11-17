@@ -1,7 +1,7 @@
 /**
  * IG-10 — Excel / MBA dialog must name dollars that sit outside MBA scope.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

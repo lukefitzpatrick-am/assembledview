@@ -2,7 +2,7 @@
  * B23 FC2, FC5, FC7, FC8: the fixed cost from date on the write side.
  * Null keeps today's behaviour; the switch gates the save check.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

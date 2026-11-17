@@ -2,7 +2,7 @@
  * IG-8 — JCD ingest → expert OOH round-trip must keep status-grid flights.
  * Bonus occupancy must not fall through to the campaign-dated empty line.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import path from "node:path"
 import test from "node:test"

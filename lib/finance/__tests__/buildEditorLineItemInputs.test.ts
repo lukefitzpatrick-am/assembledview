@@ -2,7 +2,7 @@
  * Stated-zero burst budgets must not be refilled from the line total.
  * Blank (never entered) still back-fills — that is the legacy-data path.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

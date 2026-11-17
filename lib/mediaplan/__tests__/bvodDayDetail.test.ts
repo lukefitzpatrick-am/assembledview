@@ -1,4 +1,4 @@
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"

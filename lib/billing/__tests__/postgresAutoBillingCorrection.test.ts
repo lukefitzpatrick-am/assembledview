@@ -1,7 +1,7 @@
 /**
  * O4 — auto-only drift must not block postgres save; manual lines stay protected.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 

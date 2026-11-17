@@ -1,7 +1,7 @@
 /**
  * F-28 Phase 2 — Influencers Expert row virtualization smoke (Prompt A items 1,3,5,7,8).
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { format, startOfDay } from "date-fns"

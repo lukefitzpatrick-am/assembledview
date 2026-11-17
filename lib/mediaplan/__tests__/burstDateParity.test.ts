@@ -3,11 +3,12 @@
  * (Sydney civil day) and round-trip through billing so UTC servers keep
  * full-month July media / fee.
  *
- * Runs in Melbourne (RUNFIX2), the zone the Dates are made in: local midnight
- * there is the day before in UTC, so a UTC read of one shows here. July media
- * 10000 / parity ok:true; June + cross-month green.
+ * Runs in both zones (RUNFIX2fix): Melbourne, the zone the Dates are made in
+ * (local midnight there is the day before in UTC, so a UTC read of one
+ * shows), then UTC, the server's zone. July media 10000 / parity ok:true;
+ * June + cross-month green.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

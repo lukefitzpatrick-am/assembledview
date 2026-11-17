@@ -3,7 +3,7 @@
  * Regression for Radio/OOH (and families) where rate×qty grids show Net media $0
  * for card-entered totals with no weekly allocation, then Apply zeros the card.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"

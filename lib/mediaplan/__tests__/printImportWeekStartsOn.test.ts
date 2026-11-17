@@ -5,7 +5,7 @@
  * The cited day is Mon 14 Sep 2026. The other seven days were not listed;
  * they are distinct campaign days so each week is visible.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
 import test from "node:test"
 

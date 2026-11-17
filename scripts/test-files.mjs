@@ -18,6 +18,9 @@ const ROOT_SKIP = new Set(["dist", "coverage"])
 const IMPORTS_VITEST = /^import\s[^"';]*?from\s*["']vitest["']/m
 const IMPORTS_NODE_TEST = /^import\s[^"';]*?from\s*["']node:test["']|^(?:const|let|var)\s[^"';]*?require\(\s*["']node:test["']\s*\)/m
 
+// A test whose subject the browser and the server both reach imports this pin first, so the runner runs it twice (RUNFIX2fix).
+const IMPORTS_BOTH_ZONES = /^import\s+["']@\/lib\/testing\/bothZones["']/m
+
 /** Which runner a test file belongs to, from its source: "vitest", "node", or null (neither or both). */
 export function runnerOf(source) {
   const v = IMPORTS_VITEST.test(source)
@@ -39,9 +42,13 @@ function walk(root, rel, out) {
 /**
  * Every test file under `root`, repo-relative with forward slashes, sorted, with its runner.
  * A misnamed file (`*.test.js`, `*.test.jsx`, `*.spec.*`) has runner null, so the run fails on it.
+ * `bothZones` is true when the file imports `@/lib/testing/bothZones`: it runs in Melbourne, then again in UTC.
  */
 export function findTests(root = ROOT) {
   return walk(root, "", [])
     .sort()
-    .map((file) => ({ file, runner: TEST_NAME.test(file) ? runnerOf(fs.readFileSync(path.join(root, file), "utf8")) : null }))
+    .map((file) => {
+      const source = TEST_NAME.test(file) ? fs.readFileSync(path.join(root, file), "utf8") : null
+      return { file, runner: source === null ? null : runnerOf(source), bothZones: source !== null && IMPORTS_BOTH_ZONES.test(source) }
+    })
 }
