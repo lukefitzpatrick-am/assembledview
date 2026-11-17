@@ -19,6 +19,7 @@ import {
   effectiveFeatureOn,
   FEATURE_DEFINITIONS,
   featureDefinition,
+  featureToggleRefusal,
   resolveFeature,
   unsavedFeatureSwitches,
   type ClientFeatureKey,
@@ -214,13 +215,20 @@ export async function readFeatureSwitchEvents(limit = 50): Promise<FeatureSwitch
   }))
 }
 
+/** Serialises switch writes for the dependency check (released at commit). */
+const SWITCH_WRITE_LOCK = sql`SELECT pg_advisory_xact_lock(hashtext('feature_switches'))`
+
 export type SetFeatureSwitchResult =
   | { ok: true; key: FeatureKey; enabled: boolean; changed: boolean }
-  | { ok: false; status: number; code: "NOT_READY" | "UNKNOWN_KEY" | "SET_IN_VERCEL"; message: string }
+  | { ok: false; status: number; code: "NOT_READY" | "UNKNOWN_KEY" | "SET_IN_VERCEL" | "SWITCH_DEPENDENCY"; message: string }
 
 /**
  * Writes the switch row and one event in one transaction, then clears this
  * instance's cache. `from` is the value the app was using (row, env or default).
+ * Refuses (409 SWITCH_DEPENDENCY, nothing written) to turn a switch on while
+ * a requirement is off, or off while a switch that requires it is on (S16).
+ * Switch writes take one transaction lock, so two toggles can't race past
+ * the check (a missing row can't be locked with FOR UPDATE).
  */
 export async function setFeatureSwitch(args: {
   key: string
@@ -240,19 +248,22 @@ export async function setFeatureSwitch(args: {
   const note = args.note?.trim() ? args.note.trim().slice(0, 500) : null
   const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
   const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null
+  const env = args.env ?? process.env
   let changed = false
-  await getDb().transaction(async (tx) => {
-    const current = rowsOf<RawRow>(
-      await tx.execute(sql`
-        SELECT key, enabled, updated_at::text AS updated_at, updated_by, updated_by_name, note
-        FROM feature_switches WHERE key = ${def.key} FOR UPDATE
-      `),
-    )[0]
-    const before = resolveFeature(
-      def,
-      current ? new Map([[def.key, toFeatureRow(current)]]) : new Map(),
-      args.env ?? process.env,
-    ).enabled
+  const refusal = await getDb().transaction(async (tx): Promise<string | null> => {
+    await tx.execute(SWITCH_WRITE_LOCK)
+    const rows = new Map(
+      rowsOf<RawRow>(
+        await tx.execute(sql`
+          SELECT key, enabled, updated_at::text AS updated_at, updated_by, updated_by_name, note
+          FROM feature_switches
+        `),
+      ).map((r) => [r.key, toFeatureRow(r)]),
+    )
+    const raw = rawLookup(rows, env)
+    const refused = featureToggleRefusal(def.key, args.enabled, raw, (k) => effectiveFeatureOn(k, raw))
+    if (refused) return refused
+    const before = raw(def.key)
     changed = before !== args.enabled
     await tx.execute(sql`
       INSERT INTO feature_switches (key, enabled, updated_at, updated_by, updated_by_name, note)
@@ -268,7 +279,9 @@ export async function setFeatureSwitch(args: {
       INSERT INTO feature_switch_events (key, from_enabled, to_enabled, changed_by, changed_by_name, note)
       VALUES (${def.key}, ${before}, ${args.enabled}, ${actorId}, ${actorName}, ${note})
     `)
+    return null
   })
+  if (refusal) return { ok: false, status: 409, code: "SWITCH_DEPENDENCY", message: refusal }
   invalidateFeatureSwitches()
   return { ok: true, key: def.key as FeatureKey, enabled: args.enabled, changed }
 }
@@ -297,6 +310,7 @@ export async function saveCurrentFeatureValues(args: {
   const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null
   const saved: UnsavedFeatureSwitch[] = []
   await getDb().transaction(async (tx) => {
+    await tx.execute(SWITCH_WRITE_LOCK)
     const existing = rowsOf<RawRow>(
       await tx.execute(sql`
         SELECT key, enabled, updated_at::text AS updated_at, updated_by, updated_by_name, note

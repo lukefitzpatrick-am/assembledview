@@ -634,6 +634,32 @@ export function effectiveFeatureOn(key: string, raw: (key: string) => boolean): 
   return (def.requires ?? []).every((k) => effectiveFeatureOn(k, raw))
 }
 
+function labelList(keys: readonly string[]): string {
+  return keys.map((k) => featureDefinition(k)?.label ?? k).join(" and ")
+}
+
+/**
+ * Why a switch can't be set to `enabled` now, or null (S16). On needs every
+ * switch in its `requires` live (`live`: `effectiveFeatureOn`). Off is
+ * refused while a switch that requires it is on (`raw`: its own value), so
+ * no switch is left on with its requirement off.
+ */
+export function featureToggleRefusal(
+  key: string,
+  enabled: boolean,
+  raw: (key: string) => boolean,
+  live: (key: string) => boolean,
+): string | null {
+  const def = featureDefinition(key)
+  if (!def) return null
+  if (enabled) {
+    const off = (def.requires ?? []).filter((k) => !live(k))
+    return off.length ? `Turn on ${labelList(off)} first: this switch needs ${off.length === 1 ? "it" : "them"}.` : null
+  }
+  const on = (FEATURE_DEFINITIONS as readonly FeatureDefinition[]).filter((d) => d.requires?.includes(key) && raw(d.key)).map((d) => d.key)
+  return on.length ? `Turn off ${labelList(on)} first: ${on.length === 1 ? "it needs" : "they need"} this switch.` : null
+}
+
 /** Who may toggle: admin roles, or finance admin for finance switches. */
 export function canToggleFeature(def: FeatureDefinition, roles: { admin: boolean; financeAdmin: boolean }): boolean {
   if (def.source === "vercel") return false

@@ -14,8 +14,10 @@ export const dynamic = "force-dynamic"
  * GET: every feature switch (value, where it comes from, last change), the
  * change history and the signing key status. Admins only.
  * POST { key, enabled, note? }: sets a switch. Admins; finance switches need
- * finance admin. 409 until SQL 0111 is run. Takes effect on this instance at
- * once and on the others within a minute.
+ * finance admin. 409 until SQL 0111 is run, and 409 SWITCH_DEPENDENCY (with a
+ * message naming them) to turn a switch on while a requirement is off, or off
+ * while a switch that requires it is on (S16). Takes effect on this instance
+ * at once and on the others within a minute.
  */
 export async function GET(request: NextRequest) {
   const gate = await requireAdmin(request)

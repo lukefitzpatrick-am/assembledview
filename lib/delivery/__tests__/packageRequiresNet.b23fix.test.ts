@@ -32,7 +32,7 @@ describe("registry", () => {
     assert.match(def.description, /off after it was on puts saved package quantities back as targets/)
   })
 
-  it("/admin/features hints the missing net switch", () => {
+  it("/admin/features refuses the package switch until the net switch is on", () => {
     const states = [
       { key: "expert_package_quantity", enabled: false },
       { key: "fixed_cost_report_net", enabled: false },
@@ -40,7 +40,8 @@ describe("registry", () => {
     const rows = buildFeaturePageModel({ ready: true, states: states as never, roles: { admin: true, financeAdmin: true } })
       .flatMap((g) => g.rows)
     const row = rows.find((r) => r.key === "expert_package_quantity")!
-    assert.match(row.hint ?? "", /Also needs Fixed-cost report on net media on/)
+    assert.match(row.hint ?? "", /Turn on Fixed-cost report on net media first/)
+    assert.equal(row.canToggle, false, "B48: the page refuses what the server refuses")
   })
 })
 
