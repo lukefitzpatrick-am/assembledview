@@ -2,7 +2,7 @@ import { dirname } from "path"
 import { fileURLToPath } from "url"
 import { FlatCompat } from "@eslint/eslintrc"
 
-import { CODEX_SOURCE, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks } from "./scripts/codex-boundary.mjs"
+import { CODEX_SOURCE, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks, codexUrlSelectorsFor } from "./scripts/codex-boundary.mjs"
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const compat = new FlatCompat({
@@ -26,6 +26,16 @@ const HEX_SELECTORS = [
 const HEX_FILES = ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"]
 // DS-2 baseline: existing colour debt, cleared in DS-5 and DS-8. Do not add to this list.
 const HEX_BASELINE = ["components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx"]
+/** The hex selectors for a file outside the tests (HEX_FILES as a test). */
+const hexSelectorsFor = (file) => (/^(app|components)\/.+\.tsx?$/.test(file) && !HEX_BASELINE.includes(file) ? HEX_SELECTORS : [])
+
+// B46: one toast store. The mounted Toaster reads components/ui/use-toast.
+const RESTRICTED_IMPORTS = [
+  {
+    group: ["**/hooks/use-toast"],
+    message: "Deleted duplicate toast store. Import from @/components/ui/use-toast.",
+  },
+]
 
 /** ESLint 9 reads this file. */
 const config = [
@@ -72,21 +82,8 @@ const config = [
     },
   },
   {
-    // B46: one toast store. The mounted Toaster reads components/ui/use-toast.
     files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["**/hooks/use-toast"],
-              message: "Deleted duplicate toast store. Import from @/components/ui/use-toast.",
-            },
-          ],
-        },
-      ],
-    },
+    rules: { "no-restricted-imports": ["error", { patterns: RESTRICTED_IMPORTS }] },
   },
   {
     files: ["app/**/*.{js,jsx,ts,tsx}", "components/**/*.{js,jsx,ts,tsx}"],
@@ -114,7 +111,11 @@ const config = [
     rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS] },
   },
   // C-200 (S32 A, B51): Codex task writes only in Tasks (scripts/codex-boundary.mjs).
-  ...codexImportBlocks(ROOT),
+  // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.
+  ...codexImportBlocks(ROOT, {
+    restrictedImports: RESTRICTED_IMPORTS,
+    syntaxFor: (file) => [...hexSelectorsFor(file), ...codexUrlSelectorsFor(file)],
+  }),
 ]
 
 export default config
