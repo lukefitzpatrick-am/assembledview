@@ -140,6 +140,16 @@ test("codex_v2 (F1): a row wins over CODEX_V2 both ways; no row reads the env; w
   }
 })
 
+test("roster_rules (B53, S18): new switch, default off, no env fallback, no requires, sent to the browser", () => {
+  const def = featureDefinition("roster_rules")!
+  assert.equal(def.defaultOn, false)
+  assert.equal(def.envName, undefined)
+  assert.equal(def.requires, undefined)
+  assert.equal(def.clientVisible, true)
+  assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("roster_rules"))
+  assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
+})
+
 test("codex_roster_aliases (F16): new switch, default off, no env fallback, needs codex_v2, sent to the browser", () => {
   const def = featureDefinition("codex_roster_aliases")!
   assert.equal(def.defaultOn, false)

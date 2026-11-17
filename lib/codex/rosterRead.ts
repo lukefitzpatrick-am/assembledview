@@ -6,6 +6,7 @@ import "server-only"
 
 import { db, type Db } from "@/db"
 import { teamMembers } from "@/db/schema"
+import { isFeatureOn } from "@/lib/features/server"
 
 import type { RosterPerson } from "./rosterResolve"
 
@@ -24,4 +25,9 @@ export async function loadRosterPeople(database: Pick<Db, "select"> = db): Promi
     aliases: Array.isArray(r.emailAliases) ? r.emailAliases.filter((a): a is string => typeof a === "string") : [],
     active: r.active,
   }))
+}
+
+/** The `roster_rules` switch (B53). A failed read is off: the writes before B53. */
+export function rosterRulesOn(): Promise<boolean> {
+  return isFeatureOn("roster_rules").catch(() => false)
 }

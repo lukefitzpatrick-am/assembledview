@@ -468,6 +468,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["codex_v2"],
   },
   {
+    key: "roster_rules",
+    label: "Team list rules",
+    description:
+      "Every team list write (Team tab add and edit, the Auth0 login and the Auth0 sync) checks four rules (S18, B53): every person has one primary email address; a name never holds an email address; an address, primary or alias, belongs to one person across the whole list, inactive people included; everyone gets an initials alias (Samantha Murphy gets sm@ at her primary's domain). A save that breaks a rule is refused with a plain message naming the field; the Auth0 login and sync skip that row and log it. The initials alias is added on save when no one holds it. When someone holds it, or two people have the same initials, the Team tab lists the clash and asks for an alias added by hand (never one of two). The Team tab edit gains an aliases field. Before turning on: run the B53 alias script and rename the people whose name is an email on the Team tab (the SELECT lists them), then apply 0119. Off: the Team tab only refuses an alias another active person holds, as before.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "codex_search",
     label: "Tasks: search",
     description:
