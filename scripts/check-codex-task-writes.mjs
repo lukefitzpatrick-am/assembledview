@@ -175,7 +175,7 @@ export const WRITE_HELPERS = {
     "runDailyNotifications",
   ],
   "lib/codex/savedViewsRepo": ["createSavedView", "updateSavedView", "deleteSavedView"],
-  "lib/codex/estimatedMinutesColumn": ["writeTaskEstimatedMinutes"],
+  "lib/codex/estimatedMinutesColumn": [],
   "lib/codex/auth0RosterStore": ["postgresRosterStore"],
   // Writes through the store it is given (the roster store by default).
   "lib/codex/auth0LoginUpsert": ["upsertTeamMemberOnAdminLogin", "syncAdminRosterOnLogin"],

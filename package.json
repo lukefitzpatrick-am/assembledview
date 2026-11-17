@@ -185,7 +185,7 @@
     "test:codex-search-views-ui": "node scripts/run-tests.mjs components/tasks/__tests__/CodexSearchDialog components/tasks/__tests__/SavedViewsMenu.render",
     "test:codex-board-ui": "node scripts/run-tests.mjs components/tasks/__tests__/MyWorkTabs.render components/tasks/__tests__/ProgressField.render components/tasks/__tests__/ProjectBoard.render components/tasks/__tests__/ProjectListView.render components/tasks/__tests__/ProjectsPanel.render components/tasks/__tests__/TaskBoard.render components/tasks/__tests__/WorkloadPanel.render",
     "test:codex-notifications-ui": "node scripts/run-tests.mjs components/tasks/__tests__/NotificationBell.render components/tasks/__tests__/TaskCollab.render",
-    "test:codex-contained-writes": "node scripts/run-tests.mjs lib/codex/__tests__/composeLink",
+    "test:codex-contained-writes": "node scripts/run-tests.mjs lib/codex/__tests__/composeLink lib/codex/__tests__/readFetch",
     "test:codex-contained-ui": "node scripts/run-tests.mjs components/creative/__tests__/CreativeContained components/pacing/detail/__tests__/CampaignAskHelpContained components/pacing/scenario/__tests__/ScenarioContained components/tasks/__tests__/TasksComposeFromLink.render",
     "test:codex-stage1-scope": "node scripts/run-tests.mjs lib/codex/__tests__/clientMbas lib/codex/__tests__/myWeek lib/codex/__tests__/queryHelpers.deepLink lib/codex/__tests__/repo.stage1Scope",
     "test:codex-stage1-templates": "node scripts/run-tests.mjs lib/codex/__tests__/recurringRule lib/codex/__tests__/repo.stage1Templates",

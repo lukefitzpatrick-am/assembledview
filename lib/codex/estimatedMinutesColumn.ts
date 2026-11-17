@@ -4,7 +4,8 @@ import { sql, type SQL } from "drizzle-orm"
  * `estimated_minutes` is AUTHOR-ONLY migration 0048 — not in the Drizzle
  * `tasks` table until the column exists on the live DB. Codex suites hit
  * that DB today; selecting/inserting the column 500s. Probe once per
- * process, then read/write via raw SQL when present.
+ * process, then read via raw SQL when present. A read module (C-200, B51):
+ * the write is `writeTaskEstimatedMinutes` in `repo.ts`, inside Tasks.
  */
 type ExecuteClient = {
   execute: (query: SQL) => Promise<unknown>
@@ -94,21 +95,6 @@ export async function applyEstimatedMinutes<T extends { id: number | string }>(
       ? (map.get(Number(t.id)) ?? null)
       : null,
   }))
-}
-
-export async function writeTaskEstimatedMinutes(
-  database: ExecuteClient,
-  taskId: number,
-  minutes: number | null
-): Promise<boolean> {
-  if (!(await tasksHasEstimatedMinutesColumn(database))) return false
-  await database.execute(sql`
-    UPDATE public.tasks
-    SET estimated_minutes = ${minutes},
-        updated_at = now()
-    WHERE id = ${taskId}
-  `)
-  return true
 }
 
 export async function sumOpenEstimatedMinutesByAssignee(

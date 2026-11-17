@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { formatDueYmd } from "@/lib/codex/dueDate"
+import { codexGet } from "@/lib/codex/readFetch"
 import { statusMeta, type CodexTask } from "@/lib/codex/types"
 
 export const SCENARIO_RELATED_TASKS_LIMIT = 10
@@ -34,7 +35,7 @@ export function ScenarioRelatedTasks({ mba }: { mba: string }) {
     let cancelled = false
     setLoaded({ state: "loading" })
     const qs = new URLSearchParams({ mba_number: mbaNumber, per_page: String(SCENARIO_RELATED_TASKS_LIMIT) })
-    fetch(`/api/codex/tasks?${qs.toString()}`, { credentials: "include", cache: "no-store" })
+    codexGet(`tasks?${qs.toString()}`, { credentials: "include", cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as { items?: unknown; itemsTotal?: unknown }

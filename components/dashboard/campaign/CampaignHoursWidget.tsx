@@ -5,6 +5,7 @@ import { Clock } from "lucide-react"
 
 import { MetricCard } from "@/components/ui/MetricCard"
 import { Skeleton } from "@/components/ui/skeleton"
+import { codexGet } from "@/lib/codex/readFetch"
 import type { MbaTimeSummary } from "@/lib/myhours/timeSummary"
 import { cn } from "@/lib/utils"
 
@@ -27,9 +28,7 @@ export function CampaignHoursWidget({ mbaNumber, className }: Props) {
     setLoading(true)
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/codex/time/summary?mba=${encodeURIComponent(mbaNumber.trim())}`
-        )
+        const res = await codexGet(`time/summary?mba=${encodeURIComponent(mbaNumber.trim())}`)
         if (res.status === 401 || res.status === 403 || res.status === 404) {
           if (!cancelled) setHidden(true)
           return

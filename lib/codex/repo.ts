@@ -26,7 +26,7 @@ import {
   applyEstimatedMinutes,
   estimatedMinutesByTaskId,
   executeRows,
-  writeTaskEstimatedMinutes,
+  tasksHasEstimatedMinutesColumn,
 } from "@/lib/codex/estimatedMinutesColumn"
 import {
   clampPage,
@@ -127,6 +127,22 @@ async function isSubtaskRow(database: DbExecutor, id: number): Promise<boolean> 
   if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return false
   const rows = executeRows(await database.execute(sql`SELECT task_type FROM public.tasks WHERE id = ${id}`))
   return rows[0]?.task_type === "subtask"
+}
+
+/**
+ * `estimated_minutes` (0048, raw SQL until the Drizzle mirror has it). False
+ * when the column is missing (nothing written). Lives here, not in the read
+ * module `estimatedMinutesColumn.ts`, so code outside Tasks cannot write it (C-200).
+ */
+async function writeTaskEstimatedMinutes(database: DbExecutor, taskId: number, minutes: number | null): Promise<boolean> {
+  if (!(await tasksHasEstimatedMinutesColumn(database))) return false
+  await database.execute(sql`
+    UPDATE public.tasks
+    SET estimated_minutes = ${minutes},
+        updated_at = now()
+    WHERE id = ${taskId}
+  `)
+  return true
 }
 
 /** B40: assigned by after an assignee write. Null when 0118 is missing (nothing written). */
