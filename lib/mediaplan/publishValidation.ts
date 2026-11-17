@@ -10,6 +10,8 @@
  * - a burst that ends before it starts
  * - two bursts on one line that share a day
  * - a burst outside the plan dates
+ * - a plan whose start is after its end (one whole-plan problem; the dates
+ *   rule cannot run on a reversed window)
  * - a package line with no quantity
  *
  * Warn and allow: a derived line with a budget and no deliverables.
@@ -37,11 +39,13 @@ export type PublishRule =
   | "burst_end_before_start"
   | "bursts_overlap"
   | "burst_outside_plan_dates"
+  | "plan_dates_reversed"
   | "package_no_quantity"
   | "zero_deliverables"
 
 export type PublishProblem = {
   rule: PublishRule
+  /** Empty for a whole-plan problem (`plan_dates_reversed`). */
   channel: string
   lineItemId: string
   /** 1-based burst number; null when the problem is the whole line. */
@@ -100,6 +104,15 @@ export function validatePlanForPublish(plan: PublishPlan): PublishValidation {
   const start = planDate(plan.campaignStartDate)
   const end = planDate(plan.campaignEndDate)
   const planWindow = start && end && start <= end ? { start, end } : null
+  if (start && end && start > end) {
+    refuse.push({
+      rule: "plan_dates_reversed",
+      channel: "",
+      lineItemId: "",
+      burst: null,
+      message: `The plan dates are reversed: it starts ${plan.campaignStartDate} and ends ${plan.campaignEndDate}. Fix the campaign dates.`,
+    })
+  }
 
   for (const line of plan.lineItems) {
     const id = String(line.lineItemId ?? "").trim()
@@ -153,9 +166,9 @@ export function publishRefusalBody(refuse: readonly PublishProblem[]): PublishRe
   const shown = refuse.slice(0, 5).map((p) => p.message)
   const rest = refuse.length - shown.length
   return {
-    error: `Not published. Fix ${refuse.length === 1 ? "this line" : "these lines"} first: ${shown.join(" ")}${rest > 0 ? ` And ${rest} more.` : ""}`,
+    error: `Not published. Fix ${refuse.length === 1 ? "this" : "these"} first: ${shown.join(" ")}${rest > 0 ? ` And ${rest} more.` : ""}`,
     code: PUBLISH_VALIDATION_REFUSED,
-    lineItemIds: [...new Set(refuse.map((p) => p.lineItemId))],
+    lineItemIds: [...new Set(refuse.map((p) => p.lineItemId).filter(Boolean))],
     publishProblems: [...refuse],
   }
 }
@@ -165,6 +178,7 @@ const FIELD: Record<PublishRule, string> = {
   burst_end_before_start: "Burst dates",
   bursts_overlap: "Burst dates",
   burst_outside_plan_dates: "Burst dates",
+  plan_dates_reversed: "Campaign dates",
   package_no_quantity: "Quantity",
   zero_deliverables: "Deliverables",
 }
@@ -187,7 +201,7 @@ export function publishValidationBuilderIssues(
         : refusing
           ? "Publish is refused until this line is fixed. Save draft still works."
           : "Does not block publish yet. Publish will refuse this once publish validation is on.",
-    stepLabel: "Media",
+    stepLabel: p.rule === "plan_dates_reversed" ? "Campaign setup" : "Media",
     fieldLabel: FIELD[p.rule],
   })
   return [...result.refuse.map((p) => issue(p, "refuse")), ...result.warn.map((p) => issue(p, "warn"))]

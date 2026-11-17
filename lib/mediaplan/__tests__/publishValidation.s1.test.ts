@@ -178,3 +178,24 @@ test("edge: a one-day plan runs the dates rule (inside passes, a day later is re
   const late = validatePlanForPublish(oneDay([burst("2026-11-11", "2026-11-11")]))
   assert.deepEqual(late.refuse.map((p) => [p.rule, p.burst]), [["burst_outside_plan_dates", 1]])
 })
+
+test("a plan that starts after it ends is refused as its own problem, not skipped", () => {
+  const reversed: PublishPlan = {
+    campaignStartDate: "2026-11-30",
+    campaignEndDate: "2026-11-01",
+    lineItems: [cleanLine()],
+  }
+  const result = validatePlanForPublish(reversed)
+  assert.deepEqual(result.warn, [])
+  assert.deepEqual(result.refuse.map((p) => [p.rule, p.channel, p.lineItemId, p.burst]), [["plan_dates_reversed", "", "", null]])
+  assert.match(result.refuse[0]!.message, /plan dates are reversed/)
+  const body = publishRefusalBody(result.refuse)
+  assert.deepEqual(body.lineItemIds, [])
+  assert.match(body.error, /^Not published\. Fix this first: The plan dates are reversed/)
+  const [issue] = publishValidationBuilderIssues(result, true)
+  assert.equal(issue!.severity, "error")
+  assert.equal(issue!.stepLabel, "Campaign setup")
+  assert.equal(issue!.fieldLabel, "Campaign dates")
+  // The same day at both ends is a one-day plan, not reversed.
+  assert.deepEqual(validatePlanForPublish({ ...reversed, campaignEndDate: "2026-11-30", lineItems: [] }).refuse, [])
+})
