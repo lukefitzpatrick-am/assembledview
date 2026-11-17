@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import path from "node:path"
 import test from "node:test"
@@ -69,15 +69,17 @@ test("report effort is ANTHROPIC_REPORT_EFFORT only", () => {
 })
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-// test_checks.py reads the brand kit and out/ (both local only, not in git) and needs python-pptx.
-const deckKitSkip = ["kit/assembled-brand-kit/templates/Assembled-Media-Template-v5.potx", "out/hema007-v5-report-data.json"]
-  .filter((f) => !existsSync(path.join(HERE, f)))
-  .map((f) => `needs ${f} (local only)`)[0]
+// C-275: test_checks.py reads the brand kit and out/ (both local only, not in git) and needs python3 with python-pptx.
+const deckKitSkip =
+  ["kit/assembled-brand-kit/templates/Assembled-Media-Template-v5.potx", "out/hema007-v5-report-data.json"]
+    .filter((f) => !existsSync(path.join(HERE, f)))
+    .map((f) => `C-275: needs ${f} (local only)`)[0] ??
+  (spawnSync("python3", ["-c", "import pptx"]).status === 0 ? undefined : "C-275: needs python3 with python-pptx")
 
 test("chart slide, fixed channel stats, outcome, and conversion note", { skip: deckKitSkip }, () => {
   const script = path.join(HERE, "test_checks.py")
   execFileSync(
-    "python",
+    "python3",
     [
       "-c",
       "import importlib.util,sys; p=sys.argv[1]; s=importlib.util.spec_from_file_location('deck_checks', p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.test_chart_slide_builds_and_opens(); m.test_channel_chart_renders_four_fixed_stats(); m.test_recommendations_without_outcome_fail(); m.test_conversion_rate_note()",
