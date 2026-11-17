@@ -167,10 +167,13 @@ test("a file that exits 0 before its summary fails the run", () => {
 
 test("a file that reports fewer results than tests it started fails the run, even with its summary", () => {
   // The child writes one more test:enqueue in node:test's own framing (header, size, v8 payload): a start whose result never arrives.
-  const ghost = `import v8 from "node:v8"\nconst msg = v8.serialize({ type: "test:enqueue", data: { file: __filename, name: "ghost", nesting: 0 } })\nconst size = Buffer.alloc(4)\nsize.writeUInt32BE(msg.length)\nprocess.stdout.write(Buffer.concat([msg.subarray(0, 2), size, msg]))\n`
-  const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + ghost + `test("real", () => {})\n` }))
-  assert.equal(r.status, 1, r.stdout)
-  assert.match(r.stderr, /lib\/a\.test\.ts: fewer results than tests started \(started 2, results 1, summary 1\)/)
+  // RUNFIX2 (review R6): a nested start counts too, so the runner cannot count top-level starts only.
+  for (const nesting of [0, 1]) {
+    const ghost = `import v8 from "node:v8"\nconst msg = v8.serialize({ type: "test:enqueue", data: { file: __filename, name: "ghost", nesting: ${nesting} } })\nconst size = Buffer.alloc(4)\nsize.writeUInt32BE(msg.length)\nprocess.stdout.write(Buffer.concat([msg.subarray(0, 2), size, msg]))\n`
+    const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + ghost + `test("real", () => {})\n` }))
+    assert.equal(r.status, 1, `nesting ${nesting}: ${r.stdout}`)
+    assert.match(r.stderr, /lib\/a\.test\.ts: fewer results than tests started \(started 2, results 1, summary 1\)/)
+  }
 })
 
 test("a test registered after a top-level await runs, so its late failure fails the run", () => {
@@ -178,6 +181,13 @@ test("a test registered after a top-level await runs, so its late failure fails 
   const r = runMain(tempRoot({ "lib/a.test.mts": NODE_TEST + body })) // .mts: top-level await needs ESM
   assert.equal(r.status, 1, r.stdout)
   assert.match(r.stdout, /node:test files 1 \(ran 2, skipped 0, todo 0\)/)
+})
+
+test("a Vitest-only run is in UTC too, whatever the host zone", () => {
+  // RUNFIX2 (review R6): the zone is set for every child, not only node:test ones.
+  const r = runMain(vitestRoot({ "lib/a.test.ts": VITEST(`const zone = new Intl.DateTimeFormat().resolvedOptions().timeZone\n  if (zone !== "UTC") throw new Error(zone)`) }), [], { TZ: "Australia/Sydney" })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /node:test files 0 .*vitest files 1/)
 })
 
 test("test files run in UTC whatever the host zone, from module load on", () => {
