@@ -16,6 +16,7 @@ export default function ClientRoot({
   viewAs = null,
   viewAsEnabled = false,
   features = null,
+  nonce,
 }: {
   children: React.ReactNode
   clientSlugs: string[]
@@ -26,10 +27,12 @@ export default function ClientRoot({
   viewAsEnabled?: boolean
   /** Feature switches for browser code (lib/features/client), set before any child renders. */
   features?: Partial<Record<ClientFeatureKey, boolean>> | null
+  /** The page's CSP nonce, for the theme script (lib/security/headers). */
+  nonce?: string
 }) {
   setClientFeatureSnapshot(features);
   return (
-    <AuthProvider>
+    <AuthProvider nonce={nonce}>
       <ClientLayout
         clientSlugs={clientSlugs}
         webSearchSlugs={webSearchSlugs}

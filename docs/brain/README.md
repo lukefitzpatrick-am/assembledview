@@ -43,7 +43,7 @@ One page per section of the app. `MAP.md` routes you to the right one.
 
 ## Registers and audits (reference, not required reading)
 
-`API-DYNAMIC-ROUTE-GATES.md` · `api-tenant-classification.md` · `tenant-isolation-audit.md` · `dirty-state-inventory.md` · `fail-soft-consumers.md` · `READ-FAILURE-REGISTER.md` · `version-control-stage1-consumers.md` · `XANO-SEVERANCE-REGISTER.md` (historical — Xano is gone from the runtime read path, and the plan-save mirror is flag-gated off) · `codex-*.md` · `DISCOVERY-bare-line-ids.md` · `DISCOVERY-ingest-line-identity.md` · `dependency-map.html`
+`SECURITY-HEADERS.md` (security headers, CSP, reports, enforcing) · `API-DYNAMIC-ROUTE-GATES.md` · `api-tenant-classification.md` · `tenant-isolation-audit.md` · `dirty-state-inventory.md` · `fail-soft-consumers.md` · `READ-FAILURE-REGISTER.md` · `version-control-stage1-consumers.md` · `XANO-SEVERANCE-REGISTER.md` (historical — Xano is gone from the runtime read path, and the plan-save mirror is flag-gated off) · `codex-*.md` · `DISCOVERY-bare-line-ids.md` · `DISCOVERY-ingest-line-identity.md` · `dependency-map.html`
 
 ## Keeping it alive
 

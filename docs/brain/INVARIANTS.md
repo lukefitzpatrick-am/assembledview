@@ -486,6 +486,14 @@ pct === 100 → fee = 0 (division guard)
 - A publisher edit saves by the primary key `publishers.id` from the body, never by publisherid. The URL publisherid must belong to that row, else 404. A PUT with no body `id` whose publisherid matches more than one row is refused 409 `PUBLISHER_ID_AMBIGUOUS`.
 - Until duplicates are cleaned up, a name lookup never resolves last-wins. Rows sharing a name resolve to the lowest `publishers.id`. When they disagree on billing agency, `[publishers] ... share the name` is logged once per name per process. This covers AA matching (`buildPublisherNameMap` / `resolvePublisherByName` / `publisherResolver`), the finance hub receivables name map (`composeFinanceHubRecords`) and the forecast lookup (`buildPublisherLookup`). A publisherid shared by two rows never matches in AA matching. `fetchPublishersFromPostgres` orders by `id`, and the publisher hub resolves a shared publisherid to the lowest id unless `?pk=` names the row. `/publishers` lists existing duplicates in a banner with `?pk=` links.
 
+## Security headers (`docs/brain/SECURITY-HEADERS.md`)
+
+- `lib/security/headers.ts` is the one place the security headers and the content security policy are built. `middleware.ts` applies them. No page or config adds its own copy. An API route may send its own policy (the HTML5 preview's `sandbox allow-scripts`); middleware puts the page policy on pages only.
+- A new external origin the browser loads (script, fetch, frame, font, worker) is a change to `buildContentSecurityPolicy` and its pinned test in the same commit. Server-side calls need no change.
+- `script-src` never takes `'unsafe-inline'`. An inline script the app adds carries the page nonce (`readNonce`).
+- Only the app frames its pages (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`).
+- `/api/csp-report` takes no session and logs no query string, script sample, referrer, user agent or IP.
+
 ## Legal
 
 - Every third party that receives personal information is listed in `lib/legal/privacyConfig.ts`.

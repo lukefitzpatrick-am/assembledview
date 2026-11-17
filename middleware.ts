@@ -12,6 +12,7 @@ import {
   VIEW_AS_HINT_COOKIE,
 } from './lib/auth/viewAs';
 import { CSP_REPORT_PATH } from './lib/security/cspReport';
+import { applySecurityHeaders } from './lib/security/headers';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/privacy', '/data-deletion'];
@@ -82,6 +83,12 @@ function viewAsGateResponse(
 }
 
 export async function middleware(request: NextRequest, event?: NextFetchEvent) {
+  // Copied before Auth0 runs: the page gets the request headers it got before (S27).
+  const forwarded = new Headers(request.headers);
+  return applySecurityHeaders(request, forwarded, await authGate(request, event));
+}
+
+async function authGate(request: NextRequest, event?: NextFetchEvent): Promise<NextResponse> {
   // Run Auth0 middleware first so sessions/cookies continue to roll
   const authResponse = await auth0.middleware(request);
   const continueResponse = authResponse ?? NextResponse.next();

@@ -94,6 +94,15 @@ export const MEMORY_BLOB_BASE_URL = withDefault(
 )
 
 /**
+ * Vercel Blob API that browser uploads go to (`upload` from `@vercel/blob/client`).
+ * The browser SDK reads the same env name, so the CSP `connect-src` follows it.
+ */
+export const VERCEL_BLOB_API_URL = withDefault(
+  "NEXT_PUBLIC_VERCEL_BLOB_API_URL",
+  "https://vercel.com/api/blob",
+)
+
+/**
  * Public origin for redirects, self-fetch, and signed frame URLs.
  * Order: NEXT_PUBLIC_APP_URL → AUTH0_BASE_URL → VERCEL_URL → localhost:3000 (dev only).
  */

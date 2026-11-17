@@ -634,6 +634,37 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
     vercelReason: "Read in middleware on every request, which can't query the database. Change it in Vercel.",
   },
+  {
+    key: "security_headers",
+    label: "Security headers",
+    description:
+      "Sends the baseline security headers (HSTS, nosniff, referrer policy, same-origin framing, permissions policy) and the content security policy in report-only mode, with violations logged by /api/csp-report. Check first that Vercel does not already send them (docs/brain/SECURITY-HEADERS.md).",
+    area: "platform",
+    defaultOn: false,
+    envName: "SECURITY_HEADERS",
+    envParse: "on_1_true",
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "vercel",
+    owner: "Luke",
+    vercelReason: "Read in middleware on every request, which can't query the database. Change it in Vercel and redeploy.",
+  },
+  {
+    key: "csp_enforce",
+    label: "Enforce the content security policy",
+    description:
+      "Moves the same policy from report-only to enforced: the browser blocks what it would only have reported. Turn on after two weeks of clean reports. Needs Security headers on.",
+    area: "platform",
+    defaultOn: false,
+    envName: "CSP_ENFORCE",
+    envParse: "on_1_true",
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "vercel",
+    owner: "Luke",
+    requires: ["security_headers"],
+    vercelReason: "Read in middleware on every request, which can't query the database. Change it in Vercel and redeploy.",
+  },
 ] as const satisfies readonly FeatureDefinition[]
 
 export type FeatureKey = (typeof FEATURE_DEFINITIONS)[number]["key"]

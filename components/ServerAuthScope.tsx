@@ -1,3 +1,5 @@
+import { headers } from "next/headers"
+
 import { auth0 } from "@/lib/auth0"
 import { readViewAsMarker, isViewAsEnabled } from "@/lib/auth/viewAs"
 import { getUserClientSlugs, getUserRoles, type UserRole } from "@/lib/rbac"
@@ -5,6 +7,7 @@ import { publishedWebSearchSlugs } from "@/lib/webReport/visibility"
 import ClientRoot from "@/components/ClientRoot"
 import { isFeatureOn, readClientFeatureSnapshot, type ClientFeatureSnapshot } from "@/lib/features/server"
 import type { ViewAsClientInfo } from "@/contexts/AuthContext"
+import { readNonce } from "@/lib/security/headers"
 
 /**
  * Resolves tenant slugs and effective roles on the server (`auth0.getSession`,
@@ -42,6 +45,8 @@ export default async function ServerAuthScope({ children }: { children: React.Re
     features = null
     codexEnabled = false
   }
+  // The CSP nonce middleware set for this page (S27); undefined while security_headers is off.
+  const nonce = readNonce(await headers())
   return (
     <ClientRoot
       clientSlugs={clientSlugs}
@@ -51,6 +56,7 @@ export default async function ServerAuthScope({ children }: { children: React.Re
       viewAs={viewAs}
       viewAsEnabled={isViewAsEnabled()}
       features={features}
+      nonce={nonce}
     >
       {children}
     </ClientRoot>
