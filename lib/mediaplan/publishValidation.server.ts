@@ -2,11 +2,12 @@
  * Server half of the S1 publish validation set (B54). Every publish path calls
  * one of these two before it stamps `published_at` or moves
  * `published_version_id`:
- * - `savePlanVersion` (POST /api/plans/save and the schedule ingest accept):
- *   `publishRefusal` on the lines it is about to write.
- * - `publishBillingRevision` (billing revisions and true-ups) and the PATCH
- *   publish stamp on `/api/mediaplans/mba/[mba_number]`:
- *   `publishRefusalForVersion` on the version's stored lines.
+ * - `savePlanVersion` (POST /api/plans/save; the schedule ingest accept saves
+ *   drafts only): `publishRefusal` on the lines it is about to write.
+ * - `publishBillingRevision` (billing revisions and true-ups that publish; a
+ *   credit-only note is exempt) and the PATCH publish stamp on
+ *   `/api/mediaplans/mba/[mba_number]`: `publishRefusalForVersion` on the
+ *   version's stored lines.
  *
  * Off (`publish_validation`): null, with no extra read. The rules live in
  * `lib/mediaplan/publishValidation.ts`.

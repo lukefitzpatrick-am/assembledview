@@ -169,12 +169,6 @@ export async function publishBillingRevision(
   if (!input.reason || !input.reason.trim()) {
     throw new BillingRevisionWriteError("PLAN_REFUSED", "A reason is required.", 400)
   }
-  // S1 A: a revision publishes a copy of the base version's lines, so they
-  // pass the one publish validation set first (switch publish_validation).
-  const refusal = await publishRefusalForVersion(db, { versionId: input.baseVersionId })
-  if (refusal) {
-    throw new BillingRevisionWriteError("PUBLISH_VALIDATION_REFUSED", refusal.error, 422)
-  }
   const now = input.now ?? new Date()
 
   const result = await db.transaction(async (rawTx) => {
@@ -227,6 +221,16 @@ export async function publishBillingRevision(
     const warnings = plan.warnings.map((w) => w.message)
     if (ctx.unmatchedLineIds.length > 0) {
       warnings.push(`Schedule rows with no plan line were left as they are: ${ctx.unmatchedLineIds.join(", ")}.`)
+    }
+
+    // S1 A: a revision that publishes copies the base version's lines, so they
+    // pass the one publish validation set first (switch publish_validation).
+    // A credit-only note publishes nothing and is not checked.
+    if (plan.afterCells.length > 0) {
+      const refusal = await publishRefusalForVersion(tx, { versionId: ctx.base.id })
+      if (refusal) {
+        throw new BillingRevisionWriteError("PUBLISH_VALIDATION_REFUSED", refusal.error, 422)
+      }
     }
 
     // Credit-only underspend (Q5): a change-log note, no version.

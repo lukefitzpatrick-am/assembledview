@@ -8,7 +8,6 @@ import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
 
 import type { Db } from "@/db"
-import { BillingRevisionWriteError, publishBillingRevision } from "@/lib/data/publishBillingRevision"
 import { SavePlanError, savePlanVersion, type SavePlanVersionInput } from "@/lib/data/savePlan"
 import type { FeatureRow } from "@/lib/features/registry"
 import { setFeatureRowReaderForTests } from "@/lib/features/server"
@@ -80,7 +79,7 @@ test("publishRefusal: off is null; on lists the refused lines", async () => {
   assert.deepEqual(body?.lineItemIds, ["test001SM1"])
 })
 
-test("savePlanVersion (POST /api/plans/save, ingest accept): on, a refused publish throws before the database", async () => {
+test("savePlanVersion (POST /api/plans/save): on, a refused publish throws before the database", async () => {
   setSwitch(true)
   await assert.rejects(savePlanVersion(saveInput("publish"), untouchedDb), (err: unknown) => {
     assert.ok(err instanceof SavePlanError)
@@ -153,29 +152,7 @@ test("publishRefusalForVersion: the stored plan dates reach the dates rule (bill
   assert.equal(await publishRefusalForVersion(versionLinesDb(stored([overlapping[1]])), { versionId: 9 }), null)
 })
 
-const revisionInput = {
-  mbaNumber: "test001",
-  baseVersionId: 9,
-  expectedHash: "x",
-  request: { mode: "bill_amount" as const, intoMonth: "2026-11", amountCents: 100, strategy: "earliest_first" as const },
-  options: { unlockApprovedMonths: [], includeProduction: false, feeMode: "follow" as const, adservingMode: "keep" as const },
-  reason: "Client asked",
-  source: "ui" as const,
-  actor: { teamMemberId: 7, name: "Test", email: "test@example.com" },
-}
-
-test("publishBillingRevision (billing revisions and true-ups): on, refused base lines are a 422 before the transaction", async () => {
-  setSwitch(true)
-  await assert.rejects(publishBillingRevision(revisionInput, versionLinesDb(storedOverlap)), (err: unknown) => {
-    assert.ok(err instanceof BillingRevisionWriteError)
-    assert.equal(err.code, "PUBLISH_VALIDATION_REFUSED")
-    assert.equal(err.status, 422)
-    assert.match(err.message, /test001TV1/)
-    return true
-  })
-  setSwitch(false)
-  await assert.rejects(publishBillingRevision(revisionInput, versionLinesDb(storedOverlap)), Reached)
-})
+// publishBillingRevision (billing revisions and true-ups): lib/data/__tests__/publishBillingRevision.s1.test.ts.
 
 test("publisher guard: with publish_validation on it leaves blank publishers to S1 and still blocks unknown names", async () => {
   const deps = (validationOn: boolean) => ({
