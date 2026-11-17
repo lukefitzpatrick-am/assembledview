@@ -70,6 +70,8 @@ const PLANTED = [
   'export const i = () => fetch("api/codex/tasks", { method: "POST" })',
   "export const e = () => fetch(`\\/api/codex/tasks`, { method: 'POST' })",
   'export const o = (origin: string) => fetch(`${origin}api/codex/tasks`, { method: "POST" })',
+  "export const t = () => import(`@/lib/codex/repo`)",
+  "export const tr = () => require(`@/lib/codex/collabRepo`)",
 ]
 const ALLOWED = [
   'import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"',
@@ -122,9 +124,10 @@ test("a named writer takes only its listed exports, and only its callers take on
     'import { softDeleteTask } from "@/lib/codex/../codex/repo"',
     'export const e = async () => { const { softDeleteTask } = await import("@/lib//codex/repo"); return softDeleteTask }',
     'export const f = () => require("../../../lib/codex/./repo")',
+    "export const g = () => import(`@/lib/codex/repo`)",
     'import { createTask } from "../../../lib/codex/./repo"',
   ]
-  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+  assert.deepEqual(failing("lib/pacing/relabel/handlers.ts", relabel), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
   const fireflies = ['import { createTask, softDeleteTask } from "@/lib/codex/repo"', 'import { bulkSoftDeleteTasks } from "@/lib/codex/repo"']
   assert.deepEqual(failing("lib/fireflies/proposalRepo.ts", fireflies), [2])
   const login = [
@@ -177,6 +180,7 @@ test("a read module holds no write and imports only read modules and non-Codex c
     'export const j = () => import("@/lib/codex/collabRepo")',
     'import { acceptProposal } from "@/lib/fireflies/proposalRepo"',
     'import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"',
+    "export const o = () => import(`@/lib/codex/repo`)",
   ]
   assert.deepEqual(failing("lib/codex/clientMbas.ts", writes), each(writes))
   assert.deepEqual(failing("lib/codex/types.ts", writes.slice(9)), each(writes.slice(9)))

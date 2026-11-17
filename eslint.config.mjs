@@ -2,7 +2,7 @@ import { dirname } from "path"
 import { fileURLToPath } from "url"
 import { FlatCompat } from "@eslint/eslintrc"
 
-import { CODEX_SOURCE, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks, codexUrlSelectorsFor } from "./scripts/codex-boundary.mjs"
+import { CODEX_SOURCE, CODEX_SPECIFIER_SELECTORS, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks, codexUrlSelectorsFor } from "./scripts/codex-boundary.mjs"
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const compat = new FlatCompat({
@@ -103,12 +103,12 @@ const config = [
     ignores: HEX_BASELINE,
     rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS] },
   },
-  // C-200 URLs. A later block replaces the rule's options, so the hex files repeat the hex selectors.
-  { files: CODEX_SOURCE, ignores: CODEX_URL_IGNORES, rules: { "no-restricted-syntax": ["error", ...CODEX_URL_SELECTORS] } },
+  // C-200 URLs and specifiers. A later block replaces the rule's options, so the hex files repeat the hex selectors.
+  { files: CODEX_SOURCE, ignores: CODEX_URL_IGNORES, rules: { "no-restricted-syntax": ["error", ...CODEX_URL_SELECTORS, ...CODEX_SPECIFIER_SELECTORS] } },
   {
     files: HEX_FILES,
     ignores: [...HEX_BASELINE, ...CODEX_URL_IGNORES],
-    rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS] },
+    rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS, ...CODEX_SPECIFIER_SELECTORS] },
   },
   // C-200 (S32 A, B51): Codex task writes only in Tasks (scripts/codex-boundary.mjs).
   // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.

@@ -152,6 +152,13 @@ export const CODEX_URL_SELECTORS = [
   { selector: `TemplateElement[value.cooked=/${URL_RE}/]`, message: MESSAGE },
 ]
 
+/** `no-restricted-syntax` entries: `import()` and `require()` take a plain string, so the import boundary can read where they point (a template with no `${}` passed it). */
+const SPECIFIER_MESSAGE = "C-200: write the import() or require() specifier as a plain string, not a template."
+export const CODEX_SPECIFIER_SELECTORS = [
+  { selector: "ImportExpression > TemplateLiteral.source[expressions.length=0]", message: SPECIFIER_MESSAGE },
+  { selector: "CallExpression[callee.name='require'] > TemplateLiteral.arguments[expressions.length=0]", message: SPECIFIER_MESSAGE },
+]
+
 const WRITE_MESSAGE = "C-200: a lib/codex read module holds no write. Put the write in a write module (it stays inside the Tasks zone)."
 /** `no-restricted-syntax` entries for a write in a read module. `FOR UPDATE` row locks and `URLSearchParams.delete` pass. */
 const UPDATE_SQL = "(?<!\\bFOR\\s+(NO\\s+KEY\\s+)?)\\bUPDATE(\\s+ONLY)?(\\s+[\\w.\"]+(\\s+(AS\\s+)?\\w+)?\\s+SET\\b|\\s*$)"
@@ -263,7 +270,7 @@ export function codexImportBlocks(root, { restrictedImports, syntaxFor }) {
     ...governed.map((file) => {
       const read = CODEX_READ_MODULES.includes(file)
       const own = allowances.filter((a) => a.file === file)
-      const syntax = [...syntaxFor(file), ...(read ? CODEX_WRITE_SELECTORS : []), ...own.flatMap(dynamicSelectors)]
+      const syntax = [...syntaxFor(file), ...CODEX_SPECIFIER_SELECTORS, ...(read ? CODEX_WRITE_SELECTORS : []), ...own.flatMap(dynamicSelectors)]
       const imports = own.map((a) => ({
         regex: codexSpecifier(file, a.module),
         caseSensitive: true,
