@@ -19,6 +19,7 @@ import type {
   PublisherKpi,
   PublisherKpiInput,
 } from "@/lib/kpi/types"
+import { isUniqueViolation } from "@/lib/db/pgError"
 
 export function campaignKpiLineKey(
   mbaNumber: string | null | undefined,
@@ -54,11 +55,6 @@ export function resolveCampaignKpiUpsert(
   const newest = pickNewestCampaignKpi(existing)
   if (newest?.id == null) return { action: "insert" }
   return { action: "update", id: newest.id }
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  const e = err as { code?: string; cause?: { code?: string } }
-  return e?.code === "23505" || e?.cause?.code === "23505"
 }
 
 const CAMPAIGN_WRITABLE: Record<string, keyof typeof schema.campaignKpi.$inferInsert> = {

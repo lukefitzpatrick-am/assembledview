@@ -8,11 +8,7 @@ import { eq } from "drizzle-orm"
 import { db, type Db } from "@/db"
 import { specDeadlineOverrides } from "@/db/schema/specDeadlineOverrides"
 import type { DeadlineOverride } from "./deriveMaterialDeadlines.js"
-
-function isMissingRelation(err: unknown): boolean {
-  const code = (err as { code?: string } | null)?.code
-  return code === "42P01"
-}
+import { isMissingRelation } from "@/lib/db/pgError"
 
 export async function loadDeadlineOverrides(
   mbaNumber: string,

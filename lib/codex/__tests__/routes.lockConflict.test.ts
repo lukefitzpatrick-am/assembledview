@@ -23,14 +23,8 @@ import { mock, test } from "node:test"
 import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness.js"
 import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
-import {
-  DATABASE_ERROR_MESSAGE,
-  isDatabaseError,
-  isLockConflict,
-  LOCK_CONFLICT_MESSAGE,
-  safeErrorMessage,
-  sqlStateOf,
-} from "../dbErrors.js"
+import { LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
+import { DATABASE_ERROR_MESSAGE, isDatabaseError, isLockConflict, safeErrorMessage, sqlStateOf } from "../../db/pgError.js"
 
 const skip = mockModuleSkip()
 
@@ -138,7 +132,7 @@ const json = (method: string, url: string, body?: unknown) =>
   })
 const ctx = { params: Promise.resolve({ id: "7" }) }
 
-test("dbErrors: the SQLSTATE is read from the error or its cause; only 40P01 and 55P03 are lock conflicts", () => {
+test("pgError: the SQLSTATE is read from the error or its cause; only 40P01 and 55P03 are lock conflicts", () => {
   assert.equal(sqlStateOf(drizzleError("40P01")), "40P01")
   assert.equal(sqlStateOf(Object.assign(new Error("x"), { code: "55P03" })), "55P03")
   assert.equal(sqlStateOf(Object.assign(new Error("x"), { code: "PROJECTS_UNAVAILABLE" })), null)

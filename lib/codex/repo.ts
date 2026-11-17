@@ -58,7 +58,8 @@ import {
   shareBatchProjects,
   taskVisibilityCondition,
 } from "@/lib/codex/taskVisibility"
-import { DATABASE_ERROR_MESSAGE, isDatabaseError, isLockConflict, LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
+import { LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
+import { DATABASE_ERROR_MESSAGE, isDatabaseError, isLockConflict } from "@/lib/db/pgError"
 import { followSectionRule, lockTaskAndProject, lockTaskProject, TaskProjectChangedError } from "@/lib/codex/sectionSync"
 import { assignedByAfterAssign, assigneeChanged } from "@/lib/codex/taskDetail"
 import type {

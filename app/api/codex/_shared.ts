@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
-import { isLockConflict, LOCK_CONFLICT_MESSAGE, safeErrorMessage } from "@/lib/codex/dbErrors"
+import { LOCK_CONFLICT_MESSAGE } from "@/lib/codex/dbErrors"
+import { isLockConflict, safeErrorMessage } from "@/lib/db/pgError"
 import {
   CODEX_SHADOW_ROLES,
   userHasCodexShadowAccess,

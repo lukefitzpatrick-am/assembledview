@@ -3,6 +3,7 @@ import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
+import { sqlStateOf } from "@/lib/db/pgError"
 
 export type PortfolioChannelLoaders = {
   search: (
@@ -91,20 +92,9 @@ export type LoadPortfolioChannelSourcesOptions = {
   logPgTimeout?: boolean
 }
 
-const PG_TIMEOUT_CODES = new Set(["55P03", "57014"])
-
 function pgTimeoutCode(err: unknown): "55P03" | "57014" | null {
-  const seen = new Set<unknown>()
-  let current: unknown = err
-  while (current && typeof current === "object" && !seen.has(current)) {
-    seen.add(current)
-    const code = (current as { code?: unknown }).code
-    if (typeof code === "string" && PG_TIMEOUT_CODES.has(code)) {
-      return code as "55P03" | "57014"
-    }
-    current = (current as { cause?: unknown }).cause
-  }
-  return null
+  const code = sqlStateOf(err)
+  return code === "55P03" || code === "57014" ? code : null
 }
 
 function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {

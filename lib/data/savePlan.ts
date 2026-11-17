@@ -111,6 +111,7 @@ import {
 } from "@/scripts/migration/_scheduleTransform"
 import { toCents } from "@/lib/money"
 import { isFeatureOn } from "@/lib/features/server"
+import { isUniqueViolation } from "@/lib/db/pgError"
 
 export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 
@@ -459,16 +460,6 @@ function reconcileOverrideSources(
     }
   }
   return out
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false
-  const e = err as { code?: string; cause?: { code?: string }; message?: string }
-  return (
-    e.code === "23505" ||
-    e.cause?.code === "23505" ||
-    /unique|duplicate key/i.test(String(e.message ?? ""))
-  )
 }
 
 /**

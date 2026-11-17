@@ -10,20 +10,11 @@ import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolat
 import { createMediaPlanMasterPostgresFirst } from "@/lib/data/writeMediaPlanMasters"
 import { readPlanMasters } from "@/lib/data/readMediaPlans"
 import { nextMbaNumberAfterTaken } from "@/lib/mediaplan/mbaNumberTaken"
+import { isUniqueViolation } from "@/lib/db/pgError"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
-
-function isUniqueViolation(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false
-  const e = err as { code?: string; cause?: { code?: string }; message?: string }
-  return (
-    e.code === "23505" ||
-    e.cause?.code === "23505" ||
-    /unique|duplicate key/i.test(String(e.message ?? ""))
-  )
-}
 
 /** 409 for a new master whose number is already taken. The insert is not committed. */
 async function mbaNumberTakenResponse(mbaNumber: string, existingMasterId?: number) {

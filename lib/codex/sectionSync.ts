@@ -39,6 +39,7 @@ import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { markProgressDone } from "@/lib/codex/progressRule"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { activityActor } from "@/lib/codex/systemActors"
+import { sqlStateOf } from "@/lib/db/pgError"
 
 export type SectionRuleOutcome = "not_in_project" | "stayed" | "moved" | "no_section_for_status" | "project_busy"
 
@@ -129,8 +130,7 @@ export async function followSectionRule(
       )
     } catch (err) {
       // 55P03 lock_not_available (Drizzle wraps it: the code is on the cause).
-      const e = err as { code?: string; cause?: { code?: string } }
-      if (e?.code === "55P03" || e?.cause?.code === "55P03") return "project_busy"
+      if (sqlStateOf(err) === "55P03") return "project_busy"
       throw err
     }
   } else {

@@ -4,26 +4,11 @@ import {
   clientProjectName,
   type StructureLink,
 } from "./sync.js"
+import { isUniqueViolation } from "@/lib/db/pgError"
 
 type EnsureStructureResult =
   | { ok: true; projectId: string; taskId: string | null }
   | { ok: false; reason: string }
-
-type UniqueViolation = {
-  code?: string
-  message?: string
-  cause?: UniqueViolation
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false
-  const candidate = error as UniqueViolation
-  return (
-    candidate.code === "23505" ||
-    candidate.cause?.code === "23505" ||
-    /unique|duplicate key/i.test(candidate.message ?? "")
-  )
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

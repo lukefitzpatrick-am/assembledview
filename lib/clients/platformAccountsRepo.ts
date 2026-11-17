@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { getDb } from "@/db"
 import { clientPlatformAccounts, clients } from "@/db/schema"
 import type { PlatformAccountPlatform } from "@/lib/clients/platformAccounts"
+import { isUniqueViolation } from "@/lib/db/pgError"
 
 export type PlatformAccountRecord = {
   id: number
@@ -67,11 +68,6 @@ function isMissingTable(err: unknown): boolean {
 function isPlatformCheckViolation(err: unknown): boolean {
   const blob = errorBlob(err)
   return blob.includes("client_platform_accounts_platform_chk") || (blob.includes("23514") && /platform/i.test(blob))
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  const blob = errorBlob(err)
-  return blob.includes("23505") || /duplicate key|unique constraint/i.test(blob)
 }
 
 async function guard<T>(fn: () => Promise<T>): Promise<T> {

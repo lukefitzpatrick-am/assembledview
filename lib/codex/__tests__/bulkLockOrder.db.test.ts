@@ -50,7 +50,8 @@ import { bulkFailure, bulkUpdateTasks, CodexBulkError, updateTask } from "../rep
 import { AssigneeNoAccessError, TaskJoinedProjectError } from "../projects.js"
 import { assertAssigneeCanSeeTask, TaskJoinedBatchProjectError } from "../taskVisibility.js"
 import { bulkUpdateTasksThroughSections, createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
-import { DATABASE_ERROR_MESSAGE, LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
+import { LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
+import { DATABASE_ERROR_MESSAGE } from "../../db/pgError.js"
 
 const URL_ = siblingUrl(RAW_URL, "bulklock")
 const skip = URL_ ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"

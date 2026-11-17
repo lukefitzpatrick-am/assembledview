@@ -22,6 +22,7 @@ import { db, schema, type Db } from "@/db"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
+  normaliseEmail,
   assigneeNoAccessMessage,
   canonicalEmail,
   canSeeProject,
@@ -36,7 +37,6 @@ import {
   isProjectKind,
   isProjectStatus,
   isSectionStatusCategory,
-  normaliseEmail,
   planCompleteInProject,
   planSectionMove,
   sortSections,
@@ -92,6 +92,7 @@ export {
   resetProjectsMarkerCacheForTests,
 } from "@/lib/codex/projectsMarker"
 import { loadProgressRule, markProgressDone } from "@/lib/codex/progressRule"
+import { isMissingColumn, isMissingRelation, isUniqueViolation } from "@/lib/db/pgError"
 
 export class ProjectsUnavailableError extends Error {
   readonly code = "PROJECTS_UNAVAILABLE"
@@ -160,36 +161,13 @@ const NOT_OWNER: ProjectFailure = {
 type ProjectRow = typeof codexProjects.$inferSelect
 type SectionRow = typeof codexSections.$inferSelect
 
-function errorChain(err: unknown): unknown[] {
-  const out: unknown[] = []
-  let cur: unknown = err
-  for (let i = 0; cur != null && i < 5; i += 1) {
-    out.push(cur)
-    cur = (cur as { cause?: unknown }).cause
-  }
-  return out
-}
-
 /** Postgres 42P01 (undefined table) or 42703 (undefined column). */
 export function isMissingProjectsSchema(err: unknown): boolean {
-  return errorChain(err).some((e) => {
-    const code = (e as { code?: unknown })?.code
-    return code === "42P01" || code === "42703"
-  })
-}
-
-function isUniqueViolation(err: unknown, constraint: string): boolean {
-  return errorChain(err).some((e) => {
-    const rec = e as { code?: unknown; constraint_name?: unknown; constraint?: unknown; message?: unknown }
-    if (rec?.code !== "23505") return false
-    const name = String(rec.constraint_name ?? rec.constraint ?? rec.message ?? "")
-    return name.includes(constraint)
-  })
+  return isMissingRelation(err) || isMissingColumn(err)
 }
 
 function isMissingColumnOnly(err: unknown): boolean {
-  const codes = errorChain(err).map((e) => (e as { code?: unknown })?.code)
-  return codes.includes("42703") && !codes.includes("42P01")
+  return isMissingColumn(err) && !isMissingRelation(err)
 }
 
 /**
