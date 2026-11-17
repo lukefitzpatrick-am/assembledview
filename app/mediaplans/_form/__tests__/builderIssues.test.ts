@@ -139,6 +139,14 @@ test("rail order, both pages", () => {
   assert.match(ids[9]!, /overlap/i)
 })
 
+test("ad serving / production: production alone above 0 still asks for a check", () => {
+  const ids = (totals: PlanBuilderIssuesInput["mbaScopeTotals"]) =>
+    buildPlanBuilderIssues({ ...quiet, mbaScopeTotals: totals }).map((i) => i.id)
+  assert.deepEqual(ids({ adServing: 0, production: 250 }), ["adserving-unvalidated"])
+  assert.deepEqual(ids({ adServing: 5, production: 0 }), ["adserving-unvalidated"])
+  assert.deepEqual(ids({ adServing: 0, production: 0 }), [])
+})
+
 test("422 MISSING_BUY_TYPE and MISSING_BURST_DATES ids land in builder issues as errors", () => {
   const issues = buildPlanBuilderIssues({ ...quiet, missingBuyTypeLineIds: ["A"], missingBurstDateLineIds: ["B"] })
   assert.deepEqual(issues.map((i) => [i.id, i.severity]), [
