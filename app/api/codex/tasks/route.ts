@@ -137,12 +137,10 @@ export async function GET(request: Request) {
     // B42 (C-211): tasks in a private project the viewer cannot see are left out.
     const data = await listTasks({ ...parsed.filters, viewerEmail: sessionEmail(auth.session) })
     // codex_projects (B40): rows carry type, dates, assigned by and field values
-    // (a subtask shows as one, not as a help request), and `projects_ready`
-    // says 0118 is applied (the page offers ASAP only then, B40fix). Off: as before.
+    // (a subtask shows as one, not as a help request). Off: as before.
     if (await isFeatureOn("codex_projects")) {
-      const { attachTaskS1Fields, isProjectsMigrationApplied } = await import("@/lib/codex/projectsRepo")
+      const { attachTaskS1Fields } = await import("@/lib/codex/projectsRepo")
       data.items = await attachTaskS1Fields(data.items)
-      return NextResponse.json({ ...data, projects_ready: await isProjectsMigrationApplied() })
     }
 
     return NextResponse.json(data)

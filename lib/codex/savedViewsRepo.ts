@@ -1,7 +1,8 @@
 /**
- * Codex saved views store (F8). Reads and writes codex_saved_views only once
- * the marker 0117_codex_saved_views exists (C-76), and treats a missing table
- * as "not available" too, so the page loads with the views menu hidden.
+ * Codex saved views store (F8). Every caller is behind `codex_saved_views`,
+ * which can't be on before the marker 0117_codex_saved_views exists (registry
+ * `requiresMarker`, B48), so nothing here checks the marker (C-76 holds
+ * through the switch).
  *
  * Access (plan section 13, after the route's switch, session and staff
  * gates): a person sees their own views and every shared view; only the
@@ -27,20 +28,10 @@ import {
 import type { TasksFilterView } from "@/lib/codex/queryHelpers"
 import { normaliseEmail } from "@/lib/email/address"
 
-const { codexSavedViews, migrationMarkers } = schema
-
-export const SAVED_VIEWS_MARKER = "0117_codex_saved_views"
+const { codexSavedViews } = schema
 
 /** A person can keep this many views (own, shared or not). */
 export const SAVED_VIEWS_PER_OWNER_MAX = 50
-
-export class SavedViewsUnavailableError extends Error {
-  readonly code = "SAVED_VIEWS_UNAVAILABLE"
-  constructor() {
-    super("Saved views are not set up yet (migration 0117)")
-    this.name = "SavedViewsUnavailableError"
-  }
-}
 
 export class SavedViewsLimitError extends Error {
   readonly code = "SAVED_VIEWS_LIMIT"
@@ -57,59 +48,6 @@ export type SavedViewWriteResult =
 export type SavedViewDeleteResult = { ok: true } | { ok: false; reason: "not_found" | "not_owner" }
 
 type Row = typeof codexSavedViews.$inferSelect
-
-function errorChain(err: unknown): unknown[] {
-  const out: unknown[] = []
-  let cur: unknown = err
-  for (let i = 0; cur != null && i < 5; i += 1) {
-    out.push(cur)
-    cur = (cur as { cause?: unknown }).cause
-  }
-  return out
-}
-
-/** Postgres 42P01 (undefined table) or a message naming the table as missing. */
-export function isMissingSavedViewsTable(err: unknown): boolean {
-  return errorChain(err).some((e) => {
-    if ((e as { code?: unknown })?.code === "42P01") return true
-    const message = e instanceof Error ? e.message : String(e)
-    return /codex_saved_views/i.test(message) && /does not exist|42P01/i.test(message)
-  })
-}
-
-let markerSeen = false
-
-/** Test hook: forget a marker seen earlier in this process. */
-export function resetSavedViewsMarkerCacheForTests(): void {
-  markerSeen = false
-}
-
-/** Once seen, the marker is cached for the process; until then each call reads it. */
-export async function isSavedViewsMigrationApplied(database: Db = db): Promise<boolean> {
-  if (markerSeen) return true
-  try {
-    const rows = await database
-      .select({ key: migrationMarkers.key })
-      .from(migrationMarkers)
-      .where(eq(migrationMarkers.key, SAVED_VIEWS_MARKER))
-      .limit(1)
-    markerSeen = rows.length > 0
-    return markerSeen
-  } catch (err) {
-    console.warn("[codex-saved-views] marker read failed", err)
-    return false
-  }
-}
-
-async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
-  if (!(await isSavedViewsMigrationApplied(database))) throw new SavedViewsUnavailableError()
-  try {
-    return await run()
-  } catch (err) {
-    if (isMissingSavedViewsTable(err)) throw new SavedViewsUnavailableError()
-    throw err
-  }
-}
 
 function ownerIs(email: string) {
   return sql`lower(${codexSavedViews.ownerEmail}) = ${normaliseEmail(email)}`
@@ -142,18 +80,16 @@ export async function listSavedViews(
   screen = "tasks",
   database: Db = db
 ): Promise<CodexSavedView[]> {
-  return guarded(database, async () => {
-    const rows = await database
-      .select()
-      .from(codexSavedViews)
-      .where(and(eq(codexSavedViews.screen, screen), or(ownerIs(viewerEmail), eq(codexSavedViews.shared, true))))
-      .orderBy(
-        sql`case when ${ownerIs(viewerEmail)} then 0 else 1 end`,
-        asc(sql`lower(${codexSavedViews.name})`),
-        asc(codexSavedViews.id)
-      )
-    return rows.map((row) => savedViewRowToApi(row, viewerEmail))
-  })
+  const rows = await database
+    .select()
+    .from(codexSavedViews)
+    .where(and(eq(codexSavedViews.screen, screen), or(ownerIs(viewerEmail), eq(codexSavedViews.shared, true))))
+    .orderBy(
+      sql`case when ${ownerIs(viewerEmail)} then 0 else 1 end`,
+      asc(sql`lower(${codexSavedViews.name})`),
+      asc(codexSavedViews.id)
+    )
+  return rows.map((row) => savedViewRowToApi(row, viewerEmail))
 }
 
 /**
@@ -178,30 +114,28 @@ export async function createSavedView(
   input: SavedViewInput,
   database: Db = db
 ): Promise<CodexSavedView> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      await tx.execute(savedViewsOwnerLockSql(ownerEmail))
-      const [{ n } = { n: 0 }] = await tx
-        .select({ n: count() })
-        .from(codexSavedViews)
-        .where(ownerIs(ownerEmail))
-      if (Number(n) >= SAVED_VIEWS_PER_OWNER_MAX) throw new SavedViewsLimitError()
-      const [row] = await tx
-        .insert(codexSavedViews)
-        .values({
-          ownerEmail: normaliseEmail(ownerEmail),
-          name: input.name,
-          screen: input.screen,
-          lens: input.lens,
-          filters: input.filters,
-          layout: input.layout,
-          groupBy: input.group_by,
-          shared: input.shared,
-        })
-        .returning()
-      return savedViewRowToApi(row, ownerEmail)
-    })
-  )
+  return database.transaction(async (tx) => {
+    await tx.execute(savedViewsOwnerLockSql(ownerEmail))
+    const [{ n } = { n: 0 }] = await tx
+      .select({ n: count() })
+      .from(codexSavedViews)
+      .where(ownerIs(ownerEmail))
+    if (Number(n) >= SAVED_VIEWS_PER_OWNER_MAX) throw new SavedViewsLimitError()
+    const [row] = await tx
+      .insert(codexSavedViews)
+      .values({
+        ownerEmail: normaliseEmail(ownerEmail),
+        name: input.name,
+        screen: input.screen,
+        lens: input.lens,
+        filters: input.filters,
+        layout: input.layout,
+        groupBy: input.group_by,
+        shared: input.shared,
+      })
+      .returning()
+    return savedViewRowToApi(row, ownerEmail)
+  })
 }
 
 /** Not yours and shared: not_owner (403). Not yours and private, or no such id: not_found (404). */
@@ -235,20 +169,18 @@ export async function updateSavedView(
   database: Db = db,
   canUseScreen?: ScreenCheck
 ): Promise<SavedViewWriteResult> {
-  return guarded(database, async () => {
-    const access = await ownership(database, id, viewerEmail, canUseScreen)
-    if (!access.ok) return access
-    const set: Partial<typeof codexSavedViews.$inferInsert> = {}
-    if (patch.name !== undefined) set.name = patch.name
-    if (patch.shared !== undefined) set.shared = patch.shared
-    const [row] = await database
-      .update(codexSavedViews)
-      .set(set)
-      .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
-      .returning()
-    if (!row) return { ok: false, reason: "not_found" }
-    return { ok: true, view: savedViewRowToApi(row, viewerEmail) }
-  })
+  const access = await ownership(database, id, viewerEmail, canUseScreen)
+  if (!access.ok) return access
+  const set: Partial<typeof codexSavedViews.$inferInsert> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.shared !== undefined) set.shared = patch.shared
+  const [row] = await database
+    .update(codexSavedViews)
+    .set(set)
+    .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
+    .returning()
+  if (!row) return { ok: false, reason: "not_found" }
+  return { ok: true, view: savedViewRowToApi(row, viewerEmail) }
 }
 
 export async function deleteSavedView(
@@ -257,13 +189,11 @@ export async function deleteSavedView(
   database: Db = db,
   canUseScreen?: ScreenCheck
 ): Promise<SavedViewDeleteResult> {
-  return guarded(database, async () => {
-    const access = await ownership(database, id, viewerEmail, canUseScreen)
-    if (!access.ok) return access
-    const rows = await database
-      .delete(codexSavedViews)
-      .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
-      .returning({ id: codexSavedViews.id })
-    return rows.length > 0 ? { ok: true } : { ok: false, reason: "not_found" }
-  })
+  const access = await ownership(database, id, viewerEmail, canUseScreen)
+  if (!access.ok) return access
+  const rows = await database
+    .delete(codexSavedViews)
+    .where(and(eq(codexSavedViews.id, id), ownerIs(viewerEmail)))
+    .returning({ id: codexSavedViews.id })
+  return rows.length > 0 ? { ok: true } : { ok: false, reason: "not_found" }
 }

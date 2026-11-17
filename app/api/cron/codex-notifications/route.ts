@@ -7,7 +7,6 @@ import { isMelbourneCronHour } from "@/lib/cron/melbourneCrons"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { buildCodexDigestHtml } from "@/lib/codex/notificationsEmail"
 import { runDailyNotifications } from "@/lib/codex/notificationsRepo"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
@@ -37,7 +36,6 @@ export async function GET(request: Request) {
   try {
     if (!(await isFeatureOn("codex_notifications"))) return NextResponse.json({ status: "skipped", reason: "switch_off" })
     if (!isMelbourneCronHour("/api/cron/codex-notifications", now)) return NextResponse.json({ status: "skipped", reason: "not_melbourne_0800_hour" })
-    if (!(await isProjectsMigrationApplied())) return NextResponse.json({ status: "skipped", reason: "migration_not_applied" })
     const appBaseUrl = process.env.APP_BASE_URL ?? ""
     const asOf = getMelbourneTodayISO(now)
     // Reminders then the digest, in one store call, so today's reminders are in today's email.

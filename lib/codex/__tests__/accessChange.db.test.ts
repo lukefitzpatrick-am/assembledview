@@ -20,6 +20,7 @@
  * `<name>_accesschg_codex_test` (created if missing) and drops and rebuilds
  * that database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -40,7 +41,6 @@ import {
   createProject,
   memberHasOpenTasksMessage,
   removeProjectMember,
-  resetProjectsMarkerCacheForTests,
   updateProject,
 } from "../projectsRepo.js"
 import { PROJECT_FAILURE_STATUS } from "../projectFailureStatus.js"
@@ -108,7 +108,7 @@ describe("C-258: access changes never strand an assignee (Postgres, 0118 applied
       ('${ELLIE}', 'Ellie Ward', '[]', true),
       ('${OUT}', 'Out Sider', '[]', true)`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     aliases(false)
   })

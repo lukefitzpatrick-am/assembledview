@@ -38,10 +38,9 @@ test("B40fix (F6): on the Tasks page ASAP sorts above High, reads ASAP, filters,
   assert.equal(taskPriorityLabel(null), "Normal")
   assert.deepEqual(taskPriorityChoices(false).map((p) => p.value), ["low", "normal", "high"])
   assert.deepEqual(taskPriorityChoices(true).map((p) => p.value), ["low", "normal", "high", "asap"])
-  assert.equal(asapOffered(true, true, "normal"), true)
-  assert.equal(asapOffered(true, false, "normal"), false, "before the panel's read answers (503 before 0118)")
-  assert.equal(asapOffered(false, true, "high"), false, "switch off")
-  assert.equal(asapOffered(false, false, "asap"), true, "a task already ASAP keeps its choice")
+  assert.equal(asapOffered(true, "normal"), true)
+  assert.equal(asapOffered(false, "high"), false, "switch off")
+  assert.equal(asapOffered(false, "asap"), true, "a task already ASAP keeps its choice")
 })
 
 test("assigned by: someone else gets it, the saver is assigned by; self or nobody clears", () => {

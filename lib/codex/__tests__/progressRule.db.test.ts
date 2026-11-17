@@ -10,6 +10,7 @@
  * Skips unless CODEX_PROJECTS_TEST_DATABASE_URL names a LOCAL database whose
  * name ends in `_codex_test` (sibling `<name>_progress_codex_test`).
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -31,7 +32,6 @@ import {
   createProject,
   createTasksInSection,
   moveTaskToSection,
-  resetProjectsMarkerCacheForTests,
   updateTaskThroughSections,
 } from "../projectsRepo.js"
 import { createCustomField, listProjectFields, setProgressField, updateCustomField } from "../customFieldsRepo.js"
@@ -83,7 +83,7 @@ describe("the progress field rule (Postgres, 0118 applied)", { skip }, () => {
     client = await createDatabase(URL_!)
     await client.unsafe(`INSERT INTO public.team_members (email, name) VALUES ('${OWNER}', 'Olive Owner'), ('${HELPER}', 'Mia Tran')`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const p = await createProject(
       OWNER,

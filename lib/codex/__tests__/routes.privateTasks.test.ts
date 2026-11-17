@@ -152,7 +152,6 @@ if (supportsMockModule()) {
         storeCalls.push("deleteSavedView")
         return (await check?.("project:6")) === false ? { ok: false, reason: "not_found" } : { ok: true }
       },
-      SavedViewsUnavailableError: class extends Error {},
       SavedViewsLimitError: class extends Error {},
     },
   })
@@ -175,9 +174,7 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
-      ProjectsUnavailableError: class extends Error {},
       attachTaskS1Fields: async (items: unknown[]) => items,
-      isProjectsMigrationApplied: async () => true,
       getProject: async (id: number) => (visibleProjects.has(id) ? { ok: true, project: { id }, sections: [] } : { ok: false, reason: "not_found" }),
     },
   })
@@ -351,7 +348,7 @@ test("saved views of a project the viewer cannot see: none listed, none saved, c
     session = staff(OUT)
     storeCalls.length = 0
     const hidden = await views.GET(req("GET", `${V}?screen=project:6`))
-    assert.deepEqual(await hidden.json(), { available: true, items: [] })
+    assert.deepEqual(await hidden.json(), { items: [] })
     assert.equal((await views.POST(req("POST", V, body("project:6")))).status, 404)
     assert.deepEqual(storeCalls, [], "the store never runs for a hidden project")
     assert.equal((await views.GET(req("GET", `${V}?screen=project:5`))).status, 200)

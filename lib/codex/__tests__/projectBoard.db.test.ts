@@ -10,6 +10,7 @@
  * projectsRepo.db.test.ts, and drops and rebuilds that database's public
  * schema. It never reads .env.local and never reaches production.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -29,7 +30,6 @@ import {
   loadProjectBoard,
   listSectionTasks,
   moveTaskToSection,
-  resetProjectsMarkerCacheForTests,
   setBoardHideCompleted,
   updateTaskThroughSections,
   updateSection,
@@ -118,7 +118,7 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
     client = postgres(BOARD_URL!, { max: 2, onnotice: () => {} })
     await client.unsafe(BASE_SQL)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const r = await createProject(OWNER, {
       name: "Digital desk", kind: "ops", client_id: 42, mba_number: "dd001", owner_email: null, is_private: false,
@@ -143,7 +143,7 @@ describe("codex project board store on Postgres (0118 applied)", { skip }, () =>
   })
 
   after(async () => {
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     await client?.end({ timeout: 5 })
   })
 

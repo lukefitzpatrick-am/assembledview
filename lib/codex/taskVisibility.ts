@@ -29,6 +29,8 @@ import "server-only"
 
 import { sql, type SQL } from "drizzle-orm"
 
+import { isMarkerApplied } from "@/lib/db/markers"
+import { PROJECTS_MARKER } from "@/lib/codex/projects"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { isFeatureOn } from "@/lib/features/server"
 import {
@@ -39,7 +41,6 @@ import {
   TaskJoinedProjectError,
   type AccessIdentity,
 } from "@/lib/codex/projects"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
 
@@ -109,7 +110,7 @@ export async function taskVisibilityCondition(
   projectId: SQL = TASKS_PROJECT_ID,
   identity?: AccessIdentity
 ): Promise<SQL | undefined> {
-  if (!(await isProjectsMigrationApplied(database))) return undefined
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return undefined
   return taskVisibleSql(projectId, viewerEmail, identity ?? (viewerEmail ? await loadAccessIdentity(database) : NO_ALIASES))
 }
 
@@ -124,7 +125,7 @@ export async function hiddenTaskIds(
   viewerEmail: string | null | undefined
 ): Promise<Set<number>> {
   const clean = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))]
-  if (clean.length === 0 || !(await isProjectsMigrationApplied(database))) return new Set()
+  if (clean.length === 0 || !(await isMarkerApplied(PROJECTS_MARKER, database))) return new Set()
   const identity = viewerEmail ? await loadAccessIdentity(database) : NO_ALIASES
   const rows = executeRows(
     await database.execute(sql`
@@ -157,7 +158,7 @@ export async function emailsWithoutProjectAccess(
   identity?: AccessIdentity
 ): Promise<string[]> {
   const clean = [...new Set(emails.map((e) => (e ?? "").trim().toLowerCase()).filter(Boolean))]
-  if (projectId == null || clean.length === 0 || !(await isProjectsMigrationApplied(database))) return []
+  if (projectId == null || clean.length === 0 || !(await isMarkerApplied(PROJECTS_MARKER, database))) return []
   const ids = identity ?? (await loadAccessIdentity(database))
   const out: string[] = []
   for (const email of clean) {
@@ -181,7 +182,7 @@ export async function assertAssigneeCanSeeTask(
   email: string | null | undefined,
   batchLocked?: ReadonlySet<number>
 ): Promise<void> {
-  if (!(email ?? "").trim() || !(await isProjectsMigrationApplied(database))) return
+  if (!(email ?? "").trim() || !(await isMarkerApplied(PROJECTS_MARKER, database))) return
   const projectId = batchLocked ? await batchTaskProject(database, taskId, batchLocked) : await shareTaskProject(database, taskId)
   const [refused] = await emailsWithoutProjectAccess(database, projectId, [email])
   if (refused) throw new AssigneeNoAccessError(refused)
@@ -236,7 +237,7 @@ async function lockedTaskProject(database: DbExecutor, taskId: number): Promise<
 export async function shareBatchProjects(database: DbExecutor, ids: readonly number[]): Promise<Set<number>> {
   const locked = new Set<number>()
   const clean = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))]
-  if (clean.length === 0 || !(await isProjectsMigrationApplied(database))) return locked
+  if (clean.length === 0 || !(await isMarkerApplied(PROJECTS_MARKER, database))) return locked
   const rows = executeRows(
     await database.execute(sql`
       SELECT p.id FROM public.codex_projects p
@@ -285,7 +286,7 @@ export async function openTasksHiddenFromAssignee(
   projectId: number,
   identity: AccessIdentity
 ): Promise<number[]> {
-  if (!(await isProjectsMigrationApplied(database))) return []
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return []
   const rows = executeRows(
     await database.execute(sql`
       SELECT t.id FROM public.tasks t

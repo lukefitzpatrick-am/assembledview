@@ -1,8 +1,8 @@
 /**
  * B40 routes: the task detail's project part, subtasks, custom fields and
  * card chips. The full guard chain on every method (codex_v2 404,
- * codex_projects 404, session 401, staff 403, no email 401), 503 before
- * 0118, 500 without detail, store refusals mapped, bad ids 404 and bad
+ * codex_projects 404, session 401, staff 403, no email 401), 500 without
+ * detail, store refusals mapped, bad ids 404 and bad
  * bodies 400 before the store. Requires --experimental-test-module-mocks.
  */
 import assert from "node:assert/strict"
@@ -18,13 +18,11 @@ let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: Array<{ fn: string; args: unknown[] }> = []
 let mode = "ok"
 
-class ProjectsUnavailableError extends Error {}
 
 const FIELD = { id: 3, project_id: 5, name: "Progress", field_type: "single_select", options: [{ id: "o1", label: "A" }], done_option: null }
 const SUB = { id: 9, title: "Sub", status: "todo", assignee_email: null, assignee_name: null, start_on: null, due_on: null, sort_order: 0 }
 
 function outcome<T>(okValue: T): T | { ok: false; reason: string; message: string } {
-  if (mode === "unavailable") throw new ProjectsUnavailableError("0118")
   if (mode === "boom") throw new Error("secret detail")
   if (mode !== "ok") return { ok: false, reason: mode, message: `m:${mode}` }
   return okValue
@@ -45,7 +43,6 @@ if (supportsMockModule()) {
     calls.push({ fn: name, args })
     return value()
   }
-  await mock.module!("@/lib/codex/projectsRepo", { namedExports: { ProjectsUnavailableError } })
   await mock.module!("@/lib/codex/taskDetailRepo", {
     namedExports: {
       getTaskProjectDetail: fn("getTaskProjectDetail", () =>
@@ -163,22 +160,15 @@ test("staff with both switches on: every method reaches its store with ids, the 
   assert.deepEqual(byFn.setProjectCardFields.slice(0, 3), [5, "luke@x.au", [{ key: "field:3", show: false }]])
 })
 
-test("before 0118 every method is 503 migration_not_applied; an unexpected error is 500 without the detail", { skip }, async () => {
+test("an unexpected error is 500 without the detail", { skip }, async () => {
   const all = await routes()
   session = STAFF
-  for (const m of ["unavailable", "boom"]) {
-    mode = m
-    for (const c of all) {
-      const res = await withSwitches(true, true, () => c.run())
-      const body = (await res.json()) as { error: string; message?: string }
-      if (m === "unavailable") {
-        assert.equal(res.status, 503, c.name)
-        assert.equal(body.error, "migration_not_applied", c.name)
-      } else {
-        assert.equal(res.status, 500, c.name)
-        assert.doesNotMatch(JSON.stringify(body), /secret/, c.name)
-      }
-    }
+  mode = "boom"
+  for (const c of all) {
+    const res = await withSwitches(true, true, () => c.run())
+    const body = (await res.json()) as { error: string; message?: string }
+    assert.equal(res.status, 500, c.name)
+    assert.doesNotMatch(JSON.stringify(body), /secret/, c.name)
   }
   mode = "ok"
 })

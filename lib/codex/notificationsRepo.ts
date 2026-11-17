@@ -2,7 +2,8 @@
  * Codex notifications store (B41): the bell (list, unread count, mark read),
  * the digest switch per person, and the daily run (due tomorrow and overdue
  * reminders, then the email digest). Behind `codex_notifications` (routes
- * and the cron check) and the 0118 marker (`guarded`).
+ * and the cron check), which needs codex_projects and so the 0118 marker
+ * (B48: nothing here checks it).
  *
  * A notification shows only while its task is live and the recipient can
  * still see the task's project (a private project they were removed from
@@ -29,7 +30,6 @@ import {
 import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
 import { primaryEmailFor } from "@/lib/codex/collabRepo"
 import { isFeatureOn } from "@/lib/features/server"
-import { guarded } from "@/lib/codex/projectsRepo"
 import { looksLikeEmail } from "@/lib/codex/rosterResolve"
 import type { AccessIdentity } from "@/lib/codex/projects"
 import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
@@ -125,40 +125,38 @@ function bellItem(r: Record<string, unknown>): BellItem | null {
 /** The viewer's bell: newest first, the unread count and their digest switch. */
 export async function listBell(viewerEmail: string, limit = BELL_LIMIT_DEFAULT, database: Db = db): Promise<BellPayload> {
   const take = Math.min(Math.max(1, Math.trunc(limit) || BELL_LIMIT_DEFAULT), BELL_LIMIT_MAX)
-  return guarded(database, async () => {
-    const viewer = await bellPerson(database, viewerEmail)
-    const identity = await loadAccessIdentity(database)
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT n.id, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
-               n.created_at::text AS created_at, n.read_at::text AS read_at
-          FROM public.codex_notifications n
-          JOIN public.tasks t ON t.id = n.task_id
-          LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
-         WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND ${visibleToRecipient(sql`${viewer}`, identity)}
-         ORDER BY n.created_at DESC, n.id DESC
-         LIMIT ${take}
-      `)
-    )
-    const [unread] = executeRows(
-      await database.execute(sql`
-        SELECT count(*)::int AS n
-          FROM public.codex_notifications n
-          JOIN public.tasks t ON t.id = n.task_id
-         WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`, identity)}
-      `)
-    )
-    const prefs = await database
-      .select({ prefs: codexNotificationPrefs.prefs })
-      .from(codexNotificationPrefs)
-      .where(sql`${codexNotificationPrefs.email} = ${viewer}`)
-      .limit(1)
-    return {
-      items: rows.map(bellItem).filter((i): i is BellItem => i != null),
-      unread: Number(unread?.n ?? 0),
-      email_digest: digestEnabled(prefs[0]?.prefs),
-    }
-  })
+  const viewer = await bellPerson(database, viewerEmail)
+  const identity = await loadAccessIdentity(database)
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT n.id, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
+             n.created_at::text AS created_at, n.read_at::text AS read_at
+        FROM public.codex_notifications n
+        JOIN public.tasks t ON t.id = n.task_id
+        LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
+       WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND ${visibleToRecipient(sql`${viewer}`, identity)}
+       ORDER BY n.created_at DESC, n.id DESC
+       LIMIT ${take}
+    `)
+  )
+  const [unread] = executeRows(
+    await database.execute(sql`
+      SELECT count(*)::int AS n
+        FROM public.codex_notifications n
+        JOIN public.tasks t ON t.id = n.task_id
+       WHERE ${addressedTo(sql`n.recipient_email`, viewer, identity)} AND n.read_at IS NULL AND ${visibleToRecipient(sql`${viewer}`, identity)}
+    `)
+  )
+  const prefs = await database
+    .select({ prefs: codexNotificationPrefs.prefs })
+    .from(codexNotificationPrefs)
+    .where(sql`${codexNotificationPrefs.email} = ${viewer}`)
+    .limit(1)
+  return {
+    items: rows.map(bellItem).filter((i): i is BellItem => i != null),
+    unread: Number(unread?.n ?? 0),
+    email_digest: digestEnabled(prefs[0]?.prefs),
+  }
 }
 
 /** Mark the viewer's own notifications read: the ids given, or all. Returns how many changed. */
@@ -167,40 +165,36 @@ export async function markNotificationsRead(
   target: { ids: readonly number[] } | { all: true },
   database: Db = db
 ): Promise<number> {
-  return guarded(database, async () => {
-    if ("ids" in target && target.ids.length === 0) return 0
-    const viewer = await bellPerson(database, viewerEmail)
-    const identity = await loadAccessIdentity(database)
-    const which =
-      "ids" in target
-        ? sql`AND id IN (${sql.join(
-            target.ids.map((id) => sql`${id}::bigint`),
-            sql`, `
-          )})`
-        : sql``
-    const rows = executeRows(
-      await database.execute(sql`
-        UPDATE public.codex_notifications SET read_at = now()
-         WHERE ${addressedTo(sql`recipient_email`, viewer, identity)} AND read_at IS NULL ${which}
-        RETURNING id
-      `)
-    )
-    return rows.length
-  })
+  if ("ids" in target && target.ids.length === 0) return 0
+  const viewer = await bellPerson(database, viewerEmail)
+  const identity = await loadAccessIdentity(database)
+  const which =
+    "ids" in target
+      ? sql`AND id IN (${sql.join(
+          target.ids.map((id) => sql`${id}::bigint`),
+          sql`, `
+        )})`
+      : sql``
+  const rows = executeRows(
+    await database.execute(sql`
+      UPDATE public.codex_notifications SET read_at = now()
+       WHERE ${addressedTo(sql`recipient_email`, viewer, identity)} AND read_at IS NULL ${which}
+      RETURNING id
+    `)
+  )
+  return rows.length
 }
 
 /** The person's daily email switch (default on). */
 export async function setEmailDigest(viewerEmail: string, on: boolean, database: Db = db): Promise<boolean> {
-  return guarded(database, async () => {
-    const viewer = await bellPerson(database, viewerEmail)
-    await database.execute(sql`
-      INSERT INTO public.codex_notification_prefs (email, prefs)
-      VALUES (${viewer}, jsonb_build_object('email_digest', ${on}::boolean))
-      ON CONFLICT (email) DO UPDATE
-        SET prefs = public.codex_notification_prefs.prefs || jsonb_build_object('email_digest', ${on}::boolean)
-    `)
-    return on
-  })
+  const viewer = await bellPerson(database, viewerEmail)
+  await database.execute(sql`
+    INSERT INTO public.codex_notification_prefs (email, prefs)
+    VALUES (${viewer}, jsonb_build_object('email_digest', ${on}::boolean))
+    ON CONFLICT (email) DO UPDATE
+      SET prefs = public.codex_notification_prefs.prefs || jsonb_build_object('email_digest', ${on}::boolean)
+  `)
+  return on
 }
 
 // ---------------------------------------------------------------------------
@@ -218,33 +212,31 @@ export type ReminderResult = { due_tomorrow: number; overdue: number; tasks: num
  */
 export async function generateDueReminders(now: Date, database: Db = db): Promise<ReminderResult> {
   const d = reminderDates(now)
-  return guarded(database, async () => {
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT id, due_on::text AS due_on FROM public.tasks
-         WHERE deleted_at IS NULL AND status <> 'done' AND due_on IS NOT NULL
-           AND (due_on = ${d.tomorrow}::date OR (due_on >= ${d.overdueFrom}::date AND due_on <= ${d.overdueTo}::date))
-         ORDER BY id
-      `)
-    )
-    const out: ReminderResult = { due_tomorrow: 0, overdue: 0, tasks: rows.length }
-    for (const r of rows) {
-      const id = Number(r.id)
-      const dueOn = String(r.due_on)
-      const kind = dueOn === d.tomorrow ? "due_tomorrow" : "overdue"
-      const written = await database.transaction(async (tx) => {
-        const task = await loadTaskFacts(tx, id)
-        if (!task) return 0
-        return writeNotifications(
-          tx,
-          { kind, taskId: id, actor: null },
-          kind === "due_tomorrow" ? { task, onceSinceMelbourneDate: d.today } : { task, oncePerDueOn: dueOn }
-        )
-      })
-      out[kind] += written
-    }
-    return out
-  })
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT id, due_on::text AS due_on FROM public.tasks
+       WHERE deleted_at IS NULL AND status <> 'done' AND due_on IS NOT NULL
+         AND (due_on = ${d.tomorrow}::date OR (due_on >= ${d.overdueFrom}::date AND due_on <= ${d.overdueTo}::date))
+       ORDER BY id
+    `)
+  )
+  const out: ReminderResult = { due_tomorrow: 0, overdue: 0, tasks: rows.length }
+  for (const r of rows) {
+    const id = Number(r.id)
+    const dueOn = String(r.due_on)
+    const kind = dueOn === d.tomorrow ? "due_tomorrow" : "overdue"
+    const written = await database.transaction(async (tx) => {
+      const task = await loadTaskFacts(tx, id)
+      if (!task) return 0
+      return writeNotifications(
+        tx,
+        { kind, taskId: id, actor: null },
+        kind === "due_tomorrow" ? { task, onceSinceMelbourneDate: d.today } : { task, oncePerDueOn: dueOn }
+      )
+    })
+    out[kind] += written
+  }
+  return out
 }
 
 export type DigestSender = (args: { to: string; subject: string; html: string; digest: DigestEmail }) => Promise<void>
@@ -260,44 +252,42 @@ export type DigestResult = { people: number; sent: number; failed: number; quiet
  * go in this digest, and a `?now=` run still sees them.
  */
 export async function loadDigestBatch(now: Date, database: Db = db): Promise<{ digests: DigestEmail[]; prefs: Map<string, PrefRow> }> {
-  return guarded(database, async () => {
-    const since = new Date(now.getTime() - DIGEST_LOOKBACK_DAYS * 86_400_000).toISOString()
-    const identity = await loadAccessIdentity(database)
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT n.id, n.recipient_email, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
-               n.created_at::text AS created_at
-          FROM public.codex_notifications n
-          JOIN public.tasks t ON t.id = n.task_id
-          LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
-         WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
-           AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz
-           AND ${visibleToRecipient(sql`n.recipient_email`, identity)}
-           AND EXISTS (SELECT 1 FROM public.team_members r WHERE lower(r.email) = n.recipient_email AND r.active IS NOT FALSE)
-         ORDER BY n.recipient_email, n.created_at, n.id
-         LIMIT ${DIGEST_ROWS_MAX}
-      `)
-    )
-    const digestRows: DigestRow[] = []
-    for (const r of rows) {
-      if (!isNotificationKind(r.kind)) continue
-      digestRows.push({
-        id: Number(r.id),
-        recipient_email: String(r.recipient_email),
-        kind: r.kind,
-        task_id: Number(r.task_id),
-        task_title: String(r.task_title ?? ""),
-        actor_name: actorName(r.actor_email, r.actor_roster_name),
-        created_at: String(r.created_at ?? ""),
-      })
-    }
-    const digests = groupDigest(digestRows)
-    const prefs = await loadPrefs(
-      database,
-      digests.map((x) => x.email)
-    )
-    return { digests, prefs }
-  })
+  const since = new Date(now.getTime() - DIGEST_LOOKBACK_DAYS * 86_400_000).toISOString()
+  const identity = await loadAccessIdentity(database)
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT n.id, n.recipient_email, n.kind, n.task_id, t.title AS task_title, n.actor_email, tm.name AS actor_roster_name,
+             n.created_at::text AS created_at
+        FROM public.codex_notifications n
+        JOIN public.tasks t ON t.id = n.task_id
+        LEFT JOIN public.team_members tm ON lower(tm.email) = n.actor_email
+       WHERE n.read_at IS NULL AND n.email_digest_at IS NULL
+         AND n.created_at <= greatest(${now.toISOString()}::timestamptz, now()) AND n.created_at >= ${since}::timestamptz
+         AND ${visibleToRecipient(sql`n.recipient_email`, identity)}
+         AND EXISTS (SELECT 1 FROM public.team_members r WHERE lower(r.email) = n.recipient_email AND r.active IS NOT FALSE)
+       ORDER BY n.recipient_email, n.created_at, n.id
+       LIMIT ${DIGEST_ROWS_MAX}
+    `)
+  )
+  const digestRows: DigestRow[] = []
+  for (const r of rows) {
+    if (!isNotificationKind(r.kind)) continue
+    digestRows.push({
+      id: Number(r.id),
+      recipient_email: String(r.recipient_email),
+      kind: r.kind,
+      task_id: Number(r.task_id),
+      task_title: String(r.task_title ?? ""),
+      actor_name: actorName(r.actor_email, r.actor_roster_name),
+      created_at: String(r.created_at ?? ""),
+    })
+  }
+  const digests = groupDigest(digestRows)
+  const prefs = await loadPrefs(
+    database,
+    digests.map((x) => x.email)
+  )
+  return { digests, prefs }
 }
 
 export type PrefRow = { prefs: unknown; quiet_start: string | null; quiet_end: string | null }
@@ -350,15 +340,13 @@ export async function runDigest(now: Date, send: DigestSender, buildHtml: (d: Di
       console.error("[codex-digest] send failed", { to: d.email, error: err instanceof Error ? err.message : String(err) })
       continue
     }
-    await guarded(database, () =>
-      database.execute(sql`
-        UPDATE public.codex_notifications SET email_digest_at = ${now.toISOString()}::timestamptz
-         WHERE email_digest_at IS NULL AND id IN (${sql.join(
-           d.notificationIds.map((id) => sql`${id}::bigint`),
-           sql`, `
-         )})
-      `)
-    )
+    await database.execute(sql`
+      UPDATE public.codex_notifications SET email_digest_at = ${now.toISOString()}::timestamptz
+       WHERE email_digest_at IS NULL AND id IN (${sql.join(
+         d.notificationIds.map((id) => sql`${id}::bigint`),
+         sql`, `
+       )})
+    `)
     out.sent += 1
     out.notifications += d.notificationIds.length
   }

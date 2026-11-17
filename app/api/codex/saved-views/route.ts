@@ -3,7 +3,6 @@ import { isProjectSavedViewScreen, parseSavedViewInput, parseSavedViewScreen } f
 import {
   createSavedView,
   listSavedViews,
-  SavedViewsUnavailableError,
 } from "@/lib/codex/savedViewsRepo"
 import { isFeatureOn } from "@/lib/features/server"
 import { codexFlagGuard, jsonError, requireCodexInternalAccess, sessionEmail } from "../_shared"
@@ -13,9 +12,8 @@ export const runtime = "nodejs"
 
 /**
  * GET: own views and every shared view for `?screen=` (default tasks;
- * `project:<id>` with codex_projects on, B40).
- * Before migration 0117: 200 `{ available: false, items: [] }`, so the page
- * hides the views menu and still loads.
+ * `project:<id>` with codex_projects on, B40). The switch needs migration
+ * 0117 (B48), so the table is always there.
  */
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()
@@ -31,14 +29,11 @@ export async function GET(request: Request) {
     return jsonError(400, "invalid_screen", "Unknown screen")
   }
   // B42 (C-234): a private project's views only for people who can see it.
-  if (!(await canUseSavedViewScreen(screen, email))) return NextResponse.json({ available: true, items: [] })
+  if (!(await canUseSavedViewScreen(screen, email))) return NextResponse.json({ items: [] })
   try {
     const items = await listSavedViews(email, screen)
-    return NextResponse.json({ available: true, items })
+    return NextResponse.json({ items })
   } catch (error) {
-    if (error instanceof SavedViewsUnavailableError) {
-      return NextResponse.json({ available: false, items: [] })
-    }
     return savedViewsErrorResponse(error, "list")
   }
 }

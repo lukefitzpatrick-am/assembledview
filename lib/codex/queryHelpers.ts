@@ -571,14 +571,3 @@ export function parseMbaNumbersQuery(raw: string | null): string[] {
   }
   return out
 }
-
-/**
- * C-266 (B43): whether migration 0118 is applied, from the task list
- * responses a layout loaded (`projects_ready`, sent with `codex_projects`
- * on). The board loads one response per column; any that says so counts.
- * No response (no column loaded): `previous`, unchanged.
- */
-export function projectsReadyFromResponses(bodies: ReadonlyArray<{ projects_ready?: unknown }>, previous: boolean): boolean {
-  if (bodies.length === 0) return previous
-  return bodies.some((b) => b.projects_ready === true)
-}

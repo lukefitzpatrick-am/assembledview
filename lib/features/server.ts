@@ -101,9 +101,16 @@ function store(): FeatureRowStore {
 
 let markerReader: (marker: string) => Promise<boolean> = (marker) => isMarkerApplied(marker)
 
-/** The registry's `requiresMarker` keys that exist, through lib/db/markers (cached there). */
-async function readSwitchMarkers(): Promise<ReadonlySet<string>> {
-  const found = await Promise.all(FEATURE_MARKERS.map(async (m) => ((await markerReader(m)) ? m : null)))
+/** The `requiresMarker` keys of `key` and its requirements, transitively. */
+function markersOf(key: string): string[] {
+  const def = featureDefinition(key)
+  if (!def) return []
+  return [...(def.requiresMarker ? [def.requiresMarker] : []), ...(def.requires ?? []).flatMap(markersOf)]
+}
+
+/** Which of `markers` exist (default every registry marker), through lib/db/markers (cached there). */
+async function readSwitchMarkers(markers: readonly string[] = FEATURE_MARKERS): Promise<ReadonlySet<string>> {
+  const found = await Promise.all([...new Set(markers)].map(async (m) => ((await markerReader(m)) ? m : null)))
   return new Set(found.filter((m): m is string => m != null))
 }
 
@@ -145,7 +152,7 @@ function rawLookup(rows: ReadonlyMap<string, FeatureRow> | null, env: Record<str
 export async function isFeatureOn(key: FeatureKey, env: Record<string, string | undefined> = process.env): Promise<boolean> {
   const def = definitionOrThrow(key)
   if (def.source === "vercel" && !def.requires?.length) return resolveFeature(def, null, env).enabled
-  const [rows, markers] = await Promise.all([readFeatureRows(), readSwitchMarkers()])
+  const [rows, markers] = await Promise.all([readFeatureRows(), readSwitchMarkers(markersOf(key))])
   return effectiveFeatureOn(key, rawLookup(rows, env), (m) => markers.has(m))
 }
 
@@ -301,7 +308,7 @@ export async function setFeatureSwitch(args: {
   const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
   const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null
   const env = args.env ?? process.env
-  const markers = await readSwitchMarkers()
+  const markers = await readSwitchMarkers(args.enabled ? markersOf(def.key) : [])
   const markerApplied = (m: string) => markers.has(m)
   let changed = false
   const refusal = await getDb().transaction(async (tx): Promise<string | null> => {

@@ -12,6 +12,7 @@
  * migration, the sync trigger and the raw SQL in projectsRepo.ts are all
  * exercised.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -35,10 +36,8 @@ import {
   moveTaskToSection,
   removeProjectMember,
   reorderSections,
-  resetProjectsMarkerCacheForTests,
   updateProject,
   updateSection,
-  ProjectsUnavailableError,
 } from "../projectsRepo.js"
 
 const RAW_URL = process.env.CODEX_PROJECTS_TEST_DATABASE_URL?.trim() ?? ""
@@ -103,22 +102,15 @@ describe("codex projects store on Postgres (0118 applied)", { skip }, () => {
   before(async () => {
     client = postgres(RAW_URL, { max: 2, onnotice: () => {} })
     await client.unsafe(BASE_SQL)
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
   })
 
   after(async () => {
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     await client?.end({ timeout: 5 })
   })
 
-  it("before 0118: every call is ProjectsUnavailableError", async () => {
-    await assert.rejects(listProjects(OWNER, {}, database), ProjectsUnavailableError)
-    await assert.rejects(createProject(OWNER, {
-      name: "x", kind: "ops", client_id: null, mba_number: null, owner_email: null, is_private: false,
-      start_on: null, due_on: null, members: [], sections: undefined,
-    }, database), ProjectsUnavailableError)
-  })
 
   it("applies the 0118 migration, filling due_on once", async () => {
     const file = path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql")
@@ -128,7 +120,7 @@ describe("codex projects store on Postgres (0118 applied)", { skip }, () => {
     assert.equal(m.n, 1)
     const [t] = await client`SELECT due_on::text AS due_on FROM public.tasks WHERE title = 'old due'`
     assert.equal(t.due_on, "2026-08-14")
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
   })
 
   let projectId = 0

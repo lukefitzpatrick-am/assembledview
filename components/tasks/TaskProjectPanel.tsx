@@ -353,14 +353,13 @@ function messageOf(body: unknown, fallback: string): string {
   return typeof m === "string" && m ? m : fallback
 }
 
-/** Loads the panel's data and owns its requests. Renders nothing before 0118 or on a load failure. */
+/** Loads the panel's data and owns its requests. Renders nothing on a load failure. */
 export function TaskProjectPanel({
   taskId,
   members,
   meEmail,
   reloadKey,
   onChanged,
-  onLoaded,
 }: {
   taskId: number
   members: readonly TeamMember[]
@@ -368,8 +367,6 @@ export function TaskProjectPanel({
   /** Changes when the detail reloads, so the panel reloads too. */
   reloadKey?: unknown
   onChanged: () => void
-  /** B40fix: true once the read answers (0118 applied), false on 503 or any failure. */
-  onLoaded?: (loaded: boolean) => void
 }) {
   const { toast } = useToast()
   const [data, setData] = useState<TaskProjectDetailData | null>(null)
@@ -382,28 +379,19 @@ export function TaskProjectPanel({
       try {
         const res = await fetch(`/api/codex/tasks/${taskId}/project`, { cache: "no-store" })
         if (!res.ok) {
-          if (!cancelled) {
-            setData(null)
-            onLoaded?.(false)
-          }
+          if (!cancelled) setData(null)
           return
         }
         const body = (await res.json()) as TaskProjectDetailData
-        if (!cancelled) {
-          setData(body)
-          onLoaded?.(true)
-        }
+        if (!cancelled) setData(body)
       } catch {
-        if (!cancelled) {
-          setData(null)
-          onLoaded?.(false)
-        }
+        if (!cancelled) setData(null)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [taskId, tick, reloadKey, onLoaded])
+  }, [taskId, tick, reloadKey])
 
   const run = useCallback(
     async (url: string, init: RequestInit, failTitle: string): Promise<boolean> => {

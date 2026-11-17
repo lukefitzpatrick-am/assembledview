@@ -137,7 +137,6 @@ export function TaskDetailClient({ taskId }: Props) {
   /** Project details, subtasks, fields and ASAP (B40): codex_projects on. */
   const projectsOn = clientFeatureOn("codex_projects")
   /** B40fix: the project panel's read answered (0118 applied), so ASAP can be saved. */
-  const [projectsReady, setProjectsReady] = useState(false)
 
   const [task, setTask] = useState<CodexTask | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -957,7 +956,7 @@ export function TaskDetailClient({ taskId }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {taskPriorityChoices(asapOffered(projectsOn, projectsReady, priority)).map((p) => (
+              {taskPriorityChoices(asapOffered(projectsOn, priority)).map((p) => (
                 <SelectItem key={p.value} value={p.value}>
                   {p.label}
                 </SelectItem>
@@ -1163,7 +1162,6 @@ export function TaskDetailClient({ taskId }: Props) {
           meEmail={meEmail}
           reloadKey={task.updated_at}
           onChanged={() => void loadAll()}
-          onLoaded={setProjectsReady}
         />
       ) : null}
 

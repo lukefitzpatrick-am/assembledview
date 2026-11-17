@@ -21,8 +21,6 @@ const events: Array<{ fn: string; args: unknown[] }> = []
 /** "ok" or a refusal reason the store returns. */
 let mode = "ok"
 
-class ProjectsUnavailableError extends Error {}
-
 const TASK = { id: 7, status: "done", project_id: 5, section_id: 9, sort_order: 0 }
 const SUB = { id: 31, title: "Sub", parent_task_id: 7 }
 const BEFORE = new Map([[7, { id: 7, status: "todo", assignee_email: null, due: null }]])
@@ -41,7 +39,6 @@ if (supportsMockModule()) {
   }
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
-      ProjectsUnavailableError,
       moveTaskToSection: fn("moveTaskToSection", () => outcome({ ok: true, task: TASK })),
       completeProjectTask: fn("completeProjectTask", () => outcome({ ok: true, task: TASK })),
       listSectionTasks: fn("listSectionTasks", () => outcome({ ok: true, items: [], total: 0 })),

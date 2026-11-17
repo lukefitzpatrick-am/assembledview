@@ -1,7 +1,7 @@
 /**
  * Codex comments with @mentions, followers and attachments store (B41).
- * Behind `codex_projects` (routes check) and the 0118 marker (`guarded`: 503
- * before the migration). A task in a private project the viewer cannot see
+ * Behind `codex_projects` (routes check), which needs the 0118 marker, so
+ * nothing here checks it (B48). A task in a private project the viewer cannot see
  * is not found here (existence not confirmed), as on /api/codex/projects.
  *
  * Every change writes its `codex_activity` row in the same transaction, and,
@@ -32,7 +32,7 @@ import {
   writeNotifications,
   type TaskFacts,
 } from "@/lib/codex/notify"
-import { appendActivity, guarded, type ProjectFailure } from "@/lib/codex/projectsRepo"
+import { appendActivity, type ProjectFailure } from "@/lib/codex/projectsRepo"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
 import { resolveRosterAddress, rosterDisplayName, type RosterPerson } from "@/lib/codex/rosterResolve"
@@ -67,16 +67,14 @@ export async function listCommentsWithMentions(
   viewerEmail: string,
   database: Db = db
 ): Promise<{ ok: true; items: TaskComment[] } | ProjectFailure> {
-  return guarded(database, async () => {
-    if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT id, task_id, body, created_at::text AS created_at, author_email, author_name, author_kind, mentions
-          FROM public.task_comments WHERE task_id = ${taskId}::bigint ORDER BY created_at ASC, id ASC
-      `)
-    )
-    return { ok: true as const, items: rows.map(commentFromRow) }
-  })
+  if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT id, task_id, body, created_at::text AS created_at, author_email, author_name, author_kind, mentions
+        FROM public.task_comments WHERE task_id = ${taskId}::bigint ORDER BY created_at ASC, id ASC
+    `)
+  )
+  return { ok: true as const, items: rows.map(commentFromRow) }
 }
 
 export type CreateCommentWithMentionsInput = {
@@ -105,38 +103,36 @@ export async function createCommentWithMentions(
 ): Promise<CreateCommentResult> {
   const body = input.body.trim()
   const author = normaliseEmail(input.authorEmail)
-  return guarded(database, () =>
-    database.transaction(async (tx): Promise<CreateCommentResult> => {
-      const task = await loadVisibleTask(tx, taskId, author)
-      if (!task) return TASK_NOT_FOUND
-      const { mentions, unresolved } = resolveCommentMentions(body, input.roster, {
-        aliases: input.aliases,
-        canSee: (email) => canSeeTask(task, email),
-      })
-      const [row] = executeRows(
-        await tx.execute(sql`
-          INSERT INTO public.task_comments (task_id, body, author_email, author_name, author_kind, mentions)
-          VALUES (${taskId}::bigint, ${body}, ${author || null}, ${input.authorName ?? null}, 'user', ${JSON.stringify(mentions)}::jsonb)
-          RETURNING id, task_id, body, created_at::text AS created_at, author_email, author_name, author_kind, mentions
-        `)
-      )
-      const comment = commentFromRow(row ?? {})
-      await appendActivity(tx, { entityType: "task_comment", entityId: comment.id, actorEmail: author, action: "create", after: comment })
-      await applyFollows(tx, task, [
-        { email: author, reason: "commented" },
-        ...mentions.map((m) => ({ email: m.email, reason: "mentioned" as const })),
-      ])
-      let notified = 0
-      if (input.notify) {
-        notified = await writeNotifications(
-          tx,
-          { kind: "comment", taskId, actor: author, mentioned: mentions.map((m: CommentMention) => m.email) },
-          { task }
-        )
-      }
-      return { ok: true, comment, unresolved, notified }
+  return database.transaction(async (tx): Promise<CreateCommentResult> => {
+    const task = await loadVisibleTask(tx, taskId, author)
+    if (!task) return TASK_NOT_FOUND
+    const { mentions, unresolved } = resolveCommentMentions(body, input.roster, {
+      aliases: input.aliases,
+      canSee: (email) => canSeeTask(task, email),
     })
-  )
+    const [row] = executeRows(
+      await tx.execute(sql`
+        INSERT INTO public.task_comments (task_id, body, author_email, author_name, author_kind, mentions)
+        VALUES (${taskId}::bigint, ${body}, ${author || null}, ${input.authorName ?? null}, 'user', ${JSON.stringify(mentions)}::jsonb)
+        RETURNING id, task_id, body, created_at::text AS created_at, author_email, author_name, author_kind, mentions
+      `)
+    )
+    const comment = commentFromRow(row ?? {})
+    await appendActivity(tx, { entityType: "task_comment", entityId: comment.id, actorEmail: author, action: "create", after: comment })
+    await applyFollows(tx, task, [
+      { email: author, reason: "commented" },
+      ...mentions.map((m) => ({ email: m.email, reason: "mentioned" as const })),
+    ])
+    let notified = 0
+    if (input.notify) {
+      notified = await writeNotifications(
+        tx,
+        { kind: "comment", taskId, actor: author, mentioned: mentions.map((m: CommentMention) => m.email) },
+        { task }
+      )
+    }
+    return { ok: true, comment, unresolved, notified }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -182,11 +178,9 @@ export async function listFollowers(
   database: Db = db,
   opts: { aliases?: boolean } = {}
 ): Promise<FollowersResult> {
-  return guarded(database, async () => {
-    const task = await loadVisibleTask(database, taskId, viewerEmail)
-    if (!task) return TASK_NOT_FOUND
-    return followersOf(database, task, await primaryEmailFor(database, viewerEmail, opts.aliases === true))
-  })
+  const task = await loadVisibleTask(database, taskId, viewerEmail)
+  if (!task) return TASK_NOT_FOUND
+  return followersOf(database, task, await primaryEmailFor(database, viewerEmail, opts.aliases === true))
 }
 
 /**
@@ -206,42 +200,40 @@ export async function followTask(
 ): Promise<FollowersResult> {
   const actor = normaliseEmail(actorEmail)
   const asked = normaliseEmail(targetEmail)
-  return guarded(database, () =>
-    database.transaction(async (tx): Promise<FollowersResult> => {
-      const task = await loadVisibleTask(tx, taskId, actor, true)
-      if (!task) return TASK_NOT_FOUND
-      const roster = await loadRosterPeople(tx)
-      const resolve = (email: string) => resolveRosterAddress(email, roster, { aliases: opts.aliases === true })
-      const actorMatch = resolve(actor)
-      const match = asked ? resolve(asked) : actorMatch
-      if (match.kind === "ambiguous") {
-        return { ok: false, reason: "ambiguous_address", message: "That address belongs to more than one person on the team list. Use their main email." }
+  return database.transaction(async (tx): Promise<FollowersResult> => {
+    const task = await loadVisibleTask(tx, taskId, actor, true)
+    if (!task) return TASK_NOT_FOUND
+    const roster = await loadRosterPeople(tx)
+    const resolve = (email: string) => resolveRosterAddress(email, roster, { aliases: opts.aliases === true })
+    const actorMatch = resolve(actor)
+    const match = asked ? resolve(asked) : actorMatch
+    if (match.kind === "ambiguous") {
+      return { ok: false, reason: "ambiguous_address", message: "That address belongs to more than one person on the team list. Use their main email." }
+    }
+    if (match.kind === "none") {
+      return {
+        ok: false,
+        reason: "not_on_roster",
+        message: asked
+          ? "Only active people on the team list can follow a task."
+          : "You are not an active person on the team list, so you cannot follow tasks.",
       }
-      if (match.kind === "none") {
-        return {
-          ok: false,
-          reason: "not_on_roster",
-          message: asked
-            ? "Only active people on the team list can follow a task."
-            : "You are not an active person on the team list, so you cannot follow tasks.",
-        }
+    }
+    const target = normaliseEmail(match.member.email)
+    const actorPrimary = actorMatch.kind === "unique" ? normaliseEmail(actorMatch.member.email) : actor
+    if (!canSeeTask(task, target)) {
+      return { ok: false, reason: "follower_no_access", message: "That person cannot see this private project, so they cannot follow the task." }
+    }
+    const self = target === actorPrimary
+    const changed = await applyFollows(tx, task, [{ email: target, reason: self ? "manual" : "added" }])
+    if (changed.length > 0) {
+      await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "follow", after: { email: target } })
+      if (!self && opts.notify) {
+        await writeNotifications(tx, { kind: "follower_added", taskId, actor, added: [target] }, { task })
       }
-      const target = normaliseEmail(match.member.email)
-      const actorPrimary = actorMatch.kind === "unique" ? normaliseEmail(actorMatch.member.email) : actor
-      if (!canSeeTask(task, target)) {
-        return { ok: false, reason: "follower_no_access", message: "That person cannot see this private project, so they cannot follow the task." }
-      }
-      const self = target === actorPrimary
-      const changed = await applyFollows(tx, task, [{ email: target, reason: self ? "manual" : "added" }])
-      if (changed.length > 0) {
-        await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "follow", after: { email: target } })
-        if (!self && opts.notify) {
-          await writeNotifications(tx, { kind: "follower_added", taskId, actor, added: [target] }, { task })
-        }
-      }
-      return followersOf(tx, task, actorPrimary)
-    })
-  )
+    }
+    return followersOf(tx, task, actorPrimary)
+  })
 }
 
 /**
@@ -256,16 +248,14 @@ export async function unfollowTask(
   opts: { aliases?: boolean } = {}
 ): Promise<FollowersResult> {
   const actor = normaliseEmail(actorEmail)
-  return guarded(database, () =>
-    database.transaction(async (tx): Promise<FollowersResult> => {
-      const task = await loadVisibleTask(tx, taskId, actor, true)
-      if (!task) return TASK_NOT_FOUND
-      const me = await primaryEmailFor(tx, actor, opts.aliases === true)
-      await applyFollows(tx, task, [{ email: me, reason: "unfollowed" }])
-      await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "unfollow", after: { email: me } })
-      return followersOf(tx, task, me)
-    })
-  )
+  return database.transaction(async (tx): Promise<FollowersResult> => {
+    const task = await loadVisibleTask(tx, taskId, actor, true)
+    if (!task) return TASK_NOT_FOUND
+    const me = await primaryEmailFor(tx, actor, opts.aliases === true)
+    await applyFollows(tx, task, [{ email: me, reason: "unfollowed" }])
+    await appendActivity(tx, { entityType: "task_follower", entityId: taskId, actorEmail: actor, action: "unfollow", after: { email: me } })
+    return followersOf(tx, task, me)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -294,25 +284,21 @@ function attachmentToApi(row: AttachmentRow, viewer: string, roles: readonly str
 export type AttachmentsResult = { ok: true; attachments: TaskAttachment[] } | ProjectFailure
 
 export async function listAttachments(taskId: number, viewerEmail: string, roles: readonly string[], database: Db = db): Promise<AttachmentsResult> {
-  return guarded(database, async () => {
-    if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
-    const rows = await database
-      .select()
-      .from(taskAttachments)
-      .where(eq(taskAttachments.taskId, taskId))
-      .orderBy(asc(taskAttachments.createdAt), asc(taskAttachments.id))
-    return { ok: true as const, attachments: rows.map((r) => attachmentToApi(r, normaliseEmail(viewerEmail), roles)) }
-  })
+  if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
+  const rows = await database
+    .select()
+    .from(taskAttachments)
+    .where(eq(taskAttachments.taskId, taskId))
+    .orderBy(asc(taskAttachments.createdAt), asc(taskAttachments.id))
+  return { ok: true as const, attachments: rows.map((r) => attachmentToApi(r, normaliseEmail(viewerEmail), roles)) }
 }
 
 /** Can the viewer attach to this task (before the file goes to Blob)? Also the count limit. */
 export async function checkCanAttach(taskId: number, viewerEmail: string, database: Db = db): Promise<{ ok: true } | ProjectFailure> {
-  return guarded(database, async () => {
-    if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
-    const [n] = await database.select({ n: count() }).from(taskAttachments).where(eq(taskAttachments.taskId, taskId))
-    if (Number(n?.n ?? 0) >= ATTACHMENTS_PER_TASK_MAX) return tooMany()
-    return { ok: true as const }
-  })
+  if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
+  const [n] = await database.select({ n: count() }).from(taskAttachments).where(eq(taskAttachments.taskId, taskId))
+  if (Number(n?.n ?? 0) >= ATTACHMENTS_PER_TASK_MAX) return tooMany()
+  return { ok: true as const }
 }
 
 function tooMany(): ProjectFailure {
@@ -335,39 +321,37 @@ export async function createAttachment(
   database: Db = db
 ): Promise<AttachmentResult> {
   const actor = normaliseEmail(actorEmail)
-  return guarded(database, () =>
-    database.transaction(async (tx): Promise<AttachmentResult> => {
-      const task = await loadVisibleTask(tx, taskId, actor, true)
-      if (!task) return TASK_NOT_FOUND
-      if (input.kind === "blob" && !isTaskBlobPathname(taskId, input.blobPathname)) {
-        throw new Error("Attachment pathname is outside the task's folder.")
-      }
-      const [n] = await tx.select({ n: count() }).from(taskAttachments).where(eq(taskAttachments.taskId, taskId))
-      if (Number(n?.n ?? 0) >= ATTACHMENTS_PER_TASK_MAX) return tooMany()
-      const [row] = await tx
-        .insert(taskAttachments)
-        .values({
-          taskId,
-          kind: input.kind,
-          name: input.name,
-          blobPathname: input.kind === "blob" ? input.blobPathname : null,
-          url: input.kind === "link" ? input.url : null,
-          sizeBytes: input.kind === "blob" ? input.sizeBytes : null,
-          uploadedByEmail: actor,
-        })
-        .returning()
-      const api = attachmentToApi(row!, actor, roles)
-      await appendActivity(tx, {
-        entityType: "task_attachment",
-        entityId: api.id,
-        actorEmail: actor,
-        action: "create",
-        after: { task_id: taskId, kind: api.kind, name: api.name, host: api.host, size_bytes: api.size_bytes },
+  return database.transaction(async (tx): Promise<AttachmentResult> => {
+    const task = await loadVisibleTask(tx, taskId, actor, true)
+    if (!task) return TASK_NOT_FOUND
+    if (input.kind === "blob" && !isTaskBlobPathname(taskId, input.blobPathname)) {
+      throw new Error("Attachment pathname is outside the task's folder.")
+    }
+    const [n] = await tx.select({ n: count() }).from(taskAttachments).where(eq(taskAttachments.taskId, taskId))
+    if (Number(n?.n ?? 0) >= ATTACHMENTS_PER_TASK_MAX) return tooMany()
+    const [row] = await tx
+      .insert(taskAttachments)
+      .values({
+        taskId,
+        kind: input.kind,
+        name: input.name,
+        blobPathname: input.kind === "blob" ? input.blobPathname : null,
+        url: input.kind === "link" ? input.url : null,
+        sizeBytes: input.kind === "blob" ? input.sizeBytes : null,
+        uploadedByEmail: actor,
       })
-      if (opts.notify) await writeNotifications(tx, { kind: "attachment_added", taskId, actor }, { task })
-      return { ok: true, attachment: api }
+      .returning()
+    const api = attachmentToApi(row!, actor, roles)
+    await appendActivity(tx, {
+      entityType: "task_attachment",
+      entityId: api.id,
+      actorEmail: actor,
+      action: "create",
+      after: { task_id: taskId, kind: api.kind, name: api.name, host: api.host, size_bytes: api.size_bytes },
     })
-  )
+    if (opts.notify) await writeNotifications(tx, { kind: "attachment_added", taskId, actor }, { task })
+    return { ok: true, attachment: api }
+  })
 }
 
 export type DeleteAttachmentResult = { ok: true; blobPathname: string | null } | ProjectFailure
@@ -381,49 +365,45 @@ export async function deleteAttachment(
   database: Db = db
 ): Promise<DeleteAttachmentResult> {
   const actor = normaliseEmail(actorEmail)
-  return guarded(database, () =>
-    database.transaction(async (tx): Promise<DeleteAttachmentResult> => {
-      const task = await loadVisibleTask(tx, taskId, actor, true)
-      if (!task) return TASK_NOT_FOUND
-      const [row] = await tx
-        .select()
-        .from(taskAttachments)
-        .where(and(eq(taskAttachments.id, attachmentId), eq(taskAttachments.taskId, taskId)))
-        .limit(1)
-      if (!row) return ATTACHMENT_NOT_FOUND
-      if (!canDeleteAttachment({ uploaded_by_email: row.uploadedByEmail }, actor, roles)) {
-        return { ok: false, reason: "not_uploader", message: "Only the person who added it, or an admin, can delete it." }
-      }
-      await tx.delete(taskAttachments).where(eq(taskAttachments.id, attachmentId))
-      await appendActivity(tx, {
-        entityType: "task_attachment",
-        entityId: attachmentId,
-        actorEmail: actor,
-        action: "delete",
-        before: { task_id: taskId, kind: row.kind, name: row.name },
-      })
-      return { ok: true, blobPathname: row.kind === "blob" ? row.blobPathname : null }
+  return database.transaction(async (tx): Promise<DeleteAttachmentResult> => {
+    const task = await loadVisibleTask(tx, taskId, actor, true)
+    if (!task) return TASK_NOT_FOUND
+    const [row] = await tx
+      .select()
+      .from(taskAttachments)
+      .where(and(eq(taskAttachments.id, attachmentId), eq(taskAttachments.taskId, taskId)))
+      .limit(1)
+    if (!row) return ATTACHMENT_NOT_FOUND
+    if (!canDeleteAttachment({ uploaded_by_email: row.uploadedByEmail }, actor, roles)) {
+      return { ok: false, reason: "not_uploader", message: "Only the person who added it, or an admin, can delete it." }
+    }
+    await tx.delete(taskAttachments).where(eq(taskAttachments.id, attachmentId))
+    await appendActivity(tx, {
+      entityType: "task_attachment",
+      entityId: attachmentId,
+      actorEmail: actor,
+      action: "delete",
+      before: { task_id: taskId, kind: row.kind, name: row.name },
     })
-  )
+    return { ok: true, blobPathname: row.kind === "blob" ? row.blobPathname : null }
+  })
 }
 
 export type AttachmentFileResult = { ok: true; pathname: string; name: string; contentType: string } | ProjectFailure
 
 /** A blob attachment the viewer may fetch: the task is live and visible, the row is a blob in the task's folder. */
 export async function getAttachmentFile(taskId: number, attachmentId: number, viewerEmail: string, database: Db = db): Promise<AttachmentFileResult> {
-  return guarded(database, async () => {
-    if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
-    const [row] = await database
-      .select()
-      .from(taskAttachments)
-      .where(and(eq(taskAttachments.id, attachmentId), eq(taskAttachments.taskId, taskId)))
-      .limit(1)
-    if (!row || row.kind !== "blob" || !isTaskBlobPathname(taskId, row.blobPathname)) return ATTACHMENT_NOT_FOUND
-    return {
-      ok: true as const,
-      pathname: row.blobPathname!,
-      name: row.name,
-      contentType: ATTACHMENT_TYPES[attachmentExtension(row.name)] ?? "application/octet-stream",
-    }
-  })
+  if (!(await loadVisibleTask(database, taskId, viewerEmail))) return TASK_NOT_FOUND
+  const [row] = await database
+    .select()
+    .from(taskAttachments)
+    .where(and(eq(taskAttachments.id, attachmentId), eq(taskAttachments.taskId, taskId)))
+    .limit(1)
+  if (!row || row.kind !== "blob" || !isTaskBlobPathname(taskId, row.blobPathname)) return ATTACHMENT_NOT_FOUND
+  return {
+    ok: true as const,
+    pathname: row.blobPathname!,
+    name: row.name,
+    contentType: ATTACHMENT_TYPES[attachmentExtension(row.name)] ?? "application/octet-stream",
+  }
 }

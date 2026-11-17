@@ -9,6 +9,7 @@
  * `<name>_collab_codex_test` (created if missing) and drops and rebuilds that
  * database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -23,7 +24,7 @@ import { classifyTestDatabaseUrl } from "../../testing/testDatabaseGuard"
 import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
 import { updateTask } from "../repo.js"
-import { createProject, ProjectsUnavailableError, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { createProject } from "../projectsRepo.js"
 import {
   checkCanAttach,
   createAttachment,
@@ -176,7 +177,7 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     await client.unsafe(BASE_SQL)
     await client.unsafe(ROSTER_SQL)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const pub = await createProject(
       OWNER,
@@ -801,21 +802,5 @@ describe("codex comments, followers, attachments and notifications on Postgres (
     const outsideFolder = await getAttachmentFile(a, Number(outside.id), MIA, database)
     assert.equal(outsideFolder.ok ? "" : outsideFolder.reason, "not_found", "this task's row with a path outside its folder")
     await client`DELETE FROM public.task_attachments WHERE id IN (${onB.id}, ${outside.id})`
-  })
-
-  it("before 0118 every store call is 503 (ProjectsUnavailableError)", async () => {
-    await client`DELETE FROM public.migration_markers WHERE key = '0118_codex_s1_projects'`
-    resetProjectsMarkerCacheForTests()
-    try {
-      await assert.rejects(listBell(MIA, 30, database), ProjectsUnavailableError)
-      await assert.rejects(listFollowers(1, MIA, database), ProjectsUnavailableError)
-      await assert.rejects(comment(1, MIA, "x"), ProjectsUnavailableError)
-      await assert.rejects(generateDueReminders(new Date(), database), ProjectsUnavailableError)
-      assert.equal((await captureTaskStates([1], database)).size, 0)
-      assert.equal(await recordTaskChanges(MIA, new Map(), [1], { created: true, notify: true }, database), 0)
-    } finally {
-      await client`INSERT INTO public.migration_markers (key, note) VALUES ('0118_codex_s1_projects', 'test')`
-      resetProjectsMarkerCacheForTests()
-    }
   })
 })

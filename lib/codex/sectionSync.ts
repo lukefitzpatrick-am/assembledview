@@ -33,9 +33,10 @@ import "server-only"
 
 import { sql } from "drizzle-orm"
 
+import { isMarkerApplied } from "@/lib/db/markers"
+import { PROJECTS_MARKER } from "@/lib/codex/projects"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import { planStatusChangeInProject, type CodexSection } from "@/lib/codex/projects"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { markProgressDone } from "@/lib/codex/progressRule"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { activityActor } from "@/lib/codex/systemActors"
@@ -45,7 +46,7 @@ export type SectionRuleOutcome = "not_in_project" | "stayed" | "moved" | "no_sec
 
 /** Lock the project of task `taskId` (if any) before the task is written: the section writers' order. */
 export async function lockTaskProject(tx: DbExecutor, taskId: number): Promise<void> {
-  if (!(await isProjectsMigrationApplied(tx))) return
+  if (!(await isMarkerApplied(PROJECTS_MARKER, tx))) return
   await tx.execute(sql`
     SELECT p.id FROM public.codex_projects p
      WHERE p.id = (SELECT t.project_id FROM public.tasks t WHERE t.id = ${taskId})
@@ -81,7 +82,7 @@ export async function lockTaskAndProject(
   tx: DbExecutor,
   taskId: number
 ): Promise<{ found: boolean; projectId: number | null }> {
-  if (!(await isProjectsMigrationApplied(tx))) return { found: true, projectId: null }
+  if (!(await isMarkerApplied(PROJECTS_MARKER, tx))) return { found: true, projectId: null }
   for (let attempt = 0; attempt < LOCK_TASK_AND_PROJECT_TRIES; attempt++) {
     try {
       return await tx.transaction(async (sp) => {
@@ -116,7 +117,7 @@ export async function followSectionRule(
   actorEmail: string | null,
   opts: { nowait?: boolean } = {}
 ): Promise<SectionRuleOutcome> {
-  if (!(await isProjectsMigrationApplied(tx))) return "not_in_project"
+  if (!(await isMarkerApplied(PROJECTS_MARKER, tx))) return "not_in_project"
   const peek = executeRows(
     await tx.execute(sql`SELECT project_id FROM public.tasks WHERE id = ${taskId} AND deleted_at IS NULL`)
   )[0]

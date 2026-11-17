@@ -56,7 +56,6 @@ const STATUS_LABEL: Record<string, string> = { active: "Active", on_hold: "On ho
 
 type ListState =
   | { kind: "loading" }
-  | { kind: "needs_migration" }
   | { kind: "error"; message: string }
   | { kind: "ready"; items: CodexProject[] }
 
@@ -189,8 +188,7 @@ export function ProjectsPanel({
         const res = await fetch("/api/codex/projects", { cache: "no-store" })
         const body = (await res.json().catch(() => null)) as { items?: CodexProject[]; error?: string } | null
         if (cancelled) return
-        if (res.status === 503 && body?.error === "migration_not_applied") setState({ kind: "needs_migration" })
-        else if (!res.ok) setState({ kind: "error", message: `Projects did not load (${res.status}).` })
+        if (!res.ok) setState({ kind: "error", message: `Projects did not load (${res.status}).` })
         else setState({ kind: "ready", items: body?.items ?? [] })
       } catch {
         if (!cancelled) setState({ kind: "error", message: "Could not reach the server." })
@@ -254,12 +252,6 @@ export function ProjectsPanel({
       </div>
 
       {state.kind === "loading" ? <LoadingState rows={4} /> : null}
-      {state.kind === "needs_migration" ? (
-        <EmptyState
-          title="Projects need a database update"
-          message="Migration 0118 (codex_s1_projects) has not run yet. Projects open once it has."
-        />
-      ) : null}
       {state.kind === "error" ? <ErrorState message={state.message} onRetry={() => setTick((n) => n + 1)} /> : null}
       {state.kind === "ready" ? <ProjectsTable items={state.items} nameFor={nameFor} /> : null}
 

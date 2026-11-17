@@ -9,6 +9,7 @@
  * other projects suites, and drops and rebuilds that database's public
  * schema. It never reads .env.local and never reaches production.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -29,7 +30,6 @@ import {
   createTasksInSection,
   loadProjectBoard,
   moveTaskToSection,
-  resetProjectsMarkerCacheForTests,
   updateTaskThroughSections,
 } from "../projectsRepo.js"
 import {
@@ -126,7 +126,7 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
     client = postgres(DETAIL_URL!, { max: 2, onnotice: () => {} })
     await client.unsafe(BASE_SQL)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const r = await createProject(
       OWNER,
@@ -147,7 +147,7 @@ describe("codex task detail store on Postgres (0118 applied)", { skip }, () => {
   })
 
   after(async () => {
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     await client?.end({ timeout: 5 })
   })
 
@@ -608,11 +608,11 @@ describe("codex help flows before 0118 (live today): no 0118 column is named", {
     await setup.end({ timeout: 5 })
     client = postgres(PRE_URL!, { max: 2, onnotice: () => {}, debug: (_conn, query) => void queries.push(query) })
     database = drizzle(client, { schema }) as unknown as Db
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
   })
 
   after(async () => {
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     await client?.end({ timeout: 5 })
   })
 

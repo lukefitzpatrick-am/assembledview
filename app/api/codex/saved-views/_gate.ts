@@ -2,7 +2,7 @@
 import type { NextResponse } from "next/server"
 import { isFeatureOn } from "@/lib/features/server"
 import { isProjectSavedViewScreen } from "@/lib/codex/savedViews"
-import { SavedViewsLimitError, SavedViewsUnavailableError } from "@/lib/codex/savedViewsRepo"
+import { SavedViewsLimitError } from "@/lib/codex/savedViewsRepo"
 import { jsonError } from "../_shared"
 
 /**
@@ -24,11 +24,8 @@ export async function canUseSavedViewScreen(screen: string, email: string): Prom
   }
 }
 
-/** 503 before migration 0117, 409 at the per-person limit, else 500 without detail. */
+/** 409 at the per-person limit, else 500 without detail. */
 export function savedViewsErrorResponse(error: unknown, action: string): NextResponse {
-  if (error instanceof SavedViewsUnavailableError) {
-    return jsonError(503, "saved_views_unavailable", error.message)
-  }
   if (error instanceof SavedViewsLimitError) {
     return jsonError(409, "saved_views_limit", error.message)
   }

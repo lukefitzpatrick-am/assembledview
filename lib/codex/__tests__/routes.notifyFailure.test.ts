@@ -1,8 +1,8 @@
 /**
  * B41: a notification failure never fails the save (review F3, H5). The real
  * `beforeTaskWrite` / `afterTaskWrite` run with codex_projects and
- * codex_notifications on while their store throws (the 0118 marker read
- * fails, so no database is reached). The board move, complete and subtask
+ * codex_notifications on while their store throws (every database call
+ * fails, as a lost connection would). The board move, complete and subtask
  * create still answer as saved, and the hooks themselves resolve. Requires
  * --experimental-test-module-mocks.
  */
@@ -16,9 +16,7 @@ import type { FeatureRow } from "../../features/registry.js"
 const skip = mockModuleSkip()
 
 const session = { user: { email: "Luke@X.au", roles: ["admin"] } }
-let markerReads = 0
-
-class ProjectsUnavailableError extends Error {}
+let storeReads = 0
 
 const TASK = { id: 7, status: "done", project_id: 5, section_id: 9, sort_order: 0 }
 const SUB = { id: 31, title: "Sub", parent_task_id: 7 }
@@ -28,7 +26,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/rbac", { namedExports: { getUserRoles: (u: { roles?: string[] }) => u.roles ?? [] } })
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
-      ProjectsUnavailableError,
       moveTaskToSection: async () => ({ ok: true, task: TASK }),
       completeProjectTask: async () => ({ ok: true, task: TASK }),
       listSectionTasks: async () => ({ ok: true, items: [], total: 0 }),
@@ -44,15 +41,15 @@ if (supportsMockModule()) {
       loadAccessIdentity: async () => new Map<string, string>(),
     },
   })
-  // The notify store's first read: fails, as a lost database connection would.
-  await mock.module!("@/lib/codex/projectsMarker", {
-    namedExports: {
-      isProjectsMigrationApplied: async () => {
-        markerReads += 1
-        throw new Error("connection lost")
-      },
+  // Every database call fails, as a lost connection would.
+  const schema = await import("@/db/schema")
+  const failing = new Proxy({}, {
+    get: () => () => {
+      storeReads += 1
+      throw new Error("connection lost")
     },
   })
+  await mock.module!("@/db", { namedExports: { db: failing, getDb: () => failing, schema } })
 }
 
 function row(key: string, enabled: boolean): FeatureRow {
@@ -89,11 +86,11 @@ test("the hooks never throw: the state read and the record after the save swallo
   const errors = mock.method(console, "error", () => undefined)
   const warnings = mock.method(console, "warn", () => undefined)
   try {
-    markerReads = 0
+    storeReads = 0
     const before = await on(() => notify.beforeTaskWrite([7]))
     assert.equal(before.size, 0)
     await on(() => notify.afterTaskWrite("luke@x.au", new Map(), [7], { created: true }))
-    assert.ok(markerReads >= 2, "the store was reached and failed")
+    assert.ok(storeReads >= 2, "the store was reached and failed")
     assert.ok(errors.mock.calls.some((c) => String(c.arguments[0]).includes("task change not recorded")))
   } finally {
     errors.mock.restore()
@@ -108,7 +105,7 @@ test("a board move, complete and subtask create answer as saved when recording t
   const errors = mock.method(console, "error", () => undefined)
   const warnings = mock.method(console, "warn", () => undefined)
   try {
-    markerReads = 0
+    storeReads = 0
     const moved = await on(() => move.POST(req(`${P}/5/sections/9/tasks`, { task_id: 7 }), ctx({ id: "5", sectionId: "9" })))
     assert.equal(moved.status, 200)
     assert.deepEqual(await moved.json(), { task: TASK })
@@ -118,7 +115,7 @@ test("a board move, complete and subtask create answer as saved when recording t
     const sub = await on(() => subtasks.POST(req("http://l/api/codex/tasks/7/subtasks", { title: "Sub" }), ctx({ id: "7" })))
     assert.equal(sub.status, 201)
     assert.deepEqual(await sub.json(), { subtask: SUB })
-    assert.ok(markerReads >= 3, "each route's hook reached the failing store")
+    assert.ok(storeReads >= 3, "each route's hook reached the failing store")
   } finally {
     errors.mock.restore()
     warnings.mock.restore()

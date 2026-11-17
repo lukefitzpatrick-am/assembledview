@@ -33,7 +33,6 @@ import {
   type TaskNotifyState,
 } from "@/lib/codex/notifications"
 import { canSeeProject, NO_ALIASES, type AccessIdentity, type ProjectAccessFacts } from "@/lib/codex/projects"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
 import { SYSTEM_ACTORS } from "@/lib/codex/systemActors"
@@ -270,10 +269,10 @@ export async function writeNotifications(database: DbExecutor, event: NotifyEven
   return written
 }
 
-/** codex_notifications on (with codex_projects and codex_v2) and 0118 applied. Never throws. */
-export async function notifyEnabled(database: Db = db): Promise<boolean> {
+/** codex_notifications on (it needs codex_projects, codex_v2 and so 0118). Never throws. */
+export async function notifyEnabled(): Promise<boolean> {
   try {
-    return (await isFeatureOn("codex_notifications")) && (await isProjectsMigrationApplied(database))
+    return await isFeatureOn("codex_notifications")
   } catch (err) {
     console.warn("[codex-notify] switch read failed", err)
     return false
@@ -288,10 +287,9 @@ function stateOf(t: TaskFacts): TaskNotifyState {
   return { id: t.id, status: t.status, assignee_email: t.assignee_email, due: t.due }
 }
 
-/** Read before a write: the states the change rules compare against. Empty before 0118. */
+/** Read before a write (codex_projects on): the states the change rules compare against. */
 export async function captureTaskStates(ids: readonly number[], database: Db = db): Promise<Map<number, TaskNotifyState>> {
   const out = new Map<number, TaskNotifyState>()
-  if (!(await isProjectsMigrationApplied(database))) return out
   for (const [id, t] of await loadTaskFactsMany(database, ids)) out.set(id, stateOf(t))
   return out
 }
@@ -315,7 +313,7 @@ export async function recordTaskChanges(
   opts: RecordTaskChangesOptions,
   database: Db = db
 ): Promise<number> {
-  if (ids.length === 0 || !(await isProjectsMigrationApplied(database))) return 0
+  if (ids.length === 0) return 0
   return database.transaction(async (tx) => {
     const after = await loadTaskFactsMany(tx, ids)
     let written = 0
@@ -350,7 +348,7 @@ export async function afterTaskWrite(
 ): Promise<void> {
   try {
     if (!(await isFeatureOn("codex_projects"))) return
-    const notify = await notifyEnabled(database)
+    const notify = await notifyEnabled()
     await recordTaskChanges(actor, before, ids, { created: opts.created, notify }, database)
   } catch (err) {
     console.error("[codex-notify] task change not recorded", err)

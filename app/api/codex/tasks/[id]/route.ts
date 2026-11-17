@@ -5,7 +5,7 @@ import { resolveAssigneeForWrite } from "@/lib/codex/assigneeWrite"
 import { isFeatureOn } from "@/lib/features/server"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
-import { isProjectsUnavailable, PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
+import { PROJECT_FAILURE_STATUS } from "@/lib/codex/projectFailureStatus"
 import { AssigneeNoAccessError, TaskJoinedProjectError } from "@/lib/codex/projects"
 import { hasTaskDetailKeys, parseTaskDetailPatch, type TaskDetailPatch } from "@/lib/codex/taskDetail"
 import {
@@ -309,12 +309,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       // R2 (PACK4fix): the task moved into a project while the assignment waited on it.
       if (err instanceof TaskJoinedProjectError) {
         return NextResponse.json({ error: "task_changed", message: err.message }, { status: 409 })
-      }
-      if (isProjectsUnavailable(err)) {
-        return NextResponse.json(
-          { error: "migration_not_applied", message: "This needs migration 0118 (codex_s1_projects)." },
-          { status: 503 }
-        )
       }
       const msg = err instanceof Error ? err.message : String(err)
       if (/template_id .* does not exist/i.test(msg) || /Invalid recurring_rule/i.test(msg)) {

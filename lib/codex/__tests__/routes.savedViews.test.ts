@@ -14,9 +14,8 @@ const skip = mockModuleSkip()
 
 let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: Array<{ fn: string; args: unknown[] }> = []
-let mode: "ok" | "unavailable" | "limit" | "not_owner" | "not_found" = "ok"
+let mode: "ok" | "limit" | "not_owner" | "not_found" = "ok"
 
-class SavedViewsUnavailableError extends Error {}
 class SavedViewsLimitError extends Error {}
 
 const VIEW = { id: 3, owner_email: "luke@x.au", name: "Mine", mine: true }
@@ -25,7 +24,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/auth0", { namedExports: { auth0: { getSession: async () => session } } })
   await mock.module!("@/lib/rbac", { namedExports: { getUserRoles: (u: { roles?: string[] }) => u.roles ?? [] } })
   const result = () => {
-    if (mode === "unavailable") throw new SavedViewsUnavailableError("not set up")
     if (mode === "limit") throw new SavedViewsLimitError("limit")
     if (mode === "not_owner" || mode === "not_found") return { ok: false, reason: mode }
     return null
@@ -37,7 +35,6 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/codex/savedViewsRepo", {
     namedExports: {
-      SavedViewsUnavailableError,
       SavedViewsLimitError,
       listSavedViews: async (...args: unknown[]) => {
         calls.push({ fn: "list", args })
@@ -135,7 +132,7 @@ test("staff: list, create, rename, delete reach the store with the lower-case em
   session = STAFF
   const [list, create, patch, del] = await withSwitches(true, true, allMethods)
   assert.equal(list.status, 200)
-  assert.deepEqual(await list.json(), { available: true, items: [VIEW] })
+  assert.deepEqual(await list.json(), { items: [VIEW] })
   assert.equal(create.status, 201)
   assert.equal(patch.status, 200)
   assert.equal(del.status, 200)
@@ -144,19 +141,6 @@ test("staff: list, create, rename, delete reach the store with the lower-case em
   assert.equal(calls[1].args[0], "luke@x.au")
   assert.deepEqual(calls[2].args.slice(0, 3), [3, "luke@x.au", { name: "B" }])
   assert.deepEqual(calls[3].args.slice(0, 2), [3, "luke@x.au"])
-})
-
-test("before migration 0117: list is 200 available false; writes are 503", { skip }, async () => {
-  mode = "unavailable"
-  session = STAFF
-  const [list, create, patch, del] = await withSwitches(true, true, allMethods)
-  assert.equal(list.status, 200)
-  assert.deepEqual(await list.json(), { available: false, items: [] })
-  assert.equal(create.status, 503)
-  assert.equal(((await create.json()) as { error: string }).error, "saved_views_unavailable")
-  assert.equal(patch.status, 503)
-  assert.equal(del.status, 503)
-  mode = "ok"
 })
 
 test("someone else's shared view: 403 not_owner; private or missing: 404", { skip }, async () => {

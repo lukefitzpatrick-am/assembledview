@@ -39,9 +39,6 @@ class CodexBulkError extends Error {
     this.code = code
   }
 }
-class ProjectsUnavailableError extends Error {
-  readonly code = "PROJECTS_UNAVAILABLE"
-}
 
 const SQL_TEXT = 'Failed query: SELECT p.id FROM public.codex_projects p WHERE p.id = $1 FOR SHARE OF p\nparams: 12'
 
@@ -95,8 +92,6 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
-      ProjectsUnavailableError,
-      isProjectsMigrationApplied: async () => true,
       moveTaskToSection: failOrReturn({ ok: true, task: TASK }),
       listSectionTasks: failOrReturn({ ok: true, items: [], total: 0 }),
       updateTaskThroughSections: failOrReturn({ ok: true, task: TASK }),
@@ -135,7 +130,7 @@ const ctx = { params: Promise.resolve({ id: "7" }) }
 test("pgError: the SQLSTATE is read from the error or its cause; only 40P01 and 55P03 are lock conflicts", () => {
   assert.equal(sqlStateOf(drizzleError("40P01")), "40P01")
   assert.equal(sqlStateOf(Object.assign(new Error("x"), { code: "55P03" })), "55P03")
-  assert.equal(sqlStateOf(Object.assign(new Error("x"), { code: "PROJECTS_UNAVAILABLE" })), null)
+  assert.equal(sqlStateOf(Object.assign(new Error("x"), { code: "NOT_A_STATE" })), null)
   assert.equal(isLockConflict(drizzleError("40P01")), true)
   assert.equal(isLockConflict(drizzleError("55P03")), true)
   assert.equal(isLockConflict(drizzleError("23505")), false)

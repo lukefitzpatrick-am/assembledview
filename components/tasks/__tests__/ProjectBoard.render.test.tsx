@@ -110,12 +110,11 @@ describe("project board (B39)", () => {
     expect(html).not.toContain('aria-label="Paste tasks into Awaiting support"')
   })
 
-  it("load failures: 503 migration_not_applied is the database update message, 404 not found, else an error", () => {
-    expect(boardLoadFailure(503, { error: "migration_not_applied" })).toEqual({ kind: "needs_migration" })
-    expect(boardLoadFailure(503, { error: "other" }).kind).toBe("error")
-    expect(boardLoadFailure(404, { error: "not_found" })).toEqual({ kind: "not_found" })
-    expect(boardLoadFailure(403, null)).toEqual({ kind: "error", message: "Codex is available to admins only." })
-    expect(boardLoadFailure(500, null).kind).toBe("error")
+  it("load failures: 404 not found, else an error (B48: no pre-0118 state, the switch needs 0118)", () => {
+    expect(boardLoadFailure(503).kind).toBe("error")
+    expect(boardLoadFailure(404)).toEqual({ kind: "not_found" })
+    expect(boardLoadFailure(403)).toEqual({ kind: "error", message: "Codex is available to admins only." })
+    expect(boardLoadFailure(500).kind).toBe("error")
   })
 
   it("paste preview: the count before saving, blanks ignored, over 200 refused", () => {

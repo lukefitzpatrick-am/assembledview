@@ -50,8 +50,3 @@ export const PROJECT_FAILURE_STATUS: Record<ProjectFailureReason, number> = {
   // B43
   open_tasks_lose_access: 409,
 }
-
-/** True for the store's "migration 0118 not applied" error, without importing the store. */
-export function isProjectsUnavailable(error: unknown): boolean {
-  return (error as { code?: unknown } | null)?.code === "PROJECTS_UNAVAILABLE"
-}

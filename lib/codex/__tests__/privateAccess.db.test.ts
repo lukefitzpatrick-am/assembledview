@@ -20,6 +20,7 @@
  * `<name>_access_codex_test` (created if missing) and drops and rebuilds that
  * database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -51,7 +52,6 @@ import {
   listProjects,
   moveTaskToSection,
   removeProjectMember,
-  resetProjectsMarkerCacheForTests,
   updateProject,
   updateTaskThroughSections,
 } from "../projectsRepo.js"
@@ -126,7 +126,7 @@ describe("private project access (Postgres, 0118 applied)", { skip }, () => {
       ('${OUT}', 'Out Sider', '[]', true),
       ('${GONE}', 'Gone Person', '["${GONE_ALIAS}"]', false)`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     aliases(false)
     const sections = [

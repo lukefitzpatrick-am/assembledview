@@ -71,7 +71,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
       updateTaskThroughSections: record("updateTaskThroughSections", () => {
-        if (mode === "unavailable") throw Object.assign(new Error("0118"), { code: "PROJECTS_UNAVAILABLE" })
         if (mode.startsWith("fail:")) return { ok: false, reason: mode.slice(5), message: `m:${mode}` }
         return mode === "refused"
           ? { ok: false, reason: "no_section_for_status", message: "No section in this task's project has the Backlog status." }
@@ -80,7 +79,6 @@ if (supportsMockModule()) {
             : { ok: true, task: TASK }
       }),
       attachTaskS1Fields: record("attachTaskS1Fields", () => [{ ...TASK, task_type: "subtask" }]),
-      isProjectsMigrationApplied: async () => mode !== "unavailable",
       bulkUpdateTasksThroughSections: record("bulkUpdateTasksThroughSections", () => {
         if (mode === "refused") throw new CodexBulkError(7, 409, "Task 7: No section in this task's project has the Backlog status.")
         return mode === "plain" ? null : [TASK]
@@ -166,7 +164,7 @@ test("bulk: switch off or no status, the plain bulk; on, through the sections; a
   calls.length = 0
   mode = "plain"
   await withProjects(true, () => route.POST(json("POST", url, { ids: [7], patch: { status: "done" } })))
-  assert.deepEqual(calls.map((c) => c.fn), ["bulkUpdateTasksThroughSections", "bulkUpdateTasks"], "before 0118 the plain bulk")
+  assert.deepEqual(calls.map((c) => c.fn), ["bulkUpdateTasksThroughSections", "bulkUpdateTasks"], "the store answers null: the plain bulk")
   mode = "refused"
   const refused = await withProjects(true, () => route.POST(json("POST", url, { ids: [7], patch: { status: "backlog" } })))
   assert.equal(refused.status, 409)
@@ -231,7 +229,7 @@ test("PATCH B40: bad detail bodies are 400 before the store; assigned_by_email i
   assert.deepEqual(calls[0].args[1], { title: "x", trackAssignedBy: true }, "never client-supplied")
 })
 
-test("PATCH B40: store refusals map to statuses; 503 before 0118", { skip }, async () => {
+test("PATCH B40: store refusals map to statuses; asap goes to the store", { skip }, async () => {
   const route = await import("../../../app/api/codex/tasks/[id]/route.js")
   const cases: Array<[string, number]> = [
     ["start_after_due", 409],
@@ -247,16 +245,12 @@ test("PATCH B40: store refusals map to statuses; 503 before 0118", { skip }, asy
     assert.equal(res.status, status, reason)
     assert.equal(((await res.json()) as { error: string }).error, reason)
   }
-  mode = "unavailable"
-  const res = await withProjects(true, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { start_on: "2026-11-02" }), ctx))
-  assert.equal(res.status, 503)
-  assert.equal(((await res.json()) as { error: string }).error, "migration_not_applied")
-  // B40fix (F3): asap alone goes to the store too, so before 0118 it is 503, never a plain 200.
+  // B40fix (F3): asap alone goes to the store too.
+  mode = "ok"
   calls.length = 0
   const asap = await withProjects(true, () => route.PATCH(json("PATCH", "http://l/api/codex/tasks/7", { priority: "asap" }), ctx))
-  assert.equal(asap.status, 503)
+  assert.equal(asap.status, 200)
   assert.deepEqual(calls.map((c) => c.fn), ["updateTaskThroughSections"], "the store was asked; the plain update did not run")
-  mode = "ok"
 })
 
 test("bulk and create: assigned by is tracked only with the switch on", { skip }, async () => {
@@ -285,18 +279,12 @@ test("GET list: rows carry the B40 fields only with the switch on", { skip }, as
   const list = await import("../../../app/api/codex/tasks/route.js")
   calls.length = 0
   const off = await withProjects(false, () => list.GET(new Request("http://l/api/codex/tasks")))
-  const offBody = (await off.json()) as { items: unknown[]; projects_ready?: boolean }
+  const offBody = (await off.json()) as { items: unknown[] }
   assert.deepEqual(offBody.items, [TASK])
-  assert.equal("projects_ready" in offBody, false, "switch off: the response is as before")
   const on = await withProjects(true, () => list.GET(new Request("http://l/api/codex/tasks")))
-  const onBody = (await on.json()) as { items: Array<{ task_type?: string }>; projects_ready?: boolean }
+  const onBody = (await on.json()) as { items: Array<{ task_type?: string }> }
   assert.deepEqual(onBody.items[0].task_type, "subtask")
-  assert.equal(onBody.projects_ready, true, "B40fix: 0118 applied, so the page may offer ASAP")
   assert.deepEqual(calls.map((c) => c.fn), ["listTasks", "listTasks", "attachTaskS1Fields"])
-  mode = "unavailable"
-  const before = await withProjects(true, () => list.GET(new Request("http://l/api/codex/tasks")))
-  assert.equal(((await before.json()) as { projects_ready?: boolean }).projects_ready, false, "before 0118: no ASAP")
-  mode = "ok"
 })
 
 test("B41: PATCH, bulk and create record follows and notifications after the write, only with the switch on and only when it saved", { skip }, async () => {

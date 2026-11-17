@@ -23,6 +23,13 @@ import { resolveRosterAddress, type RosterPerson } from "@/lib/codex/rosterResol
 import { TASK_TITLE_MAX, type TaskStatus } from "@/lib/codex/types"
 import { normaliseEmail } from "@/lib/email/address"
 
+/**
+ * Migration 0118's marker. `codex_projects` needs it (registry
+ * `requiresMarker`); task paths that run with the switch off check it
+ * through lib/db/markers before naming a 0118 column (C-76).
+ */
+export const PROJECTS_MARKER = "0118_codex_s1_projects"
+
 export const PROJECT_KINDS = ["campaign", "retainer", "onboarding", "pitch", "internal", "ops"] as const satisfies readonly CodexProjectKind[]
 export const PROJECT_STATUSES = ["active", "on_hold", "closed"] as const satisfies readonly CodexProjectStatus[]
 export const SECTION_STATUS_CATEGORIES = ["todo", "in_progress", "waiting", "done"] as const satisfies readonly CodexSectionStatusCategory[]

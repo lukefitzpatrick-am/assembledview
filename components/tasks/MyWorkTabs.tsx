@@ -13,12 +13,9 @@ import { MY_WORK_TAB_LABELS, MY_WORK_TABS, type MyWorkTab } from "@/lib/codex/qu
 export function MyWorkTabs({
   value,
   onChange,
-  projectsReady,
 }: {
   value: MyWorkTab | null
   onChange: (tab: MyWorkTab | null) => void
-  /** False before migration 0118: Assigned by me and Following find nothing yet. */
-  projectsReady: boolean
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="My Work">
@@ -35,9 +32,6 @@ export function MyWorkTabs({
           {MY_WORK_TAB_LABELS[tab]}
         </Button>
       ))}
-      {!projectsReady && (value === "assigned_by" || value === "following") ? (
-        <span className="text-xs text-muted-foreground">Assigned by me and Following need a database update first.</span>
-      ) : null}
     </div>
   )
 }

@@ -39,6 +39,8 @@ import {
   type TaskSortKey,
 } from "@/lib/codex/queryHelpers"
 import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
+import { isMarkerApplied } from "@/lib/db/markers"
+import { PROJECTS_MARKER } from "@/lib/codex/projects"
 import {
   descriptionHasPeriod,
   descriptionHasSeed,
@@ -48,7 +50,6 @@ import {
   normaliseRecurringRule,
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import { activityActor, isSystemActor, SYSTEM_ACTORS } from "@/lib/codex/systemActors"
 import { AssigneeNoAccessError, TaskJoinedProjectError } from "@/lib/codex/projects"
 import {
@@ -118,12 +119,12 @@ export type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
  * subtasks). task_type is not in the Drizzle mirror yet (C-210): raw SQL.
  */
 async function helpChildCondition(database: DbExecutor): Promise<SQL | undefined> {
-  if (!(await isProjectsMigrationApplied(database))) return undefined
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return undefined
   return sql`coalesce("tasks"."task_type", 'task') <> 'subtask'`
 }
 
 async function isSubtaskRow(database: DbExecutor, id: number): Promise<boolean> {
-  if (!(await isProjectsMigrationApplied(database))) return false
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return false
   const rows = executeRows(await database.execute(sql`SELECT task_type FROM public.tasks WHERE id = ${id}`))
   return rows[0]?.task_type === "subtask"
 }
@@ -135,7 +136,7 @@ async function writeAssignedBy(
   assignee: string | null | undefined,
   actorEmail: string | null
 ): Promise<string | null | undefined> {
-  if (!(await isProjectsMigrationApplied(database))) return undefined
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return undefined
   const assignedBy = assignedByAfterAssign(assignee, actorEmail)
   await database.execute(sql`UPDATE public.tasks SET assigned_by_email = ${assignedBy} WHERE id = ${id}`)
   return assignedBy
@@ -522,7 +523,7 @@ async function attachParentTitles(
  */
 async function subtaskIdsAmong(database: DbExecutor, ids: readonly number[]): Promise<Set<number>> {
   const valid = ids.filter((id) => Number.isSafeInteger(id) && id > 0)
-  if (valid.length === 0 || !(await isProjectsMigrationApplied(database))) return new Set()
+  if (valid.length === 0 || !(await isMarkerApplied(PROJECTS_MARKER, database))) return new Set()
   const rows = executeRows(
     await database.execute(
       sql`SELECT id FROM public.tasks WHERE id IN (${sql.join(valid.map((id) => sql`${id}`), sql`, `)}) AND task_type = 'subtask'`
@@ -758,7 +759,7 @@ async function myWorkCondition(database: DbExecutor, tab: MyWorkTab | undefined,
   const me = (rawEmail ?? "").trim().toLowerCase()
   if (!me) return sql`false`
   if (tab === "assigned") return sql`lower(${tasks.assigneeEmail}) = ${me}`
-  if (!(await isProjectsMigrationApplied(database))) return sql`false`
+  if (!(await isMarkerApplied(PROJECTS_MARKER, database))) return sql`false`
   if (tab === "assigned_by") return sql`lower("tasks"."assigned_by_email") = ${me}`
   return sql`(
     EXISTS (SELECT 1 FROM public.task_followers mf WHERE mf.task_id = "tasks"."id" AND lower(mf.email) = ${me} AND mf.reason <> 'unfollowed')
@@ -1631,7 +1632,7 @@ async function softDeleteSubtasksOf(
   deletedAt: string,
   actorEmail: string | null
 ): Promise<void> {
-  if (!(await isProjectsMigrationApplied(tx))) return
+  if (!(await isMarkerApplied(PROJECTS_MARKER, tx))) return
   const rows = executeRows(
     await tx.execute(sql`
       UPDATE public.tasks SET deleted_at = ${deletedAt}, updated_at = ${deletedAt}

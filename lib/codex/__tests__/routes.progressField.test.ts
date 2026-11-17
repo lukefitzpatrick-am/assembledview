@@ -2,7 +2,7 @@
  * B42: PUT /api/codex/projects/[id]/progress-field. Gate order (codex_v2,
  * codex_projects and codex_progress_field 404 before auth; session 401;
  * staff 403; no email 401), bad ids 404, bad bodies 400 before the store,
- * the store's refusal 409, 503 before 0118, 500 without detail.
+ * the store's refusal 409, 500 without detail.
  * Requires --experimental-test-module-mocks.
  */
 import assert from "node:assert/strict"
@@ -17,19 +17,14 @@ const skip = mockModuleSkip()
 let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: unknown[][] = []
 let mode = "ok"
-class ProjectsUnavailableError extends Error {
-  code = "PROJECTS_UNAVAILABLE"
-}
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/auth0", { namedExports: { auth0: { getSession: async () => session } } })
   await mock.module!("@/lib/rbac", { namedExports: { getUserRoles: (u: { roles?: string[] }) => u.roles ?? [] } })
-  await mock.module!("@/lib/codex/projectsRepo", { namedExports: { ProjectsUnavailableError } })
   await mock.module!("@/lib/codex/customFieldsRepo", {
     namedExports: {
       setProgressField: async (...args: unknown[]) => {
         calls.push(args)
-        if (mode === "unavailable") throw new ProjectsUnavailableError("0118")
         if (mode === "boom") throw new Error("secret detail")
         if (mode === "invalid") return { ok: false, reason: "progress_field_invalid", message: "m" }
         return { ok: true, progress_field_id: args[2] }
@@ -88,7 +83,7 @@ test("auth chain, ids and bodies before the store", { skip }, async () => {
   })
 })
 
-test("store answers mapped: ok, unlink, 409, 503, 500 without detail", { skip }, async () => {
+test("store answers mapped: ok, unlink, 409, 500 without detail", { skip }, async () => {
   await withSwitches(ALL, async () => {
     session = { user: { email: "Luke@X.au", roles: ["admin"] } }
     calls.length = 0
@@ -100,8 +95,6 @@ test("store answers mapped: ok, unlink, 409, 503, 500 without detail", { skip },
     assert.equal((await put("5", { field_id: null })).status, 200)
     mode = "invalid"
     assert.equal((await put("5", { field_id: 3 })).status, 409)
-    mode = "unavailable"
-    assert.equal((await put("5", { field_id: 3 })).status, 503)
     mode = "boom"
     const boom = await put("5", { field_id: 3 })
     assert.equal(boom.status, 500)

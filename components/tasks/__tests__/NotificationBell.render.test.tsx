@@ -67,11 +67,9 @@ describe("NotificationBellPanel", () => {
 })
 
 describe("NotificationBell", () => {
-  it("renders nothing unless codex_notifications and codex_projects are both on", () => {
+  it("renders nothing unless codex_notifications is on (its snapshot value already counts codex_projects, B48)", () => {
     expect(renderToStaticMarkup(<NotificationBell />)).toBe("")
-    features.on = { codex_notifications: true, codex_projects: false }
-    expect(renderToStaticMarkup(<NotificationBell />)).toBe("")
-    features.on = { codex_notifications: true, codex_projects: true }
+    features.on = { codex_notifications: true }
     expect(renderToStaticMarkup(<NotificationBell />)).toContain('aria-label="Notifications"')
   })
 })

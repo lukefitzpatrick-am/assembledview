@@ -18,6 +18,7 @@
  * `<name>_copies_codex_test` (created if missing) and drops and rebuilds that
  * database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -34,7 +35,7 @@ import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
 import { CodexHelpError } from "../helpRoster.js"
 import { createTask, listTasks, requestHelp } from "../repo.js"
-import { createProject, createTasksInSection, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { createProject, createTasksInSection } from "../projectsRepo.js"
 import { createSubtask } from "../taskDetailRepo.js"
 import { runCodexRecurring } from "../runRecurring.js"
 import { lockTaskAndProject } from "../sectionSync.js"
@@ -88,7 +89,7 @@ describe("a task made from another task keeps its project (Postgres, 0118 applie
     await client.unsafe(`INSERT INTO public.team_members (email, name, active) VALUES
       ('${OLIVE}', 'Olive Owner', true), ('${MIA}', 'Mia Tran', true), ('${OUT}', 'Out Sider', true)`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     setFeatureRowReaderForTests(async () => new Map([["codex_v2", row("codex_v2")], ["codex_projects", row("codex_projects")]]))
     const a = await createProject(

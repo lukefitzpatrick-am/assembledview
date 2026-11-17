@@ -1,7 +1,7 @@
 /**
  * /api/codex/projects/** (S1, B38): the full guard chain on every method
- * (codex_v2 404, codex_projects 404, session 401, staff 403), 503 before
- * migration 0118, and every failure mapped to its status. Requires
+ * (codex_v2 404, codex_projects 404, session 401, staff 403), and every
+ * failure mapped to its status. Requires
  * --experimental-test-module-mocks.
  */
 import assert from "node:assert/strict"
@@ -15,17 +15,15 @@ const skip = mockModuleSkip()
 
 let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: Array<{ fn: string; args: unknown[] }> = []
-/** "ok", "unavailable", "boom", or a failure reason the store returns. */
+/** "ok", "boom", or a failure reason the store returns. */
 let mode = "ok"
 
-class ProjectsUnavailableError extends Error {}
 
 const PROJECT = { id: 5, name: "Sinch", members: [] }
 const SECTION = { id: 9, project_id: 5, name: "Done", sort_order: 0, collapsed_default: false, status_category: "done" }
 const TASK = { id: 7, status: "done", project_id: 5, section_id: 9, sort_order: 0 }
 
 function outcome<T>(okValue: T): T | { ok: false; reason: string; message: string } {
-  if (mode === "unavailable") throw new ProjectsUnavailableError("0118")
   if (mode === "boom") throw new Error("secret detail")
   if (mode !== "ok") return { ok: false, reason: mode, message: `m:${mode}` }
   return okValue
@@ -40,7 +38,6 @@ if (supportsMockModule()) {
   }
   await mock.module!("@/lib/codex/projectsRepo", {
     namedExports: {
-      ProjectsUnavailableError,
       listProjects: fn("listProjects", () => outcome([PROJECT])),
       createProject: fn("createProject", () => outcome({ ok: true, project: PROJECT, sections: [SECTION] })),
       getProject: fn("getProject", () => outcome({ ok: true, project: PROJECT, sections: [SECTION] })),
@@ -193,18 +190,6 @@ test("staff with both switches on: every method reaches its store with the lower
   assert.deepEqual(byFn.listSectionTasks[3], { hideCompleted: true, offset: 50, limit: undefined })
   assert.deepEqual(byFn.createTasksInSection[3], ["A", "B"], "blank lines dropped before the store")
   assert.deepEqual(byFn.setBoardHideCompleted.slice(2), [false])
-})
-
-test("before migration 0118: every method is 503 migration_not_applied, never 500", { skip }, async () => {
-  const all = await routes()
-  mode = "unavailable"
-  session = STAFF
-  for (const c of all) {
-    const res = await withSwitches(true, true, () => c.run())
-    assert.equal(res.status, 503, c.name)
-    assert.equal(((await res.json()) as { error: string }).error, "migration_not_applied", c.name)
-  }
-  mode = "ok"
 })
 
 test("an unexpected error is 500 without the detail", { skip }, async () => {

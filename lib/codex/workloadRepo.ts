@@ -1,8 +1,8 @@
 /**
  * Workload store (B42, plan 5.5, `codex_projects`). One grouped read of open
  * tasks by assignee and `due_on`, through the private-project rule with the
- * viewer's email, then bucketed by `buildWorkload`. Needs 0118 (`due_on`):
- * before it ProjectsUnavailableError (503).
+ * viewer's email, then bucketed by `buildWorkload`. Reads `due_on` (0118),
+ * which `codex_projects` guarantees.
  */
 import "server-only"
 
@@ -10,14 +10,11 @@ import { asc, eq, sql } from "drizzle-orm"
 
 import { db, schema, type Db } from "@/db"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
-import { ProjectsUnavailableError } from "@/lib/codex/projectsRepo"
 import { rosterDisplayName } from "@/lib/codex/rosterResolve"
 import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
 import { buildWorkload, workloadWeeks, type Workload } from "@/lib/codex/workload"
 
 export async function loadWorkload(viewerEmail: string, weeks: number, now: Date = new Date(), database: Db = db): Promise<Workload> {
-  if (!(await isProjectsMigrationApplied(database))) throw new ProjectsUnavailableError()
   const range = workloadWeeks(now, weeks)
   const people = await database
     .select({ email: schema.teamMembers.email, name: schema.teamMembers.name })

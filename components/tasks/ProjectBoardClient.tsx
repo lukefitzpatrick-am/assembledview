@@ -131,15 +131,12 @@ export function projectPageQuery(
 
 export type BoardLoadState =
   | { kind: "loading" }
-  | { kind: "needs_migration" }
   | { kind: "not_found" }
   | { kind: "error"; message: string }
   | { kind: "ready"; data: BoardResponse }
 
-/** What a failed board load shows. 503 migration_not_applied is the 0118 message, never an error. */
-export function boardLoadFailure(status: number, body: unknown): BoardLoadState {
-  const error = body && typeof body === "object" ? (body as { error?: unknown }).error : null
-  if (status === 503 && error === "migration_not_applied") return { kind: "needs_migration" }
+/** What a failed board load shows. */
+export function boardLoadFailure(status: number): BoardLoadState {
   if (status === 404) return { kind: "not_found" }
   if (status === 401 || status === 403) return { kind: "error", message: "Codex is available to admins only." }
   return { kind: "error", message: `The board did not load (${status}).` }
@@ -231,7 +228,7 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
         const body = await readJson(res)
         if (cancelled) return
         if (!res.ok) {
-          setLoad(boardLoadFailure(res.status, body))
+          setLoad(boardLoadFailure(res.status))
           return
         }
         const data = body as BoardResponse
@@ -256,8 +253,8 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
     try {
       const res = await fetch(`/api/codex/saved-views?screen=${encodeURIComponent(screen)}`, { cache: "no-store" })
       if (!res.ok) return
-      const body = (await res.json()) as { available?: boolean; items?: CodexSavedView[] }
-      setViewsAvailable(body.available === true)
+      const body = (await res.json()) as { items?: CodexSavedView[] }
+      setViewsAvailable(true)
       setViews(Array.isArray(body.items) ? body.items : [])
     } catch {
       // Views are a convenience; the page works without them.
@@ -414,14 +411,6 @@ export function ProjectBoardClient({ projectId }: { projectId: number }) {
   )
 
   if (load.kind === "loading") return <LoadingState rows={6} />
-  if (load.kind === "needs_migration") {
-    return (
-      <EmptyState
-        title="Projects need a database update"
-        message="Migration 0118 (codex_s1_projects) has not run yet. Projects and boards open once it has."
-      />
-    )
-  }
   if (load.kind === "not_found") {
     return <EmptyState title="Project not found" message="It does not exist, or it is private and you are not a member." />
   }

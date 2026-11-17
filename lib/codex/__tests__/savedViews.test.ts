@@ -26,12 +26,9 @@ import {
 import {
   createSavedView,
   deleteSavedView,
-  isMissingSavedViewsTable,
   listSavedViews,
-  resetSavedViewsMarkerCacheForTests,
   savedViewRowToApi,
   SavedViewsLimitError,
-  SavedViewsUnavailableError,
   SAVED_VIEWS_PER_OWNER_MAX,
   updateSavedView,
 } from "../savedViewsRepo.js"
@@ -194,7 +191,6 @@ function concurrentDb(committed: Array<{ ownerEmail: string }>) {
                 const { sql: text, params } = queryOf(obj)
                 statements.push(text)
                 await tick()
-                if (/from "migration_markers"/.test(text)) return resolve(MARKER)
                 if (!inTx) return reject(new Error(`outside the create transaction: ${text}`))
                 if (/pg_advisory_xact_lock/.test(text)) {
                   const key = String(params[0])
@@ -253,7 +249,6 @@ function concurrentDb(committed: Array<{ ownerEmail: string }>) {
   return { db, statements }
 }
 
-const MARKER = [{ key: "0117_codex_saved_views" }]
 const row = (over: Record<string, unknown> = {}) => ({
   id: 3,
   ownerEmail: "luke@x.au",
@@ -268,58 +263,29 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-test("no marker: unavailable, and the table is never queried", async () => {
-  resetSavedViewsMarkerCacheForTests()
-  const { db, captured } = scriptedDb([[]])
-  await assert.rejects(listSavedViews("luke@x.au", "tasks", db), SavedViewsUnavailableError)
-  assert.equal(captured.length, 1)
-  assert.match(captured[0].sql, /from "migration_markers"/)
-})
-
-test("marker present but table missing (42P01): unavailable", async () => {
-  resetSavedViewsMarkerCacheForTests()
-  const missing = Object.assign(new Error('relation "codex_saved_views" does not exist'), { code: "42P01" })
-  const { db } = scriptedDb([MARKER, missing])
-  await assert.rejects(listSavedViews("luke@x.au", "tasks", db), SavedViewsUnavailableError)
-  assert.equal(isMissingSavedViewsTable({ cause: { code: "42P01" } }), true)
-  assert.equal(isMissingSavedViewsTable(new Error("connection reset")), false)
-})
-
 test("list: own or shared for the screen, owner compared lower-case; mine flag set", async () => {
-  resetSavedViewsMarkerCacheForTests()
-  const { db, captured } = scriptedDb([MARKER, [row(), row({ id: 4, ownerEmail: "sam@x.au", shared: true })]])
+  const { db, captured } = scriptedDb([[row(), row({ id: 4, ownerEmail: "sam@x.au", shared: true })]])
   const items = await listSavedViews("Luke@X.au", "tasks", db)
-  const q = captured[1]
+  const q = captured[0]
   assert.match(q.sql, /where \("codex_saved_views"\."screen" = \$1 and \(lower\("codex_saved_views"\."owner_email"\) = \$2 or "codex_saved_views"\."shared" = \$3\)\)/)
   assert.deepEqual(q.params.slice(0, 3), ["tasks", "luke@x.au", true])
   assert.deepEqual(items.map((v) => [v.id, v.mine]), [[3, true], [4, false]])
 })
 
-test("marker is cached once seen", async () => {
-  resetSavedViewsMarkerCacheForTests()
-  const first = scriptedDb([MARKER, []])
-  await listSavedViews("luke@x.au", "tasks", first.db)
-  const second = scriptedDb([[]])
-  await listSavedViews("luke@x.au", "tasks", second.db)
-  assert.equal(second.captured.length, 1)
-  assert.match(second.captured[0].sql, /from "codex_saved_views"/)
-})
-
 test("create: lower-cases the owner; refuses at the per-person limit", async () => {
-  resetSavedViewsMarkerCacheForTests()
   const input = { name: "A", screen: "tasks" as const, lens: "plan" as const, filters: {}, layout: null, group_by: null, shared: true }
-  const okDb = scriptedDb([MARKER, [{}], [{ n: 2 }], [row({ ownerEmail: "luke@x.au", shared: true })]])
+  const okDb = scriptedDb([[{}], [{ n: 2 }], [row({ ownerEmail: "luke@x.au", shared: true })]])
   const view = await createSavedView("Luke@X.au", input, okDb.db)
   assert.equal(view.mine, true)
-  // Marker, then one transaction: the owner's lock, the owner's count, the insert.
+  // One transaction: the owner's lock, the owner's count, the insert (no marker read, B48).
   assert.deepEqual(
     okDb.captured.map((c) => c.sql.split(" ").slice(0, 2).join(" ")),
-    ["select \"key\"", "begin", "select pg_advisory_xact_lock(hashtextextended($1,", "select count(*)", "insert into"]
+    ["begin", "select pg_advisory_xact_lock(hashtextextended($1,", "select count(*)", "insert into"]
   )
-  assert.deepEqual(okDb.captured[2].params, ["codex_saved_views:luke@x.au"])
-  assert.match(okDb.captured[3].sql, /from "codex_saved_views" where lower\("codex_saved_views"\."owner_email"\) = \$1$/)
-  assert.deepEqual(okDb.captured[3].params, ["luke@x.au"])
-  const insert = okDb.captured[4]
+  assert.deepEqual(okDb.captured[1].params, ["codex_saved_views:luke@x.au"])
+  assert.match(okDb.captured[2].sql, /from "codex_saved_views" where lower\("codex_saved_views"\."owner_email"\) = \$1$/)
+  assert.deepEqual(okDb.captured[2].params, ["luke@x.au"])
+  const insert = okDb.captured[3]
   assert.match(insert.sql, /^insert into "codex_saved_views"/)
   assert.ok(insert.params.includes("luke@x.au"))
   const fullDb = scriptedDb([[{}], [{ n: SAVED_VIEWS_PER_OWNER_MAX }]])
@@ -328,7 +294,6 @@ test("create: lower-cases the owner; refuses at the per-person limit", async () 
 })
 
 test("create: two saves at 49 views at the same time keep the limit (one 409, never 51)", async () => {
-  resetSavedViewsMarkerCacheForTests()
   const input = { name: "A", screen: "tasks" as const, lens: "plan" as const, filters: {}, layout: null, group_by: null, shared: false }
   const committed = Array.from({ length: SAVED_VIEWS_PER_OWNER_MAX - 1 }, () => ({ ownerEmail: "luke@x.au" }))
   committed.push({ ownerEmail: "sam@x.au" })
@@ -349,8 +314,7 @@ test("create: two saves at 49 views at the same time keep the limit (one 409, ne
 })
 
 test("update and delete: owner only; someone else's shared view is not_owner, private is not_found", async () => {
-  resetSavedViewsMarkerCacheForTests()
-  const none = scriptedDb([MARKER, []])
+  const none = scriptedDb([[]])
   assert.deepEqual(await updateSavedView(9, "luke@x.au", { name: "B" }, none.db), { ok: false, reason: "not_found" })
   const shared = scriptedDb([[{ ownerEmail: "sam@x.au", shared: true }]])
   assert.deepEqual(await updateSavedView(9, "luke@x.au", { name: "B" }, shared.db), { ok: false, reason: "not_owner" })

@@ -1,8 +1,8 @@
 /**
- * Codex projects and sections store (S1, B38). Every function reads or writes
- * the 0118 tables and tasks columns only once the marker 0118_codex_s1_projects
- * exists (C-76), and treats a missing table or column as "not applied" too, so
- * a route answers 503 migration_not_applied, never a 500.
+ * Codex projects and sections store (S1, B38). Every caller is behind
+ * `codex_projects`, which can't be on before the marker 0118_codex_s1_projects
+ * exists (registry `requiresMarker`, B48), so nothing here checks the marker
+ * or keeps a pre-0118 path (C-76 holds through the switch).
  *
  * The new tasks columns (project_id, section_id, sort_order) are not in the
  * Drizzle tasks mirror until 0118 is applied (C-210), so this file reads and
@@ -69,7 +69,6 @@ import { checkTaskDates, checkTaskTypeChange, type TaskDetailPatch } from "@/lib
 import { followSectionRule } from "@/lib/codex/sectionSync"
 import { activityActor } from "@/lib/codex/systemActors"
 import { loadAccessIdentity, openTasksHiddenFromAssignee, taskVisibleSql } from "@/lib/codex/taskVisibility"
-import { forgetProjectsMarker, isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import {
   bulkFailure,
   CodexBulkError,
@@ -84,23 +83,9 @@ import type { CodexTask } from "@/lib/codex/types"
 
 const { codexProjects, codexProjectMembers, codexSections, codexActivity, codexBoardConfigs, codexCustomFields } = schema
 
-export {
-  PROJECTS_MARKER,
-  PROJECTS_MARKER_RECHECK_MS,
-  isProjectsMigrationApplied,
-  resetProjectsMarkerCacheForTests,
-} from "@/lib/codex/projectsMarker"
 import { loadProgressRule, markProgressDone } from "@/lib/codex/progressRule"
-import { isMissingColumn, isMissingRelation, isUniqueViolation } from "@/lib/db/pgError"
+import { isUniqueViolation } from "@/lib/db/pgError"
 import { normaliseEmail } from "@/lib/email/address"
-
-export class ProjectsUnavailableError extends Error {
-  readonly code = "PROJECTS_UNAVAILABLE"
-  constructor() {
-    super("Codex projects are not set up yet (migration 0118 not applied)")
-    this.name = "ProjectsUnavailableError"
-  }
-}
 
 export type ProjectFailureReason =
   | "not_found"
@@ -160,37 +145,6 @@ const NOT_OWNER: ProjectFailure = {
 
 type ProjectRow = typeof codexProjects.$inferSelect
 type SectionRow = typeof codexSections.$inferSelect
-
-/** Postgres 42P01 (undefined table) or 42703 (undefined column). */
-export function isMissingProjectsSchema(err: unknown): boolean {
-  return isMissingRelation(err) || isMissingColumn(err)
-}
-
-function isMissingColumnOnly(err: unknown): boolean {
-  return isMissingColumn(err) && !isMissingRelation(err)
-}
-
-/**
- * Marker first, then the query. A missing table mid-query (42P01) is "not
- * applied" (503) and drops the cached marker, so the next call reads it
- * again. A missing column (42703) is "not applied" only while the marker is
- * missing on a fresh read (STACKfix, stack review N2): with the marker in
- * place it is a real bug (a column typo), so the error is thrown as it is
- * (500) and the marker stays cached.
- */
-export async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
-  if (!(await isProjectsMigrationApplied(database))) throw new ProjectsUnavailableError()
-  try {
-    return await run()
-  } catch (err) {
-    if (isMissingProjectsSchema(err)) {
-      forgetProjectsMarker()
-      if (isMissingColumnOnly(err) && (await isProjectsMigrationApplied(database))) throw err
-      throw new ProjectsUnavailableError()
-    }
-    throw err
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Row mapping and loading
@@ -374,30 +328,28 @@ export async function listProjects(
   options: { status?: ProjectStatus } = {},
   database: Db = db
 ): Promise<CodexProject[]> {
-  return guarded(database, async () => {
-    const where = and(
-      isNull(codexProjects.deletedAt),
-      visibleTo(viewerEmail, await loadAccessIdentity(database)),
-      options.status ? eq(codexProjects.status, options.status) : undefined
-    )
-    const rows = await database
-      .select()
-      .from(codexProjects)
-      .where(where)
-      .orderBy(asc(sql`lower(${codexProjects.name})`), asc(codexProjects.id))
-    if (rows.length === 0) return []
-    const memberRows = await database
-      .select({ projectId: codexProjectMembers.projectId, email: codexProjectMembers.email })
-      .from(codexProjectMembers)
-      .where(inArray(codexProjectMembers.projectId, rows.map((r) => r.id)))
-    const byProject = new Map<number, string[]>()
-    for (const m of memberRows) {
-      const list = byProject.get(Number(m.projectId)) ?? []
-      list.push(normaliseEmail(m.email))
-      byProject.set(Number(m.projectId), list)
-    }
-    return rows.map((row) => projectRowToApi(row, byProject.get(Number(row.id)) ?? []))
-  })
+  const where = and(
+    isNull(codexProjects.deletedAt),
+    visibleTo(viewerEmail, await loadAccessIdentity(database)),
+    options.status ? eq(codexProjects.status, options.status) : undefined
+  )
+  const rows = await database
+    .select()
+    .from(codexProjects)
+    .where(where)
+    .orderBy(asc(sql`lower(${codexProjects.name})`), asc(codexProjects.id))
+  if (rows.length === 0) return []
+  const memberRows = await database
+    .select({ projectId: codexProjectMembers.projectId, email: codexProjectMembers.email })
+    .from(codexProjectMembers)
+    .where(inArray(codexProjectMembers.projectId, rows.map((r) => r.id)))
+  const byProject = new Map<number, string[]>()
+  for (const m of memberRows) {
+    const list = byProject.get(Number(m.projectId)) ?? []
+    list.push(normaliseEmail(m.email))
+    byProject.set(Number(m.projectId), list)
+  }
+  return rows.map((row) => projectRowToApi(row, byProject.get(Number(row.id)) ?? []))
 }
 
 export type ProjectWithSections = { ok: true; project: CodexProject; sections: CodexSection[] }
@@ -407,11 +359,9 @@ export async function getProject(
   viewerEmail: string,
   database: Db = db
 ): Promise<ProjectWithSections | ProjectFailure> {
-  return guarded(database, async () => {
-    const p = await loadVisibleProject(database, id, viewerEmail)
-    if (!p) return NOT_FOUND
-    return { ok: true, project: projectRowToApi(p.row, p.members), sections: await loadSections(database, id) }
-  })
+  const p = await loadVisibleProject(database, id, viewerEmail)
+  if (!p) return NOT_FOUND
+  return { ok: true, project: projectRowToApi(p.row, p.members), sections: await loadSections(database, id) }
 }
 
 export async function createProject(
@@ -419,57 +369,55 @@ export async function createProject(
   input: CreateProjectInput,
   database: Db = db
 ): Promise<ProjectWithSections | ProjectFailure> {
-  return guarded(database, async () => {
-    // F4: the creator, owner and members are stored as their primary email (aliases with codex_roster_aliases).
-    const identity = await loadAccessIdentity(database)
-    const creator = canonicalEmail(viewerEmail, identity)
-    const members = [...new Set(input.members.map((e) => canonicalEmail(e, identity)))]
-    if (input.client_id != null && !(await codexClientExists(input.client_id, database))) {
-      return { ok: false, reason: "unknown_client", message: `Client ${input.client_id} does not exist.` }
-    }
-    try {
-      return await database.transaction(async (tx) => {
-        const [row] = await tx
-          .insert(codexProjects)
-          .values({
-            kind: input.kind,
-            clientId: input.client_id,
-            mbaNumber: input.mba_number,
-            name: input.name,
-            ownerEmail: input.owner_email ? canonicalEmail(input.owner_email, identity) : creator,
-            isPrivate: input.is_private,
-            startOn: input.start_on,
-            dueOn: input.due_on,
-            createdByEmail: creator,
-          })
-          .returning()
-        const projectId = Number(row.id)
-        if (members.length > 0) {
-          await tx.insert(codexProjectMembers).values(members.map((email) => ({ projectId, email })))
-        }
-        const drafts = initialSectionDrafts(input.sections)
-        const sectionRows = await tx
-          .insert(codexSections)
-          .values(drafts.map((d, i) => ({ projectId, name: d.name, sortOrder: i, statusCategory: d.status_category })))
-          .returning()
-        const project = projectRowToApi(row, members)
-        const sections = sortSections(sectionRows.map(sectionRowToApi))
-        await appendActivity(tx, {
-          entityType: "codex_project",
-          entityId: projectId,
-          actorEmail: creator,
-          action: "create",
-          after: { ...project, sections: sections.map((s) => ({ name: s.name, status_category: s.status_category })) },
+  // F4: the creator, owner and members are stored as their primary email (aliases with codex_roster_aliases).
+  const identity = await loadAccessIdentity(database)
+  const creator = canonicalEmail(viewerEmail, identity)
+  const members = [...new Set(input.members.map((e) => canonicalEmail(e, identity)))]
+  if (input.client_id != null && !(await codexClientExists(input.client_id, database))) {
+    return { ok: false, reason: "unknown_client", message: `Client ${input.client_id} does not exist.` }
+  }
+  try {
+    return await database.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(codexProjects)
+        .values({
+          kind: input.kind,
+          clientId: input.client_id,
+          mbaNumber: input.mba_number,
+          name: input.name,
+          ownerEmail: input.owner_email ? canonicalEmail(input.owner_email, identity) : creator,
+          isPrivate: input.is_private,
+          startOn: input.start_on,
+          dueOn: input.due_on,
+          createdByEmail: creator,
         })
-        return { ok: true as const, project, sections }
-      })
-    } catch (err) {
-      if (isUniqueViolation(err, "uq_codex_projects_mba")) {
-        return { ok: false, reason: "mba_taken", message: `Another project already uses MBA ${input.mba_number}.` }
+        .returning()
+      const projectId = Number(row.id)
+      if (members.length > 0) {
+        await tx.insert(codexProjectMembers).values(members.map((email) => ({ projectId, email })))
       }
-      throw err
+      const drafts = initialSectionDrafts(input.sections)
+      const sectionRows = await tx
+        .insert(codexSections)
+        .values(drafts.map((d, i) => ({ projectId, name: d.name, sortOrder: i, statusCategory: d.status_category })))
+        .returning()
+      const project = projectRowToApi(row, members)
+      const sections = sortSections(sectionRows.map(sectionRowToApi))
+      await appendActivity(tx, {
+        entityType: "codex_project",
+        entityId: projectId,
+        actorEmail: creator,
+        action: "create",
+        after: { ...project, sections: sections.map((s) => ({ name: s.name, status_category: s.status_category })) },
+      })
+      return { ok: true as const, project, sections }
+    })
+  } catch (err) {
+    if (isUniqueViolation(err, "uq_codex_projects_mba")) {
+      return { ok: false, reason: "mba_taken", message: `Another project already uses MBA ${input.mba_number}.` }
     }
-  })
+    throw err
+  }
 }
 
 export async function updateProject(
@@ -478,28 +426,26 @@ export async function updateProject(
   patch: UpdateProjectInput,
   database: Db = db
 ): Promise<{ ok: true; project: CodexProject } | ProjectFailure> {
-  return guarded(database, () =>
-    returningRefusal(() => database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, id, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      if (touchesProjectAccess(patch) && !isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
-      const set: Partial<typeof codexProjects.$inferInsert> = { updatedAt: new Date().toISOString() }
-      if (patch.name !== undefined) set.name = patch.name
-      if (patch.status !== undefined) set.status = patch.status
-      if (patch.is_private !== undefined) set.isPrivate = patch.is_private
-      if (patch.owner_email !== undefined) set.ownerEmail = patch.owner_email ? canonicalEmail(patch.owner_email, p.identity) : patch.owner_email
-      const write = async () => (await tx.update(codexProjects).set(set).where(eq(codexProjects.id, id)).returning())[0]
-      // C-258 (B43): going private, or a new owner, never leaves an open task's assignee unable to see it.
-      const goesPrivate = patch.is_private === true && !p.row.isPrivate
-      const row = touchesProjectAccess(patch)
-        ? await refuseIfAssigneesLoseAccess(tx, id, p.identity, write, (n) => assigneesLoseAccessMessage(n, goesPrivate ? "private" : "owner"))
-        : await write()
-      const before = projectRowToApi(p.row, p.members)
-      const after = projectRowToApi(row, p.members)
-      await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "update", before, after })
-      return { ok: true as const, project: after }
-    }))
-  )
+  return returningRefusal(() => database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, id, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    if (touchesProjectAccess(patch) && !isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
+    const set: Partial<typeof codexProjects.$inferInsert> = { updatedAt: new Date().toISOString() }
+    if (patch.name !== undefined) set.name = patch.name
+    if (patch.status !== undefined) set.status = patch.status
+    if (patch.is_private !== undefined) set.isPrivate = patch.is_private
+    if (patch.owner_email !== undefined) set.ownerEmail = patch.owner_email ? canonicalEmail(patch.owner_email, p.identity) : patch.owner_email
+    const write = async () => (await tx.update(codexProjects).set(set).where(eq(codexProjects.id, id)).returning())[0]
+    // C-258 (B43): going private, or a new owner, never leaves an open task's assignee unable to see it.
+    const goesPrivate = patch.is_private === true && !p.row.isPrivate
+    const row = touchesProjectAccess(patch)
+      ? await refuseIfAssigneesLoseAccess(tx, id, p.identity, write, (n) => assigneesLoseAccessMessage(n, goesPrivate ? "private" : "owner"))
+      : await write()
+    const before = projectRowToApi(p.row, p.members)
+    const after = projectRowToApi(row, p.members)
+    await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "update", before, after })
+    return { ok: true as const, project: after }
+  }))
 }
 
 /** Add members (owner or creator only). Already-members are ignored. */
@@ -509,27 +455,25 @@ export async function addProjectMembers(
   emails: readonly string[],
   database: Db = db
 ): Promise<{ ok: true; project: CodexProject } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, id, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
-      // F4: stored as the primary email; an alias of someone already a member adds no one.
-      const already = new Set(p.members.map((m) => canonicalEmail(m, p.identity)))
-      const fresh = [...new Set(emails.map((e) => canonicalEmail(e, p.identity)))].filter((e) => e && !already.has(e))
-      if (p.members.length + fresh.length > MEMBERS_PER_PROJECT_MAX) {
-        return { ok: false, reason: "too_many_members", message: `A project can have up to ${MEMBERS_PER_PROJECT_MAX} members.` }
-      }
-      if (fresh.length > 0) {
-        await tx
-          .insert(codexProjectMembers)
-          .values(fresh.map((email) => ({ projectId: id, email })))
-          .onConflictDoNothing()
-        await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_add", after: { members: fresh } })
-      }
-      return { ok: true as const, project: projectRowToApi(p.row, [...p.members, ...fresh]) }
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, id, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
+    // F4: stored as the primary email; an alias of someone already a member adds no one.
+    const already = new Set(p.members.map((m) => canonicalEmail(m, p.identity)))
+    const fresh = [...new Set(emails.map((e) => canonicalEmail(e, p.identity)))].filter((e) => e && !already.has(e))
+    if (p.members.length + fresh.length > MEMBERS_PER_PROJECT_MAX) {
+      return { ok: false, reason: "too_many_members", message: `A project can have up to ${MEMBERS_PER_PROJECT_MAX} members.` }
+    }
+    if (fresh.length > 0) {
+      await tx
+        .insert(codexProjectMembers)
+        .values(fresh.map((email) => ({ projectId: id, email })))
+        .onConflictDoNothing()
+      await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_add", after: { members: fresh } })
+    }
+    return { ok: true as const, project: projectRowToApi(p.row, [...p.members, ...fresh]) }
+  })
 }
 
 /** Remove a member (owner or creator only). Removing a non-member is a no-op. */
@@ -539,31 +483,29 @@ export async function removeProjectMember(
   email: string,
   database: Db = db
 ): Promise<{ ok: true; project: CodexProject } | ProjectFailure> {
-  return guarded(database, () =>
-    returningRefusal(() => database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, id, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
-      // F4: removing someone by any of their addresses removes every row that is them.
-      const target = canonicalEmail(email, p.identity)
-      const rows = p.members.filter((m) => canonicalEmail(m, p.identity) === target)
-      if (rows.length > 0) {
-        // C-258 (B43): never while they hold open tasks here they would no longer see (a private project, not owner or creator).
-        await refuseIfAssigneesLoseAccess(
-          tx,
-          id,
-          p.identity,
-          () =>
-            tx
-              .delete(codexProjectMembers)
-              .where(and(eq(codexProjectMembers.projectId, id), inArray(sql`lower(${codexProjectMembers.email})`, rows))),
-          (n) => memberHasOpenTasksMessage(target, n)
-        )
-        await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_remove", before: { members: rows } })
-      }
-      return { ok: true as const, project: projectRowToApi(p.row, p.members.filter((m) => !rows.includes(m))) }
-    }))
-  )
+  return returningRefusal(() => database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, id, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    if (!isProjectOwner(ownerFacts(p), viewerEmail, p.identity)) return NOT_OWNER
+    // F4: removing someone by any of their addresses removes every row that is them.
+    const target = canonicalEmail(email, p.identity)
+    const rows = p.members.filter((m) => canonicalEmail(m, p.identity) === target)
+    if (rows.length > 0) {
+      // C-258 (B43): never while they hold open tasks here they would no longer see (a private project, not owner or creator).
+      await refuseIfAssigneesLoseAccess(
+        tx,
+        id,
+        p.identity,
+        () =>
+          tx
+            .delete(codexProjectMembers)
+            .where(and(eq(codexProjectMembers.projectId, id), inArray(sql`lower(${codexProjectMembers.email})`, rows))),
+        (n) => memberHasOpenTasksMessage(target, n)
+      )
+      await appendActivity(tx, { entityType: "codex_project", entityId: id, actorEmail: viewerEmail, action: "members_remove", before: { members: rows } })
+    }
+    return { ok: true as const, project: projectRowToApi(p.row, p.members.filter((m) => !rows.includes(m))) }
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -575,11 +517,9 @@ export async function listSections(
   viewerEmail: string,
   database: Db = db
 ): Promise<{ ok: true; sections: CodexSection[] } | ProjectFailure> {
-  return guarded(database, async () => {
-    const p = await loadVisibleProject(database, projectId, viewerEmail)
-    if (!p) return NOT_FOUND
-    return { ok: true, sections: await loadSections(database, projectId) }
-  })
+  const p = await loadVisibleProject(database, projectId, viewerEmail)
+  if (!p) return NOT_FOUND
+  return { ok: true, sections: await loadSections(database, projectId) }
 }
 
 /** A new section goes last. */
@@ -589,30 +529,28 @@ export async function createSection(
   input: CreateSectionInput,
   database: Db = db
 ): Promise<{ ok: true; section: CodexSection } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      if (sections.length >= SECTIONS_PER_PROJECT_MAX) {
-        return { ok: false, reason: "too_many_sections", message: `A project can have up to ${SECTIONS_PER_PROJECT_MAX} sections.` }
-      }
-      const nextOrder = sections.reduce((m, s) => Math.max(m, s.sort_order), -1) + 1
-      const [row] = await tx
-        .insert(codexSections)
-        .values({
-          projectId,
-          name: input.name,
-          sortOrder: nextOrder,
-          collapsedDefault: input.collapsed_default,
-          statusCategory: input.status_category,
-        })
-        .returning()
-      const section = sectionRowToApi(row)
-      await appendActivity(tx, { entityType: "codex_section", entityId: section.id, actorEmail: viewerEmail, action: "create", after: section })
-      return { ok: true as const, section }
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    if (sections.length >= SECTIONS_PER_PROJECT_MAX) {
+      return { ok: false, reason: "too_many_sections", message: `A project can have up to ${SECTIONS_PER_PROJECT_MAX} sections.` }
+    }
+    const nextOrder = sections.reduce((m, s) => Math.max(m, s.sort_order), -1) + 1
+    const [row] = await tx
+      .insert(codexSections)
+      .values({
+        projectId,
+        name: input.name,
+        sortOrder: nextOrder,
+        collapsedDefault: input.collapsed_default,
+        statusCategory: input.status_category,
+      })
+      .returning()
+    const section = sectionRowToApi(row)
+    await appendActivity(tx, { entityType: "codex_section", entityId: section.id, actorEmail: viewerEmail, action: "create", after: section })
+    return { ok: true as const, section }
+  })
 }
 
 /**
@@ -627,31 +565,29 @@ export async function updateSection(
   patch: UpdateSectionInput,
   database: Db = db
 ): Promise<{ ok: true; section: CodexSection } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      const before = sections.find((s) => s.id === sectionId)
-      if (!before) return SECTION_NOT_FOUND
-      if (patch.status_category !== undefined) {
-        const rule = checkRecategorise(sections, sectionId, patch.status_category)
-        if (!rule.ok) return rule
-      }
-      const set: Partial<typeof codexSections.$inferInsert> = {}
-      if (patch.name !== undefined) set.name = patch.name
-      if (patch.status_category !== undefined) set.statusCategory = patch.status_category
-      if (patch.collapsed_default !== undefined) set.collapsedDefault = patch.collapsed_default
-      const [row] = await tx
-        .update(codexSections)
-        .set(set)
-        .where(and(eq(codexSections.id, sectionId), eq(codexSections.projectId, projectId)))
-        .returning()
-      const section = sectionRowToApi(row)
-      await appendActivity(tx, { entityType: "codex_section", entityId: sectionId, actorEmail: viewerEmail, action: "update", before, after: section })
-      return { ok: true as const, section }
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    const before = sections.find((s) => s.id === sectionId)
+    if (!before) return SECTION_NOT_FOUND
+    if (patch.status_category !== undefined) {
+      const rule = checkRecategorise(sections, sectionId, patch.status_category)
+      if (!rule.ok) return rule
+    }
+    const set: Partial<typeof codexSections.$inferInsert> = {}
+    if (patch.name !== undefined) set.name = patch.name
+    if (patch.status_category !== undefined) set.statusCategory = patch.status_category
+    if (patch.collapsed_default !== undefined) set.collapsedDefault = patch.collapsed_default
+    const [row] = await tx
+      .update(codexSections)
+      .set(set)
+      .where(and(eq(codexSections.id, sectionId), eq(codexSections.projectId, projectId)))
+      .returning()
+    const section = sectionRowToApi(row)
+    await appendActivity(tx, { entityType: "codex_section", entityId: sectionId, actorEmail: viewerEmail, action: "update", before, after: section })
+    return { ok: true as const, section }
+  })
 }
 
 async function countLiveTasksInSection(database: DbExecutor, sectionId: number): Promise<number> {
@@ -670,20 +606,18 @@ export async function deleteSection(
   viewerEmail: string,
   database: Db = db
 ): Promise<{ ok: true } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      const section = sections.find((s) => s.id === sectionId)
-      if (!section) return SECTION_NOT_FOUND
-      const rule = checkDeleteSection(sections, sectionId, await countLiveTasksInSection(tx, sectionId))
-      if (!rule.ok) return rule
-      await tx.delete(codexSections).where(and(eq(codexSections.id, sectionId), eq(codexSections.projectId, projectId)))
-      await appendActivity(tx, { entityType: "codex_section", entityId: sectionId, actorEmail: viewerEmail, action: "delete", before: section })
-      return { ok: true as const }
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    const section = sections.find((s) => s.id === sectionId)
+    if (!section) return SECTION_NOT_FOUND
+    const rule = checkDeleteSection(sections, sectionId, await countLiveTasksInSection(tx, sectionId))
+    if (!rule.ok) return rule
+    await tx.delete(codexSections).where(and(eq(codexSections.id, sectionId), eq(codexSections.projectId, projectId)))
+    await appendActivity(tx, { entityType: "codex_section", entityId: sectionId, actorEmail: viewerEmail, action: "delete", before: section })
+    return { ok: true as const }
+  })
 }
 
 /** `orderedIds` names every section of the project once; sort_order becomes the index. */
@@ -693,31 +627,29 @@ export async function reorderSections(
   orderedIds: readonly number[],
   database: Db = db
 ): Promise<{ ok: true; sections: CodexSection[] } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      if (!checkReorder(sections.map((s) => s.id), orderedIds)) {
-        return { ok: false, reason: "invalid_order", message: "ordered_ids must list every section of this project once." }
-      }
-      for (const [index, id] of orderedIds.entries()) {
-        await tx
-          .update(codexSections)
-          .set({ sortOrder: index })
-          .where(and(eq(codexSections.id, id), eq(codexSections.projectId, projectId)))
-      }
-      await appendActivity(tx, {
-        entityType: "codex_project",
-        entityId: projectId,
-        actorEmail: viewerEmail,
-        action: "sections_reorder",
-        before: { ordered_ids: sections.map((s) => s.id) },
-        after: { ordered_ids: orderedIds },
-      })
-      return { ok: true as const, sections: await loadSections(tx, projectId) }
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    if (!checkReorder(sections.map((s) => s.id), orderedIds)) {
+      return { ok: false, reason: "invalid_order", message: "ordered_ids must list every section of this project once." }
+    }
+    for (const [index, id] of orderedIds.entries()) {
+      await tx
+        .update(codexSections)
+        .set({ sortOrder: index })
+        .where(and(eq(codexSections.id, id), eq(codexSections.projectId, projectId)))
+    }
+    await appendActivity(tx, {
+      entityType: "codex_project",
+      entityId: projectId,
+      actorEmail: viewerEmail,
+      action: "sections_reorder",
+      before: { ordered_ids: sections.map((s) => s.id) },
+      after: { ordered_ids: orderedIds },
     })
-  )
+    return { ok: true as const, sections: await loadSections(tx, projectId) }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -936,26 +868,24 @@ export async function moveTaskToSection(
   input: MoveTaskInput,
   database: Db = db
 ): Promise<TaskPlacementResult | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      const section = sections.find((s) => s.id === sectionId)
-      if (!section) return SECTION_NOT_FOUND
-      const task = await lockLiveTask(tx, input.task_id)
-      if (!task) return TASK_NOT_FOUND
-      if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
-      if (task.project_id !== projectId && p.row.isPrivate) {
-        // F5 (B42fix): the task and its children join the project, so each assignee must be able to see it.
-        const refused = await joiningAssigneeWithoutAccess(tx, task.id, p)
-        if (refused) return { ok: false, reason: "assignee_no_access", message: assigneeNoAccessMessage(refused) }
-      }
-      const plan = planSectionMove(task, section)
-      if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail, Boolean(p.row.isPrivate))
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    const section = sections.find((s) => s.id === sectionId)
+    if (!section) return SECTION_NOT_FOUND
+    const task = await lockLiveTask(tx, input.task_id)
+    if (!task) return TASK_NOT_FOUND
+    if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
+    if (task.project_id !== projectId && p.row.isPrivate) {
+      // F5 (B42fix): the task and its children join the project, so each assignee must be able to see it.
+      const refused = await joiningAssigneeWithoutAccess(tx, task.id, p)
+      if (refused) return { ok: false, reason: "assignee_no_access", message: assigneeNoAccessMessage(refused) }
+    }
+    const plan = planSectionMove(task, section)
+    if (!plan.ok) return plan
+    return applyPlan(tx, task, plan, sections, placementFrom(input), viewerEmail, Boolean(p.row.isPrivate))
+  })
 }
 
 /** F5 (B42fix): the first assignee of the task or its live children who cannot see project `p`, or null. */
@@ -982,19 +912,17 @@ export async function completeProjectTask(
   viewerEmail: string,
   database: Db = db
 ): Promise<TaskPlacementResult | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const task = await lockLiveTask(tx, taskId)
-      if (!task || task.project_id !== projectId) return TASK_NOT_FOUND
-      if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
-      const sections = await loadSections(tx, projectId)
-      const plan = planCompleteInProject(task, sections)
-      if (!plan.ok) return plan
-      return applyPlan(tx, task, plan, sections, { kind: "end" }, viewerEmail, Boolean(p.row.isPrivate))
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const task = await lockLiveTask(tx, taskId)
+    if (!task || task.project_id !== projectId) return TASK_NOT_FOUND
+    if (task.task_type === "subtask") return SUBTASK_NOT_ON_BOARD
+    const sections = await loadSections(tx, projectId)
+    const plan = planCompleteInProject(task, sections)
+    if (!plan.ok) return plan
+    return applyPlan(tx, task, plan, sections, { kind: "end" }, viewerEmail, Boolean(p.row.isPrivate))
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,43 +1004,33 @@ function s1FieldsFromRow(r: Record<string, unknown> | undefined) {
 /**
  * B40: the S1 fields (project, section, order, type, dates, assigned by,
  * values) for tasks read through the Drizzle mirror, which does not carry
- * them yet (C-210). Tasks list rows with codex_projects on. Empty before 0118.
+ * them yet (C-210). Tasks list rows with codex_projects on.
  */
 export async function attachTaskS1Fields(items: CodexTask[], database: Db = db): Promise<CodexTask[]> {
   const ids = items.map((t) => Number(t.id)).filter((id) => Number.isSafeInteger(id) && id > 0)
-  if (ids.length === 0 || !(await isProjectsMigrationApplied(database))) return items
-  try {
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT id, project_id, section_id, sort_order, task_type, start_on::text AS start_on, due_on::text AS due_on,
-               assigned_by_email, custom_values,
-               (SELECT count(*)::int FROM public.task_attachments a WHERE a.task_id = tasks.id) AS attachment_count
-          FROM public.tasks WHERE id IN (${idList(ids)})
-      `)
-    )
-    const byId = new Map(rows.map((r) => [Number(r.id), r]))
-    const num = (v: unknown) => (v == null ? null : Number(v))
-    return items.map((t) => {
-      const r = byId.get(Number(t.id))
-      if (!r) return t
-      return {
-        ...t,
-        project_id: num(r.project_id),
-        section_id: num(r.section_id),
-        sort_order: num(r.sort_order),
-        attachment_count: Number(r.attachment_count ?? 0) || 0,
-        ...s1FieldsFromRow(r),
-      }
-    })
-  } catch (err) {
-    if (isMissingProjectsSchema(err)) {
-      forgetProjectsMarker()
-      // STACKfix N2: a missing column with the marker in place is a real error, not "not applied".
-      if (isMissingColumnOnly(err) && (await isProjectsMigrationApplied(database))) throw err
-      return items
+  if (ids.length === 0) return items
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT id, project_id, section_id, sort_order, task_type, start_on::text AS start_on, due_on::text AS due_on,
+             assigned_by_email, custom_values,
+             (SELECT count(*)::int FROM public.task_attachments a WHERE a.task_id = tasks.id) AS attachment_count
+        FROM public.tasks WHERE id IN (${idList(ids)})
+    `)
+  )
+  const byId = new Map(rows.map((r) => [Number(r.id), r]))
+  const num = (v: unknown) => (v == null ? null : Number(v))
+  return items.map((t) => {
+    const r = byId.get(Number(t.id))
+    if (!r) return t
+    return {
+      ...t,
+      project_id: num(r.project_id),
+      section_id: num(r.section_id),
+      sort_order: num(r.sort_order),
+      attachment_count: Number(r.attachment_count ?? 0) || 0,
+      ...s1FieldsFromRow(r),
     }
-    throw err
-  }
+  })
 }
 
 function fieldRowToApi(row: typeof codexCustomFields.$inferSelect): CodexCustomField | null {
@@ -1184,66 +1102,64 @@ export async function loadProjectBoard(
   options: { hideCompleted: boolean | null; perSection?: number },
   database: Db = db
 ): Promise<ProjectBoard | ProjectFailure> {
-  return guarded(database, async () => {
-    const p = await loadVisibleProject(database, projectId, viewerEmail)
-    if (!p) return NOT_FOUND
-    const sections = await loadSections(database, projectId)
-    const stored = options.hideCompleted == null ? await storedHideCompleted(database, projectId, viewerEmail) : null
-    const hide = options.hideCompleted ?? stored ?? true
-    const source = options.hideCompleted != null ? "request" : stored != null ? "stored" : "default"
-    const per = clampPageSize(options.perSection)
-    const countRows = executeRows(
-      await database.execute(sql`
-        SELECT section_id,
-               count(*) FILTER (WHERE status <> 'done')::int AS open,
-               count(*) FILTER (WHERE status = 'done')::int AS done
+  const p = await loadVisibleProject(database, projectId, viewerEmail)
+  if (!p) return NOT_FOUND
+  const sections = await loadSections(database, projectId)
+  const stored = options.hideCompleted == null ? await storedHideCompleted(database, projectId, viewerEmail) : null
+  const hide = options.hideCompleted ?? stored ?? true
+  const source = options.hideCompleted != null ? "request" : stored != null ? "stored" : "default"
+  const per = clampPageSize(options.perSection)
+  const countRows = executeRows(
+    await database.execute(sql`
+      SELECT section_id,
+             count(*) FILTER (WHERE status <> 'done')::int AS open,
+             count(*) FILTER (WHERE status = 'done')::int AS done
+        FROM public.tasks
+       WHERE project_id = ${projectId} AND deleted_at IS NULL AND task_type <> 'subtask'
+       GROUP BY section_id
+    `)
+  )
+  const pickRows = executeRows(
+    await database.execute(sql`
+      SELECT id, section_id FROM (
+        SELECT id, section_id,
+               row_number() OVER (PARTITION BY section_id ORDER BY sort_order ASC NULLS LAST, id ASC) AS rn
           FROM public.tasks
          WHERE project_id = ${projectId} AND deleted_at IS NULL AND task_type <> 'subtask'
-         GROUP BY section_id
-      `)
-    )
-    const pickRows = executeRows(
-      await database.execute(sql`
-        SELECT id, section_id FROM (
-          SELECT id, section_id,
-                 row_number() OVER (PARTITION BY section_id ORDER BY sort_order ASC NULLS LAST, id ASC) AS rn
-            FROM public.tasks
-           WHERE project_id = ${projectId} AND deleted_at IS NULL AND task_type <> 'subtask'
-             AND (${hide} = false OR status <> 'done')
-        ) ranked
-        WHERE rn <= ${per}
-        ORDER BY section_id NULLS LAST, rn
-      `)
-    )
-    const cards = await loadBoardCards(database, pickRows.map((r) => Number(r.id)), viewerEmail)
-    const known = new Set(sections.map((s) => s.id))
-    const columns: Record<string, BoardColumnPage> = {}
-    for (const s of sections) columns[String(s.id)] = { items: [], total: 0, completed: 0 }
-    const unsectioned: BoardColumnPage = { items: [], total: 0, completed: 0 }
-    const pageFor = (sectionId: unknown) => {
-      const id = sectionId == null ? null : Number(sectionId)
-      return id != null && known.has(id) ? columns[String(id)] : unsectioned
-    }
-    for (const r of countRows) {
-      const page = pageFor(r.section_id)
-      const open = Number(r.open ?? 0) || 0
-      const done = Number(r.done ?? 0) || 0
-      page.total += hide ? open : open + done
-      page.completed += done
-    }
-    for (const card of cards) pageFor(card.section_id).items.push(card)
-    return {
-      ok: true as const,
-      project: projectRowToApi(p.row, p.members),
-      sections,
-      columns,
-      unsectioned,
-      hide_completed: hide,
-      hide_completed_source: source,
-      fields: await loadProjectFields(database, projectId),
-      card_fields: await loadProjectCardFields(database, projectId),
-    }
-  })
+           AND (${hide} = false OR status <> 'done')
+      ) ranked
+      WHERE rn <= ${per}
+      ORDER BY section_id NULLS LAST, rn
+    `)
+  )
+  const cards = await loadBoardCards(database, pickRows.map((r) => Number(r.id)), viewerEmail)
+  const known = new Set(sections.map((s) => s.id))
+  const columns: Record<string, BoardColumnPage> = {}
+  for (const s of sections) columns[String(s.id)] = { items: [], total: 0, completed: 0 }
+  const unsectioned: BoardColumnPage = { items: [], total: 0, completed: 0 }
+  const pageFor = (sectionId: unknown) => {
+    const id = sectionId == null ? null : Number(sectionId)
+    return id != null && known.has(id) ? columns[String(id)] : unsectioned
+  }
+  for (const r of countRows) {
+    const page = pageFor(r.section_id)
+    const open = Number(r.open ?? 0) || 0
+    const done = Number(r.done ?? 0) || 0
+    page.total += hide ? open : open + done
+    page.completed += done
+  }
+  for (const card of cards) pageFor(card.section_id).items.push(card)
+  return {
+    ok: true as const,
+    project: projectRowToApi(p.row, p.members),
+    sections,
+    columns,
+    unsectioned,
+    hide_completed: hide,
+    hide_completed_source: source,
+    fields: await loadProjectFields(database, projectId),
+    card_fields: await loadProjectCardFields(database, projectId),
+  }
 }
 
 /** One more page of a section's cards ("Load more"). */
@@ -1254,25 +1170,23 @@ export async function listSectionTasks(
   options: { hideCompleted: boolean; offset: number; limit?: number },
   database: Db = db
 ): Promise<{ ok: true; items: CodexTask[]; total: number } | ProjectFailure> {
-  return guarded(database, async () => {
-    const p = await loadVisibleProject(database, projectId, viewerEmail)
-    if (!p) return NOT_FOUND
-    const sections = await loadSections(database, projectId)
-    if (!sections.some((s) => s.id === sectionId)) return SECTION_NOT_FOUND
-    const limit = clampPageSize(options.limit)
-    const offset = Math.max(0, Math.trunc(options.offset) || 0)
-    const where = sql`project_id = ${projectId} AND section_id = ${sectionId} AND deleted_at IS NULL
-      AND (${options.hideCompleted} = false OR status <> 'done')`
-    const [countRow] = executeRows(await database.execute(sql`SELECT count(*)::int AS n FROM public.tasks WHERE ${where}`))
-    const rows = executeRows(
-      await database.execute(sql`
-        SELECT id FROM public.tasks WHERE ${where}
-         ORDER BY sort_order ASC NULLS LAST, id ASC
-         LIMIT ${limit} OFFSET ${offset}
-      `)
-    )
-    return { ok: true as const, items: await loadBoardCards(database, rows.map((r) => Number(r.id)), viewerEmail), total: Number(countRow?.n ?? 0) || 0 }
-  })
+  const p = await loadVisibleProject(database, projectId, viewerEmail)
+  if (!p) return NOT_FOUND
+  const sections = await loadSections(database, projectId)
+  if (!sections.some((s) => s.id === sectionId)) return SECTION_NOT_FOUND
+  const limit = clampPageSize(options.limit)
+  const offset = Math.max(0, Math.trunc(options.offset) || 0)
+  const where = sql`project_id = ${projectId} AND section_id = ${sectionId} AND deleted_at IS NULL
+    AND (${options.hideCompleted} = false OR status <> 'done')`
+  const [countRow] = executeRows(await database.execute(sql`SELECT count(*)::int AS n FROM public.tasks WHERE ${where}`))
+  const rows = executeRows(
+    await database.execute(sql`
+      SELECT id FROM public.tasks WHERE ${where}
+       ORDER BY sort_order ASC NULLS LAST, id ASC
+       LIMIT ${limit} OFFSET ${offset}
+    `)
+  )
+  return { ok: true as const, items: await loadBoardCards(database, rows.map((r) => Number(r.id)), viewerEmail), total: Number(countRow?.n ?? 0) || 0 }
 }
 
 /**
@@ -1288,52 +1202,50 @@ export async function createTasksInSection(
   titles: readonly string[],
   database: Db = db
 ): Promise<{ ok: true; tasks: CodexTask[] } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
-      if (!p) return NOT_FOUND
-      const sections = await loadSections(tx, projectId)
-      const section = sections.find((s) => s.id === sectionId)
-      if (!section) return SECTION_NOT_FOUND
-      const creator = normaliseEmail(viewerEmail)
-      const status = statusForSectionCategory(section.status_category)
-      const start = await nextSortOrderInSection(tx, sectionId, 0)
-      const values = sql.join(
-        titles.map(
-          (title, i) => sql`(${title}, ${p.row.clientId ?? null}::bigint, ${p.row.mbaNumber ?? null}, ${status}, 'normal',
-            ${creator}, 'manual', ${projectId}::bigint, ${sectionId}::bigint, ${start + i}::int, now(), now())`
-        ),
-        sql`, `
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail, true)
+    if (!p) return NOT_FOUND
+    const sections = await loadSections(tx, projectId)
+    const section = sections.find((s) => s.id === sectionId)
+    if (!section) return SECTION_NOT_FOUND
+    const creator = normaliseEmail(viewerEmail)
+    const status = statusForSectionCategory(section.status_category)
+    const start = await nextSortOrderInSection(tx, sectionId, 0)
+    const values = sql.join(
+      titles.map(
+        (title, i) => sql`(${title}, ${p.row.clientId ?? null}::bigint, ${p.row.mbaNumber ?? null}, ${status}, 'normal',
+          ${creator}, 'manual', ${projectId}::bigint, ${sectionId}::bigint, ${start + i}::int, now(), now())`
+      ),
+      sql`, `
+    )
+    const inserted = executeRows(
+      await tx.execute(sql`
+        INSERT INTO public.tasks (title, client_id, mba_number, status, priority, created_by_email, source,
+                                  project_id, section_id, sort_order, created_at, updated_at)
+        VALUES ${values}
+        RETURNING id
+      `)
+    )
+    const ids = inserted.map((r) => Number(r.id))
+    // B42: pasted straight into a done section counts as completing them (the progress field).
+    if (status === "done") for (const tid of ids) await markProgressDone(tx, tid, viewerEmail)
+    const created = await loadBoardCards(tx, ids, viewerEmail)
+    if (created.length > 0) {
+      await tx.insert(codexActivity).values(
+        created.map((t) => ({
+          entityType: "task",
+          entityId: Number(t.id),
+          actorEmail: creator || null,
+          actorKind: "user",
+          action: "create",
+          before: null,
+          // Task activity is readable by all staff (C-211): no section name for a private project.
+          after: p.row.isPrivate ? t : { ...t, section: section.name },
+        }))
       )
-      const inserted = executeRows(
-        await tx.execute(sql`
-          INSERT INTO public.tasks (title, client_id, mba_number, status, priority, created_by_email, source,
-                                    project_id, section_id, sort_order, created_at, updated_at)
-          VALUES ${values}
-          RETURNING id
-        `)
-      )
-      const ids = inserted.map((r) => Number(r.id))
-      // B42: pasted straight into a done section counts as completing them (the progress field).
-      if (status === "done") for (const tid of ids) await markProgressDone(tx, tid, viewerEmail)
-      const created = await loadBoardCards(tx, ids, viewerEmail)
-      if (created.length > 0) {
-        await tx.insert(codexActivity).values(
-          created.map((t) => ({
-            entityType: "task",
-            entityId: Number(t.id),
-            actorEmail: creator || null,
-            actorKind: "user",
-            action: "create",
-            before: null,
-            // Task activity is readable by all staff (C-211): no section name for a private project.
-            after: p.row.isPrivate ? t : { ...t, section: section.name },
-          }))
-        )
-      }
-      return { ok: true as const, tasks: created }
-    })
-  )
+    }
+    return { ok: true as const, tasks: created }
+  })
 }
 
 /** Save the viewer's hide or show completed setting for this project board. */
@@ -1343,28 +1255,26 @@ export async function setBoardHideCompleted(
   hideCompleted: boolean,
   database: Db = db
 ): Promise<{ ok: true; hide_completed: boolean } | ProjectFailure> {
-  return guarded(database, () =>
-    database.transaction(async (tx) => {
-      const p = await loadVisibleProject(tx, projectId, viewerEmail)
-      if (!p) return NOT_FOUND
-      const scope = projectBoardScope(projectId)
-      const owner = normaliseEmail(viewerEmail)
-      // codex_board_configs has no unique key on (scope, owner): one writer at a time per board and person.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`codex_board_configs:${scope}:${owner}`}))`)
-      const [row] = await tx
-        .select({ id: codexBoardConfigs.id })
-        .from(codexBoardConfigs)
-        .where(and(eq(codexBoardConfigs.scope, scope), sql`lower(${codexBoardConfigs.ownerEmail}) = ${owner}`))
-        .orderBy(sql`${codexBoardConfigs.id} desc`)
-        .limit(1)
-      if (row) {
-        await tx.update(codexBoardConfigs).set({ hideCompleted }).where(eq(codexBoardConfigs.id, row.id))
-      } else {
-        await tx.insert(codexBoardConfigs).values({ scope, ownerEmail: owner, groupBy: "section", hideCompleted })
-      }
-      return { ok: true as const, hide_completed: hideCompleted }
-    })
-  )
+  return database.transaction(async (tx) => {
+    const p = await loadVisibleProject(tx, projectId, viewerEmail)
+    if (!p) return NOT_FOUND
+    const scope = projectBoardScope(projectId)
+    const owner = normaliseEmail(viewerEmail)
+    // codex_board_configs has no unique key on (scope, owner): one writer at a time per board and person.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`codex_board_configs:${scope}:${owner}`}))`)
+    const [row] = await tx
+      .select({ id: codexBoardConfigs.id })
+      .from(codexBoardConfigs)
+      .where(and(eq(codexBoardConfigs.scope, scope), sql`lower(${codexBoardConfigs.ownerEmail}) = ${owner}`))
+      .orderBy(sql`${codexBoardConfigs.id} desc`)
+      .limit(1)
+    if (row) {
+      await tx.update(codexBoardConfigs).set({ hideCompleted }).where(eq(codexBoardConfigs.id, row.id))
+    } else {
+      await tx.insert(codexBoardConfigs).values({ scope, ownerEmail: owner, groupBy: "section", hideCompleted })
+    }
+    return { ok: true as const, hide_completed: hideCompleted }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1540,9 +1450,7 @@ function hasStatus(patch: UpdateTaskInput): patch is UpdateTaskInput & { status:
 
 /**
  * PATCH /api/codex/tasks/[id] with codex_projects on. Without a status,
- * due date, detail columns or asap, or before 0118 without detail columns
- * or asap, this is the plain update. Detail columns or asap before 0118: ProjectsUnavailableError
- * (503). A refusal is a failure (409 or 400); a missing task is `task: null`.
+ * due date, detail columns or asap, this is the plain update. A refusal is a failure (409 or 400); a missing task is `task: null`.
  */
 export async function updateTaskThroughSections(
   id: number,
@@ -1557,11 +1465,7 @@ export async function updateTaskThroughSections(
   if (!hasStatus(patch) && !withDetails && !asap && patch.dueDate === undefined) {
     return { ok: true, task: await updateTask(id, patch, actorEmail, database) }
   }
-  if (!(await isProjectsMigrationApplied(database))) {
-    if (withDetails || asap) throw new ProjectsUnavailableError()
-    return { ok: true, task: await updateTask(id, patch, actorEmail, database) }
-  }
-  return guarded(database, () => database.transaction((tx) => writeTaskInTx(tx, id, patch, actorEmail, details)))
+  return database.transaction((tx) => writeTaskInTx(tx, id, patch, actorEmail, details))
 }
 
 /**
@@ -1577,7 +1481,7 @@ export async function bulkUpdateTasksThroughSections(
   database: Db = db
 ): Promise<CodexTask[] | null> {
   // A due date change is checked against each task's start date too (B40).
-  if ((!hasStatus(patch) && patch.dueDate === undefined) || !(await isProjectsMigrationApplied(database))) return null
+  if (!hasStatus(patch) && patch.dueDate === undefined) return null
   return database.transaction(async (tx) => {
     // Lock every project in the batch first, in id order, so two bulk edits
     // over the same projects queue instead of deadlocking. A task that joins

@@ -8,6 +8,7 @@
  * Skips unless CODEX_PROJECTS_TEST_DATABASE_URL names a LOCAL database whose
  * name ends in `_codex_test` (sibling `<name>_sections_codex_test`).
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -21,7 +22,7 @@ import type { Db } from "@/db"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { requestHelp, updateTask, updateTaskFollowingSections } from "../repo.js"
 import { SYSTEM_ACTORS } from "../systemActors.js"
-import { appendActivity, createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { appendActivity, createProject } from "../projectsRepo.js"
 
 const URL_ = siblingUrl(RAW_URL, "sections")
 const skip = URL_ ? false : "set CODEX_PROJECTS_TEST_DATABASE_URL to a local database named *_codex_test"
@@ -67,7 +68,7 @@ describe("C-220: other status writers follow the section rule (Postgres, 0118 ap
     client = await createDatabase(URL_!)
     await client.unsafe(`INSERT INTO public.team_members (email, name) VALUES ('${OWNER}', 'Olive Owner'), ('${HELPER}', 'Mia Tran')`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const a = await project("SEO", [
       { name: "To do", status_category: "todo" },

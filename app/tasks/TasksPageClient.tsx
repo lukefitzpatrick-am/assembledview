@@ -110,7 +110,6 @@ import {
   serializeTasksFilterParams,
   taskDetailHref,
   taskListHref,
-  projectsReadyFromResponses,
   writeStoredTasksLayout,
   type MyWorkTab,
   type TaskSortKey,
@@ -490,7 +489,6 @@ export function TasksPageClient({
   /** Projects tab (B39): only with codex_projects on; `?tab=projects` opens it. */
   const projectsOn = clientFeatureOn("codex_projects")
   /** B40fix: the Tasks GET says 0118 is applied (codex_projects on); ASAP is offered as a filter only then. */
-  const [projectsReady, setProjectsReady] = useState(false)
   const [mainTab, setMainTab] = useState<
     "tasks" | "team" | "templates" | "inbox" | "projects" | "workload"
   >(() => {
@@ -624,8 +622,8 @@ export function TasksPageClient({
   const [sources, setSources] = useState<string[]>(urlFilters.sources)
   /**
    * Saved views (F8, switch codex_saved_views). `?view=<id>` opens a view;
-   * `view=list` and `view=board` stay the layout. Hidden until the API says
-   * views are available (migration 0117), so the page loads as before.
+   * `view=list` and `view=board` stay the layout. Hidden until the views
+   * load, so a failed load leaves the page as before.
    */
   const savedViewsOn = clientFeatureOn("codex_saved_views")
   const [savedViews, setSavedViews] = useState<CodexSavedView[]>([])
@@ -1204,10 +1202,9 @@ export function TasksPageClient({
             : null) || "Failed to fetch tasks"
         )
       }
-      const data = (await response.json()) as CodexPagedResponse<CodexTask> & { projects_ready?: boolean }
+      const data = (await response.json()) as CodexPagedResponse<CodexTask>
       if (controller.signal.aborted || tasksFetchAbort.current !== controller) return
       setTasks(Array.isArray(data.items) ? data.items : [])
-      setProjectsReady(data.projects_ready === true)
       setItemsTotal(typeof data.itemsTotal === "number" ? data.itemsTotal : 0)
       setNextPage(
         typeof data.nextPage === "number"
@@ -1334,12 +1331,8 @@ export function TasksPageClient({
               if (!response.ok) {
                 throw new Error("Failed to fetch tasks")
               }
-              const data = (await response.json()) as CodexPagedResponse<CodexTask> & { projects_ready?: boolean }
-              return [
-                status,
-                Array.isArray(data.items) ? data.items : [],
-                data,
-              ] as const
+              const data = (await response.json()) as CodexPagedResponse<CodexTask>
+              return [status, Array.isArray(data.items) ? data.items : []] as const
             })
           ),
         ])
@@ -1354,8 +1347,6 @@ export function TasksPageClient({
         for (const [status, items] of columns) {
           nextColumns[status] = items
         }
-        // C-266 (B43): the board reads projects_ready too, so the My Work hint and ASAP follow 0118 here as on the list.
-        const columnBodies = columns.map(([, , body]) => body)
         // A counts failure must not blank the board: show the loaded columns
         // with their own sizes and keep going.
         let nextCounts: Record<TaskStatus, number>
@@ -1369,7 +1360,6 @@ export function TasksPageClient({
         if (controller.signal.aborted || gen !== boardGen.current) return
         setBoardColumns(nextColumns)
         setStatusCounts(nextCounts)
-        setProjectsReady((prev) => projectsReadyFromResponses(columnBodies, prev))
         setBoardPages({
           backlog: 1,
           todo: 1,
@@ -1757,11 +1747,9 @@ export function TasksPageClient({
     void (async () => {
       try {
         const res = await fetch("/api/codex/saved-views?screen=tasks")
-        const body = (await res.json().catch(() => null)) as
-          | { available?: boolean; items?: CodexSavedView[] }
-          | null
+        const body = (await res.json().catch(() => null)) as { items?: CodexSavedView[] } | null
         if (cancelled) return
-        const available = res.ok && body?.available === true
+        const available = res.ok && body != null
         setSavedViewsAvailable(available)
         setSavedViews(available && Array.isArray(body?.items) ? body.items : [])
       } catch {
@@ -3037,7 +3025,6 @@ export function TasksPageClient({
           {myWorkOn ? (
             <MyWorkTabs
               value={myWork}
-              projectsReady={projectsReady}
               onChange={(tab) => {
                 // A tab replaces My tasks, My week, the assignee and Unassigned.
                 commitFilters({ ...filterState(), myWork: tab, myWeek: false, mine: true, assigneeEmail: "", unassigned: false })
@@ -3055,7 +3042,7 @@ export function TasksPageClient({
             categoryFilter={categoryFilter}
             statusFilter={statusFilter}
             priorities={priorities}
-            showAsap={projectsOn && projectsReady}
+            showAsap={projectsOn}
             overdue={overdue}
             unassigned={unassigned}
             noClient={noClient}

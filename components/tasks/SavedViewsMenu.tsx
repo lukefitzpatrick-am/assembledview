@@ -32,8 +32,8 @@ type DialogState =
 
 /**
  * Codex saved views menu (F8, switch `codex_saved_views`). The page renders
- * it only when the switch is on and the API says views are available
- * (migration 0117 applied), so the save button hides before the migration.
+ * it only when the switch is on (it needs migration 0117) and the views
+ * loaded.
  */
 export function SavedViewsMenu({
   views,

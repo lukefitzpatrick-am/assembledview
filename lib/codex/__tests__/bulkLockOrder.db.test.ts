@@ -31,6 +31,7 @@
  * `<name>_bulklock_codex_test` (created if missing) and drops and rebuilds
  * that database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -49,7 +50,7 @@ import type { FeatureRow } from "../../features/registry.js"
 import { bulkFailure, bulkUpdateTasks, CodexBulkError, updateTask } from "../repo.js"
 import { AssigneeNoAccessError, TaskJoinedProjectError } from "../projects.js"
 import { assertAssigneeCanSeeTask, TaskJoinedBatchProjectError } from "../taskVisibility.js"
-import { bulkUpdateTasksThroughSections, createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { bulkUpdateTasksThroughSections, createProject } from "../projectsRepo.js"
 import { LOCK_CONFLICT_MESSAGE } from "../dbErrors.js"
 import { DATABASE_ERROR_MESSAGE } from "../../db/pgError.js"
 
@@ -120,7 +121,7 @@ describe("R1 and R7: the plain path's project locks (Postgres, 0118 applied)", {
     await client.unsafe(`INSERT INTO public.team_members (email, name, email_aliases, active) VALUES
       ('${OLIVE}', 'Olive Owner', '[]', true), ('${MIA}', 'Mia Tran', '[]', true)`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     setFeatureRowReaderForTests(
       async () =>

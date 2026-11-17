@@ -17,6 +17,7 @@
  * `<name>_visibility_codex_test` (created if missing) and drops and rebuilds
  * that database's public schema. It never reads .env.local.
  */
+import { setMarkerReaderForTests } from "../../db/markers.js"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import path from "node:path"
@@ -30,7 +31,7 @@ import * as schema from "@/db/schema"
 import type { Db } from "@/db"
 import { createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 import { countTasksByMba, countTasksByStatus, getTask, listTasks } from "../repo.js"
-import { createProject, resetProjectsMarkerCacheForTests } from "../projectsRepo.js"
+import { createProject } from "../projectsRepo.js"
 import { canSeeProject } from "../projects.js"
 import { hiddenTaskIds, taskVisibleSql } from "../taskVisibility.js"
 import { searchCodex } from "../searchRepo.js"
@@ -73,7 +74,7 @@ describe("private projects stay private on every read surface (Postgres, 0118 ap
     await client.unsafe(`INSERT INTO public.team_members (email, name) VALUES
       ('${CREATOR}', 'Olive Owner'), ('${OWNER}', 'Josh Patel'), ('${MEMBER}', 'Mia Tran'), ('${OUT}', 'Out Sider'), ('${ELLIE}', 'Ellie Ward')`)
     await client.unsafe(fs.readFileSync(path.join(process.cwd(), "db/migrations/0118_codex_s1_projects.sql"), "utf8"))
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     const p1 = await createProject(
       CREATOR,
@@ -267,12 +268,12 @@ describe("before 0118 nothing is filtered and no 0118 column is named", { skip: 
   let database: Db
   before(async () => {
     client = await createDatabase(PRE_URL!)
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     database = drizzle(client, { schema }) as unknown as Db
     await client`INSERT INTO public.tasks (title, mba_number, created_by_email) VALUES ('plain', ${MBA}, ${CREATOR})`
   })
   after(async () => {
-    resetProjectsMarkerCacheForTests()
+    setMarkerReaderForTests(null)
     await client?.end({ timeout: 5 })
   })
   it("list, counts, hidden ids and search work on the pre-0118 table", async () => {
@@ -284,7 +285,5 @@ describe("before 0118 nothing is filtered and no 0118 column is named", { skip: 
     assert.equal((await searchCodex("plain", 5, database, OUT)).tasks.items.length, 1)
     assert.equal((await listTasks({ myWork: "assigned_by", myWorkEmail: CREATOR }, database)).itemsTotal, 0, "My Work before 0118: nothing, no error")
     assert.equal((await listTasks({ myWork: "following", myWorkEmail: CREATOR }, database)).itemsTotal, 0)
-    const { loadWorkload } = await import("../workloadRepo.js")
-    await assert.rejects(loadWorkload(OUT, 2, NOW, database), (e: Error) => e.name === "ProjectsUnavailableError", "the workload needs 0118 (503)")
   })
 })

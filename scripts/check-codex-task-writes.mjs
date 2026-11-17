@@ -216,9 +216,6 @@ export const READ_EXPORTS = {
   ],
   "lib/codex/taskDetailRepo": ["getTaskProjectDetail"],
   "lib/codex/projectsRepo": [
-    "ProjectsUnavailableError",
-    "isMissingProjectsSchema",
-    "guarded",
     "projectRowToApi",
     "sectionRowToApi",
     "loadVisibleProject",
@@ -270,13 +267,8 @@ export const READ_EXPORTS = {
     "loadDigestBatch",
   ],
   "lib/codex/savedViewsRepo": [
-    "SAVED_VIEWS_MARKER",
     "SAVED_VIEWS_PER_OWNER_MAX",
-    "SavedViewsUnavailableError",
     "SavedViewsLimitError",
-    "isMissingSavedViewsTable",
-    "resetSavedViewsMarkerCacheForTests",
-    "isSavedViewsMigrationApplied",
     "savedViewRowToApi",
     "listSavedViews",
     "savedViewsOwnerLockSql",

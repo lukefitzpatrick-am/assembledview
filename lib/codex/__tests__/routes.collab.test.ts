@@ -2,8 +2,8 @@
  * B41 routes: followers, attachments (list, upload, link, fetch, delete), the
  * bell, mark read, the digest switch, comments with mentions and the daily
  * cron. The full guard chain on every method (codex_v2 404, own switch 404
- * with or without a session, no session 401, client 403, no email 401), 503
- * before 0118, 500 without detail, store refusals mapped, bad ids 404 and bad
+ * with or without a session, no session 401, client 403, no email 401), 500
+ * without detail, store refusals mapped, bad ids 404 and bad
  * bodies 400 before the store; attachment access control at the route.
  * Requires --experimental-test-module-mocks.
  */
@@ -19,26 +19,19 @@ const skip = mockModuleSkip()
 let session: null | { user: { email?: string; roles: string[] } } = null
 const calls: Array<{ fn: string; args: unknown[] }> = []
 let mode = "ok"
-let markerApplied = true
 /** Only createAttachment refuses (after the file is in Blob). */
 let createMode = "ok"
 const blobs = { put: [] as string[], del: [] as string[] }
-
-class ProjectsUnavailableError extends Error {
-  readonly code = "PROJECTS_UNAVAILABLE"
-}
 
 const ATT = { id: 4, task_id: 7, kind: "blob", name: "a.pdf", url: null, host: null, size_bytes: 3, content_type: "application/pdf", uploaded_by_email: "luke@x.au", created_at: "t", can_delete: true }
 const FOLLOWERS = { ok: true, followers: [{ email: "luke@x.au", name: "Luke", reason: "manual" }], following: true }
 
 function outcome<T>(okValue: T): T | { ok: false; reason: string; message: string } {
-  if (mode === "unavailable") throw new ProjectsUnavailableError("0118")
   if (mode === "boom") throw new Error("secret detail")
   if (mode !== "ok") return { ok: false, reason: mode, message: `m:${mode}` }
   return okValue
 }
 function plain<T>(value: T): T {
-  if (mode === "unavailable") throw new ProjectsUnavailableError("0118")
   if (mode === "boom") throw new Error("secret detail")
   return value
 }
@@ -51,8 +44,6 @@ if (supportsMockModule()) {
     calls.push({ fn: name, args })
     return value()
   }
-  await mock.module!("@/lib/codex/projectsRepo", { namedExports: { ProjectsUnavailableError } })
-  await mock.module!("@/lib/codex/projectsMarker", { namedExports: { isProjectsMigrationApplied: async () => markerApplied } })
   // B42: the hidden-task guard (C-211) is pinned in routes.privateTasks.test.ts; here no task is hidden.
   await mock.module!("@/lib/codex/taskVisibility", {
     namedExports: {
@@ -247,22 +238,15 @@ test("staff with the switches on: every method reaches its store with ids, the p
   assert.deepEqual(calls.at(-1)!.args, [7, "luke@x.au", null, { notify: false, aliases: true }])
 })
 
-test("before 0118 every method is 503 migration_not_applied; an unexpected error is 500 without the detail", { skip }, async () => {
+test("an unexpected error is 500 without the detail", { skip }, async () => {
   const all = await routes()
   session = STAFF
-  for (const m of ["unavailable", "boom"]) {
-    mode = m
-    for (const c of all) {
-      const res = await withSwitches({}, () => c.run())
-      const body = (await res.json()) as { error: string; message?: string }
-      if (m === "unavailable") {
-        assert.equal(res.status, 503, c.name)
-        assert.equal(body.error, "migration_not_applied", c.name)
-      } else {
-        assert.equal(res.status, 500, c.name)
-        assert.doesNotMatch(JSON.stringify(body), /secret/, c.name)
-      }
-    }
+  mode = "boom"
+  for (const c of all) {
+    const res = await withSwitches({}, () => c.run())
+    const body = (await res.json()) as { error: string; message?: string }
+    assert.equal(res.status, 500, c.name)
+    assert.doesNotMatch(JSON.stringify(body), /secret/, c.name)
   }
   mode = "ok"
 })
@@ -392,7 +376,7 @@ test("download: the store's type and a download disposition, never the blob's; r
   mode = "ok"
 })
 
-test("comments: with codex_projects on the mention store is used and a client-sent mentions key is ignored; off or before 0118 as before", { skip }, async () => {
+test("comments: with codex_projects on the mention store is used and a client-sent mentions key is ignored; off as before", { skip }, async () => {
   const comments = await import("../../../app/api/codex/tasks/[id]/comments/route.js")
   session = STAFF
   mode = "ok"
@@ -418,13 +402,6 @@ test("comments: with codex_projects on the mention store is used and a client-se
   assert.equal(off.status, 201)
   await withSwitches({ projects: false }, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
   assert.deepEqual(calls.map((c) => c.fn), ["createComment", "listComments"], "switch off: the plain store, no mentions")
-  mode = "unavailable"
-  calls.length = 0
-  const before0118 = await withSwitches({}, () => comments.POST(req("POST", `${T}/7/comments`, { body: "hi" }), ctx({ id: "7" })))
-  assert.equal(before0118.status, 201)
-  await withSwitches({}, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
-  assert.deepEqual(calls.map((c) => c.fn), ["createCommentWithMentions", "createComment", "listCommentsWithMentions", "listComments"], "before 0118: as before")
-  mode = "ok"
 
   calls.length = 0
   const listed = await withSwitches({}, () => comments.GET(req("GET", `${T}/7/comments`), ctx({ id: "7" })))
@@ -439,7 +416,7 @@ test("comments: with codex_projects on the mention store is used and a client-se
   mode = "ok"
 })
 
-test("cron: secret required; off, wrong hour or before 0118 skipped; the Melbourne 08:00 run makes reminders then the digest", { skip }, async () => {
+test("cron: secret required; off or wrong hour skipped; the Melbourne 08:00 run makes reminders then the digest", { skip }, async () => {
   const cron = await import("../../../app/api/cron/codex-notifications/route.js")
   process.env.CRON_SECRET = "s3"
   const run = (now: string, secret = "s3") =>
@@ -453,10 +430,6 @@ test("cron: secret required; off, wrong hour or before 0118 skipped; the Melbour
   assert.equal(((await offProjects.json()) as { reason: string }).reason, "switch_off")
   const late = await withSwitches({}, () => run("2026-11-12T22:30:00Z"))
   assert.equal(((await late.json()) as { reason: string }).reason, "not_melbourne_0800_hour")
-  markerApplied = false
-  const before0118 = await withSwitches({}, () => run("2026-11-12T21:30:00Z"))
-  assert.equal(((await before0118.json()) as { reason: string }).reason, "migration_not_applied")
-  markerApplied = true
   assert.equal(calls.length, 0)
   const ok = await withSwitches({}, () => run("2026-06-15T22:30:00Z"))
   assert.equal(ok.status, 200)
