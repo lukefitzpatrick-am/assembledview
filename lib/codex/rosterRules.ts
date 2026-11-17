@@ -35,7 +35,10 @@ export class RosterRuleError extends Error {
   }
 }
 
-/** First letter of each name part, upper case. A part that does not start with A to Z adds nothing. */
+/**
+ * First letter of each name part, upper case. A part that does not start with A to Z adds nothing.
+ * shortcut: a part starting with an accented letter (Élodie) adds nothing, upgrade with the B53 SQL rule when the roster has one.
+ */
 export function initialsOf(name: string): string {
   return name
     .trim()
