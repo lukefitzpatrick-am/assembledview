@@ -114,6 +114,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Runner self-test, run by node itself (a runner that never starts cannot fail its own tests)
+        run: npm run test:runner
+
       - name: Every test file
         run: npm test
 

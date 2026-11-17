@@ -128,6 +128,20 @@ test("a test file no runner takes fails the run by name", () => {
   for (const f of ["b.test.ts", "c.test.js", "d.test.jsx", "e.spec.ts"]) assert.ok(r.stderr.includes(`lib/${f}: no runner takes it`), r.stderr)
 })
 
+test("a root with no test file fails the run", () => {
+  const r = runMain(tempRoot({ "lib/helper.ts": PASS }))
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /found no test files/)
+})
+
+test("the CLI runs main", () => {
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const r = spawnSync(process.execPath, [path.join(REPO, "scripts/run-tests.mjs"), "no/such/prefix/"], { cwd: REPO, env, encoding: "utf8" })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /no test file starts with no\/such\/prefix\//)
+})
+
 test("a prefix that selects nothing fails the run", () => {
   const r = runMain(tempRoot({ "lib/a.test.ts": PASS }), ["app/"])
   assert.equal(r.status, 1)

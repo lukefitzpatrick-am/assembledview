@@ -23,12 +23,10 @@
  *   The named `test:*` scripts in package.json are prefixes of this runner.
  */
 import { spawnSync } from "node:child_process"
-import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { run } from "node:test"
 import { spec, tap } from "node:test/reporters"
-import { fileURLToPath } from "node:url"
 
 import { findTests, ROOT } from "./test-files.mjs"
 
@@ -111,6 +109,10 @@ function runVitest(files, root) {
 export async function main(prefixes, root = ROOT) {
   const started = Date.now()
   const tests = findTests(root)
+  if (tests.length === 0) {
+    console.error(`[run-tests] found no test files under ${root}`)
+    return 1
+  }
   const orphans = tests.filter((t) => t.runner === null)
   for (const t of orphans) {
     console.error(
@@ -134,7 +136,8 @@ export async function main(prefixes, root = ROOT) {
   return node.ok && vitestOk && orphans.length === 0 ? 0 : 1
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// By file name, not a resolved path: a drive letter case or junction on Windows would make a path compare fail and exit 0 having run nothing.
+if (path.basename(process.argv[1] ?? "") === "run-tests.mjs") {
   process.chdir(ROOT)
   process.exitCode = await main(process.argv.slice(2))
 }
