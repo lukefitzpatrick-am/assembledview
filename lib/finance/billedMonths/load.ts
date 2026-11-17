@@ -6,6 +6,7 @@ import "server-only"
 import { sql, type SQL } from "drizzle-orm"
 
 import { isFinancePeriodsLockEnforced } from "@/lib/finance/periods/flag"
+import { RECORD_XERO_STATUS_SQL } from "@/lib/finance/revisions/loadRevisionContext"
 import { rowsOf } from "@/lib/xero/dbRows"
 
 import { invoicedMonths, type BillingCell, type InvoicedMonth } from "./billedMonths"
@@ -44,7 +45,7 @@ export async function loadBilledMonthsBase(
   const records = rowsOf<Rec>(
     await exec.execute(sql`
       SELECT invoice_key, mba_number, billing_month, approved_at, exported_at,
-             matched_xero_invoice_id, billed, billed_at
+             matched_xero_invoice_id, billed, billed_at, ${RECORD_XERO_STATUS_SQL} AS xero_status
       FROM finance_billing_records
       WHERE lower(mba_number) = lower(${mba})
          OR lower(invoice_key) LIKE ${`media:${mba.toLowerCase()}:%`}
@@ -58,6 +59,7 @@ export async function loadBilledMonthsBase(
     matchedXeroInvoiceId: str(r.matched_xero_invoice_id),
     billed: r.billed === true,
     billedAt: str(r.billed_at),
+    xeroStatus: str(r.xero_status),
   }))
   const enforced = isFinancePeriodsLockEnforced()
   const periods = enforced

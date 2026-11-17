@@ -3,7 +3,8 @@
  * finance records, sent AA packs and finance periods, and pass `now`.
  *
  * Hard (never changes): exported_at set (incl. the 1970 xero: stamp),
- * matched Xero invoice, legacy billed, a xero: row for this MBA + month,
+ * matched Xero invoice, legacy billed, a xero: row for this MBA + month
+ * (a voided or deleted Xero invoice counts for neither, B56fix R6),
  * a locked finance period (only when FINANCE_PERIODS=on), after the
  * campaign end. AA pack months are hard for AA lines only.
  * Soft: approved_at set, exported_at null. Ticked open by the user.
@@ -23,7 +24,16 @@ export type LockFinanceRecord = {
   matchedXeroInvoiceId: string | null
   billed: boolean | null
   billedAt: string | null
+  /**
+   * Status of the Xero invoice the record names: the `xero:` key's invoice,
+   * else `matched_xero_invoice_id` (`RECORD_XERO_STATUS_SQL`). Null when
+   * there is none or it is not synced.
+   */
+  xeroStatus: string | null
 }
+
+/** A voided or deleted Xero invoice does not make a month invoiced (same as the S2 SELECT). */
+const VOID_XERO_STATUSES = new Set(["VOIDED", "DELETED"])
 
 export type LockFinancePeriod = { month: string; status: string }
 
@@ -102,8 +112,9 @@ export function monthLockReasons(
 
   for (const rec of input.records) {
     const key = String(rec.invoiceKey ?? "").trim().toLowerCase()
+    const voidInvoice = VOID_XERO_STATUSES.has(String(rec.xeroStatus ?? "").trim().toUpperCase())
     if (key.startsWith("xero:")) {
-      if (String(rec.mbaNumber ?? "").trim().toLowerCase() !== mba) continue
+      if (voidInvoice || String(rec.mbaNumber ?? "").trim().toLowerCase() !== mba) continue
       const m = toMonthKey(rec.billingMonth)
       if (m) add(m, "xero_outside_av")
       continue
@@ -112,7 +123,7 @@ export function monthLockReasons(
     if (!match || match[1] !== mba) continue
     const m = match[2]!
     if (present(rec.exportedAt)) add(m, "sent_to_accounts")
-    if (present(rec.matchedXeroInvoiceId)) add(m, "xero_matched")
+    if (present(rec.matchedXeroInvoiceId) && !voidInvoice) add(m, "xero_matched")
     if (rec.billed === true || present(rec.billedAt)) add(m, "legacy_billed")
     if (present(rec.approvedAt)) add(m, "approved")
   }

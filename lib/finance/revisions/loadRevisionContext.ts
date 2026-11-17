@@ -42,6 +42,19 @@ export type BaseBillingRow = {
 
 export type RevisionFinanceRecord = LockFinanceRecord & { id: number }
 
+/**
+ * `xeroStatus` of a `finance_billing_records` row (selected FROM that table,
+ * unaliased): the status of the `xero:` key's invoice, else of the matched
+ * invoice. Shared by every record load that feeds `monthLockReasons`.
+ */
+export const RECORD_XERO_STATUS_SQL = sql<string | null>`(
+  SELECT x.status FROM xero_ar_invoices x
+  WHERE x.xero_invoice_id = CASE
+    WHEN lower(finance_billing_records.invoice_key) LIKE 'xero:%' THEN substr(finance_billing_records.invoice_key, 6)
+    ELSE finance_billing_records.matched_xero_invoice_id
+  END
+)`
+
 export type RevisionContext = {
   masterId: number
   mbaNumber: string
@@ -183,6 +196,7 @@ export async function loadRevisionContext(
         matchedXeroInvoiceId: schema.financeBillingRecords.matchedXeroInvoiceId,
         billed: schema.financeBillingRecords.billed,
         billedAt: schema.financeBillingRecords.billedAt,
+        xeroStatus: RECORD_XERO_STATUS_SQL,
       })
       .from(schema.financeBillingRecords)
       .where(

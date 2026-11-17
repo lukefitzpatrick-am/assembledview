@@ -32,6 +32,7 @@ const rec = (over: Partial<LockFinanceRecord>): LockFinanceRecord => ({
   matchedXeroInvoiceId: null,
   billed: null,
   billedAt: null,
+  xeroStatus: null,
   ...over,
 })
 
@@ -55,6 +56,26 @@ test("invoiced: sent, matched, billed and a Xero row count; approved and not sen
       ["2026-09", ["legacy_billed"]],
       ["2026-10", ["legacy_billed"]],
       ["2026-11", ["xero_outside_av"]],
+    ],
+  )
+})
+
+test("invoiced: a voided or deleted Xero invoice does not count, as in the S2 SELECT (B56fix R6)", () => {
+  assert.deepEqual(
+    inv([
+      rec({ invoiceKey: "xero:v1", mbaNumber: "TEST001", billingMonth: "2026-07", xeroStatus: "VOIDED" }),
+      rec({ invoiceKey: "xero:d1", mbaNumber: "TEST001", billingMonth: "2026-08", xeroStatus: "deleted" }),
+      rec({ invoiceKey: "xero:p1", mbaNumber: "TEST001", billingMonth: "2026-09", xeroStatus: "PAID" }),
+      rec({ invoiceKey: "media:test001:2026-10", matchedXeroInvoiceId: "v2", xeroStatus: "VOIDED" }),
+      rec({ invoiceKey: "media:test001:2026-11", matchedXeroInvoiceId: "v3", exportedAt: "2026-11-30", xeroStatus: "VOIDED" }),
+      rec({ invoiceKey: "media:test001:2026-12", matchedXeroInvoiceId: "a1", xeroStatus: "AUTHORISED" }),
+      rec({ invoiceKey: "xero:n1", mbaNumber: "TEST001", billingMonth: "2027-01", xeroStatus: null }),
+    ]).map((m) => [m.month, m.reasons]),
+    [
+      ["2026-09", ["xero_outside_av"]],
+      ["2026-11", ["sent_to_accounts"]],
+      ["2026-12", ["xero_matched"]],
+      ["2027-01", ["xero_outside_av"]],
     ],
   )
 })

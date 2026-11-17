@@ -18,6 +18,7 @@ const rec = (over: Partial<LockFinanceRecord>): LockFinanceRecord => ({
   matchedXeroInvoiceId: null,
   billed: null,
   billedAt: null,
+  xeroStatus: null,
   ...over,
 })
 
@@ -175,4 +176,22 @@ test("toMonthKey and revisionMonthSpan", () => {
     revisionMonthSpan({ campaignStartMonth: "2026-11", campaignEndMonth: "2026-12", currentMonth: "2026-10", cellMonths: [] }),
     ["2026-10", "2026-11", "2026-12"],
   )
+})
+
+test("a voided or deleted Xero invoice is not a hard lock (B56fix R6)", () => {
+  const r = resolveMonthLocks({
+    mbaNumber: "X1",
+    months: ["2026-11", "2026-12"],
+    records: [
+      rec({ invoiceKey: "xero:v1", mbaNumber: "X1", billingMonth: "2026-11", exportedAt: "1970-01-01T00:00:00Z", billed: true, xeroStatus: "VOIDED" }),
+      rec({ invoiceKey: "media:X1:2026-12", matchedXeroInvoiceId: "d1", xeroStatus: "DELETED" }),
+    ],
+    sentAaPackMonths: [],
+    periods: [],
+    financePeriodsLockEnforced: false,
+    lastCampaignMonth: "2026-12",
+    now: NOW,
+  })
+  assert.equal(lockOf(r, "2026-11").level, "open")
+  assert.equal(lockOf(r, "2026-12").level, "open")
 })
