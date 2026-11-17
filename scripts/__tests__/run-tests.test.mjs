@@ -154,7 +154,8 @@ const NODE_TEST = `import test from "node:test"\n`
 test("a file that crashes after its first test fails the run", () => {
   const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + `test("first", () => {})\ntest("second", () => { process.kill(process.pid, "SIGKILL") })\n` }))
   assert.equal(r.status, 1)
-  assert.match(r.stderr, /lib\/a\.test\.ts: killed by SIGKILL \(started \d+, results \d+, summary none\)/)
+  // Windows reports a self-kill as an exit code, not a signal (RUNFIX2, review R3).
+  assert.match(r.stderr, /lib\/a\.test\.ts: (killed by SIGKILL|exit code \d+) \(started \d+, results \d+, summary none\)/)
 })
 
 test("a file that exits 0 before its summary fails the run", () => {
