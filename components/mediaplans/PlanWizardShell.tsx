@@ -128,6 +128,15 @@ export function PlanWizardShell({
     }
   }, [])
 
+  // The toast viewport sits above the fixed Save and Publish bar (`ToastViewport` reads this).
+  useEffect(() => {
+    const style = document.documentElement.style
+    style.setProperty("--plan-wizard-bar-height", `${stickyBarHeight}px`)
+    return () => {
+      style.removeProperty("--plan-wizard-bar-height")
+    }
+  }, [stickyBarHeight])
+
   useEffect(() => {
     document.documentElement.dataset.planWizardBar = "true"
     return () => {

@@ -96,6 +96,28 @@ describe("PlanWizardShell sidebar collapse", () => {
     expect(sidebarState.setOpen).toHaveBeenCalledTimes(1)
     expect(sidebarState.setOpen).toHaveBeenCalledWith(false)
   })
+
+  it("lifts the toast viewport by the Save bar height while mounted (B46fix R2)", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ height: 72 } as DOMRect)
+    const offset = () =>
+      document.documentElement.style.getPropertyValue("--plan-wizard-bar-height")
+    try {
+      act(() => {
+        root.render(<PlanWizardShell {...SHELL_PROPS} />)
+      })
+      expect(offset()).toBe("72px")
+
+      act(() => {
+        root.unmount()
+      })
+      mounted = false
+      expect(offset()).toBe("")
+    } finally {
+      rect.mockRestore()
+    }
+  })
 })
 
 describe("PlanWizardShell campaign tools rail", () => {
