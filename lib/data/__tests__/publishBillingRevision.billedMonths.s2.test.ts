@@ -1,7 +1,8 @@
 /**
  * S2 A (B56): a billing revision copies the published tip, so it cannot keep
  * billed rows; with `billed_months_choice` on it refuses a change to an
- * invoiced month (409), a true-up is exempt, and off changes nothing.
+ * invoiced month (409), a true-up and its undo are exempt, and off changes
+ * nothing. B56fix: the undo preview and its Confirm agree.
  * The planner is mocked to hand back cells that move an invoiced month, as a
  * planner bug would; the real publishBillingRevision runs.
  * Requires Node 22+ with `--experimental-test-module-mocks`.
@@ -93,10 +94,18 @@ function fakeDb(): Db {
       },
     },
   )
-  return { transaction: async (cb: (t: unknown) => Promise<unknown>) => cb(tx) } as unknown as Db
+  return { select, transaction: async (cb: (t: unknown) => Promise<unknown>) => cb(tx) } as unknown as Db
 }
 
-async function run(on: boolean, mode: "pull_month" | "true_up") {
+type Mode = "pull_month" | "true_up" | "true_up_restore"
+
+function requestFor(mode: Mode) {
+  if (mode === "true_up") return { mode }
+  if (mode === "true_up_restore") return { mode, target: { media: {} }, fixedAtMonth: "2027-01" }
+  return { mode, fromMonth: "2026-12", intoMonth: "2026-11" }
+}
+
+async function run(on: boolean, mode: Mode) {
   setFeatureRowReaderForTests(async () => new Map([["billed_months_choice", row("billed_months_choice", on)]]))
   const { publishBillingRevision } = await import("@/lib/data/publishBillingRevision")
   return publishBillingRevision(
@@ -104,7 +113,7 @@ async function run(on: boolean, mode: "pull_month" | "true_up") {
       mbaNumber: "penfold022",
       baseVersionId: 9,
       expectedHash: plan.ok ? plan.hash : "",
-      request: (mode === "true_up" ? { mode } : { mode, fromMonth: "2026-12", intoMonth: "2026-11" }) as never,
+      request: requestFor(mode) as never,
       options: DEFAULT_OPTIONS,
       reason: "Client asked",
       source: "ui",
@@ -131,4 +140,34 @@ test("on: a true-up sets invoiced months to what was invoiced and goes on", { sk
 
 test("off: the revision goes on as before", { skip }, async () => {
   await assert.rejects(run(false, "pull_month"), PastTheGate)
+})
+
+test("on: a true-up undo that puts back an invoiced month goes on (B56fix R3)", { skip }, async () => {
+  await assert.rejects(run(true, "true_up_restore"), PastTheGate)
+})
+
+test("on: the true-up undo preview and its Confirm agree (both go on)", { skip }, async () => {
+  const prev = process.env.BILLING_REVISION_TOKEN_SECRET
+  process.env.BILLING_REVISION_TOKEN_SECRET = "b56fix-test-secret-0123456789"
+  try {
+    setFeatureRowReaderForTests(async () => new Map([["billed_months_choice", row("billed_months_choice", true)]]))
+    const { previewRevision } = await import("@/lib/finance/revisions/revisionService")
+    const preview = await previewRevision({
+      mbaNumber: "penfold022",
+      request: requestFor("true_up_restore") as never,
+      options: DEFAULT_OPTIONS,
+      reason: "Undo true-up",
+      source: "ui",
+      sub: "auth0|test",
+      db: fakeDb(),
+    })
+    assert.equal(preview.ok, true)
+    // The plan changes Dec 2026, which is invoiced (hard, matched to Xero).
+    const dec = preview.ok ? preview.plan.months.find((m) => m.month === "2026-12") : undefined
+    assert.ok(dec && dec.total.before !== dec.total.after)
+    await assert.rejects(run(true, "true_up_restore"), PastTheGate)
+  } finally {
+    if (prev === undefined) delete process.env.BILLING_REVISION_TOKEN_SECRET
+    else process.env.BILLING_REVISION_TOKEN_SECRET = prev
+  }
 })

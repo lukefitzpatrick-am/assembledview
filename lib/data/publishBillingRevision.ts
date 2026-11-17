@@ -43,7 +43,13 @@ import {
   rowCentsMap,
   subtractCentsMaps,
 } from "@/lib/finance/revisions/revisionWriteModel"
-import type { RevisionFail, RevisionOk, RevisionOptions, RevisionRequest } from "@/lib/finance/revisions/types"
+import {
+  isTrueUpRevisionMode,
+  type RevisionFail,
+  type RevisionOk,
+  type RevisionOptions,
+  type RevisionRequest,
+} from "@/lib/finance/revisions/types"
 import { checkBilledMonths, invoicedMonthsFromLocks } from "@/lib/finance/billedMonths/billedMonths"
 import { decideBilledMonths } from "@/lib/finance/billedMonths/choice"
 import { isFeatureOn } from "@/lib/features/server"
@@ -303,9 +309,11 @@ export async function publishBillingRevision(
 
     // S2 A: a revision copies the tip, so it cannot keep; it may not change an
     // invoiced month (the planner's hard locks already stop that). A true-up
-    // is exempt: it sets invoiced months to what Xero invoiced.
+    // and its undo are exempt: the true-up sets invoiced months to what Xero
+    // invoiced, the undo puts back what was there (its planner refuses months
+    // locked since), and the undo preview never asks either.
     const billed = decideBilledMonths({
-      on: billedMonthsOn && input.request.mode !== "true_up",
+      on: billedMonthsOn && !isTrueUpRevisionMode(input.request.mode),
       check: checkBilledMonths({
         invoiced: invoicedMonthsFromLocks(ctx.locks),
         base: explodedBase.rows,
