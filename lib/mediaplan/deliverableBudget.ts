@@ -516,6 +516,13 @@ function calculatedValueEmpty(value: unknown): boolean {
   return storedDeliverable(value) === 0;
 }
 
+/** A burst with a budget above 0 and a zero, blank or missing `calculatedValue`. */
+export function burstHasBudgetAndNoQuantity(burst: unknown): boolean {
+  if (!burst || typeof burst !== "object") return false;
+  const row = burst as Record<string, unknown>;
+  return burstBudgetAmount(row.budget) > 0 && calculatedValueEmpty(row.calculatedValue);
+}
+
 /**
  * After rounding. A derived line (same exclusions as save rounding) warns
  * when any burst has a budget above 0 and a zero or blank quantity.
@@ -528,12 +535,7 @@ export function zeroDeliverableWarnings(
   for (const line of lines) {
     if (!isSaveRoundedBuyType(line.buyType)) continue;
     if (!Array.isArray(line.bursts)) continue;
-    const hit = line.bursts.some((burst) => {
-      if (!burst || typeof burst !== "object") return false;
-      const row = burst as Record<string, unknown>;
-      return burstBudgetAmount(row.budget) > 0 && calculatedValueEmpty(row.calculatedValue);
-    });
-    if (!hit) continue;
+    if (!line.bursts.some(burstHasBudgetAndNoQuantity)) continue;
     const buyType = String(line.buyType ?? "").trim();
     warnings.push({
       lineItemId: line.lineItemId,
