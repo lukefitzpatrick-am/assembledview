@@ -84,6 +84,11 @@ BEGIN
   DECLARE
     clash text;
   BEGIN
+    -- shortcut: the lock holds two writes apart only at READ COMMITTED (each
+    -- statement sees rows committed after the lock is taken). Under
+    -- REPEATABLE READ or SERIALIZABLE both writes can commit. The app sets no
+    -- isolation level. Upgrade to a side table with a real unique index
+    -- (held question V30 B) if any roster writer runs above READ COMMITTED.
     PERFORM pg_advisory_xact_lock(hashtext('public.team_members addresses'));
     SELECT mine.address INTO clash
       FROM (
