@@ -12,6 +12,7 @@
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import {
@@ -376,9 +377,10 @@ function campaignDateBounds(
     }
   }
   if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
-    const now = new Date()
-    const start = opts?.campaignStart ?? new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = opts?.campaignEnd ?? new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    // No burst dates: the current Melbourne month (B49, S9; was the host month, UTC on the server).
+    const [y, m] = getMelbourneMonthISO().split("-").map(Number)
+    const start = opts?.campaignStart ?? new Date(y, m - 1, 1)
+    const end = opts?.campaignEnd ?? new Date(y, m, 0)
     return { start, end }
   }
   return {

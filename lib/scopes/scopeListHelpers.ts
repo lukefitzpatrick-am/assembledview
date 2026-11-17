@@ -1,6 +1,8 @@
 import { parseScopeJSON, summarizeScopeScheduleCoverage } from "@/lib/finance/scopeScheduleExtract"
 import { parseBillingScheduleAmount } from "@/lib/finance/utils"
 import { matchTextAny } from "@/lib/search/matchText"
+import { addMonthsISO } from "@/lib/dates/civil"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 export function sumScopeCostItems(value: unknown): number {
   let items = value
@@ -48,7 +50,7 @@ export function progressToneForScheduledPct(
 
 export function scopeScheduleGapLabel(
   scope: { billing_schedule?: unknown; billingSchedule?: unknown },
-  year: number = new Date().getFullYear(),
+  year: number = Number(getMelbourneMonthISO().slice(0, 4)),
 ): string | null {
   const schedule = parseScopeJSON(scope.billing_schedule ?? scope.billingSchedule)
   return summarizeScopeScheduleCoverage(schedule, year).gapLabel
@@ -78,4 +80,14 @@ export function scopeMatchesVisibleSearch(
     ],
     searchTerm,
   )
+}
+
+/** Month picker for scopes of work: the Melbourne month and 12 either side, `YYYY-MM` with "November 2026" labels (create and edit). */
+export function scopeMonthYearOptions(now: Date = new Date()): { value: string; label: string }[] {
+  const current = getMelbourneMonthISO(now)
+  return Array.from({ length: 25 }, (_, i) => {
+    const value = addMonthsISO(current, i - 12)
+    const [year, month] = value.split("-").map(Number)
+    return { value, label: `${new Date(year, month - 1, 1).toLocaleString("en-US", { month: "long" })} ${year}` }
+  })
 }

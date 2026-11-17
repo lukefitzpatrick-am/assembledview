@@ -21,14 +21,13 @@ const MONTH_INDEX: Record<string, number> = {
   december: 12,
 }
 
-/** Canonical period key: YYYY-MM. Throws on unparseable input. */
-export function toPeriodMonthKey(input: string | Date): string {
-  if (input instanceof Date) {
-    if (Number.isNaN(input.getTime())) throw new Error("Invalid Date for period month")
-    const y = input.getUTCFullYear()
-    const m = input.getUTCMonth() + 1
-    return `${y}-${String(m).padStart(2, "0")}`
-  }
+/**
+ * Canonical period key: YYYY-MM. Throws on unparseable input. Strings only
+ * (B49, S9): a `Date` has no month until a zone is picked, and its UTC month
+ * is wrong for the first 10 to 11 hours of each Melbourne month. For "now"
+ * use `getMelbourneMonthISO` from `lib/dates/melbourne`.
+ */
+export function toPeriodMonthKey(input: string): string {
   const raw = String(input ?? "").trim()
   if (!raw) throw new Error("Empty period month")
 
@@ -49,7 +48,7 @@ export function toPeriodMonthKey(input: string | Date): string {
 }
 
 /** First-of-month date string YYYY-MM-01 for Postgres `date` columns. */
-export function toPeriodMonthDate(input: string | Date): string {
+export function toPeriodMonthDate(input: string): string {
   return `${toPeriodMonthKey(input)}-01`
 }
 

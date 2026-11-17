@@ -26,6 +26,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
 import { formArrayErrorMessage } from "@/lib/scopes/formArrayError"
 import { normaliseScopeCostRows, scopeValidationToastDescription } from "@/lib/scopes/scopeForm"
+import { addMonthsISO } from "@/lib/dates/civil"
+import { scopeMonthYearOptions } from "@/lib/scopes/scopeListHelpers"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -62,35 +65,6 @@ interface Client {
   id: number
   mp_client_name: string
   mbaidentifier: string
-}
-
-// Helper function to generate month/year options (current month ±12 months)
-const generateMonthYearOptions = () => {
-  const options: { value: string; label: string }[] = []
-  const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-
-  for (let i = -12; i <= 12; i++) {
-    const date = new Date(currentYear, currentMonth + i, 1)
-    const monthName = date.toLocaleString('en-US', { month: 'long' })
-    const year = date.getFullYear()
-    const value = `${year}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    const label = `${monthName} ${year}`
-    options.push({ value, label })
-  }
-
-  return options
-}
-
-// Helper function to get next month from a given month string (YYYY-MM)
-const getNextMonth = (monthStr: string): string => {
-  const [year, month] = monthStr.split('-').map(Number)
-  const date = new Date(year, month - 1, 1)
-  date.setMonth(date.getMonth() + 1)
-  const nextYear = date.getFullYear()
-  const nextMonth = String(date.getMonth() + 1).padStart(2, '0')
-  return `${nextYear}-${nextMonth}`
 }
 
 // Helper function to format month string to display format
@@ -137,7 +111,7 @@ export default function CreateScopePage() {
       ],
       payment_terms_and_conditions: "",
       billing_schedule: [{
-        month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+        month: getMelbourneMonthISO(),
         cost: 0,
       }],
     },
@@ -153,7 +127,7 @@ export default function CreateScopePage() {
     name: "billing_schedule",
   })
 
-  const monthYearOptions = generateMonthYearOptions()
+  const monthYearOptions = scopeMonthYearOptions()
 
   // Fetch clients
   useEffect(() => {
@@ -961,8 +935,8 @@ export default function CreateScopePage() {
                     const currentBilling = form.getValues("billing_schedule")
                     const lastMonth = currentBilling.length > 0 
                       ? currentBilling[currentBilling.length - 1].month 
-                      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-                    const nextMonth = getNextMonth(lastMonth)
+                      : getMelbourneMonthISO()
+                    const nextMonth = addMonthsISO(lastMonth, 1)
                     appendBilling({ month: nextMonth, cost: 0 })
                   }}
                 >

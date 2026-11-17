@@ -1,4 +1,6 @@
 import { format, isValid, parse } from "date-fns"
+
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 import type { BillingType } from "@/lib/types/financeBilling"
 
 /** All values allowed for `finance_billing_records.billing_type` in the API layer (must match Xano enum). */
@@ -32,7 +34,8 @@ export function parseBillingTypesQueryParam(raw: string | null): { ok: true; typ
 }
 
 /**
- * Single calendar month only. Empty/missing uses current month (local) when `defaultWhenMissing` is true.
+ * Single calendar month only. Empty/missing uses the current Melbourne month when `defaultWhenMissing` is true
+ * (B49, S9: it was the server's UTC month, a month behind for the first 10 to 11 hours of each month).
  * Comma or other range syntax → error. Malformed → error.
  */
 export function parseSingleBillingMonthParam(
@@ -41,7 +44,7 @@ export function parseSingleBillingMonthParam(
 ): { ok: true; month: string } | FinanceApiErrorBody {
   if (raw == null || !String(raw).trim()) {
     if (options.defaultWhenMissing) {
-      return { ok: true, month: format(new Date(), "yyyy-MM") }
+      return { ok: true, month: getMelbourneMonthISO() }
     }
     return {
       error: "billing_month is required and must be a single value in YYYY-MM format.",

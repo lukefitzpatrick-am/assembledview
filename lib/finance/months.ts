@@ -17,16 +17,6 @@ export function getCurrentBillingMonth(today: Date = new Date(), opts: FinanceMo
   return `${y}-${String(m + 1).padStart(2, "0")}`
 }
 
-/** Current calendar month and the following month as `YYYY-MM` (billing_month). */
-export function getCurrentAndNextBillingMonths(today: Date = new Date()): [string, string] {
-  const y = today.getFullYear()
-  const m = today.getMonth()
-  const cur = `${y}-${String(m + 1).padStart(2, "0")}`
-  const nextDate = new Date(y, m + 1, 1)
-  const next = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`
-  return [cur, next]
-}
-
 /**
  * Calendar year of the July that starts the Australian FY containing `date`.
  * E.g. 2026-07-11 → 2026; 2026-03-01 → 2025.

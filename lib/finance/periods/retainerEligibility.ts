@@ -9,7 +9,7 @@ import { toCents } from "@/lib/money"
  */
 export function isRetainerActiveForPeriod(args: {
   monthlyRetainer: number | null | undefined
-  retainerEndMonth: string | Date | null | undefined
+  retainerEndMonth: string | null | undefined
   periodMonth: string
 }): boolean {
   const amount = Number(args.monthlyRetainer)

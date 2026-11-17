@@ -786,5 +786,4 @@ export function financeClientNamesMatch(name1: string, name2: string): boolean {
   return normalizeFinanceClientName(name1) === normalizeFinanceClientName(name2)
 }
 
-export { getCurrentAndNextBillingMonths } from "./months"
 

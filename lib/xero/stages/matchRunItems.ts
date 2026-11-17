@@ -24,7 +24,8 @@ import {
   type CreditNoteCandidate,
   type DisputedMatch,
 } from "@/lib/xero/matcher/creditNoteReconcile"
-import { toPeriodMonthKey, toPeriodMonthDate } from "@/lib/finance/periods/monthKey"
+import { toPeriodMonthDate } from "@/lib/finance/periods/monthKey"
+import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 export type MatchRunItemsResult = {
   stage: "match_run_items"
@@ -353,7 +354,8 @@ async function upsertHitRateMetrics(result: {
     referenceHits: number
   }
 }): Promise<void> {
-  const month = toPeriodMonthDate(toPeriodMonthKey(new Date().toISOString()))
+  // The Melbourne month of the run (S9): the UTC month was a month behind for the first 10 to 11 hours of each month.
+  const month = toPeriodMonthDate(getMelbourneMonthISO())
   try {
     await db.execute(sql`
       INSERT INTO xero_match_month_metrics (
