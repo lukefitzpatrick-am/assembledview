@@ -34,7 +34,7 @@ type SaveStopCode =
   | "channel-load-failed"
   | "billing-overrides-not-loaded"
 
-export type SaveStop = {
+type SaveStop = {
   code: SaveStopCode
   /** Null: refuse without a toast (a second click while a save runs). */
   toast: { title: string; description?: string; variant?: "destructive" } | null

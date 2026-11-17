@@ -18,7 +18,7 @@ import {
 
 type LegacyChannels = Parameters<typeof reconcileLegacyPartialSelection>[0]["channels"]
 
-export type MbaScopeOnLoad =
+type MbaScopeOnLoad =
   /** An old partial MBA waits until every channel has its lines; nothing is read yet. */
   | { kind: "wait" }
   /** A scope or approval rows: the lines in the MBA, and the saved months (null: the baseline months). */
