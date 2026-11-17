@@ -98,6 +98,23 @@ describe("Toaster with the one toast store", () => {
     expect(shown()).toContain("Downloaded")
   })
 
+  it("keeps an open error through the plan-save toasts that follow it (B46fix R1)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    // The order the create and edit save handlers send after a publish.
+    act(() => {
+      handles.push(toast({ variant: "destructive", title: "Plan saved without documents", description: "Document generation failed" }))
+      handles.push(toast({ title: "Check the rate", description: "Line 1 has a budget and no deliverables." }))
+      handles.push(toast({ title: "Check the rate", description: "Line 2 has a budget and no deliverables." }))
+      handles.push(toast({ title: "Removed 2 empty lines with no buy type, budget, or rate." }))
+      handles.push(toast({ title: "Success", description: "Saved as version 3" }))
+    })
+    expect(shown()).toContain("Plan saved without documents")
+    expect(shown()).toContain("Success")
+    expect(document.querySelectorAll("li")).toHaveLength(3)
+  })
+
   it("frees the slot of a closed toast, so an open error outlasts many later toasts", () => {
     act(() => {
       root.render(<Toaster />)

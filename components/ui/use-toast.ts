@@ -78,11 +78,14 @@ const addToRemoveQueue = (toastId: string) => {
 
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
-    case "ADD_TOAST":
-      return {
-        ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
-      }
+    case "ADD_TOAST": {
+      // Newest first. At the limit, drop the oldest toast that is not an open error
+      // (the new one included), or the oldest when every toast is an open error.
+      const toasts = [action.toast, ...state.toasts]
+      if (toasts.length <= TOAST_LIMIT) return { ...state, toasts }
+      const drop = toasts.findLastIndex((t) => !(t.open && t.variant === "destructive"))
+      return { ...state, toasts: toasts.filter((_, i) => i !== (drop === -1 ? toasts.length - 1 : drop)) }
+    }
 
     case "UPDATE_TOAST":
       return {
