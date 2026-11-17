@@ -707,6 +707,31 @@ function labelList(keys: readonly string[]): string {
 }
 
 /**
+ * Why required switches read off, for a refusal or a page hint: a switch
+ * saved off says "Turn on X"; one saved on that reads off says why (its
+ * migration marker, or its own requirement), so nobody is told to turn on a
+ * switch that already shows On (V14).
+ */
+export function requirementsOffReason(
+  off: readonly string[],
+  raw: (key: string) => boolean,
+  markerApplied: (marker: string) => boolean,
+): string {
+  const turnOn = off.filter((k) => !raw(k))
+  const parts = turnOn.length ? [`Turn on ${labelList(turnOn)} first`] : []
+  for (const k of off.filter((x) => raw(x))) {
+    const marker = featureDefinition(k)?.requiresMarker
+    const own = (featureDefinition(k)?.requires ?? []).filter((r) => !effectiveFeatureOn(r, raw, markerApplied))
+    parts.push(
+      marker && !markerApplied(marker)
+        ? `${labelList([k])} reads off until migration ${marker} runs`
+        : `${labelList([k])} reads off until ${labelList(own)} ${own.length === 1 ? "is" : "are"} on`,
+    )
+  }
+  return `${parts.join(". ")}: this switch needs ${off.length === 1 ? "it" : "them"}.`
+}
+
+/**
  * Why a switch can't be set to `enabled` now, or null (S16). On needs its
  * migration marker and every switch in its `requires` live (`live`:
  * `effectiveFeatureOn`). Off is
@@ -727,7 +752,7 @@ export function featureToggleRefusal(
   }
   if (enabled) {
     const off = (def.requires ?? []).filter((k) => !live(k))
-    return off.length ? `Turn on ${labelList(off)} first: this switch needs ${off.length === 1 ? "it" : "them"}.` : null
+    return off.length ? requirementsOffReason(off, raw, markerApplied) : null
   }
   const on = (FEATURE_DEFINITIONS as readonly FeatureDefinition[]).filter((d) => d.requires?.includes(key) && raw(d.key)).map((d) => d.key)
   return on.length ? `Turn off ${labelList(on)} first: ${on.length === 1 ? "it needs" : "they need"} this switch.` : null

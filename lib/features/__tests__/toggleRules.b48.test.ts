@@ -26,8 +26,9 @@ test("on is refused while a requirement is off, naming it", () => {
 })
 
 test("a requirement counts only when it is live: its own requirements are on too", () => {
-  // codex_projects is on but codex_v2 is off, so codex_projects is not live.
-  assert.equal(rule(["codex_projects"])("codex_my_work", true), "Turn on Tasks: projects and sections first: this switch needs it.")
+  // codex_projects is on but codex_v2 is off, so codex_projects is not live (and the refusal says why, V14).
+  assert.equal(rule(["codex_projects"])("codex_my_work", true), "Tasks: projects and sections reads off until Tasks (Codex) is on: this switch needs it.")
+  assert.equal(rule([])("codex_my_work", true), "Turn on Tasks: projects and sections first: this switch needs it.")
   assert.equal(rule(["codex_v2", "codex_projects"])("codex_my_work", true), null)
 })
 

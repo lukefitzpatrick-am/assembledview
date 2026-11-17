@@ -11,6 +11,7 @@ import {
   FEATURE_DEFINITIONS,
   featureDefinition,
   featureToggleRefusal,
+  requirementsOffReason,
   RETIRE_AFTER_ON_DAYS,
   type FeatureArea,
   type FeatureRow,
@@ -100,14 +101,19 @@ export function buildFeaturePageModel(args: {
     const allowed = canToggleFeature(def, args.roles)
     // S16: the same rule setFeatureSwitch enforces, so the page never offers a refused change.
     const refusal = featureToggleRefusal(def.key, !enabled, raw, live, markerApplied)
+    // V14: saved on, but its migration has not run, so it reads off everywhere.
+    const marker = featureDefinition(def.key)?.requiresMarker
+    const markerHint = enabled && marker && !markerApplied(marker) ? `Reads off until migration ${marker} runs.` : null
     let hint: string | null = null
     if (def.source === "vercel") hint = def.vercelReason ?? "Set in Vercel."
     else if (!args.ready) hint = "The switches could not be read. Until the next read it reads its env var."
     else if (!allowed) hint = def.toggleRole === "finance_admin" ? "Finance admins only." : "Admins only."
-    else if (refusal) hint = refusal
+    else if (refusal) hint = markerHint ? `${markerHint} ${refusal}` : refusal
+    else if (markerHint) hint = markerHint
     else if ("requires" in def && def.requires?.length) {
       const off = def.requires.filter((k) => !live(k))
-      if (off.length) hint = `Also needs ${off.map((k) => featureDefinition(k)?.label ?? k).join(" and ")} on.`
+      if (off.some(raw)) hint = requirementsOffReason(off, raw, markerApplied)
+      else if (off.length) hint = `Also needs ${off.map((k) => featureDefinition(k)?.label ?? k).join(" and ")} on.`
     }
     const onAt = s?.onSince ? new Date(s.onSince) : null
     const onSince = onAt && Number.isFinite(onAt.getTime()) ? getMelbourneTodayISO(onAt) : null

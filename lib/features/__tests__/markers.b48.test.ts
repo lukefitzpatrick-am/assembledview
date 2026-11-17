@@ -61,6 +61,38 @@ test("turning on is refused until the marker exists; the page says so", () => {
   assert.equal(page(["0118_codex_s1_projects"]).canToggle, true)
 })
 
+test("a switch saved on before its migration: the page says it reads off, and its dependants name the migration, not Turn on (V14)", () => {
+  const states = ["codex_v2", "codex_projects", "codex_notifications"].map((key) => ({ key, enabled: true, source: "switch" as const, row: null }))
+  const rows = (markers: string[], extra: typeof states = []) =>
+    new Map(
+      buildFeaturePageModel({ ready: true, states: [...states, ...extra], roles: { admin: true, financeAdmin: true }, markers })
+        .flatMap((g) => g.rows)
+        .map((r) => [r.key, r]),
+    )
+  const before = rows([])
+  assert.equal(before.get("codex_projects")!.enabled, true)
+  assert.equal(
+    before.get("codex_projects")!.hint,
+    "Reads off until migration 0118_codex_s1_projects runs. Turn off Tasks: notifications first: it needs this switch.",
+  )
+  const why = "Tasks: projects and sections reads off until migration 0118_codex_s1_projects runs: this switch needs it."
+  assert.equal(before.get("codex_notifications")!.hint, why, "an on dependant")
+  assert.equal(before.get("codex_my_work")!.hint, why, "an off dependant: turning it on is refused with the reason")
+  assert.equal(before.get("codex_my_work")!.canToggle, false)
+  const raw = (k: string) => states.some((s) => s.key === k)
+  assert.equal(featureToggleRefusal("codex_my_work", true, raw, (k) => effectiveFeatureOn(k, raw, () => false), () => false), why, "the API says the same")
+  const after = rows(["0118_codex_s1_projects", "0117_codex_saved_views"])
+  assert.equal(after.get("codex_projects")!.hint, "Turn off Tasks: notifications first: it needs this switch.", "no migration note once it ran")
+  assert.equal(after.get("codex_notifications")!.hint, null)
+  assert.equal(after.get("codex_my_work")!.canToggle, true)
+  // Two levels down: on, its requirement on, that one's marker missing.
+  const nested = rows([], [{ key: "codex_my_work", enabled: true, source: "switch", row: null }])
+  assert.equal(nested.get("codex_my_work")!.hint, why)
+  // A requirement saved off keeps the old wording.
+  const v2Off = (k: string) => k !== "codex_v2" && raw(k)
+  assert.equal(featureToggleRefusal("codex_projects", true, v2Off, () => false, () => true), "Turn on Tasks (Codex) first: this switch needs it.")
+})
+
 test("lib/db/markers: an applied marker is kept; a missing one is read again after the recheck; a failed read is not cached", async () => {
   const asked: string[] = []
   let present = new Set<string>()
