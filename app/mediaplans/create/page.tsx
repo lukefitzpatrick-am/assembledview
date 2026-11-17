@@ -52,7 +52,6 @@ import {
   isCampaignBudgetOverspend,
   totalInvestmentAllocatedFromMbaScope,
 } from "@/lib/mediaplan/campaignBudgetRemaining"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -234,7 +233,6 @@ import {
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
-import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import {
   CREATE_MEDIA_TYPE_CATALOG,
   CREATE_MEDIA_TOGGLE_KEYS,
@@ -383,7 +381,15 @@ import {
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import { planSavePreflight } from "@/app/mediaplans/_form/savePreflight"
 import { buildPlanBuilderIssues } from "@/app/mediaplans/_form/builderIssues"
-import { planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "@/app/mediaplans/_form/planChannels"
+import { AVA_DOM_ACTIONS } from "@/app/mediaplans/_form/avaDomActions"
+import {
+  getMediaTypeAccentColor,
+  MediaContainerSuspenseFallback,
+  PLAN_CAMPAIGN_STEPS,
+  type PageField,
+  type PlanCampaignStepId,
+} from "@/app/mediaplans/_form/planFormChrome"
+import { mediaKeyMap, planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "@/app/mediaplans/_form/planChannels"
 import { cloneBillingMonths } from "@/app/mediaplans/_form/billingMonths"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
@@ -452,19 +458,6 @@ const mediaPlanSchema = z.object({
 
 type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 
-type PageField = {
-  id: string;
-  label: string;
-  type: "string" | "number" | "date" | "enum" | "boolean";
-  value: any;
-  editable: boolean;
-  options?: { label: string; value: string }[];
-  validation?: { required?: boolean; min?: number; max?: number; pattern?: string };
-  semanticType?: string;
-  group?: string;
-  source?: "xano" | "computed" | "ui";
-};
-
 type PageContext = {
   route: { pathname: string; clientSlug?: string; mbaSlug?: string };
   fields: PageField[];
@@ -513,10 +506,6 @@ const lazyWithChunkRetry = <T extends ComponentType<any>>(
       throw error
     }
   })
-
-function MediaContainerSuspenseFallback({ label }: { label: string }) {
-  return <MediaContainerLoadState loading label={label} />
-}
 
 // Lazy-loaded components for each media type
 const TelevisionContainer = lazyWithChunkRetry(() => import("@/components/media-containers/TelevisionContainer"))
@@ -568,29 +557,6 @@ const CREATE_MEDIA_COMPONENTS: Record<
   mp_production: ProductionContainer,
 }
 
-// Place this inside your CreateMediaPlan component, after the state declarations
-const mediaKeyMap: { [key: string]: string } = {
-  mp_search: 'search',
-  mp_socialmedia: 'socialMedia',
-  mp_digiaudio: 'digiAudio',
-  mp_digidisplay: 'digiDisplay',
-  mp_digivideo: 'digiVideo',
-  mp_bvod: 'bvod',
-  mp_progdisplay: 'progDisplay',
-  mp_progvideo: 'progVideo',
-  mp_progbvod: 'progBvod',
-  mp_progaudio: 'progAudio',
-  mp_progooh: 'progOoh',
-  mp_cinema: 'cinema',
-  mp_television: 'television',
-  mp_radio: 'radio',
-  mp_newspaper: 'newspaper',
-  mp_magazines: 'magazines',
-  mp_ooh: 'ooh',
-  mp_integration: 'integration',
-  mp_influencers: 'influencers',
-  mp_production: 'production',
-};
 // Add these type declarations at the top of the file
 type BillingMonths = {
   monthYear: string;
@@ -643,24 +609,6 @@ type Burst = {
   feePercentage: number;
   budgetIncludesFees: boolean;
 };
-
-type CreateCampaignStepId = "campaign-setup" | "channel-allocation" | "mba-billing" | "review-export"
-
-const createCampaignSteps: { id: CreateCampaignStepId; label: string; eyebrow: string }[] = [
-  { id: "campaign-setup", label: "Campaign setup", eyebrow: "01" },
-  { id: "channel-allocation", label: "Channel allocation", eyebrow: "02" },
-  { id: "mba-billing", label: "MBA & billing", eyebrow: "03" },
-  { id: "review-export", label: "Review & files", eyebrow: "04" },
-]
-
-const argbToCssHex = (argb?: string) => {
-  const value = argb?.trim()
-  if (!value || value.length !== 8) return undefined
-  return `#${value.slice(2)}`
-}
-
-const getMediaTypeAccentColor = (mediaName: string) =>
-  argbToCssHex(MEDIA_TYPE_COLORS[mediaKeyMap[mediaName]])
 
 function CreateMediaPlan() {
 
@@ -1840,58 +1788,6 @@ function CreateMediaPlan() {
     ]
   )
 
-  const handleSetField = useCallback(
-    async ({ fieldId, selector, value }: { fieldId?: string; selector?: string; value: any }) => {
-      if (typeof window === "undefined" || typeof document === "undefined") return
-      const target =
-        (selector ? document.querySelector(selector) : null) ||
-        (fieldId ? document.getElementById(fieldId) : null) ||
-        (fieldId ? document.querySelector(`[name="${fieldId}"]`) : null)
-
-      if (!target) {
-        throw new Error("Field not found")
-      }
-
-      const asInput = target as HTMLInputElement | HTMLTextAreaElement
-      if (asInput) {
-        asInput.value = value as any
-        asInput.dispatchEvent(new Event("input", { bubbles: true }))
-        asInput.dispatchEvent(new Event("change", { bubbles: true }))
-        return `Set field ${selector || fieldId} to ${value}`
-      }
-      throw new Error("Unsupported field type")
-    },
-    []
-  )
-
-  const handleClick = useCallback(async ({ selector }: { selector: string }) => {
-    if (typeof document === "undefined") return
-    const el = document.querySelector(selector) as HTMLElement | null
-    if (!el) throw new Error("Element not found")
-    el.click()
-    return `Clicked ${selector}`
-  }, [])
-
-  const handleSelect = useCallback(async ({ selector, value }: { selector: string; value: string }) => {
-    if (typeof document === "undefined") return
-    const el = document.querySelector(selector) as HTMLSelectElement | null
-    if (!el) throw new Error("Select not found")
-    el.value = value
-    el.dispatchEvent(new Event("change", { bubbles: true }))
-    return `Selected ${value} on ${selector}`
-  }, [])
-
-  const handleToggle = useCallback(async ({ selector, value }: { selector: string; value: boolean }) => {
-    if (typeof document === "undefined") return
-    const el = document.querySelector(selector) as HTMLInputElement | null
-    if (!el) throw new Error("Toggle target not found")
-    if (el.type !== "checkbox") throw new Error("Toggle target is not a checkbox")
-    el.checked = Boolean(value)
-    el.dispatchEvent(new Event("input", { bubbles: true }))
-    el.dispatchEvent(new Event("change", { bubbles: true }))
-    return `Toggled ${selector} to ${value}`
-  }, [])
-
   const ingestStageIdRef = useRef<string | null>(null)
 
   const handleSetLineItems = useCallback(
@@ -1993,10 +1889,7 @@ function CreateMediaPlan() {
       summary,
       actions: {
         updateBurstBudget,
-        setField: handleSetField,
-        click: handleClick,
-        select: handleSelect,
-        toggle: handleToggle,
+        ...AVA_DOM_ACTIONS,
         setLineItems: handleSetLineItems,
         getLineItems: handleGetLineItems,
       },
@@ -2028,10 +1921,6 @@ function CreateMediaPlan() {
     summarizeBurstsForAssistant,
     televisionBursts,
     updateBurstBudget,
-    handleSetField,
-    handleClick,
-    handleSelect,
-    handleToggle,
     watchedCampaignBudget,
     watchedCampaignName,
     watchedClientName,
@@ -6763,7 +6652,7 @@ const handleSaveAll = async (opts?: {
             {wizardDraftStrip}
           </>
         }
-        steps={createCampaignSteps.map((step) => ({
+        steps={PLAN_CAMPAIGN_STEPS.map((step) => ({
           id: step.id,
           label: step.label,
           sub: step.eyebrow,

@@ -32,6 +32,11 @@ const PLAN_CHANNEL_FORM_FLAG = {
 
 type PlanChannelKey = keyof typeof PLAN_CHANNEL_FORM_FLAG
 
+/** Form flag (`mp_tv`) to billing key, the inverse of the map above. */
+export const mediaKeyMap: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(PLAN_CHANNEL_FORM_FLAG).map(([key, flag]) => [flag, key])
+)
+
 /** One value per channel: a missing channel is a type error. */
 export type PlanChannelRecord<T> = Record<PlanChannelKey, T>
 
