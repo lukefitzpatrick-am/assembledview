@@ -17,6 +17,9 @@ const nextConfig = {
     // Same split as typecheck: lint is `npm run lint` in `gate:main`, not a
     // second analysis pass sharing the Vercel webpack heap.
     ignoreDuringBuilds: true,
+    // `next lint` paths: the defaults plus hooks, contexts and middleware.ts,
+    // so the C-200 Codex boundary (scripts/codex-boundary.mjs) covers them (B51).
+    dirs: ["app", "components", "lib", "src", "hooks", "contexts", "middleware.ts"],
   },
   async redirects() {
     return [
