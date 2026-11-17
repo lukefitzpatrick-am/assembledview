@@ -41,6 +41,63 @@ export const mediaKeyMap: Readonly<Record<string, string>> = Object.fromEntries(
 export type PlanChannelRecord<T> = Record<PlanChannelKey, T>
 
 /**
+ * Edit: the loaded line states (the `initial` writers after a save), by the
+ * page's state names. The lines as loaded, before the editor renumbers them.
+ */
+type LoadedLineStates<T> = {
+  televisionLineItems: T
+  radioLineItems: T
+  newspaperLineItems: T
+  magazinesLineItems: T
+  oohLineItems: T
+  cinemaLineItems: T
+  digitalDisplayLineItems: T
+  digitalAudioLineItems: T
+  digitalVideoLineItems: T
+  bvodLineItems: T
+  integrationLineItems: T
+  searchLineItems: T
+  socialMediaLineItems: T
+  progDisplayLineItems: T
+  progVideoLineItems: T
+  progBvodLineItems: T
+  progAudioLineItems: T
+  progOohLineItems: T
+  influencersLineItems: T
+  productionLineItems: T
+}
+
+/**
+ * Edit: the loaded lines by billing key. One map feeds the B35 (MB-40) alias
+ * number check and the B21fix (MB-33) old partial MBA reconcile, so a key
+ * paired with the wrong state breaks both.
+ */
+export function loadedLinesByBillingKey<T>(s: LoadedLineStates<T>): PlanChannelRecord<T> {
+  return {
+    television: s.televisionLineItems,
+    radio: s.radioLineItems,
+    newspaper: s.newspaperLineItems,
+    magazines: s.magazinesLineItems,
+    ooh: s.oohLineItems,
+    cinema: s.cinemaLineItems,
+    digiDisplay: s.digitalDisplayLineItems,
+    digiAudio: s.digitalAudioLineItems,
+    digiVideo: s.digitalVideoLineItems,
+    bvod: s.bvodLineItems,
+    integration: s.integrationLineItems,
+    search: s.searchLineItems,
+    socialMedia: s.socialMediaLineItems,
+    progDisplay: s.progDisplayLineItems,
+    progVideo: s.progVideoLineItems,
+    progBvod: s.progBvodLineItems,
+    progAudio: s.progAudioLineItems,
+    progOoh: s.progOohLineItems,
+    influencers: s.influencersLineItems,
+    production: s.productionLineItems,
+  }
+}
+
+/**
  * The channels the fee seed and billing read: on in the form and with lines,
  * in this order (television first, production after integration).
  */

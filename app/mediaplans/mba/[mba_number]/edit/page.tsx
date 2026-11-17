@@ -494,7 +494,13 @@ import {
   type PageField,
   type PlanCampaignStepId,
 } from "@/app/mediaplans/_form/planFormChrome"
-import { mediaKeyMap, planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "@/app/mediaplans/_form/planChannels"
+import {
+  loadedLinesByBillingKey,
+  mediaKeyMap,
+  planBurstOverlapLines,
+  planFeeSeedConfigs,
+  type PlanChannelRecord,
+} from "@/app/mediaplans/_form/planChannels"
 import {
   partialMbaBaselineMonths,
   partialMbaBillingGuardWhenOn,
@@ -1523,28 +1529,29 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   // B21fix (finding 2) and B35fix (L3): the same loaded lines feed the old partial
   // MBA reconcile, every billing channel, production included.
   const loadedLinesByKey = useMemo(
-    (): PlanChannelRecord<readonly LineItemWithIdentity[]> => ({
-      television: televisionLineItems,
-      radio: radioLineItems,
-      newspaper: newspaperLineItems,
-      magazines: magazinesLineItems,
-      ooh: oohLineItems,
-      cinema: cinemaLineItems,
-      digiDisplay: digitalDisplayLineItems,
-      digiAudio: digitalAudioLineItems,
-      digiVideo: digitalVideoLineItems,
-      bvod: bvodLineItems,
-      integration: integrationLineItems,
-      search: searchLineItems,
-      socialMedia: socialMediaLineItems,
-      progDisplay: progDisplayLineItems,
-      progVideo: progVideoLineItems,
-      progBvod: progBvodLineItems,
-      progAudio: progAudioLineItems,
-      progOoh: progOohLineItems,
-      influencers: influencersLineItems,
-      production: productionLineItems,
-    }),
+    () =>
+      loadedLinesByBillingKey<readonly LineItemWithIdentity[]>({
+        televisionLineItems,
+        radioLineItems,
+        newspaperLineItems,
+        magazinesLineItems,
+        oohLineItems,
+        cinemaLineItems,
+        digitalDisplayLineItems,
+        digitalAudioLineItems,
+        digitalVideoLineItems,
+        bvodLineItems,
+        integrationLineItems,
+        searchLineItems,
+        socialMediaLineItems,
+        progDisplayLineItems,
+        progVideoLineItems,
+        progBvodLineItems,
+        progAudioLineItems,
+        progOohLineItems,
+        influencersLineItems,
+        productionLineItems,
+      }),
     [
       televisionLineItems,
       radioLineItems,

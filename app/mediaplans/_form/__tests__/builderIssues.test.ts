@@ -12,7 +12,7 @@ import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 
 import { buildPlanBuilderIssues, type PlanBuilderIssuesInput } from "../builderIssues"
-import { planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "../planChannels"
+import { loadedLinesByBillingKey, planBurstOverlapLines, planFeeSeedConfigs, type PlanChannelRecord } from "../planChannels"
 
 const KEYS = [
   "television", "radio", "newspaper", "magazines", "ooh", "cinema", "digiDisplay", "digiAudio", "digiVideo", "bvod",
@@ -51,6 +51,37 @@ test("fee seed configs: channels on in the form with lines, in billing order, wi
     (flag) => on.has(flag),
   )
   assert.deepEqual(some.map((c) => c.billingKey), ["television", "digiDisplay", "production"])
+})
+
+test("edit loaded lines: each billing key reads its own loaded state (B35 number check, MB-33 reconcile)", () => {
+  // Billing key -> the edit page's loaded state (the post-save `initial` writer).
+  const expected: Record<(typeof KEYS)[number], string> = {
+    television: "televisionLineItems",
+    radio: "radioLineItems",
+    newspaper: "newspaperLineItems",
+    magazines: "magazinesLineItems",
+    ooh: "oohLineItems",
+    cinema: "cinemaLineItems",
+    digiDisplay: "digitalDisplayLineItems",
+    digiAudio: "digitalAudioLineItems",
+    digiVideo: "digitalVideoLineItems",
+    bvod: "bvodLineItems",
+    integration: "integrationLineItems",
+    production: "productionLineItems",
+    search: "searchLineItems",
+    socialMedia: "socialMediaLineItems",
+    progDisplay: "progDisplayLineItems",
+    progVideo: "progVideoLineItems",
+    progBvod: "progBvodLineItems",
+    progAudio: "progAudioLineItems",
+    progOoh: "progOohLineItems",
+    influencers: "influencersLineItems",
+  }
+  // One distinct value per state, so any two keys swapped fail.
+  const states = Object.fromEntries(Object.values(expected).map((state) => [state, [state]]))
+  const byKey = loadedLinesByBillingKey(states as Parameters<typeof loadedLinesByBillingKey<string[]>>[0])
+  assert.deepEqual(Object.keys(byKey).toSorted(), [...KEYS].toSorted())
+  for (const key of KEYS) assert.equal(byKey[key], states[expected[key]], key)
 })
 
 const financials = {
