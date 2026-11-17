@@ -122,3 +122,25 @@ test("lib/db/markers: an applied marker is kept; a missing one is read again aft
     setMarkerReaderForTests(null)
   }
 })
+
+test("lib/db/markers: a missing marker is read again once MARKER_RECHECK_MS has passed (RELFIX1, B48 R3)", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-17T00:00:00Z") })
+  let present = false
+  let reads = 0
+  setMarkerReaderForTests(async () => {
+    reads += 1
+    return present
+  })
+  try {
+    assert.equal(await isMarkerApplied("0118_codex_s1_projects"), false)
+    present = true // Luke runs the migration
+    t.mock.timers.tick(MARKER_RECHECK_MS - 1)
+    assert.equal(await isMarkerApplied("0118_codex_s1_projects"), false, "inside the window: the cached answer")
+    assert.equal(reads, 1)
+    t.mock.timers.tick(1)
+    assert.equal(await isMarkerApplied("0118_codex_s1_projects"), true, "after the window: read again")
+    assert.equal(reads, 2)
+  } finally {
+    setMarkerReaderForTests(null)
+  }
+})

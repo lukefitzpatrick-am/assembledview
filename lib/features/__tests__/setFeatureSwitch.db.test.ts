@@ -92,6 +92,40 @@ describe("setFeatureSwitch", { skip }, () => {
     assert.equal(await server.isFeatureOn("codex_saved_views", {}), true)
   })
 
+  test("two toggles at once: the second waits on the switch lock, then sees the first one's row (RELFIX1, B48 R3)", async () => {
+    await sql`DELETE FROM feature_switches`
+    await sql`DELETE FROM feature_switch_events`
+    assert.equal((await server.setFeatureSwitch({ key: "true_up", enabled: true, note: null, actor: ACTOR, env: {} })).ok, true)
+    const other = postgres(URL_!, { max: 1, onnotice: () => {} })
+    let release!: () => void
+    const held = new Promise<void>((r) => (release = r))
+    try {
+      let locked!: () => void
+      const lockTaken = new Promise<void>((r) => (locked = r))
+      // Another toggle in flight: it holds the lock and has turned the dependant on, not yet committed.
+      const first = other.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(hashtext('feature_switches'))`
+        await tx`INSERT INTO feature_switches (key, enabled) VALUES ('true_up_cron', true)`
+        locked()
+        await held
+      })
+      await lockTaken
+      let settled = false
+      const second = server.setFeatureSwitch({ key: "true_up", enabled: false, note: null, actor: ACTOR, env: {} }).finally(() => {
+        settled = true
+      })
+      await new Promise((r) => setTimeout(r, 500))
+      assert.equal(settled, false, "the second toggle waits for the lock")
+      release()
+      await first
+      assert.deepEqual(await second, { ok: false, status: 409, code: "SWITCH_DEPENDENCY", message: "Turn off Monthly true-up run first: it needs this switch." })
+      assert.equal((await sql`SELECT enabled FROM feature_switches WHERE key = 'true_up'`)[0].enabled, true, "the requirement stays on")
+    } finally {
+      release()
+      await other.end()
+    }
+  })
+
   test("Save current values: inserts only missing page switches at the value they have, from = to; a row already there is left alone", async () => {
     await sql`DELETE FROM feature_switches`
     await sql`DELETE FROM feature_switch_events`
