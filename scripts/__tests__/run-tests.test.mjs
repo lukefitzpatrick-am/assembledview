@@ -94,6 +94,22 @@ test("a failing node:test file fails the run", () => {
   assert.match(r.stdout, /node:test files 1 \(ran 1/)
 })
 
+/** A root whose `vitest` import and binary resolve to the repo's install. */
+function vitestRoot(files) {
+  const root = tempRoot(files)
+  fs.symlinkSync(path.join(REPO, "node_modules"), path.join(root, "node_modules"), "junction")
+  return root
+}
+
+test("a Vitest file runs, and a failing one fails the run", () => {
+  const pass = runMain(vitestRoot({ "lib/a.test.ts": VITEST("") }))
+  assert.equal(pass.status, 0, pass.stdout + pass.stderr)
+  assert.match(pass.stdout, /vitest files 1/)
+  const fail = runMain(vitestRoot({ "lib/a.test.ts": VITEST(`throw new Error("x")`) }))
+  assert.equal(fail.status, 1)
+  assert.match(fail.stdout, /vitest files 1/)
+})
+
 test("a node:test file with no test fails the run, an all-skipped one does not", () => {
   const empty = runMain(tempRoot({ "lib/a.test.ts": `import test, { after } from "node:test"\n` }))
   assert.equal(empty.status, 1)
