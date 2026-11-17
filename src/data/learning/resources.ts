@@ -162,6 +162,7 @@ export const resourceGroups: ResourceGroup[] = [
       "Handy utilities you'll reach for often. (Our own UTM Builder lives in the Knowledge Hub under Tools.)",
     items: [
       { label: "Campaign URL Builder (GA4)", url: "https://ga-dev-tools.google/ga4/campaign-url-builder/", blurb: "Google's official UTM builder - the canonical reference for tagging." },
+      { label: "regex101", url: "https://regex101.com/", blurb: "Build, test and explain regular expressions before you use them in GA4, Google Ads, GTM or Search Console filters. Pick the flavour that matches the platform." },
     ],
   },
 ];
