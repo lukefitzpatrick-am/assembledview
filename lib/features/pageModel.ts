@@ -2,7 +2,8 @@
  * /admin/features view model (pure). Rows grouped by area, with where each
  * value comes from and whether this user may toggle it.
  */
-import { getMelbourneTodayISO, shiftISODate } from "@/lib/dates/melbourne"
+import { addDaysISO } from "@/lib/dates/civil"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 import {
   canToggleFeature,
@@ -110,7 +111,7 @@ export function buildFeaturePageModel(args: {
     }
     const onAt = s?.onSince ? new Date(s.onSince) : null
     const onSince = onAt && Number.isFinite(onAt.getTime()) ? getMelbourneTodayISO(onAt) : null
-    const retireAfter = onSince ? shiftISODate(onSince, featureDefinition(def.key)?.retireAfterOn ?? RETIRE_AFTER_ON_DAYS) : null
+    const retireAfter = onSince ? addDaysISO(onSince, featureDefinition(def.key)?.retireAfterOn ?? RETIRE_AFTER_ON_DAYS) : null
     return {
       key: def.key,
       label: def.label,
