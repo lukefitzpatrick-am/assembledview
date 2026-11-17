@@ -21,7 +21,8 @@
  * - No `forceExit`: it made each child call process.exit() once its known tests
  *   ended, which dropped the tail of its results still queued on the pipe and
  *   never ran a test registered after a top-level await. A file that hangs is
- *   stopped by FILE_TIMEOUT_MS instead.
+ *   stopped by FILE_TIMEOUT_MS instead. The runner exits 10 s after its result
+ *   even when a timed-out child ignores SIGTERM and is still alive.
  * - Every test child runs with TZ=UTC, as CI and Vercel do, so a zone-less
  *   formatter built at module load cannot pass here on a Melbourne host.
  * - run() starts each file with this process's exec flags too, so start the
@@ -191,4 +192,6 @@ export async function main(prefixes, root = ROOT) {
 if (path.basename(process.argv[1] ?? "") === "run-tests.mjs") {
   process.chdir(ROOT)
   process.exitCode = await main(process.argv.slice(2))
+  // A timed-out child that ignores SIGTERM keeps its handle, and so this process, alive. The exit code is set: give stdout 10 s to drain, then exit.
+  setTimeout(() => process.exit(), 10_000).unref()
 }

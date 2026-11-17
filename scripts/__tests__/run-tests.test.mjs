@@ -185,3 +185,31 @@ test("test files run in UTC whatever the host zone, from module load on", () => 
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /ran 1, skipped 0/)
 })
+
+// RUNFIX2 (review R2): a timed-out child that ignores SIGTERM must not keep the runner open.
+test("the CLI exits once main returns, even while a child that ignored SIGTERM is still alive", () => {
+  // Stands in for a file that timed out and ignored Node's SIGTERM: the preload starts such a child in the CLI's
+  // own process, so its live handle would hold the event loop open after main() returns. No test file is needed.
+  const root = tempRoot({})
+  const pidFile = path.join(root, "pid")
+  const preload = path.join(root, "stuck-child.mjs")
+  const child = `process.on("SIGTERM", () => {}); setInterval(() => {}, 1e6); console.log("ready")`
+  fs.writeFileSync(
+    preload,
+    `import { spawn } from "node:child_process"\nimport { once } from "node:events"\nimport fs from "node:fs"\n` +
+      `const c = spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: ["ignore", "pipe", "ignore"] })\n` +
+      `await once(c.stdout, "data")\nc.kill("SIGTERM")\nfs.writeFileSync(${JSON.stringify(pidFile)}, String(c.pid))\n`,
+  )
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const cli = [path.join(REPO, "scripts/run-tests.mjs"), "no/such/prefix/"]
+  const r = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, ...cli], { cwd: REPO, env, encoding: "utf8", timeout: 60_000 })
+  try {
+    process.kill(Number(fs.readFileSync(pidFile, "utf8")), "SIGKILL")
+  } catch {
+    // already gone
+  }
+  assert.equal(r.signal, null, "the CLI was still running at 60 s")
+  assert.equal(r.status, 1, r.stderr)
+  assert.match(r.stderr, /no test file starts with no\/such\/prefix\//)
+})
