@@ -521,10 +521,10 @@ describe("DD-3 draft downloads", () => {
     const draftStart = createSrc.indexOf("const handleDraftMba")
     const draftEnd = createSrc.indexOf("const handleGenerateMBA", draftStart)
     const draftBody = createSrc.slice(draftStart, draftEnd)
-    assert.match(draftBody, /postDraftDocuments/)
-    assert.match(draftBody, /buildCreateDraftDocumentsBody\("mba_pdf"\)/)
+    // B52: the POST, the file click and the DRAFT_MBA_TOAST are downloadDraftDocument
+    // behaviour (app/mediaplans/_form/__tests__/draftDocuments.test.tsx).
+    assert.match(draftBody, /downloadDraftDocument\(\{ kind: "mba_pdf", body: draftDocumentBody/)
     assert.doesNotMatch(draftBody, /\/api\/mba\/generate/)
-    assert.match(createSrc, /DRAFT_MBA_TOAST/)
     const genStart = createSrc.indexOf("const generateMbaPdfBlob")
     const genEnd = createSrc.indexOf("const buildCreateDraftDocumentsBody", genStart)
     assert.doesNotMatch(
@@ -576,7 +576,7 @@ describe("DD-3 draft downloads", () => {
     const draftAaStart = createSrc.indexOf("const handleDraftAa = async")
     const draftAaEnd = createSrc.indexOf("const handleGenerateMBA", draftAaStart)
     const draftAa = createSrc.slice(draftAaStart, draftAaEnd)
-    assert.match(draftAa, /buildCreateDraftDocumentsBody\("aa_media_plan"\)/)
+    assert.match(draftAa, /kind: "aa_media_plan", body: draftDocumentBody/)
   })
 
   it("edit handleGenerateMBA / handleDownloadMediaPlan no longer toast-and-return on unpublished", () => {

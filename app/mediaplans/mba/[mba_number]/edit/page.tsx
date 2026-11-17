@@ -193,7 +193,6 @@ import {
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
-  DRAFT_MBA_TOAST,
   EDIT_DRAFT_DOWNLOAD_RAIL,
   catchPlanDraftAction,
   describePublishSuccessToast,
@@ -202,7 +201,6 @@ import {
   wizardPrimarySaveLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
 import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
-import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
 import {
   NotApprovedError,
   NotSavedError,
@@ -488,6 +486,7 @@ import {
 import { PartialMbaScopeNotices, partialMbaScopeNoticesShown } from "@/app/mediaplans/_form/PartialMbaScopeNotices"
 import { buildPlanBuilderIssues } from "@/app/mediaplans/_form/builderIssues"
 import { AVA_DOM_ACTIONS } from "@/app/mediaplans/_form/avaDomActions"
+import { downloadDraftDocument } from "@/app/mediaplans/_form/draftDocuments"
 import {
   getMediaTypeAccentColor,
   MediaContainerSuspenseFallback,
@@ -7738,70 +7737,17 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     })
   }
 
+  const draftDocumentBody = buildEditDraftDocumentsBody
   const handleDraftMba = async () => {
-    setIsMbaGenerating(true)
-    try {
-      const { blob, filename } = await postDraftDocuments(
-        await buildEditDraftDocumentsBody("mba_pdf")
-      )
-      clickBlobDownload(blob, filename)
-      toast({ title: DRAFT_MBA_TOAST })
-    } catch (e: unknown) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to download draft MBA",
-        variant: "destructive",
-      })
-    } finally {
-      setIsMbaGenerating(false)
-    }
+    await downloadDraftDocument({ kind: "mba_pdf", body: draftDocumentBody, setBusy: setIsMbaGenerating })
   }
 
-  const handleDraftMediaPlan = async (opts?: { quiet?: boolean }): Promise<boolean> => {
-    setIsDownloading(true)
-    try {
-      const { blob, filename } = await postDraftDocuments(
-        await buildEditDraftDocumentsBody("media_plan")
-      )
-      clickBlobDownload(blob, filename)
-      if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
-      return true
-    } catch (e: unknown) {
-      if (!opts?.quiet) {
-        toast({
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to download draft media plan",
-          variant: "destructive",
-        })
-      }
-      return false
-    } finally {
-      setIsDownloading(false)
-    }
-  }
+  const handleDraftMediaPlan = (opts?: { quiet?: boolean }): Promise<boolean> =>
+    downloadDraftDocument({ kind: "media_plan", body: draftDocumentBody, setBusy: setIsDownloading, quiet: opts?.quiet })
 
   const handleDraftAa = async (opts?: { quiet?: boolean }): Promise<boolean> => {
     if (!hasAdvertisingAssociatesBilling) return false
-    setIsDownloadingAa(true)
-    try {
-      const { blob, filename } = await postDraftDocuments(
-        await buildEditDraftDocumentsBody("aa_media_plan")
-      )
-      clickBlobDownload(blob, filename)
-      if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
-      return true
-    } catch (e: unknown) {
-      if (!opts?.quiet) {
-        toast({
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to download draft AA media plan",
-          variant: "destructive",
-        })
-      }
-      return false
-    } finally {
-      setIsDownloadingAa(false)
-    }
+    return downloadDraftDocument({ kind: "aa_media_plan", body: draftDocumentBody, setBusy: setIsDownloadingAa, quiet: opts?.quiet })
   }
 
   const handleGenerateMBA = async () => {
