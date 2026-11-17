@@ -18,7 +18,7 @@ Both are read in middleware, which can't query the database, so they are set in 
 
 ## Step 1: check what Vercel sends today
 
-Run in PowerShell (production domain from the handbook: `assembledview.com.au`; use the host the app is served on if different):
+Run in PowerShell. The repo names the domain `assembledview.com.au` (handbook `01-orientation.md`, the partner ingest mailbox, the Fireflies internal domains). Whether the app is served on the apex or on a subdomain is not in the repo: no config file names a host, and the origin comes from env (`NEXT_PUBLIC_APP_URL`, `AUTH0_BASE_URL`, `APP_BASE_URL`, `VERCEL_URL`). The commands use the apex; if you log in on a subdomain, use that host in every command on this page.
 
 ```powershell
 curl.exe -sI https://assembledview.com.au/privacy
@@ -35,7 +35,17 @@ Look for: `strict-transport-security`, `x-content-type-options`, `referrer-polic
 - None of them (or only `strict-transport-security`): turn `security_headers` on. Vercel sending HSTS is fine: ours has the same value.
 - Any of the others already set (a Vercel project header or firewall rule): leave the switch off and tell the next batch which, so the duplicate is removed from `BASELINE_SECURITY_HEADERS` first.
 
-After turning it on, run the same three commands. Expect the baseline on the first two, the report-only policy on `/privacy` only, and nothing new on the static file.
+## Step 2: smoke a preview deploy before production
+
+Set `SECURITY_HEADERS=on` on a preview deployment first. Nothing in the repo has run on Vercel's edge, which must apply the forwarded request headers and Auth0's rolled session cookie together (C-316). On the preview:
+
+- Log in. You land on the dashboard.
+- Wait a minute, then reload. You are still logged in (the session cookie rolled).
+- As an admin, start a client view, open a client page, then end the client view.
+- Log out. You land on the login page, and the dashboard asks you to log in again.
+- In the browser's developer tools, check one page response has `content-security-policy-report-only` and one `/api/me` response has `x-frame-options` but no policy.
+
+Then turn it on in production and run the same three commands. Expect the baseline on the first two, the report-only policy on `/privacy` only, and nothing new on the static file.
 
 ## Baseline headers
 
@@ -93,7 +103,12 @@ A report from our own code means the policy or the code needs a change before en
 
 ## Enforcing
 
-- After two weeks of `security_headers` on with no report from our own code, set `CSP_ENFORCE` on in Vercel and redeploy.
+- After two weeks of `security_headers` on with no report from our own code, set `CSP_ENFORCE` on in Vercel and redeploy. zod no longer reports `eval` (it runs jitless in the browser), so an `eval` report from our own chunk is a real finding.
 - Run `curl.exe -sI https://assembledview.com.au/privacy`: the policy is now `content-security-policy`.
 - Smoke the main pages once (dashboard, a campaign dashboard, plan edit, pacing, finance, creative mockup, AVA chat with a file download).
 - To back out: turn `CSP_ENFORCE` off and redeploy. Reports keep flowing in report-only mode.
+
+## Costs and limits
+
+- `/privacy` and `/data-deletion` render per request (needed for the nonce), whatever the switches say. Each view is a function call that reads the session, not a CDN hit (C-317).
+- While `security_headers` is off, middleware sets no policy on the request. A policy header a client sends itself then gives the theme script that nonce on that client's own page only: no other viewer is affected and pages are not cached.
