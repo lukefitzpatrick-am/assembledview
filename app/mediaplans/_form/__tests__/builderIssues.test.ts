@@ -190,8 +190,8 @@ test("S1: each publish problem is its own rail entry after the publisher guard; 
     ).check
   const on = buildPlanBuilderIssues({ ...quiet, aaPublishWarnings: ["AA"], publishCheck: check(true) })
   assert.deepEqual(on.map((i) => [i.id, i.severity]), [
-    ["publish-validation:no_publisher:social:X1SM1:0", "error"],
-    ["publish-validation:zero_deliverables:social:X1SM1:1", "warning"],
+    ["publish-validation:no_publisher:social:X1SM1:0:0", "error"],
+    ["publish-validation:zero_deliverables:social:X1SM1:1:1", "warning"],
     ["aa-publish-0", "warning"],
   ])
   const off = buildPlanBuilderIssues({ ...quiet, publishCheck: check(false) })
@@ -205,6 +205,6 @@ test("S1: a line S1 lists for overlapping bursts is not listed again by the B35 
   ])
   const ids = buildPlanBuilderIssues({ ...quiet, burstOverlapLines: overlap, publishCheck }).map((i) => i.id)
   assert.equal(ids.filter((id) => id.includes("X1RA1")).length, 1)
-  assert.ok(ids.includes("publish-validation:bursts_overlap:radio:X1RA1:2"))
+  assert.ok(ids.includes("publish-validation:bursts_overlap:radio:X1RA1:2:0"))
   assert.ok(ids.some((id) => id.startsWith("burst-overlap:") && id.includes("X1RA2")))
 })

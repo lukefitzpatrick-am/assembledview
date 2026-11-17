@@ -186,13 +186,15 @@ const FIELD: Record<PublishRule, string> = {
 /**
  * One rail entry per problem. Refusals are errors only while the switch is
  * on; off, they show as warnings that say publish will refuse them later.
+ * The id ends with the entry's place in the list: a burst that overlaps two
+ * others gives two problems on the same rule, line and burst.
  */
 export function publishValidationBuilderIssues(
   result: PublishValidation,
   refusing: boolean,
 ): BuilderIssue[] {
-  const issue = (p: PublishProblem, kind: "refuse" | "warn"): BuilderIssue => ({
-    id: `publish-validation:${p.rule}:${p.channel}:${p.lineItemId}:${p.burst ?? 0}`,
+  const issue = (p: PublishProblem, kind: "refuse" | "warn", n: number): BuilderIssue => ({
+    id: `publish-validation:${p.rule}:${p.channel}:${p.lineItemId}:${p.burst ?? 0}:${n}`,
     severity: kind === "refuse" && refusing ? "error" : "warning",
     title: p.message,
     detail:
@@ -204,5 +206,6 @@ export function publishValidationBuilderIssues(
     stepLabel: p.rule === "plan_dates_reversed" ? "Campaign setup" : "Media",
     fieldLabel: FIELD[p.rule],
   })
-  return [...result.refuse.map((p) => issue(p, "refuse")), ...result.warn.map((p) => issue(p, "warn"))]
+  const refused = result.refuse.map((p, i) => issue(p, "refuse", i))
+  return [...refused, ...result.warn.map((p, i) => issue(p, "warn", refused.length + i))]
 }

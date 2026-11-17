@@ -199,3 +199,20 @@ test("a plan that starts after it ends is refused as its own problem, not skippe
   // The same day at both ends is a one-day plan, not reversed.
   assert.deepEqual(validatePlanForPublish({ ...reversed, campaignEndDate: "2026-11-30", lineItems: [] }).refuse, [])
 })
+
+test("a line overlapping on three bursts: one refusal per pair, each with its own rail id", () => {
+  const line = cleanLine({
+    lineItemId: "abc001RA1",
+    channel: "radio",
+    attrs: { network: "Nova" },
+    bursts: [burst("2026-11-01", "2026-11-20"), burst("2026-11-05", "2026-11-25"), burst("2026-11-10", "2026-11-30")],
+  })
+  const result = validatePlanForPublish(plan([line]))
+  assert.deepEqual(result.refuse.map((p) => [p.rule, p.burst]), [
+    ["bursts_overlap", 2],
+    ["bursts_overlap", 3],
+    ["bursts_overlap", 3],
+  ])
+  const ids = publishValidationBuilderIssues(result, true).map((i) => i.id)
+  assert.equal(new Set(ids).size, 3, ids.join(" "))
+})
