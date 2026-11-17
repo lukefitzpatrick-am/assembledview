@@ -5,7 +5,9 @@
     "middleware.{ts,tsx}",
     "next.config.{js,mjs,ts}",
     "scripts/**/*.{ts,tsx,js,cjs,mjs}",
-    "lib/specs/pdfParse.cjs"
+    "lib/specs/pdfParse.cjs",
+    "**/*.test.{ts,tsx,mts,mjs,cjs}",
+    "**/*.node-test.ts"
   ],
   "project": ["**/*.{ts,tsx}"],
   "ignore": [
