@@ -16,7 +16,7 @@ import path from "node:path"
 import { after, before, beforeEach, describe, it } from "node:test"
 
 import { drizzle } from "drizzle-orm/postgres-js"
-import type postgres from "postgres"
+import postgres from "postgres"
 
 import * as schema from "@/db/schema"
 import type { Db } from "@/db"
@@ -171,6 +171,24 @@ describe("roster rules on Postgres (B53, 0119)", { skip }, () => {
     assert.deepEqual(created.email_aliases, [])
     const [{ n }] = await client`SELECT count(*)::int AS n FROM public.team_members WHERE email_aliases ? ${`sk@${D}`}`
     assert.equal(n, 0)
+  })
+
+  it("the alias script gives a shared initials alias to neither person, and counts only those left without it", async () => {
+    await client`INSERT INTO public.team_members (email, name, email_aliases, active) VALUES
+      (${`sam.king@${D}`}, 'Sam King', '[]', true),
+      (${`sean.kelly@${D}`}, 'Sean Kelly', '[]', false),
+      (${`gina.park@${D}`}, 'Gina Park', ${JSON.stringify([`gp@${D}`])}::jsonb, true)`
+    const notices: string[] = []
+    const noticed = postgres(URL_!, { max: 1, onnotice: (n) => notices.push(String(n.message)) })
+    try {
+      await noticed.unsafe(ALIAS_SCRIPT)
+    } finally {
+      await noticed.end({ timeout: 5 })
+    }
+    for (const email of [`samantha.keah@${D}`, `sam.king@${D}`, `sean.kelly@${D}`]) assert.deepEqual(await aliasesOf(email), [], email)
+    assert.deepEqual(await aliasesOf(`graduate@${D}`), [])
+    assert.deepEqual(await aliasesOf(`gina.park@${D}`), [`gp@${D}`])
+    assert.match(notices.join("\n"), /; 4 person\(s\) share initials/)
   })
 
 })

@@ -100,8 +100,11 @@ BEGIN
   SELECT m.id, lower(btrim(a.value)) FROM public.team_members m
    CROSS JOIN LATERAL jsonb_array_elements_text(m.email_aliases) AS a(value);
 
+  -- People left without their alias because another row would get the same
+  -- one. A person who already holds it is not counted.
   SELECT count(*) INTO n_shared FROM b53_wanted w
    WHERE w.alias IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM b53_held h WHERE h.id = w.id AND h.address = w.alias)
      AND EXISTS (SELECT 1 FROM b53_wanted o WHERE o.id <> w.id AND o.alias = w.alias);
   SELECT count(*) INTO n_expected FROM b53_wanted w
    WHERE w.alias IS NOT NULL
