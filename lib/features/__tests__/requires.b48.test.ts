@@ -31,6 +31,8 @@ const BEFORE: Record<string, (on: On) => boolean> = {
   codex_my_work: (r) => r.codex_v2 && r.codex_projects && r.codex_my_work,
   // B55: enforcing the policy needs the policy sent (S27).
   csp_enforce: (r) => r.security_headers && r.csp_enforce,
+  // FINALfix (V36 A): refusing package lines needs the package quantity grids.
+  publish_validation: (r) => r.publish_validation && r.expert_package_quantity && r.fixed_cost_report_net,
 }
 
 function closure(key: string, out = new Set<string>()): Set<string> {

@@ -312,13 +312,14 @@ export const FEATURE_DEFINITIONS = [
     key: "publish_validation",
     label: "Publish validation: refuse the hard list",
     description:
-      "Every publish (the plan pages' Save and Publish, POST /api/plans/save, the schedule ingest accept, billing revisions and true-ups, and the PATCH publish stamp) runs one validation set (decision S1 A). On: publish is refused with a 422 that names each line when a line has no publisher, a burst ends before it starts, two bursts on one line share a day, a burst runs outside the plan dates, or a package line has a burst with a budget and no quantity (bursts[].calculatedValue 0 or blank, until S3 adds a typed quantity). The plan pages stop the publish before the request and list each problem in the issues rail; Save draft still works. The publisher guard then checks only typed names that aren't in Publishers (blank publishers are this switch's). Off: the plan pages still list the same problems as warnings after a publish, and nothing is refused, as before. Before turning on: run the S1 SELECT in the media plans module page and have each plan owner fix the lines it lists (17 Nov 2026: 19 plans with no publisher, 12 with overlapping bursts, 33 with bursts outside the plan dates, 3 with a burst ending before it starts, 4 with a package burst with no quantity), and keep expert_package_quantity on or package lines saved from the digital, social, search, integration and programmatic grids are refused.",
+      "Every publish (the plan pages' Save and Publish, POST /api/plans/save, the schedule ingest accept, billing revisions and true-ups, and the PATCH publish stamp) runs one validation set (decision S1 A). On: publish is refused with a 422 that names each line when a line has no publisher, a burst ends before it starts, two bursts on one line share a day, a burst runs outside the plan dates, or a package line has a burst with a budget and no quantity (bursts[].calculatedValue 0 or blank, until S3 adds a typed quantity). The plan pages stop the publish before the request and list each problem in the issues rail; Save draft still works. The publisher guard then checks only typed names that aren't in Publishers (blank publishers are this switch's). Off: the plan pages still list the same problems as warnings after a publish, and nothing is refused, as before. Before turning on: run the S1 SELECT in the media plans module page and have each plan owner fix the lines it lists (17 Nov 2026: 19 plans with no publisher, 12 with overlapping bursts, 33 with bursts outside the plan dates, 3 with a burst ending before it starts, 4 with a package burst with no quantity). Needs expert_package_quantity on (V36 A): without it, package lines saved from the digital, social, search, integration and programmatic grids are refused, so turning it off is refused while this is on.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
     owner: "Luke",
+    requires: ["expert_package_quantity"],
   },
   {
     key: "partial_mba_billing_guard",
@@ -483,13 +484,14 @@ export const FEATURE_DEFINITIONS = [
     key: "roster_rules",
     label: "Team list rules",
     description:
-      "Every team list write (Team tab add and edit, the Auth0 login and the Auth0 sync) checks four rules (S18, B53): every person has one primary email address; a name never holds an email address; an address, primary or alias, belongs to one person across the whole list, inactive people included; everyone gets an initials alias (Samantha Murphy gets sm@ at her primary's domain). A save that breaks a rule is refused with a plain message naming the field; the Auth0 login and sync skip that row and log it. The initials alias is added on save when no one holds it. When someone holds it, or two people have the same initials, the Team tab lists the clash and asks for an alias added by hand (never one of two). The Team tab edit gains an aliases field. Before turning on: run the B53 alias script and rename the people whose name is an email on the Team tab (the SELECT lists them), then apply 0119. Off: the Team tab only refuses an alias another active person holds, as before.",
+      "Every team list write (Team tab add and edit, the Auth0 login and the Auth0 sync) checks four rules (S18, B53): every person has one primary email address; a name never holds an email address; an address, primary or alias, belongs to one person across the whole list, inactive people included; everyone gets an initials alias (Samantha Murphy gets sm@ at her primary's domain). A save that breaks a rule is refused with a plain message naming the field; the Auth0 login and sync skip that row and log it. The initials alias is added on save when no one holds it. When someone holds it, or two people have the same initials, the Team tab lists the clash and asks for an alias added by hand (never one of two). The Team tab edit gains an aliases field. Before turning on: run the B53 alias script and rename the people whose name is an email on the Team tab (the SELECT lists them), then apply 0119. It can't be turned on until 0119 has run. Off: the Team tab only refuses an alias another active person holds, as before.",
     area: "platform",
     defaultOn: false,
     clientVisible: true,
     toggleRole: "admin",
     source: "switch",
     owner: "Luke",
+    requiresMarker: "0119_team_members_roster_rules",
   },
   {
     key: "codex_search",

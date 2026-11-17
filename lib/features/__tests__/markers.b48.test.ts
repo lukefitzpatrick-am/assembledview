@@ -144,3 +144,27 @@ test("lib/db/markers: a missing marker is read again once MARKER_RECHECK_MS has 
     setMarkerReaderForTests(null)
   }
 })
+
+test("FINALfix (X3): roster_rules can't be turned on before 0119 and reads off without it; expert_package_quantity can't be turned off under publish_validation", async () => {
+  const none = () => false
+  const all = () => true
+  const off = () => false
+  assert.equal(
+    featureToggleRefusal("roster_rules", true, off, (k) => effectiveFeatureOn(k, off, none), none),
+    "Run migration 0119_team_members_roster_rules first: this switch needs it.",
+  )
+  assert.equal(featureToggleRefusal("roster_rules", true, off, (k) => effectiveFeatureOn(k, off, all), all), null)
+  try {
+    setFeatureRowReaderForTests(async () => new Map([["roster_rules", row("roster_rules")]]), [])
+    assert.equal(await isFeatureOn("roster_rules", {}), false)
+    setFeatureRowReaderForTests(async () => new Map([["roster_rules", row("roster_rules")]]))
+    assert.equal(await isFeatureOn("roster_rules", {}), true)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+  const raw = (k: string) => ["publish_validation", "expert_package_quantity", "fixed_cost_report_net"].includes(k)
+  assert.match(featureToggleRefusal("expert_package_quantity", false, raw, (k) => effectiveFeatureOn(k, raw, all), all) ?? "", /^Turn off Publish validation: refuse the hard list first/)
+  const without = (k: string) => k === "fixed_cost_report_net"
+  assert.match(featureToggleRefusal("publish_validation", true, without, (k) => effectiveFeatureOn(k, without, all), all) ?? "", /^Turn on .+ first: this switch needs it\.$/)
+  assert.equal(featureToggleRefusal("publish_validation", true, raw, (k) => effectiveFeatureOn(k, raw, all), all), null)
+})

@@ -25,7 +25,8 @@ const row = (key: string, enabled: boolean): FeatureRow => ({
 })
 
 function setSwitch(on: boolean) {
-  setFeatureRowReaderForTests(async () => new Map([["publish_validation", row("publish_validation", on)]]))
+  // publish_validation requires expert_package_quantity (V36 A), which requires fixed_cost_report_net.
+  setFeatureRowReaderForTests(async () => new Map([row("publish_validation", on), row("expert_package_quantity", true), row("fixed_cost_report_net", true)].map((r) => [r.key, r])))
 }
 
 afterEach(() => setFeatureRowReaderForTests(null))

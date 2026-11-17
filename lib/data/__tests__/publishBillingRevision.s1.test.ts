@@ -52,6 +52,9 @@ if (supportsMockModule()) {
 
 afterEach(() => setFeatureRowReaderForTests(null))
 
+// publish_validation requires expert_package_quantity (V36 A), which requires fixed_cost_report_net.
+const NEEDS = ["expert_package_quantity", "fixed_cost_report_net"]
+
 const row = (on: boolean): FeatureRow => ({
   key: "publish_validation",
   enabled: on,
@@ -110,7 +113,7 @@ const input = {
 }
 
 async function run(on: boolean, cells: unknown[], queue: unknown[][]) {
-  setFeatureRowReaderForTests(async () => new Map([["publish_validation", row(on)]]))
+  setFeatureRowReaderForTests(async () => new Map([["publish_validation", row(on)], ...NEEDS.map((key) => [key, { ...row(true), key }] as const)]))
   afterCells = cells
   const executed: string[] = []
   const { publishBillingRevision } = await import("@/lib/data/publishBillingRevision")

@@ -140,11 +140,12 @@ test("codex_v2 (F1): a row wins over CODEX_V2 both ways; no row reads the env; w
   }
 })
 
-test("roster_rules (B53, S18): new switch, default off, no env fallback, no requires, sent to the browser", () => {
+test("roster_rules (B53, S18): new switch, default off, no env fallback, no requires, needs 0119, sent to the browser", () => {
   const def = featureDefinition("roster_rules")!
   assert.equal(def.defaultOn, false)
   assert.equal(def.envName, undefined)
   assert.equal(def.requires, undefined)
+  assert.equal(def.requiresMarker, "0119_team_members_roster_rules")
   assert.equal(def.clientVisible, true)
   assert.ok((CLIENT_FEATURE_KEYS as readonly string[]).includes("roster_rules"))
   assert.deepEqual(resolveFeature(def, null, {}), { enabled: false, source: "default" })
@@ -504,7 +505,7 @@ test("B35: burst_overlap_warning is off by default, a planning switch sent to th
   }
 })
 
-test("B54: publish_validation is off by default, a planning switch sent to the browser, no env, owned by Luke", async () => {
+test("B54: publish_validation is off by default, a planning switch sent to the browser, no env, owned by Luke, needs expert_package_quantity (V36 A)", async () => {
   const key = "publish_validation" as const
   const def = featureDefinition(key)!
   assert.ok(def, key)
@@ -515,7 +516,7 @@ test("B54: publish_validation is off by default, a planning switch sent to the b
   assert.equal(def.area, "planning")
   assert.equal(def.clientVisible, true)
   assert.equal(def.owner, "Luke")
-  assert.equal("requires" in def, false)
+  assert.deepEqual(def.requires, ["expert_package_quantity"])
   setClientFeatureSnapshot(null)
   assert.equal(clientFeatureOn(key), false)
   setClientFeatureSnapshot({ [key]: true })
@@ -525,6 +526,9 @@ test("B54: publish_validation is off by default, a planning switch sent to the b
     setFeatureRowReaderForTests(async () => new Map())
     assert.equal(await isFeatureOn(key, {}), false)
     setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+    assert.equal(await isFeatureOn(key, {}), false, "reads off without expert_package_quantity")
+    const needs = ["expert_package_quantity", "fixed_cost_report_net"] as const
+    setFeatureRowReaderForTests(async () => new Map([key, ...needs].map((k) => [k, row(k, true)])))
     assert.equal(await isFeatureOn(key, {}), true)
   } finally {
     setFeatureRowReaderForTests(null)

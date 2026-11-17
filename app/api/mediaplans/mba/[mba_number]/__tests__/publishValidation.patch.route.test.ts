@@ -77,6 +77,9 @@ if (supportsMockModule()) {
   await mock.module!("@/db", { namedExports: { getDb: () => fakeDb, schema: realSchema } })
 }
 
+// publish_validation requires expert_package_quantity (V36 A), which requires fixed_cost_report_net.
+const NEEDS = ["expert_package_quantity", "fixed_cost_report_net"]
+
 const row = (on: boolean): FeatureRow => ({
   key: "publish_validation",
   enabled: on,
@@ -89,7 +92,7 @@ const row = (on: boolean): FeatureRow => ({
 afterEach(() => setFeatureRowReaderForTests(null))
 
 async function patch(on: boolean) {
-  setFeatureRowReaderForTests(async () => new Map([["publish_validation", row(on)]]))
+  setFeatureRowReaderForTests(async () => new Map([["publish_validation", row(on)], ...NEEDS.map((key) => [key, { ...row(true), key }] as const)]))
   stampMock.mock.resetCalls()
   updates.length = 0
   const { PATCH } = await import("../route.js")
