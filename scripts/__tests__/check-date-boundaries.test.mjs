@@ -21,6 +21,17 @@ test("each shape counts once: zone literals, UTC calendar keys, hand-built midni
   assert.equal(countDateBoundaries(`sql\`(now() AT TIME ZONE 'Australia/Melbourne')::date\``, "a.ts"), 1, "SQL text in code counts")
 })
 
+test("the S9 month-of-now shapes count (RELFIX1): format of now, Date getters of now, substring keys", () => {
+  assert.equal(countDateBoundaries(`const m = format(new Date(), "yyyy-MM")`, "a.ts"), 1)
+  assert.equal(countDateBoundaries(`const d = format( new Date(),'yyyy-MM-dd')`, "a.ts"), 1)
+  for (const g of ["getFullYear", "getMonth", "getDate", "getUTCMonth"]) {
+    assert.equal(countDateBoundaries(`const n = new Date().${g}()`, "a.ts"), 1, g)
+  }
+  assert.equal(countDateBoundaries(`const k = new Date().toISOString().substring(0, 7)`, "a.ts"), 1)
+  assert.equal(countDateBoundaries(`const k = d.toISOString().substring(0,10)`, "a.ts"), 1)
+  assert.equal(countDateBoundaries(`const m = format(start, "yyyy-MM"); const y = start.getFullYear(); const w = new Date().getDay()`, "a.ts"), 0, "a given date and the weekday do not count")
+})
+
 test("comments do not count; other slices and times do", () => {
   assert.equal(countDateBoundaries(`// Australia/Sydney toISOString().slice(0, 10)\n/** T00:00:00 formatToParts */\nconst a = 1`, "a.ts"), 0)
   assert.equal(countDateBoundaries(`const s = d.toISOString().slice(0, 16)`, "a.ts"), 0)

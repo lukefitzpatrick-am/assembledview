@@ -6,8 +6,12 @@
  * this counts per file:
  *   - zone literals `Australia/Melbourne` and `Australia/Sydney`
  *     (use `BUSINESS_TZ` or a `lib/dates` function);
- *   - `toISOString().slice(0, 7)` and `toISOString().slice(0, 10)`, a UTC
- *     calendar key (use `getMelbourneTodayISO`, `toMelbourneDateString`);
+ *   - `toISOString().slice(0, 7)` and `toISOString().slice(0, 10)` (or
+ *     `substring`), a UTC calendar key (use `getMelbourneTodayISO`,
+ *     `toMelbourneDateString`);
+ *   - the host month or day of now: `format(new Date(), "yyyy-MM...")` and
+ *     `new Date().getFullYear()`, `getMonth()`, `getDate()` (and UTC forms)
+ *     (use `getMelbourneMonthISO`, `getMelbourneTodayISO`; S9 A, RELFIX1);
  *   - hand-built `T00:00:00` strings (use `lib/dates/civil`);
  *   - `formatToParts` (use `melbourneParts`).
  * Comments are not counted. A file fails when its count rises or a new file
@@ -17,7 +21,8 @@
  *              what is counted.
  * `--root <dir>` scans another tree (the self-test uses it).
  * Shortcut: a text count, so a key built another way is missed; move it
- * behind `lib/dates` when review finds one, do not widen the patterns.
+ * behind `lib/dates` when review finds one. A new pattern needs a decision
+ * (the now-month shapes are S9 A) and a --reseed in the same commit.
  */
 import fs from "node:fs"
 import path from "node:path"
@@ -40,7 +45,9 @@ function walk(dir, out) {
 
 const PATTERNS = [
   /Australia\/(?:Melbourne|Sydney)/g,
-  /toISOString\(\)\.slice\(0,\s*(?:7|10)\)/g,
+  /toISOString\(\)\.(?:slice|substring)\(0,\s*(?:7|10)\)/g,
+  /\bformat\(\s*new Date\(\)\s*,\s*["'`]yyyy-MM/g,
+  /new Date\(\)\.get(?:UTC)?(?:FullYear|Month|Date)\(/g,
   /T00:00:00/g,
   /\bformatToParts\b/g,
 ]
@@ -106,7 +113,7 @@ function main(argv) {
   const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"))
   const failures = Object.entries(counts)
     .filter(([rel, n]) => n > (baseline[rel] ?? 0))
-    .map(([rel, n]) => `${rel}: ${n} (baseline ${baseline[rel] ?? 0}${baseline[rel] == null ? ", new file" : ""})`)
+    .map(([rel, n]) => `${rel}: ${n} (baseline ${baseline[rel] ?? 0}${baseline[rel] == null ? ", not in baseline" : ""})`)
   if (failures.length) {
     console.error("Calendar code outside lib/dates went up. Use lib/dates (BUSINESS_TZ, melbourneParts, getMelbourneTodayISO, lib/dates/civil).\n")
     for (const f of failures) console.error(f)
