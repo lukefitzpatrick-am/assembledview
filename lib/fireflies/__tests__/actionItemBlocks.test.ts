@@ -2,11 +2,11 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
-  displayNameFromEmailLocal,
   parsePersonBlocks,
   resolveBlockAssignee,
   type RosterPerson,
 } from "../actionItemBlocks.js"
+import { displayNameFromEmail } from "@/lib/email/address"
 
 const CHELSEA: RosterPerson = {
   email: "chelsea.schultz@assembledmedia.com.au",
@@ -40,10 +40,10 @@ describe("parsePersonBlocks — Fireflies bold-name headers", () => {
   })
 })
 
-describe("displayNameFromEmailLocal", () => {
+describe("displayNameFromEmail (lib/email/address)", () => {
   it("maps chelsea.schultz@ to Chelsea Schultz", () => {
     assert.equal(
-      displayNameFromEmailLocal("chelsea.schultz@assembledmedia.com.au"),
+      displayNameFromEmail("chelsea.schultz@assembledmedia.com.au"),
       "Chelsea Schultz"
     )
   })

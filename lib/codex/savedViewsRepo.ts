@@ -25,6 +25,7 @@ import {
   type SavedViewPatch,
 } from "@/lib/codex/savedViews"
 import type { TasksFilterView } from "@/lib/codex/queryHelpers"
+import { normaliseEmail } from "@/lib/email/address"
 
 const { codexSavedViews, migrationMarkers } = schema
 
@@ -108,10 +109,6 @@ async function guarded<T>(database: Db, run: () => Promise<T>): Promise<T> {
     if (isMissingSavedViewsTable(err)) throw new SavedViewsUnavailableError()
     throw err
   }
-}
-
-function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase()
 }
 
 function ownerIs(email: string) {

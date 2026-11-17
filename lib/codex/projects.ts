@@ -21,6 +21,7 @@ import type {
 } from "@/db/schema/codex"
 import { resolveRosterAddress, type RosterPerson } from "@/lib/codex/rosterResolve"
 import { TASK_TITLE_MAX, type TaskStatus } from "@/lib/codex/types"
+import { normaliseEmail } from "@/lib/email/address"
 
 export const PROJECT_KINDS = ["campaign", "retainer", "onboarding", "pitch", "internal", "ops"] as const satisfies readonly CodexProjectKind[]
 export const PROJECT_STATUSES = ["active", "on_hold", "closed"] as const satisfies readonly CodexProjectStatus[]
@@ -74,10 +75,6 @@ export type ProjectAccessFacts = {
   owner_email: string | null
   created_by_email: string | null
   members: readonly string[]
-}
-
-export function normaliseEmail(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase()
 }
 
 export function isProjectKind(value: unknown): value is ProjectKind {

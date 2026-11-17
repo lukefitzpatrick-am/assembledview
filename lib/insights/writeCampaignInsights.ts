@@ -17,6 +17,7 @@ import {
   type InsightActionFields,
 } from "@/lib/insights/insightActionFields"
 import type { CampaignInsightRow } from "@/lib/insights/queryCampaignInsights"
+import { normaliseEmail } from "@/lib/email/address"
 
 /** In-place edit window for the author's own insight. After this → supersede. */
 export const INSIGHT_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -127,10 +128,6 @@ function mapRow(row: {
     supersededBy: row.supersededBy == null ? null : Number(row.supersededBy),
     supersededAt: row.supersededAt,
   }
-}
-
-function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase()
 }
 
 function normaliseMba(mba: string | null | undefined): string {

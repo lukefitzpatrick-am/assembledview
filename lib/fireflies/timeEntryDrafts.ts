@@ -6,6 +6,7 @@ import {
   resolveRosterEmailResult,
   type TeamMemberIdentity,
 } from "@/lib/fireflies/rosterAliases"
+import { normaliseEmail } from "@/lib/email/address"
 
 const REFRESHABLE_STATUSES = new Set<TimeEntryProposalStatus>([
   "proposed",
@@ -28,10 +29,6 @@ export type TimeEntryDraftArgs = {
   note: SyncInsertNote
   activeMemberEmails: readonly string[]
   roster?: readonly TeamMemberIdentity[]
-}
-
-function normaliseEmail(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase()
 }
 
 function participantEmails(raw: string | null): string[] {

@@ -32,12 +32,13 @@ import {
   type NotifyEvent,
   type TaskNotifyState,
 } from "@/lib/codex/notifications"
-import { canSeeProject, normaliseEmail, NO_ALIASES, type AccessIdentity, type ProjectAccessFacts } from "@/lib/codex/projects"
+import { canSeeProject, NO_ALIASES, type AccessIdentity, type ProjectAccessFacts } from "@/lib/codex/projects"
 import { isProjectsMigrationApplied } from "@/lib/codex/projectsMarker"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
 import { SYSTEM_ACTORS } from "@/lib/codex/systemActors"
 import { loadAccessIdentity } from "@/lib/codex/taskVisibility"
+import { normaliseEmail } from "@/lib/email/address"
 
 const { codexNotifications, codexActivity, taskFollowers, codexProjects, codexProjectMembers } = schema
 

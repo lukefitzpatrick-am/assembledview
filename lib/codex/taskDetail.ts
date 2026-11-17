@@ -17,9 +17,10 @@
  *   a card on the project board; the board shows a count on the parent.
  *   Its own assignee, dates and status. Up to 100 per task.
  */
-import { isCivilYmd, normaliseEmail, type ParseResult } from "@/lib/codex/projects"
+import { isCivilYmd, type ParseResult } from "@/lib/codex/projects"
 import { TASK_TITLE_MAX } from "@/lib/codex/types"
 import { parseCustomValuesPatch, type CustomValuesPatch } from "@/lib/codex/customFields"
+import { normaliseEmail } from "@/lib/email/address"
 
 export const TASK_TYPES = ["task", "subtask", "help", "milestone", "approval"] as const
 export type TaskType = (typeof TASK_TYPES)[number]

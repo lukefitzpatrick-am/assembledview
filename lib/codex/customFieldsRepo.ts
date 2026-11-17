@@ -25,7 +25,6 @@ import {
   type UpdateFieldInput,
 } from "@/lib/codex/customFields"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { normaliseEmail } from "@/lib/codex/projects"
 import { projectBoardScope } from "@/lib/codex/projectBoard"
 import { markDoneTasksOnLink } from "@/lib/codex/progressRule"
 import {
@@ -37,6 +36,7 @@ import {
   projectCardFieldsWhere,
   type ProjectFailure,
 } from "@/lib/codex/projectsRepo"
+import { normaliseEmail } from "@/lib/email/address"
 
 const { codexCustomFields, codexBoardConfigs } = schema
 

@@ -5,6 +5,7 @@ import {
   resolveRosterEmailResult,
   type TeamMemberIdentity,
 } from "./rosterAliases.js"
+import { displayNameFromEmail } from "@/lib/email/address"
 
 export type RosterPerson = {
   email: string
@@ -44,16 +45,6 @@ function toIdentity(person: RosterPerson): TeamMemberIdentity {
     name: person.name,
     aliases: person.aliases,
   }
-}
-
-export function displayNameFromEmailLocal(email: string): string {
-  const local = (email.split("@")[0] ?? "").trim()
-  if (!local) return ""
-  return local
-    .split(/[._+\-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ")
 }
 
 function headerName(line: string): string | null {
@@ -144,9 +135,9 @@ export function resolveBlockAssignee(
       )
       if (!person) continue
       const derivedNames = [
-        displayNameFromEmailLocal(person.email),
-        ...(person.aliases ?? []).map(displayNameFromEmailLocal),
-        displayNameFromEmailLocal(email),
+        displayNameFromEmail(person.email),
+        ...(person.aliases ?? []).map(displayNameFromEmail),
+        displayNameFromEmail(email),
       ]
       const matchesDerived = derivedNames.some(
         (d) => d.trim().toLowerCase() === needle

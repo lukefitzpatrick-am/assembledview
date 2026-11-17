@@ -2,6 +2,7 @@ import type { User } from "@auth0/nextjs-auth0/types"
 import { NextRequest, NextResponse } from "next/server"
 import { getUserClientIdentifier, getUserRoles, UserRole } from "./rbac"
 import { auth0 } from "./auth0"
+import { normaliseEmail } from "@/lib/email/address"
 
 type RequireRoleOptions = {
   allowEmails?: string[];
@@ -17,10 +18,6 @@ type RequireRoleSuccess = {
 type RequireRoleFailure = {
   response: NextResponse;
 };
-
-function normalizeEmail(email?: string | null): string | null {
-  return typeof email === 'string' ? email.trim().toLowerCase() : null;
-}
 
 function isAllowlisted(email: string | null, allowEmails: string[] = []): boolean {
   if (!email || allowEmails.length === 0) return false;
@@ -44,7 +41,7 @@ export async function requireRole(
   const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   const hasRequiredRole = required.some((role) => roles.includes(role));
   const grantedByAllowlist = isAllowlisted(
-    normalizeEmail(session.user.email),
+    typeof session.user.email === 'string' ? normaliseEmail(session.user.email) : null,
     options.allowEmails || []
   );
 

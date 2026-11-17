@@ -1,3 +1,4 @@
+import { normaliseEmail, displayNameFromEmail } from "@/lib/email/address"
 /**
  * One roster resolver for Codex (F16, B36). Pure: client-safe.
  *
@@ -34,10 +35,6 @@ export type RosterMatch<T> =
 export type RosterResolveOptions = {
   /** Count `email_aliases` as well as the primary email. */
   aliases: boolean
-}
-
-function normaliseEmail(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase()
 }
 
 function isActive(person: RosterPerson): boolean {
@@ -86,16 +83,6 @@ export function resolveRosterAddress<T extends RosterPerson>(
 
 export function looksLikeEmail(value: string | null | undefined): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim())
-}
-
-/** `alex.james@x` → "Alex James"; `graduate@x` → "Graduate". Empty when no local part. */
-export function displayNameFromEmail(email: string | null | undefined): string {
-  const local = localPart(normaliseEmail(email)) || normaliseEmail(email)
-  return local
-    .split(/[._+-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ")
 }
 
 /**

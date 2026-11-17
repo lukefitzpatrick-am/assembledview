@@ -10,7 +10,6 @@ import { test } from "node:test"
 import {
   ambiguousAssigneeMessage,
   decideAssigneeWrite,
-  displayNameFromEmail,
   looksLikeEmail,
   resolveRosterAddress,
   resolveRosterMention,
@@ -19,6 +18,7 @@ import {
 } from "../rosterResolve.js"
 import { resolveRosterEmailResult } from "../../fireflies/rosterAliases.js"
 import { parseQuickAdd } from "../quickAddParse.js"
+import { displayNameFromEmail } from "@/lib/email/address"
 
 const D = "assembledmedia.com.au"
 const alex: RosterPerson = { email: `alex.james@${D}`, name: `alex.james@${D}`, aliases: [`alex@${D}`] }

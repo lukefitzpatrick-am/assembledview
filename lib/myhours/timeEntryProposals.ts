@@ -9,6 +9,7 @@ import {
   type OverlapEntry,
   type OverlapProposal,
 } from "./overlap.js"
+import { normaliseEmail } from "@/lib/email/address"
 
 export type TimeEntryProposal = {
   id: number
@@ -75,10 +76,6 @@ const TERMINAL_STATUSES = new Set<TimeEntryProposalStatus>([
   "confirmed",
   "skipped",
 ])
-
-function normaliseEmail(value: string): string {
-  return value.trim().toLowerCase()
-}
 
 async function loadDecidableProposal(
   proposalId: number,

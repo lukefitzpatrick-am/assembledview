@@ -29,11 +29,11 @@ import {
 import { loadTaskFacts, writeNotifications } from "@/lib/codex/notify"
 import { primaryEmailFor } from "@/lib/codex/collabRepo"
 import { isCodexRosterAliasesEnabled } from "@/lib/codex/flag"
-import { normaliseEmail } from "@/lib/codex/projects"
 import { guarded } from "@/lib/codex/projectsRepo"
-import { displayNameFromEmail, looksLikeEmail } from "@/lib/codex/rosterResolve"
+import { looksLikeEmail } from "@/lib/codex/rosterResolve"
 import type { AccessIdentity } from "@/lib/codex/projects"
 import { loadAccessIdentity, taskVisibleSql } from "@/lib/codex/taskVisibility"
+import { normaliseEmail, displayNameFromEmail } from "@/lib/email/address"
 
 const { codexNotificationPrefs } = schema
 

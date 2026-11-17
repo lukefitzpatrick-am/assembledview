@@ -22,7 +22,6 @@ import { db, schema, type Db } from "@/db"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
 import {
-  normaliseEmail,
   assigneeNoAccessMessage,
   canonicalEmail,
   canSeeProject,
@@ -93,6 +92,7 @@ export {
 } from "@/lib/codex/projectsMarker"
 import { loadProgressRule, markProgressDone } from "@/lib/codex/progressRule"
 import { isMissingColumn, isMissingRelation, isUniqueViolation } from "@/lib/db/pgError"
+import { normaliseEmail } from "@/lib/email/address"
 
 export class ProjectsUnavailableError extends Error {
   readonly code = "PROJECTS_UNAVAILABLE"

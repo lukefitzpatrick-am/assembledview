@@ -32,12 +32,12 @@ import {
   writeNotifications,
   type TaskFacts,
 } from "@/lib/codex/notify"
-import { normaliseEmail } from "@/lib/codex/projects"
 import { appendActivity, guarded, type ProjectFailure } from "@/lib/codex/projectsRepo"
 import type { DbExecutor } from "@/lib/codex/repo"
 import { loadRosterPeople } from "@/lib/codex/rosterRead"
-import { displayNameFromEmail, resolveRosterAddress, rosterDisplayName, type RosterPerson } from "@/lib/codex/rosterResolve"
+import { resolveRosterAddress, rosterDisplayName, type RosterPerson } from "@/lib/codex/rosterResolve"
 import type { TaskComment } from "@/lib/codex/types"
+import { normaliseEmail, displayNameFromEmail } from "@/lib/email/address"
 
 const { taskAttachments, teamMembers } = schema
 

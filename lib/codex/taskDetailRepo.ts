@@ -17,7 +17,7 @@ import { db, type Db } from "@/db"
 import type { CodexCustomField, CustomValues } from "@/lib/codex/customFields"
 import { readStoredValues } from "@/lib/codex/customFields"
 import { executeRows } from "@/lib/codex/estimatedMinutesColumn"
-import { assigneeNoAccessMessage, normaliseEmail, type CodexProject, type CodexSection } from "@/lib/codex/projects"
+import { assigneeNoAccessMessage, type CodexProject, type CodexSection } from "@/lib/codex/projects"
 import {
   appendActivity,
   guarded,
@@ -35,6 +35,7 @@ import {
   type CreateSubtaskInput,
 } from "@/lib/codex/taskDetail"
 import { emailsWithoutProjectAccess } from "@/lib/codex/taskVisibility"
+import { normaliseEmail } from "@/lib/email/address"
 
 const TASK_NOT_FOUND: ProjectFailure = { ok: false, reason: "task_not_found", message: "Task not found." }
 
