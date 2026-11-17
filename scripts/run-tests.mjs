@@ -1,8 +1,10 @@
 /**
- * One test runner. Test files are found by glob, never listed (B47, S29 A).
+ * One test runner. Test files are found by name, never listed (B47, S29 A).
  *
  * - A test file is any `*.test.{ts,tsx,mts,mjs,cjs}` or `*.node-test.ts`
- *   outside node_modules and build output.
+ *   outside node_modules (anywhere) and `dist`, `coverage` and dot folders
+ *   (repo root only). A `*.test.js`, `*.test.jsx` or `*.spec.*` file fails the
+ *   run by name: no runner takes it.
  * - A file that imports `vitest` runs in Vitest (`vitest.config.ts` reads
  *   the same list). A file that imports `node:test` runs in node:test with
  *   the route shims (module mocks, server-only, tsx). A test file that
@@ -110,7 +112,11 @@ export async function main(prefixes, root = ROOT) {
   const started = Date.now()
   const tests = findTests(root)
   const orphans = tests.filter((t) => t.runner === null)
-  for (const t of orphans) console.error(`[run-tests] ${t.file}: imports neither vitest nor node:test (or both), so no runner takes it.`)
+  for (const t of orphans) {
+    console.error(
+      `[run-tests] ${t.file}: no runner takes it. A test file is named *.test.{ts,tsx,mts,mjs,cjs} or *.node-test.ts and imports vitest or node:test, not both.`,
+    )
+  }
   const picked = selectTests(tests, prefixes)
   if (picked.length === 0) {
     console.error(`[run-tests] no test file starts with ${prefixes.join(", ")}`)

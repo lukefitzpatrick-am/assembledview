@@ -13,6 +13,7 @@ import { findTests, runnerOf } from "../test-files.mjs"
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const RUNNER = pathToFileURL(path.join(REPO, "scripts/run-tests.mjs")).href
 const PASS = `import test, { after } from "node:test"\ntest("ok", () => {})\n`
+const VITEST = (body) => `import { it } from "vitest"\nit("x", () => { ${body} })\n`
 
 const roots = []
 after(() => roots.forEach((root) => fs.rmSync(root, { recursive: true, force: true })))
@@ -48,18 +49,29 @@ test("runnerOf routes a file by the test module it imports", () => {
   assert.equal(runnerOf(`import { it } from "vitest"\nimport test, { after } from "node:test"`), null)
 })
 
-test("findTests finds bracket paths and skips node_modules", () => {
+test("findTests finds bracket paths and skips node_modules everywhere, build and dot folders at the root only", () => {
   const root = tempRoot({
     "app/[slug]/__tests__/a.route.test.ts": PASS,
     "lib/b.node-test.ts": PASS,
-    "lib/c.test.tsx": `import { it } from "vitest"\nit("x", () => {})\n`,
+    "lib/c.test.tsx": VITEST(""),
+    "lib/coverage/__tests__/e.test.mts": PASS,
+    "lib/dist/f.test.mjs": PASS,
+    "lib/.hidden/g.test.cjs": `const test = require("node:test")\ntest("ok", () => {})\n`,
     "node_modules/pkg/d.test.ts": PASS,
+    "lib/node_modules/pkg/d.test.ts": PASS,
+    "coverage/h.test.ts": PASS,
+    "dist/h.test.ts": PASS,
+    ".next/h.test.ts": PASS,
+    ".vercel/h.test.ts": PASS,
     "lib/helper.ts": PASS,
   })
   assert.deepEqual(findTests(root), [
     { file: "app/[slug]/__tests__/a.route.test.ts", runner: "node" },
+    { file: "lib/.hidden/g.test.cjs", runner: "node" },
     { file: "lib/b.node-test.ts", runner: "node" },
     { file: "lib/c.test.tsx", runner: "vitest" },
+    { file: "lib/coverage/__tests__/e.test.mts", runner: "node" },
+    { file: "lib/dist/f.test.mjs", runner: "node" },
   ])
 })
 
@@ -76,9 +88,10 @@ test("a node:test file under a bracket path runs its tests", () => {
   assert.match(r.stdout, /node:test files 1 \(ran 1, skipped 0, todo 0\)/)
 })
 
-test("a failing test fails the run", () => {
+test("a failing node:test file fails the run", () => {
   const r = runMain(tempRoot({ "lib/a.test.ts": `import test, { after } from "node:test"\ntest("no", () => { throw new Error("x") })\n` }))
   assert.equal(r.status, 1)
+  assert.match(r.stdout, /node:test files 1 \(ran 1/)
 })
 
 test("a node:test file with no test fails the run, an all-skipped one does not", () => {
@@ -93,10 +106,10 @@ test("a node:test file with no test fails the run, an all-skipped one does not",
   assert.match(suite.stdout, /ran 0, skipped 1/)
 })
 
-test("a test file no runner takes fails the run", () => {
-  const r = runMain(tempRoot({ "lib/a.test.ts": PASS, "lib/b.test.ts": `export {}\n` }))
+test("a test file no runner takes fails the run by name", () => {
+  const r = runMain(tempRoot({ "lib/a.test.ts": PASS, "lib/b.test.ts": `export {}\n`, "lib/c.test.js": PASS, "lib/d.test.jsx": PASS, "lib/e.spec.ts": PASS }))
   assert.equal(r.status, 1)
-  assert.match(r.stderr, /lib\/b\.test\.ts: imports neither vitest nor node:test/)
+  for (const f of ["b.test.ts", "c.test.js", "d.test.jsx", "e.spec.ts"]) assert.ok(r.stderr.includes(`lib/${f}: no runner takes it`), r.stderr)
 })
 
 test("a prefix that selects nothing fails the run", () => {

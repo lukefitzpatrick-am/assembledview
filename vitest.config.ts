@@ -24,7 +24,7 @@ export default defineConfig({
     },
   },
   test: {
-    // B47: every test file that imports vitest, found by glob (scripts/test-files.mjs).
+    // B47: every test file that imports vitest, found by name (scripts/test-files.mjs).
     include: findTests(root)
       .filter((t) => t.runner === "vitest")
       .map((t) => t.file),
