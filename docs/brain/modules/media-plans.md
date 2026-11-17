@@ -52,6 +52,68 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 
 **Postgres path (the only save path):** `POST /api/plans/save` parses `plansSaveBodySchema` (buyType trim-or-null), then rounds derived burst `calculatedValue` on every mode via `normaliseBurstDeliverables` (`package`, `bonus`, and `package_inclusions` stay as sent; `fixed_cost` with a burst budget above 0 stores 1). On `mode === "publish"` a rounded derived line with a burst budget above 0 and `calculatedValue` 0 is named on `deliverableWarnings` and the save still commits; create and edit toast that message. The same pages pause on `AaPublishWarningDialog` when a press burst spans more than six days at quantity 2 or more, or when AA billing media changes in a month already covered by a sent pack; Publish continues, Cancel does not. The same mode then runs `stripEmptyLineItems`: a blank buy type plus every burst budget, buy amount, and calculated value at 0 or blank is dropped, production uses the burst test only (C-91), and an all-empty plan is left intact. `removedIds` rides the 200. Create and edit drop a returned id only while it is still empty and toast the count removed. The same mode rejects non-production null buy types with 422 `MISSING_BUY_TYPE` before `savePlanVersion`. Then `savePlanVersion` runs. After the version commits, optional `ingestStageId` runs `completeStagedIngestAfterSave` (`insertIngestPanels` keyed by `attrs.ingest_source_row_refs` / `source_row_ref` — never last-N position — then `ingest_runs` accepted + `retainIngestStage`). A missing/expired stage never fails the save. Panel insert failure, empty remap, and written-vs-surviving-ingest-panel-count mismatch are named on the 200 (`ingestPanelError`) and do not roll back the version; the stage id is kept so Save can retry. `uq_line_item_panels_line_source` (`0055`, applied) rejects duplicate ingest `(line_item_id, source_row_ref)` rows. `ingest_runs` and retain fail open. Idempotent when `retained_at` is already set. After a publish commit, `runPublishDocumentsBestEffort` regenerates MBA PDF / Media Plan / AA from persisted rows (Blob + jsonb); unpublished saves return `documents.status: skipped`. A generate failure is named on the 200 (`documents`) and the Generate documents modal step (`Plan saved without documents` toast) and does not roll back. `savePlanVersion` / `SavePlanVersionInput` / working-draft PUT stay unchanged. Draft updates `(master_id, version_number)` in place; `new_version`/`publish` insert at server-resolved tip+1 (O4.6; client `versionNumber` ignored for those modes); line ids are client-stable (never regenerated); publish aborts if `count(line_items)=0` (BOSS006); mid-txn failure rolls back version + lines + schedules (PENFOLD016 kill-shot). Editor sends `masterId` from `media_plan_master_id` (not combined-payload version `id`); mismatch vs mba → 422 `MASTER_ID_MISMATCH` (no silent remap). Commercial status does **not** ride the save payload onto the version (CS-B) — `PATCH …/status` writes the master; new version INSERTs snapshot the then-current master status. 23505 on versions UNIQUE → `VERSION_ALREADY_EXISTS` (not line-id dupe) — backstop only once tip is server-resolved. Create/edit save-status is Save plan → Generate documents → KPI sync. **O4:** AUTO-line / month-header drift vs the burst `autoReference` preview does **not** pre-block save (server recomputes `schedule_months` + blob anyway); response may include `billingCorrection` for a visible toast. Explicit `billingMode=manual` + C2 sum violations still 409. Xano MBA PUT still uses `recomputeAndValidate` reject-on-AUTO-divergence until T6. **O4.5:** create/edit postgres bodies go through `assemblePlansSaveRequestBody` — `feeLoading` / `feeSnapshot` / `adservaudio` always ride the shared assembler (no per-branch fee wiring). `buildSavePlanLineItemsFromSnapshots` prefers stamped snapshot `feePct` over billing-input meta. `savePlanVersion` logs `[savePlan-fee-zero]` (never blocks) when any line resolves a non-zero feePct but `mbaScopeTotals.fee` is $0. **Stage 2b / PC7:** matching-base drafts auto-apply after hydration (stale-base keeps Load anyway — never silent overlay of a newer tip); Compare stays available; Discard deletes the row. **Interim `SAVE_PUBLISHES_IMMEDIATELY`:** Save on a published tip cuts and stamps (not a working-draft write); successful save clears a working-draft row only when `base_version_id` matches the version just saved from. Autosave chrome remains flag-gated (`NEXT_PUBLIC_PLAN_DRAFTS`); persistence + offer are always on. Flag off restores save-on-published → `plan_working_drafts` and clear-on-every-save.
 
+**Publish validation (S1 A, B54, switch `publish_validation`):** one set of rules, `validatePlanForPublish` (`lib/mediaplan/publishValidation.ts`, pure), returns `{ refuse, warn }`, each problem naming the rule, channel, line id and burst number (1-based) with a plain message. Refuse: no publisher (the channel's picker field, `linePublisherValue`), a burst that ends before it starts, two bursts on one line sharing a Melbourne civil day (`findOverlappingBursts`), a burst outside the plan dates (`campaignStartDate` / `campaignEndDate`; skipped while either is missing), a package line with a burst budget above 0 and `calculatedValue` 0, blank or missing (shortcut until S3's typed quantity, C-301). Warn: a derived line with a budget and no deliverables. A burst with a missing date is left to `MISSING_BURST_DATES`. Server (`publishValidation.server.ts`): with the switch on, `savePlanVersion` refuses `mode === "publish"` before any read (`SavePlanError` `PUBLISH_VALIDATION_REFUSED`, 422 on `POST /api/plans/save` and `POST /api/admin/ingest/accept`, body `{ error, code, lineItemIds, publishProblems }`); `publishBillingRevision` checks the base version's stored lines before its transaction (422 for billing revisions and true-ups); the PATCH publish stamp checks the target version's stored lines before any write. Off: no refusal and no extra read. Editor (`app/mediaplans/_form/publishValidation.ts`): both pages run `publishValidationPreflight` on the lines they post (empty lines stripped first, as the server does) beside the publisher guard preflight; every problem goes to builder issues (`publishCheck`; refusals are errors only with the switch on, otherwise warnings that say publish will refuse them later); with the switch on a refused publish stops before the request with one toast. A server 422 lands in the same list. Save draft (PC7) is never checked. With the switch on the publisher guard checks typed names only, and a line S1 lists for overlapping bursts is not listed again by the B35 warning. Live sizing and the plans each rule would refuse today: C-300. The SELECT Luke can run (read only) to list them:
+
+```sql
+-- S1 (B54): published plans the publish validation set would refuse today.
+-- SELECT only. One row per plan, rule and line. Same rules as
+-- lib/mediaplan/publishValidation.ts: Melbourne civil days, both ends inclusive.
+WITH tip AS (
+  SELECT m.mba_number, v.version_number, v.campaign_start_date AS plan_start, v.campaign_end_date AS plan_end,
+         li.channel::text AS channel, li.line_item_id, li.buy_type, li.publisher, li.platform, li.attrs, li.bursts
+  FROM media_plan_masters m
+  JOIN media_plan_versions v ON v.id = m.published_version_id AND v.published_at IS NOT NULL
+  JOIN line_items li ON li.version_id = v.id
+),
+burst AS (
+  SELECT t.*, x.n, x.e,
+    CASE WHEN s ~ '^\d{4}-\d{2}-\d{2}$' THEN s::date
+         WHEN s ~ '^\d{4}-\d{2}-\d{2}T' THEN (s::timestamptz AT TIME ZONE 'Australia/Melbourne')::date END AS bs,
+    CASE WHEN en ~ '^\d{4}-\d{2}-\d{2}$' THEN en::date
+         WHEN en ~ '^\d{4}-\d{2}-\d{2}T' THEN (en::timestamptz AT TIME ZONE 'Australia/Melbourne')::date END AS be,
+    CASE WHEN (x.e->>'budget') IS NULL THEN 0
+         ELSE coalesce(nullif(regexp_replace(x.e->>'budget', '[^0-9.-]', '', 'g'), '')::numeric, 0) END AS budget
+  FROM tip t
+  CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(t.bursts) = 'array' THEN t.bursts ELSE '[]'::jsonb END)
+       WITH ORDINALITY AS x(e, n)
+  CROSS JOIN LATERAL (SELECT trim(coalesce(x.e->>'startDate', x.e->>'start_date')) AS s,
+                             trim(coalesce(x.e->>'endDate', x.e->>'end_date')) AS en) d
+),
+findings AS (
+  -- no publisher (the channel's picker field, as publisher_guard reads it)
+  SELECT mba_number, version_number, 'no_publisher' AS rule, channel, line_item_id, NULL::bigint AS burst
+  FROM tip
+  WHERE coalesce(trim(CASE
+      WHEN channel IN ('television','radio','cinema','newspaper','magazines','ooh') THEN attrs->>'network'
+      WHEN channel IN ('digi_display','digi_video','digi_audio','digi_bvod') THEN coalesce(nullif(trim(publisher), ''), platform)
+      WHEN channel = 'production' THEN publisher
+      ELSE platform END), '') = ''
+  UNION ALL
+  SELECT mba_number, version_number, 'burst_end_before_start', channel, line_item_id, n
+  FROM burst WHERE bs IS NOT NULL AND be IS NOT NULL AND be < bs
+  UNION ALL
+  SELECT mba_number, version_number, 'burst_outside_plan_dates', channel, line_item_id, n
+  FROM burst
+  WHERE bs IS NOT NULL AND be IS NOT NULL AND be >= bs AND plan_start IS NOT NULL AND plan_end IS NOT NULL
+    AND (bs < plan_start OR be > plan_end)
+  UNION ALL
+  SELECT a.mba_number, a.version_number, 'bursts_overlap', a.channel, a.line_item_id, c.n
+  FROM burst a JOIN burst c ON c.mba_number = a.mba_number AND c.line_item_id = a.line_item_id AND c.n > a.n
+  WHERE a.bs IS NOT NULL AND a.be >= a.bs AND c.bs IS NOT NULL AND c.be >= c.bs
+    AND greatest(a.bs, c.bs) <= least(a.be, c.be)
+  UNION ALL
+  -- package with no quantity: a burst with a budget above 0 and calculatedValue 0, blank or absent
+  SELECT mba_number, version_number, 'package_no_quantity', channel, line_item_id, n
+  FROM burst
+  WHERE lower(trim(coalesce(buy_type, ''))) = 'package' AND budget > 0
+    AND coalesce(nullif(regexp_replace(coalesce(e->>'calculatedValue', ''), '[^0-9.-]', '', 'g'), '')::numeric, 0) = 0
+)
+SELECT rule, mba_number, version_number, channel, line_item_id, count(*) AS findings
+FROM findings
+GROUP BY rule, mba_number, version_number, channel, line_item_id
+ORDER BY rule, mba_number, line_item_id;
+```
+
 ### Full MBA GET `!skipLineItems` (C-22 / X2)
 
 Create/edit load with `skipLineItems=true` and hydrate channels via the `readMediaPlans` per-channel readers. Full combined GET (`!skipLineItems`) serves from one `line_items` query set (`readMbaPlanDetail` + `mbaGetAssemble`); shape parity suite: `lib/data/__tests__/mbaPlanDetailParity.test.ts`. `nextVersionNumber` = tip+1 (O4.6). Snowflake `XANO_LINE_ITEMS_SNAPSHOT` ingest always reads Postgres and tip-scopes `published_version_id`. There is no source switch (B6). Warehouse snapshot consumers expect pre-scoped tip rows.
