@@ -4,7 +4,6 @@ This spec mirrors how Finance endpoints use **`XANO_CLIENTS_BASE_URL`**: the sam
 
 ## TypeScript types
 
-- **`lib/xano/pacing-types.ts`** — table rows, enums, list envelopes, Snowflake DTOs.
 - **`lib/xano/pacing-client.ts`** — browser/server `fetch` helpers targeting **`/api/pacing/*`** (same pattern as **`lib/finance/api.ts`** / **`FinanceHttpError`**).
 
 ## Conventions
@@ -160,7 +159,7 @@ All routes require an Auth0 session (see **`requirePacingAccess`**). Responses u
 
 ## Snowflake view column expectations
 
-The server maps common uppercase column names to **`lib/xano/pacing-types`** shapes. Views should expose at least:
+The server maps common uppercase column names to snake_case shapes. Views should expose at least:
 
 - **Line items:** `CLIENTS_ID`, `MEDIA_PLAN_ID`, `AV_LINE_ITEM_ID`, `AV_LINE_ITEM_LABEL`, `MBA_NUMBER`, `CAMPAIGN_NAME`, `MEDIA_TYPE`, `PLATFORM`, pacing fields (`PACING_STATUS` or `STATUS`, spend/budget columns as available).
 - **Daily:** `AV_LINE_ITEM_ID`, `DELIVERY_DATE` or `DATE_DAY`, spend / metrics columns.

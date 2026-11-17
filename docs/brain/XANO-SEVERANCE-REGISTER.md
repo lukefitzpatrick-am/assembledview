@@ -224,7 +224,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/finance/xanoFinanceApi.ts` | deleted (XS-2a) | — | no | lib/data/writeFinance.ts insertFinanceEdit / insertFinanceSavedView; readFinance | **DONE** |
 | `lib/finance/xanoReferenceCache.ts` | readClientsList / readPublishersList; no HTTP (XS-2a) | — | no | same exports | **DONE** |
 | `lib/kpi/publisherKpi.ts` | publisher_kpi reads and writes via readKpi / writeKpi | — | no | lib/data/writeKpi.ts | **DONE** (XS-2b) |
-| `lib/mediaplan/reapUnpublishedStagedVersions.ts` | Deletes unpublished Postgres versions above the published watermark. line_items cascade. MBA PUT no longer calls it | none | no | media_plan_versions / line_items | **DONE** |
+| `lib/mediaplan/reapUnpublishedStagedVersions.ts` | Deleted in B50 (no callers) | none | no | none | **DONE** |
 | `lib/ops/health/checks.ts` | Xano clients liveness GET removed. Remaining checks are warehouse, methodology, and Xero | none | no | none | **DONE** |
 | `lib/pacing/admin/assignOrphanLineItem.ts` | pacing_orphan_fixes insert via createPacingOrphanFix | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
 | `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | search lines from Postgres line_items. campaign_kpi via lib/xano/campaignKpi → readKpi | — | no | readKpi | **DONE** (XS-2b) |

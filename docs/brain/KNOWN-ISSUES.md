@@ -392,10 +392,10 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 
 | ID | Issue |
 |---|---|
-| D-1 | `lib/avaSnowflake.ts` (219 lines) — zero importers; "repair or retire" |
+| D-1 | `lib/avaSnowflake.ts` (219 lines) — zero importers; "repair or retire" | FIXED (B50) — retired: deleted with `avaSnowflakeSql.ts` and its test |
 | D-2 | `lib/cache/ttlCache.ts` — zero importers | FIXED (S8) — deleted |
 | D-3 | `lib/billing.ts` (legacy) — no importers | FIXED (S8) — already absent from tree; register closed |
-| D-4 | `lib/pacing/calcExpected.ts` — types only, no importers; `lib/pacing/mockMetaPacing.ts` is NOT mock — canonical home of production types |
+| D-4 | `lib/pacing/calcExpected.ts` — types only, no importers; `lib/pacing/mockMetaPacing.ts` is NOT mock — canonical home of production types | PARTIAL (B50) — `calcExpected.ts` deleted; the `mockMetaPacing.ts` naming stays |
 | D-5 | `lib/delivery/programmatic/_prog_extract.txt` — 780 lines of live-looking TS checked in as .txt | FIXED (S8) — deleted |
 | D-6 | `lib/auth/mbaNumberMatchesClientIdentifier.ts` — FIXED (SEC-B): wired into `checkClientMbaAccess` / `resolveClientMbaScope` (was test-only; see SEC-9) | FIXED (SEC-B) — wired into `checkClientMbaAccess` / `resolveClientMbaScope` |
 | D-7 | Several channel routes import axios unused; cinema route POSTs to `cinema_line_items` while GET reads `media_plan_cinema` | PARTIAL (S8) — unused axios stripped from television/social/newspaper/influencers/integration/prog-display/prog-ooh; **cinema table mismatch left open** (verify separately) |

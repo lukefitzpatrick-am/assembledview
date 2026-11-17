@@ -114,7 +114,6 @@ Not Stage 1. Listed so Claude does not “helpfully” repoint them.
 These use `master.version_number` / `publishedVersionNumber` / `filterPublishedVersions` / `publishedVersionGuard`. Do **not** count in Stage 1 A. They may still need to learn `published_at` in a later stage if tip semantics change.
 
 - `lib/mediaplan/publishedVersionGuard.ts`
-- `lib/mediaplan/reapUnpublishedStagedVersions.ts`
 - `lib/mediaplan/nextMbaVersionNumber.ts` (takes tip number, not status)
 - MBA GET tip pick in `app/api/mediaplans/mba/[mba_number]/route.ts` (~931+)
 - `lib/api/dashboard/shared.ts` `pickHighestVersionRow` when `publishedVersionNumber` is passed

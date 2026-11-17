@@ -2,7 +2,7 @@
  * finance_periods, finance_run_items, app_notifications (migration 0010).
  * SQL is source of truth; this mirror is for generate/diff fidelity.
  * RLS is on. Existing callers use raw `sql` templates
- * (`lib/finance/periods/postgresStore.ts`, `lib/billing/lockBillingMonth.ts`,
+ * (`lib/finance/periods/postgresStore.ts`, `lib/finance/periods/lockBillingMonth.ts`,
  * `lib/finance/sections/investment/cutArQuery.ts`); this pack does not change them.
  */
 import { sql } from "drizzle-orm"
