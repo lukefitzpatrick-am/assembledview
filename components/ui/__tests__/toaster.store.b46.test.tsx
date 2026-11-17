@@ -82,6 +82,58 @@ describe("Toaster with the one toast store", () => {
     expect(shown()).not.toContain("Save failed")
   })
 
+  it("keeps an error open for 10 minutes until the user clicks its close X (B46fix R5)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ title: "Save failed", variant: "destructive" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(10 * 60_000)
+    })
+    expect(shown()).toContain("Save failed")
+
+    const close = document.querySelector<HTMLButtonElement>("button[toast-close]")
+    expect(close).not.toBeNull()
+    act(() => {
+      close!.click()
+    })
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(shown()).not.toContain("Save failed")
+  })
+
+  it("drops the oldest error when every toast is an open error (B46fix R1)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      for (const title of ["Error 1", "Error 2", "Error 3", "Error 4"]) {
+        handles.push(toast({ title, variant: "destructive" }))
+      }
+    })
+    expect(document.querySelectorAll("li")).toHaveLength(3)
+    expect(shown()).toContain("Error 4")
+    expect(shown()).not.toContain("Error 1")
+  })
+
+  it("shows at most 3 toasts, the newest ones (B46fix R5)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      for (const title of ["Copied 1", "Copied 2", "Copied 3", "Copied 4", "Copied 5"]) {
+        handles.push(toast({ title }))
+      }
+    })
+    expect(document.querySelectorAll("li")).toHaveLength(3)
+    expect(shown()).toContain("Copied 5")
+    expect(shown()).toContain("Copied 3")
+    expect(shown()).not.toContain("Copied 2")
+  })
+
   it("does not let the next toasts replace an open error", () => {
     act(() => {
       root.render(<Toaster />)
