@@ -386,6 +386,7 @@ import {
   type HeldMasterIdentity,
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
+import { planSavePreflight } from "@/app/mediaplans/_form/savePreflight"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
@@ -5962,36 +5963,26 @@ const handleSaveAll = async (opts?: {
     zipAfter?: boolean
     ackAaWarnings?: boolean
   }) => {
-    if (saveBlockedByClientsError) {
-      toast({
-        title: "Save disabled",
-        description: clientsError ?? "Client list unavailable — try again",
-        variant: "destructive",
-      })
-      return
-    }
-    if (datesOutOfOrder) {
-      toast({
-        title: "Publish disabled",
-        description: END_BEFORE_START_MESSAGE,
-        variant: "destructive",
-      })
-      return
-    }
-  if (saveAllInFlightRef.current) return
   // B7 review finding 1: every save route (Save, publish, save and exit, save
   // and download, the AA re-run, the unsaved-changes dialog) comes through here.
-  if (mbaNumberPendingRef.current) {
-    toast({ title: "Not saved yet", description: MBA_NUMBER_LOADING_MESSAGE })
-    return
-  }
-  if (mediaPlanIdRef.current == null) {
-    const problem = mbaNumberClientProblem(form.getValues("mba_number"), form.getValues("mbaidentifier"))
-    if (problem) {
-      toast({ title: "Not saved", description: problem.message, variant: "destructive" })
-      if (problem.refetch) void generateMBANumber(String(form.getValues("mbaidentifier") ?? ""))
-      return
+  const saveStop = planSavePreflight({
+    mode: "create",
+    clientsBlocked: saveBlockedByClientsError,
+    clientsError,
+    datesOutOfOrder,
+    saveInFlight: saveAllInFlightRef.current,
+    mbaNumberPending: mbaNumberPendingRef.current,
+    mbaNumberProblem:
+      mediaPlanIdRef.current == null
+        ? mbaNumberClientProblem(form.getValues("mba_number"), form.getValues("mbaidentifier"))
+        : null,
+  })
+  if (saveStop) {
+    if (saveStop.toast) toast(saveStop.toast)
+    if (saveStop.refetchMbaNumber) {
+      void generateMBANumber(String(form.getValues("mbaidentifier") ?? ""))
     }
+    return
   }
   if (!opts?.ackAaWarnings) {
     const publishMode = resolvePostgresSaveMode({

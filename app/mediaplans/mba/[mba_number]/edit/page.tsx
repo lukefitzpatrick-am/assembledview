@@ -129,10 +129,8 @@ import { unionGeneratedBillingLines } from "@/lib/billing/unionGeneratedBillingL
 import { buildBillingAliasNumberCheck } from "@/lib/billing/billingAliasNumberCheck"
 import type { BillingAliasNumberCheck } from "@/lib/billing/billingLineIdAlias"
 import {
-  billingAliasGhostSaveBlockMessage,
   billingAliasGhostTotal,
   findBillingAliasGhostPairs,
-  removeOldAliasGhostRows,
   summariseBillingAliasGhostPairs,
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
@@ -358,7 +356,6 @@ import {
   excludeClearedBillingOverrideRows,
   mergePendingOverSavedExcludingCleared,
   pruneClearedBillingOverrideLineIdsAfterApply,
-  shouldBlockSaveForBillingOverridesLoad,
   type BillingOverridesLoadState,
 } from "@/lib/finance/billingOverridesSaveIntent"
 import {
@@ -513,6 +510,11 @@ import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
 import { MEDIA_TYPE_ID_CODES, registerLineIdFloors } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  billingAliasGhostPairsWhenOn,
+  keepCurrentBillingRows,
+  planSavePreflight,
+} from "@/app/mediaplans/_form/savePreflight"
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
 function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
@@ -5944,10 +5946,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     ]
   )
   const billingAliasGhostPairs = useMemo(
-    () =>
-      billingGhostGuardOn
-        ? findBillingAliasGhostPairs(workingBillingMonths, mbaNumber, billingAliasNumberCheck)
-        : [],
+    () => billingAliasGhostPairsWhenOn(billingGhostGuardOn, workingBillingMonths, mbaNumber, billingAliasNumberCheck),
     [billingGhostGuardOn, workingBillingMonths, mbaNumber, billingAliasNumberCheck]
   )
   const billingAliasGhostLines = useMemo(
@@ -5972,15 +5971,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     })
   }, [billingGhostGuardOn, savedBillingMonths, mbaNumber, mediaPlanVersionId, billingAliasNumberCheck])
   const handleKeepCurrentBillingRows = useCallback(() => {
-    const strip = (months: BillingMonth[]) =>
-      removeOldAliasGhostRows(
-        months,
-        findBillingAliasGhostPairs(months, mbaNumberRef.current, billingAliasNumberCheckRef.current)
-      )
-    const nextWorking = strip(workingBillingMonthsRef.current)
+    const kept = (months: BillingMonth[]) =>
+      keepCurrentBillingRows(months, mbaNumberRef.current, billingAliasNumberCheckRef.current)
+    const nextWorking = kept(workingBillingMonthsRef.current)
     workingBillingMonthsRef.current = nextWorking
     setWorkingBillingMonths(nextWorking)
-    setManualBillingMonths((prev) => (prev.length > 0 ? strip(prev) : prev))
+    setManualBillingMonths((prev) => (prev.length > 0 ? kept(prev) : prev))
     markUnsavedChanges()
     toast({
       title: "Old-id billing rows removed from this edit",
@@ -6718,80 +6714,29 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         toast({ title: published.title, description: published.description })
       }
     }
-    if (saveBlockedByClientsError) {
-      toast({
-        title: "Save disabled",
-        description: clientsError ?? "Client list unavailable — try again",
-        variant: "destructive",
-      })
-      return
-    }
-    if (datesOutOfOrder) {
-      toast({
-        title: "Publish disabled",
-        description: END_BEFORE_START_MESSAGE,
-        variant: "destructive",
-      })
-      return
-    }
-    if (saveBlockedByDuplicates) {
-      toast({
-        title: "Save disabled",
-        description: "Duplicate line-item rows detected — fix before saving.",
-        variant: "destructive",
-      })
-      return
-    }
-    // B20 ghost-row guard: never save while billing counts a line twice.
-    const ghostSaveBlock = billingAliasGhostSaveBlockMessage(
+    const saveStop = planSavePreflight({
+      mode: "edit",
+      clientsBlocked: saveBlockedByClientsError,
+      clientsError,
+      datesOutOfOrder,
+      duplicateLines: saveBlockedByDuplicates,
       billingAliasGhostPairs,
-      workingBillingMonths.map((m) => m.monthYear)
-    )
-    if (ghostSaveBlock) {
-      toast({
-        title: "Cannot save: duplicate billing rows",
-        description: ghostSaveBlock,
-        variant: "destructive",
-      })
-      return
-    }
-    if (saveHeldForHydration) {
-      toast({
-        title: "Line items still loading — please wait",
-        variant: "destructive",
-      })
-      return
-    }
-    if (saveBlockedByFailedChannelLoad) {
-      toast({
-        title: "Save disabled",
-        description:
-          saveFailedChannelLoadReason ??
-          "A channel failed to load — Retry before saving",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // MB-25: pending Applied work requires a successful overrides load — never
-    // silently drop it via authoritative:false REPLACE-SET skip.
-    if (
-      shouldBlockSaveForBillingOverridesLoad({
-        loadState: billingOverridesLoadState,
-        pendingCount: pendingBillingOverrideRows.length,
-      })
-    ) {
-      toast({
-        variant: "destructive",
-        title: "Cannot save billing changes yet",
-        description:
-          "Manual billing overrides could not be loaded. Retry after overrides load, or cancel Applied timing first.",
-      })
-      console.warn("[save] blocked — billing overrides load unavailable with pending", {
-        code: BILLING_OVERRIDES_LOAD_BLOCK_CODE,
-        loadState: billingOverridesLoadState,
-        pendingCount: pendingBillingOverrideRows.length,
-      })
+      billingMonthOrder: workingBillingMonths.map((m) => m.monthYear),
+      linesStillLoading: saveHeldForHydration,
+      channelLoadFailed: saveBlockedByFailedChannelLoad,
+      channelLoadFailedReason: saveFailedChannelLoadReason,
+      billingOverridesLoadState,
+      pendingBillingOverrideCount: pendingBillingOverrideRows.length,
+    })
+    if (saveStop) {
+      if (saveStop.toast) toast(saveStop.toast)
+      if (saveStop.code === "billing-overrides-not-loaded") {
+        console.warn("[save] blocked — billing overrides load unavailable with pending", {
+          code: BILLING_OVERRIDES_LOAD_BLOCK_CODE,
+          loadState: billingOverridesLoadState,
+          pendingCount: pendingBillingOverrideRows.length,
+        })
+      }
       return
     }
 

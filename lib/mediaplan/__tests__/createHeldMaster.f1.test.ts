@@ -85,7 +85,8 @@ test("F1 create: no client change (picker, prefill, URL) can mint a new MBA numb
     3,
     "handleClientChange, handleSaveAll's refetch and the MBA-taken refetch",
   )
-  assert.match(constFnText("handleSaveAll"), /if \(problem\.refetch\) void generateMBANumber\(/)
+  // B52: the refetch decision is `planSavePreflight` (behaviour in app/mediaplans/_form/__tests__).
+  assert.match(constFnText("handleSaveAll"), /if \(saveStop\.refetchMbaNumber\) \{\s*void generateMBANumber\(/)
   assert.match(constFnText("handleSaveMediaPlan"), /void generateMBANumber\(identifier\)/)
 })
 
@@ -156,15 +157,13 @@ test("B7 review 1: the MBA number must start with the client's identifier; blank
 })
 
 test("B7 review 1 (create): Save refuses while an MBA number request is in flight, on every save route", () => {
+  // B52: the order and the messages are `planSavePreflight` behaviour
+  // (app/mediaplans/_form/__tests__/savePreflight.test.ts). Here: the page runs it
+  // first, with the problem only while no master is held.
   const saveAll = constFnText("handleSaveAll")
-  const pending = saveAll.indexOf("if (mbaNumberPendingRef.current) {")
-  const problem = saveAll.indexOf('mbaNumberClientProblem(form.getValues("mba_number"), form.getValues("mbaidentifier"))')
-  const aa = saveAll.indexOf("setAaPublishPrompt(")
-  const master = saveAll.indexOf("await handleSaveMediaPlan()")
-  assert.ok(pending >= 0 && pending < aa && pending < master, "pending check before the AA prompt and the master save")
-  assert.ok(saveAll.slice(pending, pending + 200).includes("MBA_NUMBER_LOADING_MESSAGE"))
-  assert.ok(problem > pending && problem < aa, "client/number check before the AA prompt")
-  assert.match(saveAll.slice(problem - 120, problem), /if \(mediaPlanIdRef\.current == null\) \{/, "only before a master exists")
+  const preflight = saveAll.indexOf("planSavePreflight({")
+  assert.ok(preflight >= 0 && preflight < saveAll.indexOf("setAaPublishPrompt(") && preflight < saveAll.indexOf("await handleSaveMediaPlan()"))
+  assert.match(saveAll, /mbaNumberProblem:\s*mediaPlanIdRef\.current == null\s*\?\s*mbaNumberClientProblem\(form\.getValues\("mba_number"\), form\.getValues\("mbaidentifier"\)\)\s*:\s*null,/)
   // Every save route goes through handleSaveAll: the master and version saves have no other caller.
   assert.equal((create.match(/await handleSaveMediaPlan\(\)/g) ?? []).length, 2, "handleSaveAll and the MBA-taken retry")
   assert.ok(constFnText("handleSaveMediaPlan").includes("return await handleSaveMediaPlan()"), "the second is the retry, inside itself")
