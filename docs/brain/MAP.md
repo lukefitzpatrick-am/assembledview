@@ -203,7 +203,7 @@ M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and lo
 
 ## Public pages
 
-`/privacy` and `/data-deletion` are public static pages (`app/privacy/page.tsx`, `app/data-deletion/page.tsx`, `dynamic = "force-static"`). Middleware lists both in `PUBLIC_PATHS`, so a missing session does not redirect to `/auth/login`, and a session does not redirect away. `ClientLayout` treats both like `/`: no sidebar and no app chrome, logged out or logged in. Changeable facts live in `lib/legal/privacyConfig.ts`. The logged-out homepage (`app/page.tsx`) links to `/privacy`. `/privacy` links to `/data-deletion`. Logged-in `/` still redirects to `/dashboard`.
+`/privacy` and `/data-deletion` are public pages (`app/privacy/page.tsx`, `app/data-deletion/page.tsx`). They render per request like every page, so their scripts carry the CSP nonce (`SECURITY-HEADERS.md`). Middleware lists both in `PUBLIC_PATHS`, so a missing session does not redirect to `/auth/login`, and a session does not redirect away. `ClientLayout` treats both like `/`: no sidebar and no app chrome, logged out or logged in. Changeable facts live in `lib/legal/privacyConfig.ts`. The logged-out homepage (`app/page.tsx`) links to `/privacy`. `/privacy` links to `/data-deletion`. Logged-in `/` still redirects to `/dashboard`.
 
 ---
 

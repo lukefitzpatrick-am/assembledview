@@ -22,8 +22,6 @@ import {
   SERVICE_PROVIDERS,
 } from "@/lib/legal/privacyConfig"
 
-export const dynamic = "force-static"
-
 export const metadata: Metadata = {
   title: { absolute: "Privacy Policy | AssembledView" },
   description:

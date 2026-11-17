@@ -6,8 +6,6 @@ import { PageShell } from "@/components/layout/PageShell"
 
 import { LEGAL_ENTITY_NAME, PRIVACY_EMAIL } from "@/lib/legal/privacyConfig"
 
-export const dynamic = "force-static"
-
 export const metadata: Metadata = {
   title: { absolute: "Data Deletion | AssembledView" },
   description:
