@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import { requireRole } from "@/lib/requireRole"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString } from "@/lib/dates/civil"
 import { toMelbourneDateString } from "@/lib/dates/melbourne"
@@ -552,8 +553,11 @@ export async function PATCH(
     const mba_number = parseMbaNumber(rawMbaNumber)
     if (!mba_number) return invalidMbaNumberResponse()
 
-    const access = await checkClientMbaAccess(request, mba_number)
-    if (!access.ok) return access.response
+    // C-302: staff only. It rewrites master fields and can publish any version,
+    // so a client scoped to the MBA must not reach it (same gate as
+    // POST /api/plans/save; admin is the only unscoped role).
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
 
     const data = await request.json()
     const { readPlanMasterByMba, readPlanVersionsByMba } = await import("@/lib/data/readMediaPlans")

@@ -45,8 +45,10 @@ const fakeDb = {
 }
 
 if (supportsMockModule()) {
-  await mock.module!("@/lib/auth/checkClientMbaAccess", {
-    namedExports: { checkClientMbaAccess: async () => ({ ok: true, isClient: false }) },
+  await mock.module!("@/lib/auth0", {
+    namedExports: {
+      auth0: { getSession: async () => ({ user: { email: "planner@example.com", "https://assembledview.com/roles": ["admin"] } }) },
+    },
   })
   const realRead = await import("../../../../../../lib/data/readMediaPlans")
   await mock.module!("@/lib/data/readMediaPlans", {

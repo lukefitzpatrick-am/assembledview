@@ -6,15 +6,15 @@ Living recount of every HTTP handler under `app/api` `route.ts` files. Regenerat
 
 | Class | Count |
 |---|---:|
-| tenant-scoped | 84 |
-| admin-only | 306 |
+| tenant-scoped | 83 |
+| admin-only | 307 |
 | public | 1 |
 | internal-cron | 43 |
 
 | Mechanism | Count |
 |---|---:|
-| checkClientMbaAccess | 80 |
-| requireRole | 297 |
+| checkClientMbaAccess | 79 |
+| requireRole | 298 |
 | CRON_SECRET | 43 |
 | none | 14 |
 
@@ -450,7 +450,7 @@ Existing `/api/admin/*` handlers in this recount: **36** methods across **31** f
 | GET | `/api/mediaplans/[id]/download` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/[id]/download/route.ts` |
 | POST | `/api/mediaplans/draft-documents` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/draft-documents/route.ts` |
 | GET | `/api/mediaplans/mba/[mba_number]` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/route.ts` |
-| PATCH | `/api/mediaplans/mba/[mba_number]` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/route.ts` |
+| PATCH | `/api/mediaplans/mba/[mba_number]` | admin-only | requireRole | `app/api/mediaplans/mba/[mba_number]/route.ts` |
 | GET | `/api/mediaplans/mba/[mba_number]/documents` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/documents/route.ts` |
 | GET | `/api/mediaplans/mba/[mba_number]/material-deadlines` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/material-deadlines/route.ts` |
 | POST | `/api/mediaplans/mba/[mba_number]/material-deadlines` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/material-deadlines/route.ts` |
