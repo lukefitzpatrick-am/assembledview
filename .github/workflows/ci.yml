@@ -80,6 +80,12 @@ jobs:
       - name: Any-ratchet self-test
         run: npm run test:any-ratchet
 
+      - name: Calendar code outside lib/dates only goes down
+        run: npm run check:date-boundaries
+
+      - name: Date-boundaries self-test
+        run: node scripts/run-tests.mjs scripts/__tests__/check-date-boundaries.test.mjs
+
       - name: No hardcoded external URLs
         run: npm run check:hardcoded-urls
 
