@@ -193,6 +193,20 @@ test("decide: on with a change and no choice asks for one", () => {
   assert.ok(d.kind === "refuse" && d.billedMonths.length === 1)
 })
 
+test("decide: a line-only change with the same month total still asks (B56fix R8, N7)", () => {
+  const lineOnly = checkBilledMonths({
+    invoiced: SEP,
+    base: [cell("t1SM1", "2026-09", 1000), cell("t1SM2", "2026-09", 0)],
+    candidate: [cell("t1SM1", "2026-09", 400), cell("t1SM2", "2026-09", 600)],
+  })
+  assert.equal(lineOnly.months[0]!.deltaCents, 0)
+  const d = decideBilledMonths({ on: true, check: lineOnly, choice: null, choiceAllowed: true })
+  assert.ok(d.kind === "refuse" && d.code === "BILLED_MONTHS_CHOICE_REQUIRED")
+  assert.ok(d.kind === "refuse" && d.billedMonths.map((m) => m.month).join() === "2026-09")
+  const stamp = decideBilledMonths({ on: true, check: lineOnly, choice: null, choiceAllowed: false })
+  assert.ok(stamp.kind === "refuse" && stamp.code === "BILLED_MONTHS_CHANGED")
+})
+
 test("decide: keep keeps the changed months; credit is refused with the S11 reason", () => {
   assert.deepEqual(decideBilledMonths({ on: true, check: changed, choice: "keep", choiceAllowed: true }), {
     kind: "keep",

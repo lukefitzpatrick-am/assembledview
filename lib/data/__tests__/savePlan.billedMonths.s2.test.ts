@@ -234,6 +234,14 @@ test("on, nothing invoiced changes: goes on without a choice", { skip }, async (
   assert.equal(cents(saved(writes).billing, "2026-09"), 300000)
 })
 
+test("on, a new version is not a publish: nothing is read (B56fix R8, N17)", { skip }, async () => {
+  tip = await publishedTip()
+  setSwitch(true)
+  const writes: Write[] = []
+  await savePlanVersion(input(3050, { mode: "new_version" }), memoryDb(writes))
+  assert.equal(loads, 0)
+})
+
 test("on, a draft is not a publish: nothing is read", { skip }, async () => {
   tip = await publishedTip()
   setSwitch(true)
