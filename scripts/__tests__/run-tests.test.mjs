@@ -134,12 +134,15 @@ test("a root with no test file fails the run", () => {
   assert.match(r.stderr, /found no test files/)
 })
 
-test("the CLI runs main", () => {
+test("the CLI runs main, and exits at once when nothing holds it open", () => {
   const env = { ...process.env }
   delete env.NODE_TEST_CONTEXT
+  const started = Date.now()
   const r = spawnSync(process.execPath, [path.join(REPO, "scripts/run-tests.mjs"), "no/such/prefix/"], { cwd: REPO, env, encoding: "utf8" })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /no test file starts with no\/such\/prefix\//)
+  // RUNFIX2fix (RUNFIX2 review R4): the 10 s exit timer is unref'd, so a clean run does not wait for it (about 1 s, 11 s without).
+  assert.ok(Date.now() - started < 8_000, `the CLI took ${Date.now() - started} ms: is the exit timer still unref'd?`)
 })
 
 test("a prefix that selects nothing fails the run", () => {
