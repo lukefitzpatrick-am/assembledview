@@ -2,8 +2,11 @@ import type { User } from "@auth0/nextjs-auth0/types"
 
 import { getUserRoles } from "@/lib/rbac"
 
+import { displayNameFromEmail } from "@/lib/email/address"
+
 import { shortFormEmailAlias } from "./rosterEmailAlias"
 import { dropCollidingNewAliases } from "./rosterAliasGuard"
+import { prepareRosterWrite, RosterRuleError } from "./rosterRules"
 
 export const LOGIN_SYNC_DEBOUNCE_MS = 60 * 60 * 1000
 
@@ -56,15 +59,71 @@ function markWritten(key: string, nowMs: number): void {
   lastWriteByUser.set(key, nowMs)
 }
 
-export function aliasesForNewRosterEmail(email: string): string[] {
+function aliasesForNewRosterEmail(email: string): string[] {
   const alias = shortFormEmailAlias(email)
   return alias ? [alias] : []
+}
+
+/**
+ * The name for a new Auth0 row: the profile name, or a name built from the
+ * address when the profile has none or it holds an email (B53, S18: a name
+ * never holds an email address).
+ */
+function newRosterName(profileName: unknown, email: string): string {
+  const name = typeof profileName === "string" ? profileName.trim() : ""
+  return name && !name.includes("@") ? name : displayNameFromEmail(email) || email
+}
+
+/**
+ * The row an Auth0 login or sync inserts for a new address (one place for
+ * both writers). The short-form alias is dropped when someone holds it.
+ * With `rules` (the `roster_rules` switch) the row goes through the roster
+ * rules: it gains its initials alias, and a row that breaks a rule (its
+ * address is already someone's alias) is not inserted (null, logged).
+ */
+export function newRosterRow(
+  input: {
+    email: string
+    name: unknown
+    auth0UserId: string | null
+    lastLoginAt: string
+    rosterSource: Exclude<RosterSource, "manual">
+  },
+  roster: readonly StoredRosterRow[],
+  rules: boolean,
+  logTag: string,
+): StoredRosterRow | null {
+  const holders = roster.map((row) => ({ email: row.email, name: row.name, aliases: row.emailAliases, active: true }))
+  const { accepted, refused } = dropCollidingNewAliases(aliasesForNewRosterEmail(input.email), holders, input.email)
+  for (const item of refused) {
+    console.warn(`${logTag} skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`)
+  }
+  let write = { email: input.email, name: newRosterName(input.name, input.email), aliases: accepted }
+  if (rules) {
+    try {
+      write = prepareRosterWrite(write, holders)
+    } catch (err) {
+      if (!(err instanceof RosterRuleError)) throw err
+      console.warn(`${logTag} skipped ${input.email}: ${err.message}`)
+      return null
+    }
+  }
+  return {
+    email: write.email,
+    name: write.name,
+    auth0UserId: input.auth0UserId,
+    emailAliases: write.aliases,
+    roleTitle: null,
+    lastLoginAt: input.lastLoginAt,
+    rosterSource: input.rosterSource,
+  }
 }
 
 export async function upsertTeamMemberOnAdminLogin(
   profile: LoginProfile,
   store: RosterLoginStore,
   now: Date = new Date(),
+  opts: { rules?: boolean } = {},
 ): Promise<"created" | "updated" | "debounced" | "skipped"> {
   const email =
     typeof profile.email === "string" ? profile.email.trim().toLowerCase() : ""
@@ -79,39 +138,16 @@ export async function upsertTeamMemberOnAdminLogin(
     typeof profile.sub === "string" && profile.sub.trim()
       ? profile.sub.trim()
       : null
-  const name =
-    typeof profile.name === "string" && profile.name.trim()
-      ? profile.name.trim()
-      : email
-
   const existing = await store.findByEmail(email)
   if (!existing) {
-    const roster = await store.listRoster()
-    const generated = aliasesForNewRosterEmail(email)
-    const { accepted, refused } = dropCollidingNewAliases(
-      generated,
-      roster.map((row) => ({
-        email: row.email,
-        name: row.name,
-        aliases: row.emailAliases,
-        active: true,
-      })),
-      email,
+    const row = newRosterRow(
+      { email, name: profile.name, auth0UserId, lastLoginAt, rosterSource: "auth0_login" },
+      await store.listRoster(),
+      opts.rules === true,
+      "[auth0-roster-login]",
     )
-    for (const item of refused) {
-      console.warn(
-        `[auth0-roster-login] skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`,
-      )
-    }
-    await store.insert({
-      email,
-      name,
-      auth0UserId,
-      emailAliases: accepted,
-      roleTitle: null,
-      lastLoginAt,
-      rosterSource: "auth0_login",
-    })
+    if (!row) return "skipped"
+    await store.insert(row)
     markWritten(key, nowMs)
     return "created"
   }
@@ -145,7 +181,8 @@ export async function syncAdminRosterOnLogin(
     if (!user) return
     if (!getUserRoles(user).includes("admin")) return
     const resolved = await resolveLoginStore(store)
-    await upsertTeamMemberOnAdminLogin(user, resolved)
+    const { rosterRulesOn } = await import("./rosterRead")
+    await upsertTeamMemberOnAdminLogin(user, resolved, new Date(), { rules: await rosterRulesOn() })
   } catch (err) {
     console.warn("[auth0-roster-login] fail-soft:", err)
   }

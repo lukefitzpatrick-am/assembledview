@@ -4,11 +4,7 @@ import {
   type Auth0ListedUser,
 } from "@/lib/api/auth0Management"
 
-import {
-  aliasesForNewRosterEmail,
-  type StoredRosterRow,
-} from "./auth0LoginUpsert"
-import { dropCollidingNewAliases } from "./rosterAliasGuard"
+import { newRosterRow, type StoredRosterRow } from "./auth0LoginUpsert"
 import {
   listedUserRoles,
   rosterEligibilityForManagementUser,
@@ -42,6 +38,8 @@ export type Auth0RosterSyncDeps = {
   isConfigured: () => boolean
   listUsers: () => Promise<Auth0ListedUser[]>
   store: RosterSyncStore
+  /** The `roster_rules` switch (B53). Left out: off. */
+  rulesOn?: () => Promise<boolean>
 }
 
 const EMPTY_COUNTS = {
@@ -56,10 +54,12 @@ const EMPTY_COUNTS = {
 
 async function defaultDeps(): Promise<Auth0RosterSyncDeps> {
   const { postgresRosterStore } = await import("./auth0RosterStore")
+  const { rosterRulesOn } = await import("./rosterRead")
   return {
     isConfigured: isAuth0ManagementClientConfigured,
     listUsers: () => listAllAuth0UsersUnpaged(),
     store: postgresRosterStore,
+    rulesOn: rosterRulesOn,
   }
 }
 
@@ -67,6 +67,7 @@ async function upsertAdminFromAuth0(
   user: Auth0ListedUser,
   store: RosterSyncStore,
   nowIso: string,
+  rules: boolean,
 ): Promise<"created" | "updated" | "skipped"> {
   const email = typeof user.email === "string" ? user.email.trim().toLowerCase() : ""
   if (!email) return "skipped"
@@ -76,37 +77,16 @@ async function upsertAdminFromAuth0(
       ? user.last_login.trim()
       : nowIso
   const auth0UserId = user.user_id?.trim() || null
-  const name =
-    typeof user.name === "string" && user.name.trim() ? user.name.trim() : email
-
   const existing = await store.findByEmail(email)
   if (!existing) {
-    const roster = await store.listRoster()
-    const generated = aliasesForNewRosterEmail(email)
-    const { accepted, refused } = dropCollidingNewAliases(
-      generated,
-      roster.map((row) => ({
-        email: row.email,
-        name: row.name,
-        aliases: row.emailAliases,
-        active: true,
-      })),
-      email,
+    const row = newRosterRow(
+      { email, name: user.name, auth0UserId, lastLoginAt, rosterSource: "auth0_sync" },
+      await store.listRoster(),
+      rules,
+      "[auth0-roster-sync]",
     )
-    for (const item of refused) {
-      console.warn(
-        `[auth0-roster-sync] skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`,
-      )
-    }
-    await store.insert({
-      email,
-      name,
-      auth0UserId,
-      emailAliases: accepted,
-      roleTitle: null,
-      lastLoginAt,
-      rosterSource: "auth0_sync",
-    })
+    if (!row) return "skipped"
+    await store.insert(row)
     return "created"
   }
 
@@ -143,6 +123,7 @@ export async function runAuth0RosterSync(
   }
 
   const nowIso = new Date().toISOString()
+  const rules = (await deps.rulesOn?.()) === true
   let created = 0
   let updated = 0
   let skipped = 0
@@ -175,7 +156,7 @@ export async function runAuth0RosterSync(
     }
     presentAdminEmails.add(email)
     try {
-      const outcome = await upsertAdminFromAuth0(user, deps.store, nowIso)
+      const outcome = await upsertAdminFromAuth0(user, deps.store, nowIso, rules)
       if (outcome === "created") created += 1
       else if (outcome === "updated") updated += 1
       else skipped += 1

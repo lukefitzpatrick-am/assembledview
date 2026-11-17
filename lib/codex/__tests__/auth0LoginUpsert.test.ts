@@ -219,3 +219,39 @@ describe("syncAdminRosterOnLogin", () => {
     await assert.doesNotReject(() => syncAdminRosterOnLogin(adminUser(), store))
   })
 })
+
+describe("B53: the login insert goes through the roster rules", () => {
+  afterEach(() => {
+    resetLoginSyncDebounceForTests()
+  })
+
+  it("names the row from the address when the profile name is an email", async () => {
+    const store = memoryStore()
+    await upsertTeamMemberOnAdminLogin(adminUser({ name: "luke.fitzpatrick@assembledmedia.com.au" }), store)
+    assert.equal(store.inserts[0]?.name, "Luke Fitzpatrick")
+  })
+
+  it("roster_rules on: adds the initials alias", async () => {
+    const store = memoryStore()
+    const out = await upsertTeamMemberOnAdminLogin(adminUser(), store, new Date(), { rules: true })
+    assert.equal(out, "created")
+    assert.deepEqual(store.inserts[0]?.emailAliases, ["luke@assembledmedia.com.au", "lf@assembledmedia.com.au"])
+  })
+
+  it("roster_rules on: a login whose address is someone's alias writes nothing", async () => {
+    const store = memoryStore([
+      {
+        email: "luke.fitzpatrick@assembledmedia.com.au",
+        name: "Luke Fitzpatrick",
+        auth0UserId: "auth0|luke",
+        emailAliases: ["luke@assembledmedia.com.au"],
+        roleTitle: null,
+        lastLoginAt: null,
+        rosterSource: "auth0_login",
+      },
+    ])
+    const out = await upsertTeamMemberOnAdminLogin(adminUser({ email: "luke@assembledmedia.com.au", sub: "auth0|other" }), store, new Date(), { rules: true })
+    assert.equal(out, "skipped")
+    assert.equal(store.inserts.length, 0)
+  })
+})

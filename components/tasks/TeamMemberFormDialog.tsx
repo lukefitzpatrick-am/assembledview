@@ -27,6 +27,12 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
 import type { TeamMember } from "@/lib/codex/types"
+import { clientFeatureOn } from "@/lib/features/client"
+
+/** Email aliases as typed: one per line, or separated by commas or spaces. */
+function aliasList(text: string | undefined): string[] {
+  return (text ?? "").split(/[\s,;]+/).filter(Boolean)
+}
 
 const teamMemberFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -35,6 +41,7 @@ const teamMemberFormSchema = z.object({
   active: z.boolean(),
   capacity_notes: z.string().optional(),
   working_style: z.string().optional(),
+  email_aliases: z.string().optional(),
 })
 
 type TeamMemberFormValues = z.infer<typeof teamMemberFormSchema>
@@ -55,6 +62,8 @@ export function TeamMemberFormDialog({
   const { toast } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const isEdit = Boolean(member)
+  // B53: the roster rules let the Team tab edit aliases (a manual alias for an initials clash).
+  const aliasesOn = clientFeatureOn("roster_rules")
 
   const form = useForm<TeamMemberFormValues>({
     resolver: zodResolver(teamMemberFormSchema) as Resolver<TeamMemberFormValues>,
@@ -65,6 +74,7 @@ export function TeamMemberFormDialog({
       active: true,
       capacity_notes: "",
       working_style: "",
+      email_aliases: "",
     },
   })
 
@@ -78,6 +88,7 @@ export function TeamMemberFormDialog({
         active: Boolean(member.active),
         capacity_notes: member.capacity_notes ?? "",
         working_style: member.working_style ?? "",
+        email_aliases: (member.email_aliases ?? []).join("\n"),
       })
     } else {
       form.reset({
@@ -87,6 +98,7 @@ export function TeamMemberFormDialog({
         active: true,
         capacity_notes: "",
         working_style: "",
+        email_aliases: "",
       })
     }
   }, [open, member, form])
@@ -105,6 +117,7 @@ export function TeamMemberFormDialog({
           patch.capacity_notes = values.capacity_notes || null
         if (dirty.working_style)
           patch.working_style = values.working_style || null
+        if (aliasesOn && dirty.email_aliases) patch.email_aliases = aliasList(values.email_aliases)
 
         if (Object.keys(patch).length === 0) {
           onOpenChange(false)
@@ -136,6 +149,7 @@ export function TeamMemberFormDialog({
           active: values.active,
           capacity_notes: values.capacity_notes || null,
           working_style: values.working_style || null,
+          ...(aliasesOn ? { email_aliases: aliasList(values.email_aliases) } : {}),
         }
         const res = await fetch("/api/codex/team", {
           method: "POST",
@@ -216,6 +230,26 @@ export function TeamMemberFormDialog({
                 </FormItem>
               )}
             />
+
+            {aliasesOn ? (
+              <FormField
+                control={form.control}
+                name="email_aliases"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email aliases</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} placeholder="One per line" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Other addresses for this person. Each belongs to one person only. The initials alias is added on
+                      save when no one else holds it.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}

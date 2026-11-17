@@ -5,7 +5,8 @@ import {
   listAllAuth0UsersUnpaged,
 } from "@/lib/api/auth0Management"
 import { createTeamMember, listRosterLoginRows, listTeamMembers, listEmailAliasCollisions } from "@/lib/codex/repo"
-import { AliasCollisionError } from "@/lib/codex/rosterAliasGuard"
+import { listInitialsGaps, rosterWriteRefusal, type InitialsGap } from "@/lib/codex/rosterRules"
+import { loadRosterPeople, rosterRulesOn } from "@/lib/codex/rosterRead"
 import { rosterEmailsNeverLoggedIn } from "@/lib/codex/rosterLoginCheck"
 import {
   codexFlagGuard,
@@ -48,10 +49,17 @@ export async function GET(request: Request) {
     } catch (err) {
       console.warn("[roster-alias] collision report fail-soft:", err)
     }
+    let initialsGaps: InitialsGap[] = []
+    try {
+      if (await rosterRulesOn()) initialsGaps = listInitialsGaps(await loadRosterPeople())
+    } catch (err) {
+      console.warn("[roster-rules] initials report fail-soft:", err)
+    }
     return NextResponse.json({
       ...data,
       never_logged_in: neverLoggedIn,
       alias_collisions: aliasCollisions,
+      initials_gaps: initialsGaps,
     })
   } catch (error) {
     console.error("Failed to list team members:", error)
@@ -125,12 +133,8 @@ export async function POST(request: Request) {
     )
     return NextResponse.json(member, { status: 201 })
   } catch (error) {
-    if (error instanceof AliasCollisionError) {
-      return NextResponse.json(
-        { error: "alias_collision", message: error.message },
-        { status: 409 }
-      )
-    }
+    const refusal = rosterWriteRefusal(error)
+    if (refusal) return NextResponse.json(refusal.body, { status: refusal.status })
     console.error("Failed to create team member:", error)
     return NextResponse.json(
       {

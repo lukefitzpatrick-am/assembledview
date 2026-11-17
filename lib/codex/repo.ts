@@ -88,6 +88,8 @@ import {
   type AliasCollision,
   type AliasRosterRow,
 } from "@/lib/codex/rosterAliasGuard"
+import { prepareRosterWrite } from "@/lib/codex/rosterRules"
+import { rosterRulesOn } from "@/lib/codex/rosterRead"
 import { melbourneParts, getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export { clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
@@ -1911,11 +1913,15 @@ export async function createTeamMember(
 ): Promise<TeamMember> {
   return database.transaction(async (tx) => {
     const now = new Date().toISOString()
-    const email = input.email.trim().toLowerCase()
-    const aliases = (input.emailAliases ?? [])
+    let email = input.email.trim().toLowerCase()
+    let name = input.name.trim()
+    let aliases = (input.emailAliases ?? [])
       .map((a) => a.trim().toLowerCase())
       .filter(Boolean)
-    if (aliases.length > 0) {
+    if (await rosterRulesOn()) {
+      // B53: the roster rules (S18), one validator for every roster write.
+      ;({ email, name, aliases } = prepareRosterWrite({ email, name, aliases }, await loadAliasRoster(tx as unknown as Db)))
+    } else if (aliases.length > 0) {
       const roster = await loadAliasRoster(tx as unknown as Db)
       assertNewAliasesAvailable(aliases, roster, email)
     }
@@ -1923,7 +1929,7 @@ export async function createTeamMember(
       .insert(teamMembers)
       .values({
         email,
-        name: input.name.trim(),
+        name,
         roleTitle: input.roleTitle ?? null,
         active: input.active ?? true,
         capacityNotes: input.capacityNotes ?? null,
@@ -1973,7 +1979,19 @@ export async function updateTeamMember(
     if (patch.defaultClientIds !== undefined) {
       values.defaultClientIds = patch.defaultClientIds
     }
-    if (patch.emailAliases !== undefined) {
+    if (await rosterRulesOn()) {
+      // B53: the whole row after the edit meets the roster rules (S18).
+      const next = prepareRosterWrite(
+        {
+          email: values.email ?? before.email,
+          name: values.name ?? before.name,
+          aliases: patch.emailAliases ?? aliasesFromJson(before.emailAliases),
+        },
+        await loadAliasRoster(tx as unknown as Db),
+        before.email
+      )
+      Object.assign(values, { email: next.email, name: next.name, emailAliases: next.aliases })
+    } else if (patch.emailAliases !== undefined) {
       const aliases = patch.emailAliases
         .map((a) => a.trim().toLowerCase())
         .filter(Boolean)

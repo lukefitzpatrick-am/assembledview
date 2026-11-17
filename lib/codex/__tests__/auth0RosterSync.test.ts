@@ -301,4 +301,76 @@ describe("runAuth0RosterSync", () => {
     assert.equal(result.treatedAsAdminByDomainRule, 0)
     assert.equal(store.rows.size, 0)
   })
+
+  it("B53: names a new row from its address when Auth0 has no name or an email as the name", async () => {
+    const store = memorySyncStore()
+    await runAuth0RosterSync(
+      deps({
+        store,
+        listUsers: async () => [
+          { user_id: "auth0|a", email: "alex.james@assembledmedia.com.au", name: "alex.james@assembledmedia.com.au", app_metadata: {} },
+          { user_id: "auth0|b", email: "brad.easton@assembledmedia.com.au", app_metadata: {} },
+        ],
+      }),
+    )
+    assert.equal(store.rows.get("alex.james@assembledmedia.com.au")?.name, "Alex James")
+    assert.equal(store.rows.get("brad.easton@assembledmedia.com.au")?.name, "Brad Easton")
+  })
+
+  it("B53 roster_rules on: a new row gains its initials alias; a row whose address someone holds is skipped", async () => {
+    const store = memorySyncStore([
+      {
+        email: "samantha.murphy@assembledmedia.com.au",
+        name: "Samantha Murphy",
+        auth0UserId: "auth0|sm",
+        emailAliases: ["samantha@assembledmedia.com.au"],
+        roleTitle: null,
+        lastLoginAt: null,
+        rosterSource: "auth0_sync",
+      },
+    ])
+    const result = await runAuth0RosterSync(
+      deps({
+        store,
+        rulesOn: async () => true,
+        listUsers: async () => [
+          { user_id: "auth0|cd", email: "clay.deuna@assembledmedia.com.au", name: "Clay Deuna", app_metadata: {} },
+          { user_id: "auth0|dup", email: "samantha@assembledmedia.com.au", name: "Samantha", app_metadata: {} },
+        ],
+      }),
+    )
+    assert.equal(result.created, 1)
+    assert.equal(result.skipped, 1)
+    assert.deepEqual(store.rows.get("clay.deuna@assembledmedia.com.au")?.emailAliases, [
+      "clay@assembledmedia.com.au",
+      "cd@assembledmedia.com.au",
+    ])
+    assert.equal(store.rows.has("samantha@assembledmedia.com.au"), false)
+  })
+
+  it("B53 roster_rules off: the same sync inserts as before (no initials alias, the shared address row created)", async () => {
+    const store = memorySyncStore([
+      {
+        email: "samantha.murphy@assembledmedia.com.au",
+        name: "Samantha Murphy",
+        auth0UserId: "auth0|sm",
+        emailAliases: ["samantha@assembledmedia.com.au"],
+        roleTitle: null,
+        lastLoginAt: null,
+        rosterSource: "auth0_sync",
+      },
+    ])
+    const result = await runAuth0RosterSync(
+      deps({
+        store,
+        rulesOn: async () => false,
+        listUsers: async () => [
+          { user_id: "auth0|cd", email: "clay.deuna@assembledmedia.com.au", name: "Clay Deuna", app_metadata: {} },
+          { user_id: "auth0|dup", email: "samantha@assembledmedia.com.au", name: "Samantha", app_metadata: {} },
+        ],
+      }),
+    )
+    assert.equal(result.created, 2)
+    assert.deepEqual(store.rows.get("clay.deuna@assembledmedia.com.au")?.emailAliases, ["clay@assembledmedia.com.au"])
+  })
 })

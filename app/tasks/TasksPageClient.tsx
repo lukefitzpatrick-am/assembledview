@@ -27,6 +27,8 @@ import { withoutComposeParams } from "@/lib/codex/composeLink"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TasksFilterBar } from "@/components/tasks/TasksFilterBar"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
+import { RosterInitialsGaps } from "@/components/tasks/RosterInitialsGaps"
+import type { InitialsGap } from "@/lib/codex/rosterRules"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
 import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
 import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
@@ -646,6 +648,7 @@ export function TasksPageClient({
   const [aliasCollisions, setAliasCollisions] = useState<
     Array<{ alias: string; holders: Array<{ email: string; name: string }> }>
   >([])
+  const [initialsGaps, setInitialsGaps] = useState<InitialsGap[]>([])
   const [autoBusyId, setAutoBusyId] = useState<number | string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1002,6 +1005,7 @@ export function TasksPageClient({
           alias: string
           holders: Array<{ email: string; name: string }>
         }>
+        initials_gaps?: InitialsGap[]
       }
       setTeamMembers(Array.isArray(data.items) ? data.items : [])
       setNeverLoggedIn(
@@ -1010,12 +1014,14 @@ export function TasksPageClient({
       setAliasCollisions(
         Array.isArray(data.alias_collisions) ? data.alias_collisions : []
       )
+      setInitialsGaps(Array.isArray(data.initials_gaps) ? data.initials_gaps : [])
     } catch (error) {
       console.error("Error fetching team:", error)
       setTeamError("Something went wrong while loading the team.")
       setTeamMembers([])
       setNeverLoggedIn([])
       setAliasCollisions([])
+      setInitialsGaps([])
     } finally {
       setTeamLoading(false)
     }
@@ -2319,13 +2325,20 @@ export function TasksPageClient({
           body: JSON.stringify({ active }),
         }
       )
-      if (!res.ok) throw new Error("Failed to update member")
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(
+          (body && typeof body === "object" && "message" in body
+            ? String((body as { message?: string }).message)
+            : null) || "Please try again."
+        )
+      }
       await fetchTeam()
     } catch (error) {
       console.error("Inline active toggle failed:", error)
       toast({
         title: "Could not update member",
-        description: "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       })
     }
@@ -3588,6 +3601,7 @@ export function TasksPageClient({
               </ul>
             </div>
           ) : null}
+          <RosterInitialsGaps gaps={initialsGaps} />
           {teamWeek && teamWeek.unmapped_count > 0 ? (
             <div
               className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-panel px-4 py-3 text-sm shadow-e0"

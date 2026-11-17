@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { updateTeamMember } from "@/lib/codex/repo"
-import { AliasCollisionError } from "@/lib/codex/rosterAliasGuard"
+import { rosterWriteRefusal } from "@/lib/codex/rosterRules"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -90,12 +90,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     return NextResponse.json(member)
   } catch (error) {
-    if (error instanceof AliasCollisionError) {
-      return NextResponse.json(
-        { error: "alias_collision", message: error.message },
-        { status: 409 }
-      )
-    }
+    const refusal = rosterWriteRefusal(error)
+    if (refusal) return NextResponse.json(refusal.body, { status: refusal.status })
     console.error("Failed to update team member:", error)
     return NextResponse.json(
       {
