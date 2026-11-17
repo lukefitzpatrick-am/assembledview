@@ -148,7 +148,29 @@ test("a prefix that selects nothing fails the run", () => {
   assert.match(r.stderr, /no test file starts with app\//)
 })
 
+// RUNFIX: a file whose results do not add up fails the run, by name and with its counts.
 const NODE_TEST = `import test from "node:test"\n`
+
+test("a file that crashes after its first test fails the run", () => {
+  const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + `test("first", () => {})\ntest("second", () => { process.kill(process.pid, "SIGKILL") })\n` }))
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /lib\/a\.test\.ts: killed by SIGKILL \(started \d+, results \d+, summary none\)/)
+})
+
+test("a file that exits 0 before its summary fails the run", () => {
+  const body = `test("first", () => {})\ntest("second", async () => { await new Promise((r) => setTimeout(r, 50)); process.exit(0) })\ntest("third", () => {})\n`
+  const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + body }))
+  assert.equal(r.status, 1, r.stdout)
+  assert.match(r.stderr, /lib\/a\.test\.ts: exited without its summary \(started 3, results 1, summary none\)/)
+})
+
+test("a file that reports fewer results than tests it started fails the run, even with its summary", () => {
+  // The child writes one more test:enqueue in node:test's own framing (header, size, v8 payload): a start whose result never arrives.
+  const ghost = `import v8 from "node:v8"\nconst msg = v8.serialize({ type: "test:enqueue", data: { file: __filename, name: "ghost", nesting: 0 } })\nconst size = Buffer.alloc(4)\nsize.writeUInt32BE(msg.length)\nprocess.stdout.write(Buffer.concat([msg.subarray(0, 2), size, msg]))\n`
+  const r = runMain(tempRoot({ "lib/a.test.ts": NODE_TEST + ghost + `test("real", () => {})\n` }))
+  assert.equal(r.status, 1, r.stdout)
+  assert.match(r.stderr, /lib\/a\.test\.ts: fewer results than tests started \(started 2, results 1, summary 1\)/)
+})
 
 test("a test registered after a top-level await runs, so its late failure fails the run", () => {
   const body = `test("early", () => {})\nawait new Promise((r) => setTimeout(r, 50))\ntest("late", () => { throw new Error("late") })\n`

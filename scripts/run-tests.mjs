@@ -14,6 +14,10 @@
  * - A node:test file that reports no test at all (none ran, skipped or todo)
  *   fails the run. A skipped suite counts as skipped, so a database suite with
  *   no database passes as skipped.
+ * - A node:test file's results must add up (RUNFIX). The run fails, naming the
+ *   file and its counts, when the file exits non-zero or times out, when its
+ *   own summary never arrives, or when it reports fewer results (pass, fail,
+ *   skip or todo, suites included) than tests it started.
  * - No `forceExit`: it made each child call process.exit() once its known tests
  *   ended, which dropped the tail of its results still queued on the pipe and
  *   never ran a test registered after a top-level await. A file that hangs is
@@ -62,6 +66,20 @@ function filesWithNoTests(files, counts, root = ROOT) {
   })
 }
 
+/** Why Node failed a file's own placeholder test: a timeout, a signal or an exit code. */
+function exitReason(err) {
+  if (err?.failureType === "testTimeoutFailure") return `timed out after ${FILE_TIMEOUT_MS / 1000} s`
+  return err?.signal ? `killed by ${err.signal}` : `exit code ${err?.exitCode ?? err?.failureType}`
+}
+
+/** Why a file's results do not add up, or null when they do. */
+function shortfall(row) {
+  if (row.exit) return row.exit
+  if (!row.summary) return "exited without its summary"
+  if (row.results < row.started) return "fewer results than tests started"
+  return null
+}
+
 function moduleMocksWork() {
   const env = { ...process.env }
   delete env.NODE_TEST_CONTEXT
@@ -75,6 +93,10 @@ async function runNode(files, root) {
     return { ok: false, ran: 0, skipped: 0, todo: 0 }
   }
   const counts = new Map()
+  const rowOf = (file) => {
+    if (!counts.has(file)) counts.set(file, { ran: 0, skipped: 0, todo: 0, started: 0, results: 0, summary: null, exit: null })
+    return counts.get(file)
+  }
   let failed = 0
   const stream = run({
     files: files.map((f) => path.resolve(root, f)),
@@ -86,14 +108,24 @@ async function runNode(files, root) {
   stream.on("test:fail", (e) => {
     if (e.todo === undefined) failed++
   })
+  stream.on("test:enqueue", ({ file }) => {
+    if (file) rowOf(file).started++
+  })
+  stream.on("test:summary", ({ file, counts: c }) => {
+    if (file) rowOf(file).summary = c
+  })
   for (const type of ["test:pass", "test:fail"]) {
     stream.on(type, ({ file, name, nesting, skip, todo, details }) => {
       if (!file) return
+      const row = rowOf(file)
+      if (nesting === 0 && path.resolve(String(name)) === path.resolve(file)) {
+        // Node's placeholder for the file: it fails when the process exits non-zero (no failed test to blame) or times out.
+        if (type === "test:fail") row.exit = exitReason(details?.error)
+        return
+      }
+      row.results++
       // A suite counts only when it is skipped as a whole (`describe(..., { skip })`, a DB suite with no database).
       if (details?.type !== "test" && !(details?.type === "suite" && skip !== undefined)) return
-      if (nesting === 0 && path.resolve(String(name)) === path.resolve(file)) return // Node's placeholder for a file
-      const row = counts.get(file) ?? { ran: 0, skipped: 0, todo: 0 }
-      counts.set(file, row)
       if (skip !== undefined) row.skipped++
       else if (todo !== undefined) row.todo++
       else row.ran++
@@ -106,7 +138,14 @@ async function runNode(files, root) {
   const total = (k) => rows.reduce((sum, r) => sum + r[k], 0)
   const empty = filesWithNoTests(files, counts, root)
   for (const f of empty) console.error(`[run-tests] ${f}: no test ran, skipped or todo. A file with no test fails the run.`)
-  return { ok: failed === 0 && empty.length === 0, ran: total("ran"), skipped: total("skipped"), todo: total("todo") }
+  const short = files.filter((f) => counts.has(path.resolve(root, f)) && shortfall(counts.get(path.resolve(root, f))))
+  for (const f of short) {
+    const row = counts.get(path.resolve(root, f))
+    const sum = row.summary ? row.summary.tests + row.summary.suites : "none"
+    console.error(`[run-tests] ${f}: ${shortfall(row)} (started ${row.started}, results ${row.results}, summary ${sum}). Its results do not add up, so the run fails.`)
+  }
+  const ok = failed === 0 && empty.length === 0 && short.length === 0
+  return { ok, ran: total("ran"), skipped: total("skipped"), todo: total("todo") }
 }
 
 /** Vitest reads its file list from `vitest.config.ts`; a selection passes the chosen files as its filters. */
