@@ -2,8 +2,9 @@
  * B53 (S18 A) against a real Postgres: the Team tab writes through the
  * roster rules (switch on and off), migration 0119 (it refuses while rows
  * break a rule and lists them; then its trigger and checks refuse a bad
- * row whoever writes it), the refusal a route sends for each, and the B53
- * alias script on a live-shaped roster.
+ * row whoever writes it, and its lock holds two concurrent saves apart),
+ * the refusal a route sends for each, and the B53 alias script on a
+ * live-shaped roster (never one of two people with the same initials).
  *
  * Skips unless CODEX_PROJECTS_TEST_DATABASE_URL names a LOCAL database whose
  * name ends in `_codex_test`. It works in a sibling database
@@ -23,6 +24,7 @@ import type { Db } from "@/db"
 import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { FeatureRow } from "../../features/registry.js"
 import { createTeamMember, updateTeamMember } from "../repo.js"
+import { sqlStateOf } from "../../db/pgError.js"
 import { RosterRuleError, rosterWriteRefusal } from "../rosterRules.js"
 import { BASE_SQL, createDatabase, RAW_URL, siblingUrl } from "./codexTestDb.js"
 
@@ -191,4 +193,44 @@ describe("roster rules on Postgres (B53, 0119)", { skip }, () => {
     assert.match(notices.join("\n"), /; 4 person\(s\) share initials/)
   })
 
+  it("0119 refuses while an inactive row breaks a rule (an active person's alias, a name holding an email)", async () => {
+    await client.unsafe(ALIAS_SCRIPT)
+    await client`UPDATE public.team_members SET name = 'Luke Fitzpatrick' WHERE email = ${`luke.fitzpatrick@${D}`}`
+    await client`UPDATE public.team_members SET name = 'Alex James' WHERE email = ${`alex.james@${D}`}`
+    await client`INSERT INTO public.team_members (email, name, email_aliases, active) VALUES
+      (${`old.hand@${D}`}, 'Old Hand', ${JSON.stringify([`sm@${D}`])}::jsonb, false),
+      (${`former@${D}`}, ${`former@${D}`}, '[]', false)`
+    const message = String(((await caught(() => client.unsafe(MIGRATION))) as Error).message)
+    assert.match(message, /0119 refused, nothing done/)
+    assert.match(message, /sm@assembledmedia\.com\.au is held by team_members \d+ and \d+/)
+    assert.equal((message.match(/the name holds an email address/g) ?? []).length, 1)
+  })
+
+  it("0119's trigger lock holds two concurrent saves of one address apart: the second waits, then 23505", async () => {
+    await client.unsafe(ALIAS_SCRIPT)
+    await client`UPDATE public.team_members SET name = 'Luke Fitzpatrick' WHERE email = ${`luke.fitzpatrick@${D}`}`
+    await client`UPDATE public.team_members SET name = 'Alex James' WHERE email = ${`alex.james@${D}`}`
+    await client.unsafe(MIGRATION)
+    const shared = JSON.stringify([`shared@${D}`])
+    let inserted!: () => void
+    const firstInserted = new Promise<void>((resolve) => (inserted = resolve))
+    let firstCommitted = false
+    const first = client.begin(async (tx) => {
+      await tx`INSERT INTO public.team_members (email, name, email_aliases) VALUES (${`first.one@${D}`}, 'First One', ${shared}::jsonb)`
+      inserted()
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      firstCommitted = true
+    })
+    await firstInserted
+    const second = client`INSERT INTO public.team_members (email, name, email_aliases) VALUES (${`second.one@${D}`}, 'Second One', ${shared}::jsonb)`.then(
+      () => null,
+      (err: unknown) => err
+    )
+    await first
+    const err = await second
+    assert.equal(sqlStateOf(err), "23505", "the second save is refused")
+    assert.ok(firstCommitted, "the second save waited for the first to commit")
+    const [{ n }] = await client`SELECT count(*)::int AS n FROM public.team_members WHERE email_aliases ? ${`shared@${D}`}`
+    assert.equal(n, 1)
+  })
 })
