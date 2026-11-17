@@ -84,7 +84,7 @@ import { readFixedCostMarginFromDate } from "@/lib/finance/sections/fixedCostMar
 import { NO_SPEND_YET_NOTE } from "@/lib/finance/sections/fixedCostMargin/noSpend"
 import { readFixedCostMarginNoSpendYet } from "@/lib/finance/sections/fixedCostMargin/noSpend.server"
 import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
-import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
+import { listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { addMonthsISO } from "@/lib/dates/civil"
@@ -761,12 +761,11 @@ export async function fetchFinanceFixedCostMargin(
   const [fromDateOn, noSpendYetOn] = await Promise.all([readFixedCostMarginFromDate(), readFixedCostMarginNoSpendYet()])
   // B34: one Melbourne month for the "(to date)" label and the C-185 rule.
   const melbourneMonth = getMelbourneMonthISO(opts.now ? opts.now() : new Date())
-  const [rawPlan, invoiced, publisherRows, mbaClients, manualReady] = await Promise.all([
+  const [rawPlan, invoiced, publisherRows, mbaClients] = await Promise.all([
     loadPlanCells(q, fromDateOn),
     loadInvoicedKeys(q),
     loadPublishers(),
     loadMbaClients(),
-    isManualMatchReady(),
   ])
   const resolvePublisher = createBillPublisherResolver(publisherRows)
   const basisByText = new Map<string, FixedCostPlanCell["costBasis"]>()
@@ -812,7 +811,6 @@ export async function fetchFinanceFixedCostMargin(
     ...(noSpendYetOn ? { noSpendYet: { currentMonth: melbourneMonth } } : {}),
   })
   const manualMatches: FixedCostManualMatchInfo = {
-    ready: manualReady,
     mbas: [...mbaClients.entries()]
       .map(([mbaNumber, c]) => ({ mbaNumber, clientName: c.clientName }))
       .sort((a, b) => a.clientName.localeCompare(b.clientName) || a.mbaNumber.localeCompare(b.mbaNumber)),

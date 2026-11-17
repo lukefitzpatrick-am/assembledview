@@ -13,14 +13,6 @@ import type { AvaToolContext } from "../types"
 const skip = mockModuleSkip()
 
 if (typeof mock.module === "function") {
-  await mock.module("@/lib/finance/revisions/marker", {
-    namedExports: {
-      isBillingRevisionsMigrationApplied: async () => true,
-      assertBillingRevisionsReady: async () => {},
-      BillingRevisionsNotReadyError: class extends Error {},
-      readMigrationMarker: async () => true,
-    },
-  })
   await mock.module("@/lib/auth/teamMemberAuditId", {
     namedExports: { lookupTeamMemberAuditId: async () => 7 },
   })

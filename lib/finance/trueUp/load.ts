@@ -29,7 +29,6 @@ import {
   type TrueUpReport,
   type TrueUpScheduleSqlRow,
 } from "./compute"
-import { isTrueUpMigrationApplied } from "./marker"
 import { addMonthsISO } from "@/lib/dates/civil"
 
 export type TrueUpQueryRunner = (query: SQL) => Promise<unknown>
@@ -130,7 +129,7 @@ export function trueUpMatchedRecordsSql(fromMonth: string, asOfMonth: string): S
   `
 }
 
-/** 0109 only (marker gate first). */
+/** Invoice links (0109). */
 export function trueUpInvoiceLinksSql(): SQL {
   return sql`
     SELECT xero_invoice_id, mba_number, to_char(billing_month, 'YYYY-MM') AS billing_month
@@ -138,7 +137,7 @@ export function trueUpInvoiceLinksSql(): SQL {
   `
 }
 
-/** 0109 only (marker gate first). */
+/** Billing timing per client (0109). */
 export function trueUpBillingTimingSql(): SQL {
   return sql`
     SELECT client_id, billing_timing
@@ -147,7 +146,7 @@ export function trueUpBillingTimingSql(): SQL {
   `
 }
 
-/** 0109 only (marker gate first). Applied ledger entries. */
+/** Applied ledger entries (0109). */
 export function trueUpActionsSql(): SQL {
   return sql`
     SELECT
@@ -167,7 +166,7 @@ export function trueUpLastSyncSql(): SQL {
 
 export async function loadTrueUpWith(
   run: TrueUpQueryRunner,
-  args: { asOfMonth: string; fromMonth: string; now?: Date; with0109?: boolean },
+  args: { asOfMonth: string; fromMonth: string; now?: Date },
 ): Promise<TrueUpReport> {
   const [plans, schedule, invoices, matched, sync] = await Promise.all([
     run(trueUpPlansSql()),
@@ -176,26 +175,21 @@ export async function loadTrueUpWith(
     run(trueUpMatchedRecordsSql(args.fromMonth, args.asOfMonth)),
     run(trueUpLastSyncSql()),
   ])
-  let invoiceLinks: TrueUpInvoiceLinkSqlRow[] | undefined
-  let billingTiming: Record<string, TrueUpBillingTiming> | undefined
-  let actions: TrueUpActionSqlRow[] | undefined
-  if (args.with0109) {
-    const [links, timing, acts] = await Promise.all([
-      run(trueUpInvoiceLinksSql()),
-      run(trueUpBillingTimingSql()),
-      run(trueUpActionsSql()),
-    ])
-    invoiceLinks = rowsOf<TrueUpInvoiceLinkSqlRow>(links)
-    billingTiming = {}
-    for (const r of rowsOf<{ client_id: number | string; billing_timing: string | null }>(timing)) {
-      const t = String(r.billing_timing ?? "")
-      if (t === "same_month" || t === "month_ahead" || t === "in_arrears") billingTiming[String(r.client_id)] = t
-    }
-    actions = rowsOf<TrueUpActionSqlRow>(acts).map((a) => ({
-      ...a,
-      created_at: a.created_at == null ? "" : new Date(a.created_at as unknown as string).toISOString(),
-    }))
+  const [links, timing, acts] = await Promise.all([
+    run(trueUpInvoiceLinksSql()),
+    run(trueUpBillingTimingSql()),
+    run(trueUpActionsSql()),
+  ])
+  const invoiceLinks = rowsOf<TrueUpInvoiceLinkSqlRow>(links)
+  const billingTiming: Record<string, TrueUpBillingTiming> = {}
+  for (const r of rowsOf<{ client_id: number | string; billing_timing: string | null }>(timing)) {
+    const t = String(r.billing_timing ?? "")
+    if (t === "same_month" || t === "month_ahead" || t === "in_arrears") billingTiming[String(r.client_id)] = t
   }
+  const actions = rowsOf<TrueUpActionSqlRow>(acts).map((a) => ({
+    ...a,
+    created_at: a.created_at == null ? "" : new Date(a.created_at as unknown as string).toISOString(),
+  }))
   const syncRow = rowsOf<{ last_synced_at: string | Date | null }>(sync)[0]
   const syncedAt = syncRow?.last_synced_at
   return buildTrueUpReport({
@@ -213,10 +207,9 @@ export async function loadTrueUpWith(
   })
 }
 
-/** The report; with 0109 applied it also reads invoice links, billing timing and the ledger. */
+/** The report, with invoice links, billing timing and the ledger (0109 is applied live). */
 export async function loadTrueUp(args: { asOfMonth: string; fromMonth: string }): Promise<TrueUpReport> {
   const db = getDb()
-  const with0109 = await isTrueUpMigrationApplied()
-  return loadTrueUpWith((query) => db.execute(query), { ...args, with0109 })
+  return loadTrueUpWith((query) => db.execute(query), args)
 }
 

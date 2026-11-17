@@ -25,7 +25,6 @@ import {
   type RevisionContext,
   type RevisionExec,
 } from "./loadRevisionContext"
-import { isBillingRevisionsMigrationApplied } from "./marker"
 import { loadPacingSpendHints } from "./pacingHint"
 import { planBillingRevision } from "./planBillingRevision"
 import { PREVIEW_TOKEN_MESSAGES, signPreviewToken, verifyPreviewToken } from "./previewToken"
@@ -67,12 +66,9 @@ function err(status: number, code: string, message: string, extra: Partial<Servi
   return { ok: false, status, code, message, ...extra }
 }
 
-/** Flag and marker, in that order. 404 when off so the feature is invisible. */
+/** The switch. 404 when off so the feature is invisible (0106 is applied live). */
 export async function billingRevisionsGate(): Promise<ServiceError | null> {
   if (!(await isBillingRevisionsEnabled())) return err(404, "NOT_FOUND", "Not found")
-  if (!(await isBillingRevisionsMigrationApplied())) {
-    return err(409, "NOT_READY", "Billing revisions need migration 0106")
-  }
   return null
 }
 

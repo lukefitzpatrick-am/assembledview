@@ -46,8 +46,8 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `dashboard/[slug]/invoices` | GET | same | — | session + slug gate + `assertClientAccess`; client-role 404 while `CLIENT_INVOICES_ENABLED` is off | OK |
 | `dashboard/[slug]/[mba_number]/creative` | GET | campaign page | page `notFound` for a client slug/MBA miss | flag off is 404 for every role; session; `getUserClientSlugs` 404 (same as the campaign page); 503 when `V_CREATIVE_PERFORMANCE_DAILY` is missing | OK |
 | `dashboard/[slug]/web-report` | GET | client dashboard page | page `notFound` for a client slug miss | `FEATURE_WEB_SEARCH` off is 404 for every role; session; `getUserClientSlugs` 404 for another client; 0098 unpublished uses the default layout | OK |
-| `dashboard/[slug]/web-builder` | POST | client edit | `requireRole(admin)` | `requireRole(["admin"])`; a client role is 404; writes only when migration marker `0098_ga4_gsc_accounts_and_creative_previews` exists | OK |
-| `dashboard/[slug]/web-kpis` | GET/POST | client edit | `requireRole(admin)` | `builderGate`, `requireRole(["admin"])`, `resolveBuilderClient(slug)`; a client role is 404; every write passes the slug's `clientId` and another client's KPI is 404; 409 without marker `0101_web_kpis` | OK |
+| `dashboard/[slug]/web-builder` | POST | client edit | `requireRole(admin)` | `requireRole(["admin"])`; a client role is 404 | OK |
+| `dashboard/[slug]/web-kpis` | GET/POST | client edit | `requireRole(admin)` | `builderGate`, `requireRole(["admin"])`, `resolveBuilderClient(slug)`; a client role is 404; every write passes the slug's `clientId` and another client's KPI is 404 | OK |
 | `mediaplans/mba/[mba_number]` | GET/PUT/PATCH | `mediaplans` list | scope / `requireRole` | `checkClientMbaAccess` | OK |
 | `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | — | — | — | **DELETED (B9, 3 Nov 2026)**. No caller (F7) |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET/POST | MBA peer | `checkClientMbaAccess` | session + admin (inline) | OK |
@@ -59,7 +59,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `creative-assets/[id]/download` | GET | collection | session + `checkClientMbaAccess` | same | OK |
 | `creative-assets/[id]/preview/[[...path]]` | GET | collection | session + `checkClientMbaAccess` | same | OK |
 | `creative-assets/[id]/frame` | GET | — | — | signed token | N/A |
-| `creative-previews/[platform]/[creativeKey]` | GET | — | — | session + `assertStaffOrClientAccess` on `creative_preview_cache.client_id` (any recognised non-client role unscoped, today `admin`; client group must hold the id; null client is staff only; no recognised role 403); 404 with no row or without the `0098`/`0102` markers | OK |
+| `creative-previews/[platform]/[creativeKey]` | GET | — | — | session + `assertStaffOrClientAccess` on `creative_preview_cache.client_id` (any recognised non-client role unscoped, today `admin`; client group must hold the id; null client is staff only; no recognised role 403); 404 with no row | OK |
 | `finance/billing/[id]` | PATCH | `finance/billing` | `requireFinanceAdmin` | `requireFinanceAdmin` | OK |
 | `finance/billing/line-items/[id]` | PATCH/DELETE | line-items collection | `requireFinanceAdmin` | `requireFinanceAdmin` | OK |
 | `finance/forecast/snapshots/[id]/lines` | GET | snapshots list | session + admin (inline) | session + admin (inline) | OK |

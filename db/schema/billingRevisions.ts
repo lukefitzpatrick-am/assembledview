@@ -1,9 +1,8 @@
 /**
  * billing_revisions (migration 0106, billing revisions). SQL is source of truth.
  * 0106 is applied (26 Oct 2026). 0109 widens the mode check (true_up,
- * true_up_restore). Do not db.select() this table until
- * migration_markers contains 0106_billing_revisions (C-76): every read and
- * write goes through lib/finance/revisions/marker.ts first.
+ * true_up_restore). Marker 0106_billing_revisions is applied live, so code
+ * reads the table without a marker check (B48).
  * RLS on; no ava_readonly grant.
  */
 import { sql } from "drizzle-orm"

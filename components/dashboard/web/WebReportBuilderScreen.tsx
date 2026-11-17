@@ -35,7 +35,6 @@ export function WebReportBuilderScreen({
         <ReportBuilder
           slug={slug}
           clientName={draft.clientName}
-          migrationApplied={draft.migrationApplied}
           initialLayout={draft.layout}
           currentVersion={draft.currentVersion}
           versions={draft.versions}

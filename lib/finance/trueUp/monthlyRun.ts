@@ -19,14 +19,13 @@ import { rowsOf } from "@/lib/xero/dbRows"
 
 import { isFeatureOn } from "@/lib/features/server"
 import { loadTrueUp } from "./load"
-import { isTrueUpMigrationApplied } from "./marker"
 import { buildTrueUpRunEmail, compactRunRows, trueUpRunMonths } from "./monthlyRunModel"
 import type { TrueUpReport } from "./compute"
 
 export type TrueUpRunSource = "cron" | "manual"
 
 export type TrueUpRunResult =
-  | { ok: true; skipped: "disabled" | "not_ready" | "outside_window" | "already_sent"; asOfMonth?: string }
+  | { ok: true; skipped: "disabled" | "outside_window" | "already_sent"; asOfMonth?: string }
   | {
       ok: true
       status: "sent" | "saved_not_emailed"
@@ -39,7 +38,6 @@ export type TrueUpRunResult =
 
 export type TrueUpRunIo = {
   load?: (args: { asOfMonth: string; fromMonth: string }) => Promise<TrueUpReport>
-  migrationApplied?: () => Promise<boolean>
   alreadySent?: (asOfMonth: string) => Promise<boolean>
   saveRun?: (row: TrueUpRunInsert) => Promise<number>
   markEmailed?: (runId: number) => Promise<void>
@@ -116,7 +114,6 @@ export async function runTrueUpMonthly(args: {
   if (!(await isFeatureOn(args.source === "cron" ? "true_up_cron" : "true_up"))) {
     return { ok: true, skipped: "disabled" }
   }
-  if (!(await (io.migrationApplied ?? isTrueUpMigrationApplied)())) return { ok: true, skipped: "not_ready" }
   if (args.source === "cron" && !args.force && !isTrueUpRunWindow(now)) {
     return { ok: true, skipped: "outside_window" }
   }

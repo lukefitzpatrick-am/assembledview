@@ -125,8 +125,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/finance/sections/fixedCostMargin/manualMatches", {
     namedExports: {
       ManualMatchError: class ManualMatchError extends Error {},
-      readManualMatchMarker: async () => false,
-      isManualMatchReady: async () => false,
       listSavedBillLineMatches: async () => [],
       loadMatchPlanLines: async () => [],
       createSavedBillLineMatch: async () => {

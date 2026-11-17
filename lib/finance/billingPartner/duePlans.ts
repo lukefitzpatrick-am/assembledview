@@ -6,8 +6,7 @@
  * the billing month, and it is not on a sent pack. A miss in an earlier month
  * stays due until that sent stamp. Draft pack membership does not clear it.
  *
- * Pack rows are read only after marker 0100_billing_partner_packs is present
- * (C-76). Until then the loader treats packs as empty.
+ * The pack tables come from 0100, applied live (B48: no marker check).
  *
  * Months changed compare the current tip with the last sent version. An
  * amended tip that has never been sent compares with the previous published
@@ -24,7 +23,6 @@ import {
   clients,
   mediaPlanMasters,
   mediaPlanVersions,
-  migrationMarkers,
   scheduleMonths,
 } from "@/db/schema"
 import {
@@ -33,7 +31,6 @@ import {
 } from "@/lib/finance/manualBillingOverridesUi"
 import { melbourneInstant } from "@/lib/dates/melbourne"
 
-const PACK_MARKER = "0100_billing_partner_packs"
 const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/
 
 /** Plans published before this Sydney date are treated as already with AA. */
@@ -272,15 +269,7 @@ export async function listDueAaPlans(billingMonth: string): Promise<DueAaPlan[]>
 }
 
 async function loadPackMembership(): Promise<PackMembership[]> {
-  const db = getDb()
-  const [marker] = await db
-    .select({ key: migrationMarkers.key })
-    .from(migrationMarkers)
-    .where(eq(migrationMarkers.key, PACK_MARKER))
-    .limit(1)
-  if (!marker) return []
-
-  const rows = await db
+  const rows = await getDb()
     .select({
       versionId: billingPartnerPackItems.versionId,
       mbaNumber: billingPartnerPackItems.mbaNumber,

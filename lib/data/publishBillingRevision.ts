@@ -30,7 +30,6 @@ import {
   type AaLineIdsLoader,
   type RevisionContext,
 } from "@/lib/finance/revisions/loadRevisionContext"
-import { assertBillingRevisionsReady, BillingRevisionsNotReadyError, type MarkerReader } from "@/lib/finance/revisions/marker"
 import { planBillingRevision } from "@/lib/finance/revisions/planBillingRevision"
 import {
   buildRevisedBillingRows,
@@ -52,7 +51,6 @@ import { explodeScheduleToMonthRows } from "@/scripts/migration/_scheduleTransfo
 export type Tx = PostgresJsDatabase<typeof schema>
 
 export type BillingRevisionWriteCode =
-  | "NOT_READY"
   | "NOT_FOUND"
   | "NOT_PUBLISHED"
   | "STALE_BASE_VERSION"
@@ -94,7 +92,6 @@ export type PublishBillingRevisionInput = {
   restoresRevisionId?: number | null
   now?: Date
   /** Test seams. */
-  markerReader?: MarkerReader
   aaLineIds?: AaLineIdsLoader
   afterCommit?: (r: { newVersionId: number; mbaNumber: string }) => Promise<void>
   /**
@@ -167,14 +164,6 @@ export async function publishBillingRevision(
   input: PublishBillingRevisionInput,
   db: Db = getDb(),
 ): Promise<PublishBillingRevisionResult> {
-  try {
-    await assertBillingRevisionsReady(input.markerReader)
-  } catch (err) {
-    if (err instanceof BillingRevisionsNotReadyError) {
-      throw new BillingRevisionWriteError("NOT_READY", err.message, 409)
-    }
-    throw err
-  }
   if (!input.reason || !input.reason.trim()) {
     throw new BillingRevisionWriteError("PLAN_REFUSED", "A reason is required.", 400)
   }

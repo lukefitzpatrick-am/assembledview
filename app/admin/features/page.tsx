@@ -147,8 +147,8 @@ function FeaturesPageInner() {
       {error ? <ErrorState title="Features unavailable" message={error} onRetry={() => void load()} /> : null}
       {data && !data.ready ? (
         <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-          Run SQL 0111 (sql/supabase/2026-10-30_0111_feature_switches_SUPABASE.sql) to switch features from this page.
-          Until then every feature reads its env var, shown below.
+          The switches could not be read. Until the next read every feature reads its env var, shown below. Reload
+          to try again.
         </p>
       ) : null}
       {unsaved.length > 0 ? (

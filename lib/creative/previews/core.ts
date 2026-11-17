@@ -180,7 +180,7 @@ export type PlatformCounts = {
 }
 
 export type PreviewJobResult = {
-  status: "ok" | "not_ready"
+  status: "ok"
   dryRun: boolean
   days: number
   totals: PlatformCounts
@@ -231,11 +231,6 @@ function sumCounts(byPlatform: Record<PreviewPlatform, PlatformCounts>): Platfor
 
 function emptyByPlatform(): Record<PreviewPlatform, PlatformCounts> {
   return { meta: emptyCounts(), tiktok: emptyCounts(), cm360: emptyCounts() }
-}
-
-export function notReadyResult(days: number, dryRun: boolean): PreviewJobResult {
-  const byPlatform = emptyByPlatform()
-  return { status: "not_ready", dryRun, days, totals: sumCounts(byPlatform), byPlatform, failures: [] }
 }
 
 /**

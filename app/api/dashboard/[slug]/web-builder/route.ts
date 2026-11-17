@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { builderGate } from "@/lib/webReport/builder/access"
-import { BUILDER_NEEDS_MIGRATION, savedForMessage } from "@/lib/webReport/builder/layout"
+import { savedForMessage } from "@/lib/webReport/builder/layout"
 import { parseBuilderRequest } from "@/lib/webReport/builder/request"
 import { WebReportRangeError } from "@/lib/webReport/periods"
 import { WebAccountLinkError, linkWebAccount, listWebAccountOptions } from "@/lib/webReport/builder/accounts"
 import {
-  BuilderMigrationError,
   listKeyEventNames,
   loadBuilderPreview,
-  migration0098Applied,
   resolveBuilderClient,
   restorePublishedVersion,
   savePublishedReport,
@@ -53,10 +51,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
   const parsed = parseBuilderRequest(payload)
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
-  }
-
-  if (parsed.action !== "preview" && !(await migration0098Applied())) {
-    return NextResponse.json({ error: BUILDER_NEEDS_MIGRATION }, { status: 409 })
   }
 
   try {
@@ -127,9 +121,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }
     if (err instanceof WebReportRangeError) {
       return NextResponse.json({ error: "Choose an end date on or after the start, no later than yesterday, within two years" }, { status: 400 })
-    }
-    if (err instanceof BuilderMigrationError) {
-      return NextResponse.json({ error: BUILDER_NEEDS_MIGRATION }, { status: 409 })
     }
     console.error("[web-builder]", err)
     return NextResponse.json({ error: "The report could not be saved" }, { status: 500 })

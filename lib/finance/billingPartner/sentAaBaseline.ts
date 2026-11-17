@@ -1,6 +1,6 @@
 /**
  * AA billing-media dollars on each sent pack that includes this MBA.
- * Draft packs are omitted. Reads wait for marker 0100_billing_partner_packs.
+ * Draft packs are omitted. The pack tables come from 0100, applied live.
  */
 import "server-only"
 
@@ -10,22 +10,12 @@ import { getDb } from "@/db"
 import {
   billingPartnerPackItems,
   billingPartnerPacks,
-  migrationMarkers,
   scheduleMonths,
 } from "@/db/schema"
 import type { SentAaPack } from "@/lib/finance/billingPartner/publishWarnings"
 
-const PACK_MARKER = "0100_billing_partner_packs"
-
 export async function loadSentAaBaseline(mbaNumber: string): Promise<SentAaPack[]> {
   const db = getDb()
-  const [marker] = await db
-    .select({ key: migrationMarkers.key })
-    .from(migrationMarkers)
-    .where(eq(migrationMarkers.key, PACK_MARKER))
-    .limit(1)
-  if (!marker) return []
-
   const packs = await db
     .select({
       billingMonth: billingPartnerPacks.billingMonth,

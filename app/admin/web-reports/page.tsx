@@ -163,8 +163,8 @@ function WebReportsPageInner() {
       ) : null}
       {!loading && !error && !ready ? (
         <EmptyState
-          title="Reports are not ready"
-          message="This list reads client_web_reports after migration 0098 is applied."
+          title="Reports could not be loaded"
+          message="The report list could not be read. Try again in a minute."
         />
       ) : null}
       {!loading && !error && ready && rows.length === 0 ? (

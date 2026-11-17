@@ -52,7 +52,6 @@ const EVENT_LIST_LIMIT = 60
 
 type EditorData = {
   today: string
-  migrationApplied: boolean
   rows: KpiEditorRow[]
   eventNames: { name: string; count: number }[]
 }
@@ -196,13 +195,6 @@ export function KpiEditor({ slug, onChanged }: { slug: string; onChanged?: () =>
   }
 
   const { data } = load
-  if (!data.migrationApplied) {
-    return (
-      <p className="rounded-card border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-        Web KPIs need migration 0101.
-      </p>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-4">

@@ -15,7 +15,3 @@ export async function isBillingRevisionsEnabled(
 ): Promise<boolean> {
   return read("billing_revisions")
 }
-
-export const BILLING_REVISIONS_MARKER = "0106_billing_revisions"
-
-export const BILLING_REVISIONS_NOT_READY_MESSAGE = "Billing revisions need migration 0106"

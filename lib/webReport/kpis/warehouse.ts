@@ -8,7 +8,7 @@ import type { WarehouseQuery } from "@/lib/webReport/types"
 import { computeKpiActuals, type KpiEventRow, type KpiMetricRow } from "./actuals"
 import { currentMonthWindow, kpiEditorRows, type KpiEditorRow } from "./editor"
 import { buildKpiReportItems, trackerMonthList, trackerWindow, type WebKpiReport } from "./report"
-import { listKpis, migration0101Applied } from "./repo"
+import { listKpis } from "./repo"
 import type { WebKpi, WebKpiActual } from "./types"
 
 const GA4_SESSIONS_SQL = `
@@ -143,7 +143,7 @@ export async function readKpiActuals(input: {
 
 /**
  * Active KPIs with actuals for the report window and for the tracker's 12
- * months. Fails soft: not_ready before 0101, unavailable when the read fails.
+ * months. Fails soft: unavailable when the read fails.
  */
 export async function loadKpiReport(input: {
   clientId: number
@@ -155,7 +155,6 @@ export async function loadKpiReport(input: {
 }): Promise<WebKpiReport> {
   const trackerMonths = trackerMonthList(input.window)
   const base = { today: input.today, trackerMonths }
-  if (!(await migration0101Applied())) return { ...base, status: "not_ready", items: [] }
   try {
     const kpis = await listKpis(input.clientId)
     if (kpis.length === 0) return { ...base, status: "ok", items: [] }
@@ -173,11 +172,9 @@ export async function loadKpiReport(input: {
 
 /** The KPI editor's list (active and deactivated) with this month's numbers, and the event picker's names. */
 export async function loadKpiEditor(clientId: number, today: string): Promise<{
-  migrationApplied: boolean
   rows: KpiEditorRow[]
   eventNames: { name: string; count: number }[]
 }> {
-  if (!(await migration0101Applied())) return { migrationApplied: false, rows: [], eventNames: [] }
   const [kpis, accounts] = await Promise.all([listKpis(clientId, { includeInactive: true }), reportAccounts(clientId)])
   const [actuals, names] = await Promise.all([
     kpis.some((kpi) => kpi.active)
@@ -190,7 +187,7 @@ export async function loadKpiEditor(clientId: number, today: string): Promise<{
       : Promise.resolve([]),
     eventNamesForProperty(accounts.ga4PropertyId),
   ])
-  return { migrationApplied: true, rows: kpiEditorRows(kpis, actuals, today), eventNames: names }
+  return { rows: kpiEditorRows(kpis, actuals, today), eventNames: names }
 }
 
 /** Distinct GA4 event names with their counts over the last 90 days, for the KPI editor. */

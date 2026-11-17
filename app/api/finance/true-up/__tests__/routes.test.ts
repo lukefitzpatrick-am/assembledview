@@ -57,7 +57,7 @@ test("finance admin is checked first; a non-admin never reaches the flag", { ski
   assert.equal(res.status, 403)
 })
 
-test("404 while TRUE_UP_ACTIONS is off, 409 until 0109", { skip }, async () => {
+test("404 while TRUE_UP_ACTIONS is off; a gate refusal passes through", { skip }, async () => {
   gateResult = { ok: false, status: 404, code: "NOT_FOUND", message: "Not found" }
   assert.equal((await preview(req({}))).status, 404)
   gateResult = { ok: false, status: 409, code: "NOT_READY", message: "0109" }

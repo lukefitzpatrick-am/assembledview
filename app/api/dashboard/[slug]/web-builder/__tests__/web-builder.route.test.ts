@@ -11,7 +11,6 @@ import { mockModuleSkip, supportsMockModule } from "../../../../../../lib/test/m
 const skip = mockModuleSkip()
 
 const getSessionMock = mock.fn(async (_req?: unknown) => null as null | { user: Record<string, unknown> })
-const migrationMock = mock.fn(async () => false)
 const resolveMock = mock.fn(async (_slug?: string) => null as null | { clientId: number; clientName: string })
 const saveMock = mock.fn(async (_input?: unknown) => ({ version: 1 }))
 const restoreMock = mock.fn(async (_input?: unknown) => null as null | { version: number; layout: unknown[] })
@@ -25,10 +24,8 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/webReport/builder/repo", {
     namedExports: {
-      BuilderMigrationError: class BuilderMigrationError extends Error {},
       listKeyEventNames: mock.fn(async () => [] as string[]),
       loadBuilderPreview: previewMock,
-      migration0098Applied: migrationMock,
       resolveBuilderClient: resolveMock,
       restorePublishedVersion: restoreMock,
       savePublishedReport: saveMock,
@@ -76,22 +73,9 @@ test("POST web-builder — a client is 404 and nothing is saved", { skip }, asyn
   assert.equal(saveMock.mock.calls.length, 0)
 })
 
-test("POST web-builder — save is refused before migration 0098", { skip }, async () => {
-  getSessionMock.mock.mockImplementation(async () => ({ user: user("admin") }))
-  resolveMock.mock.mockImplementation(async () => ({ clientId: 7, clientName: "Golf Australia" }))
-  migrationMock.mock.mockImplementation(async () => false)
-  saveMock.mock.resetCalls()
-  const res = await post(validSave)
-  assert.equal(res.status, 409)
-  const body = await res.json()
-  assert.equal(body.error, "Builder needs migration 0098")
-  assert.equal(saveMock.mock.calls.length, 0)
-})
-
 test("POST web-builder — save creates a version", { skip }, async () => {
   getSessionMock.mock.mockImplementation(async () => ({ user: user("admin") }))
   resolveMock.mock.mockImplementation(async () => ({ clientId: 7, clientName: "Golf Australia" }))
-  migrationMock.mock.mockImplementation(async () => true)
   saveMock.mock.resetCalls()
   saveMock.mock.mockImplementation(async () => ({ version: 3 }))
   const res = await post(validSave)
@@ -122,7 +106,6 @@ test("POST web-builder — preview reads accounts by client, not from the reques
 test("POST web-builder — restore returns that version", { skip }, async () => {
   getSessionMock.mock.mockImplementation(async () => ({ user: user("admin") }))
   resolveMock.mock.mockImplementation(async () => ({ clientId: 7, clientName: "Golf Australia" }))
-  migrationMock.mock.mockImplementation(async () => true)
   restoreMock.mock.resetCalls()
   restoreMock.mock.mockImplementation(async () => ({
     version: 2,

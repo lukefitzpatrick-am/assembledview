@@ -14,9 +14,6 @@ const NEEDS_DATA = new Set<WebElementId>(NEEDS_DATA_ELEMENTS)
 
 export const WEB_REPORT_VERSION_KEEP = 10
 
-export const MIGRATION_0098_KEY = "0098_ga4_gsc_accounts_and_creative_previews"
-
-export const BUILDER_NEEDS_MIGRATION = "Builder needs migration 0098"
 
 export function elementNeedsData(id: WebElementId): boolean {
   return NEEDS_DATA.has(id)

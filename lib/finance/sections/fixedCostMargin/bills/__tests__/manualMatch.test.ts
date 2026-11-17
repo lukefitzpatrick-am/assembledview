@@ -12,7 +12,6 @@ import { savedMatchLabel } from "../../excel.js"
 import {
   billLineForMatch,
   dateToMonth,
-  MANUAL_MATCH_MARKER,
   monthToDate,
   parseCreateManualMatchBody,
   parseManualMatchId,
@@ -136,7 +135,6 @@ test("validation: create body, id, month, note length, line must belong to the M
   )
   assert.equal(parseManualMatchId("12"), 12)
   for (const bad of [null, "", "0", "-1", "1.5", "abc"]) assert.equal(parseManualMatchId(bad), null, String(bad))
-  assert.equal(MANUAL_MATCH_MARKER, "0107_ap_bill_line_matches")
 })
 
 test("bill line lookup: by Xero LineItemID, ex GST the same way the matcher computes it", () => {

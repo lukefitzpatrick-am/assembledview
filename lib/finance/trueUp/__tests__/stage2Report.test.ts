@@ -151,7 +151,7 @@ test("explained and to-raise ledger entries cover the gap while it stays within 
   assert.match(raise.rows[0]!.components.fee.suggestion, /Charge recorded to raise/)
 })
 
-test("loader reads the 0109 tables only when asked (marker), and the ledger query is applied rows only", async () => {
+test("loader reads the 0109 tables (applied live, B48), and the ledger query is applied rows only", async () => {
   const dialect = new PgDialect()
   const seen: string[] = []
   const run = async (q: SQL) => {
@@ -168,9 +168,6 @@ test("loader reads the 0109 tables only when asked (marker), and the ledger quer
     throw new Error(`unexpected ${text}`)
   }
   await loadTrueUpWith(run, { asOfMonth: "2026-09", fromMonth: "2026-07" })
-  assert.equal(seen.some((t) => t.includes("true_up_")), false)
-  seen.length = 0
-  await loadTrueUpWith(run, { asOfMonth: "2026-09", fromMonth: "2026-07", with0109: true })
   assert.equal(seen.filter((t) => t.includes("true_up_") || t.includes("client_finance_owners")).length, 3)
   assert.match(dialect.sqlToQuery(trueUpActionsSql()).sql, /status = 'applied'/)
 })

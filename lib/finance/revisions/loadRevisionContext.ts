@@ -191,26 +191,18 @@ export async function loadRevisionContext(
       )
   ).map((r) => ({ ...r, id: Number(r.id) }))
 
-  // AA packs (marker 0100) and AA line ids, only when a sent pack holds this MBA.
-  let sentAaPackMonths: string[] = []
-  const packMarker = await exec
-    .select({ key: schema.migrationMarkers.key })
-    .from(schema.migrationMarkers)
-    .where(eq(schema.migrationMarkers.key, "0100_billing_partner_packs"))
-    .limit(1)
-  if (packMarker.length > 0) {
-    const packs = await exec
-      .select({ billingMonth: schema.billingPartnerPacks.billingMonth })
-      .from(schema.billingPartnerPackItems)
-      .innerJoin(schema.billingPartnerPacks, eq(schema.billingPartnerPackItems.packId, schema.billingPartnerPacks.id))
-      .where(
-        and(
-          sql`lower(${schema.billingPartnerPackItems.mbaNumber}) = lower(${mba})`,
-          eq(schema.billingPartnerPacks.status, "sent"),
-        ),
-      )
-    sentAaPackMonths = packs.map((p) => String(p.billingMonth))
-  }
+  // AA packs (0100) and AA line ids, only when a sent pack holds this MBA.
+  const packs = await exec
+    .select({ billingMonth: schema.billingPartnerPacks.billingMonth })
+    .from(schema.billingPartnerPackItems)
+    .innerJoin(schema.billingPartnerPacks, eq(schema.billingPartnerPackItems.packId, schema.billingPartnerPacks.id))
+    .where(
+      and(
+        sql`lower(${schema.billingPartnerPackItems.mbaNumber}) = lower(${mba})`,
+        eq(schema.billingPartnerPacks.status, "sent"),
+      ),
+    )
+  const sentAaPackMonths = packs.map((p) => String(p.billingMonth))
   let aaIds = new Set<string>()
   if (sentAaPackMonths.length > 0) {
     aaIds = await (args.aaLineIds ?? defaultAaLineIds)(mba, tip.versionNumber)

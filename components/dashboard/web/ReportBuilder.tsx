@@ -22,7 +22,7 @@ import {
   setEntryWidth,
   type BuilderEntry,
 } from "@/lib/webReport/builder/editor"
-import { BUILDER_NEEDS_MIGRATION, WEB_REPORT_VERSION_KEEP, parseBrandTerms } from "@/lib/webReport/builder/layout"
+import { WEB_REPORT_VERSION_KEEP, parseBrandTerms } from "@/lib/webReport/builder/layout"
 import type { WebAccountOptions, WebAccountPlatform } from "@/lib/webReport/builder/accounts"
 import type { WebElementId, WebReportLayoutItem } from "@/lib/webReport/elements"
 import type { ReportPeriod } from "@/lib/webReport/periods"
@@ -47,7 +47,6 @@ export const PREVIEW_DEBOUNCE_MS = 400
 export function ReportBuilder({
   slug,
   clientName,
-  migrationApplied,
   initialLayout,
   currentVersion,
   versions,
@@ -60,7 +59,6 @@ export function ReportBuilder({
 }: {
   slug: string
   clientName: string
-  migrationApplied: boolean
   initialLayout: WebReportLayoutItem[]
   currentVersion: number
   versions: BuilderVersion[]
@@ -282,19 +280,16 @@ export function ReportBuilder({
         onLink={(platform, ref, label) => void onLink(platform, ref, label)}
         clientView={clientView}
         onClientView={setClientView}
-        canSave={migrationApplied && busy == null && entries.length > 0}
+        canSave={busy == null && entries.length > 0}
         saving={busy === "save"}
         onSave={() => void onSave()}
         version={version}
-        history={migrationApplied ? history : []}
+        history={history}
         restoring={busy != null}
         onRestore={(target) => void onRestore(target)}
         message={message}
       />
 
-      {migrationApplied ? null : (
-        <p className="rounded-card border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{BUILDER_NEEDS_MIGRATION}</p>
-      )}
       {error || previewError ? (
         <p role="alert" className="rounded-card border border-border bg-pacing-critical-bg px-4 py-3 text-sm text-status-critical-fg">
           {error ?? previewError}

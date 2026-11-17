@@ -5,17 +5,15 @@ import { eq, or } from "drizzle-orm"
 import { getDb } from "@/db"
 import { clientPlatformAccounts, clientWebReports, clients } from "@/db/schema"
 import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
-import { migration0098Applied } from "@/lib/webReport/builder/repo"
 import { queryAdminWebReportList, type AdminWebReportListRow } from "@/lib/webReport/admin/list"
 
 export type AdminWebReportListResult = {
+  /** False when the list could not be read. */
   ready: boolean
   rows: AdminWebReportListRow[]
 }
 
 export async function loadAdminWebReportList(): Promise<AdminWebReportListResult> {
-  if (!(await migration0098Applied())) return { ready: false, rows: [] }
-
   try {
     const db = getDb()
     const [accounts, reports] = await Promise.all([

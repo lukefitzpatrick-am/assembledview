@@ -45,7 +45,6 @@ describe("ReportBuilder", () => {
         <ReportBuilder
           slug="paul-hartmann-pty-ltd"
           clientName="Paul Hartmann Pty Ltd"
-          migrationApplied
           initialLayout={LAYOUT}
           currentVersion={0}
           versions={[]}
@@ -146,7 +145,6 @@ describe("ReportBuilder without platform accounts", () => {
         <ReportBuilder
           slug="golf-australia"
           clientName="Golf Australia"
-          migrationApplied
           initialLayout={LAYOUT}
           currentVersion={0}
           versions={[]}
@@ -205,7 +203,6 @@ describe("ReportBuilder account pickers", () => {
         <ReportBuilder
           slug="golf-australia"
           clientName="Golf Australia"
-          migrationApplied
           initialLayout={LAYOUT}
           currentVersion={0}
           versions={[]}

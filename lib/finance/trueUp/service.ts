@@ -15,7 +15,6 @@ import { sql } from "drizzle-orm"
 import { getDb, type Db } from "@/db"
 import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
 import type { RevisionActor } from "@/lib/data/publishBillingRevision"
-import { isBillingRevisionsMigrationApplied } from "@/lib/finance/revisions/marker"
 import {
   applyRevisionFromToken,
   previewRevision,
@@ -38,9 +37,7 @@ import {
 } from "./compute"
 import { buildTrueUpFixRequest, sameTrueUpActuals, trueUpLedgerDrafts, type TrueUpFixChoice } from "./fixRequest"
 import { isFeatureOn } from "@/lib/features/server"
-import { TRUE_UP_NOT_READY_MESSAGE } from "./flag"
 import { loadTrueUp } from "./load"
-import { isTrueUpMigrationApplied } from "./marker"
 import { getMelbourneMonthISO } from "@/lib/dates/melbourne"
 
 function err(status: number, code: string, message: string, extra: Partial<ServiceError> = {}): ServiceError {
@@ -54,13 +51,9 @@ const FIX_OPTIONS: RevisionOptions = {
   adservingMode: "keep",
 }
 
-/** Flag, then 0109, then 0106. 404 while off so the actions are invisible. */
+/** The switch. 404 while off so the actions are invisible (0106 and 0109 are applied live). */
 export async function trueUpActionsGate(): Promise<ServiceError | null> {
   if (!(await isFeatureOn("true_up_actions"))) return err(404, "NOT_FOUND", "Not found")
-  if (!(await isTrueUpMigrationApplied())) return err(409, "NOT_READY", TRUE_UP_NOT_READY_MESSAGE)
-  if (!(await isBillingRevisionsMigrationApplied())) {
-    return err(409, "NOT_READY", "True-up fixes need migration 0106 (billing revisions).")
-  }
   return null
 }
 

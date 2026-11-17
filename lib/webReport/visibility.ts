@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm"
 import { getDb } from "@/db"
 import { clientWebReports } from "@/db/schema"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
-import { migration0098Applied } from "@/lib/webReport/builder/repo"
 import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 
 function clientIdFromRow(row: Record<string, unknown> | null): number | null {
@@ -17,7 +16,6 @@ function clientIdFromRow(row: Record<string, unknown> | null): number | null {
 /** True when the client behind this slug has a saved, published Web & search report. */
 export async function isWebReportPublished(slug: string): Promise<boolean> {
   try {
-    if (!(await migration0098Applied())) return false
     const clientId = clientIdFromRow(await fetchXanoClientRowByUrlSlug(slug))
     if (clientId == null) return false
     const [row] = await getDb()

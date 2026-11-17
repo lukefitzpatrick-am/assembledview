@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/features/save-current (B7, G9): admin and finance admin,
  * both checked before any write; production deployment only (B7 review 2);
- * 409 until 0111; returns what it saved.
+ * returns what it saved.
  */
 import assert from "node:assert/strict"
 import { after, mock, test } from "node:test"
@@ -55,13 +55,6 @@ test("an admin saves; the actor is the signed-in user; the result passes through
   assert.equal(res.status, 200)
   assert.deepEqual(await res.json(), { ok: true, saved: [{ key: "web_search", enabled: false, source: "default" }] })
   assert.deepEqual(saveMock.mock.calls.at(-1)?.arguments[0], { actor: { id: 7, name: "Luke" } })
-})
-
-test("0111 missing is a 409", { skip }, async () => {
-  saveMock.mock.mockImplementationOnce(async () => ({ ok: false, status: 409, code: "NOT_READY", message: "0111" }) as never)
-  const res = await POST(post())
-  assert.equal(res.status, 409)
-  assert.equal(((await res.json()) as { error: string }).error, "NOT_READY")
 })
 
 test("outside the production deployment it refuses with 403 and writes nothing", { skip }, async () => {

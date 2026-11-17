@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { builderGate } from "@/lib/webReport/builder/access"
 import { resolveBuilderClient } from "@/lib/webReport/builder/repo"
-import { KpiMigrationError, KpiNotFoundError, deactivateKpi, setTargets, upsertKpi } from "@/lib/webReport/kpis/repo"
+import { KpiNotFoundError, deactivateKpi, setTargets, upsertKpi } from "@/lib/webReport/kpis/repo"
 import { parseKpiRequest } from "@/lib/webReport/kpis/request"
 import { KpiInputError } from "@/lib/webReport/kpis/types"
 import { loadKpiEditor } from "@/lib/webReport/kpis/warehouse"
@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic"
 
 type RouteContext = { params: Promise<{ slug: string }> }
 
-const NEEDS_MIGRATION = "Web KPIs need migration 0101"
 
 function actorEmail(session: { user?: { email?: string | null } } | null | undefined): string {
   const email = session?.user?.email
@@ -79,7 +78,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!done) return NextResponse.json({ error: "KPI not found" }, { status: 404 })
     return NextResponse.json({ ok: true })
   } catch (err) {
-    if (err instanceof KpiMigrationError) return NextResponse.json({ error: NEEDS_MIGRATION }, { status: 409 })
     if (err instanceof KpiNotFoundError) return NextResponse.json({ error: "KPI not found" }, { status: 404 })
     if (err instanceof KpiInputError) return NextResponse.json({ error: err.message }, { status: 400 })
     console.error("[web-kpis]", err)

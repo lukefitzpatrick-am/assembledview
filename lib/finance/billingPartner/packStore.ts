@@ -1,7 +1,7 @@
 /**
  * Reads and writes billing_partner_packs. The table is selected the same way
- * as report_runs: Drizzle against the service connection, after marker
- * 0100_billing_partner_packs (C-76).
+ * as report_runs: Drizzle against the service connection (0100 is applied
+ * live, B48: no marker check).
  */
 import "server-only"
 
@@ -11,12 +11,9 @@ import { getDb } from "@/db"
 import {
   billingPartnerPackItems,
   billingPartnerPacks,
-  migrationMarkers,
 } from "@/db/schema"
 import type { BillingPartnerPackRow } from "@/lib/finance/billingPartner/cycle"
 import { BillingPartnerPackError } from "@/lib/finance/billingPartner/errors"
-
-const PACK_MARKER = "0100_billing_partner_packs"
 
 export type DraftPackItemWrite = {
   mbaNumber: string
@@ -46,11 +43,8 @@ type PackWriter = {
   markSent: (update: PackSentUpdate) => Promise<PackSentUpdate | null>
 }
 
-type Db = ReturnType<typeof getDb>
-
 export async function listPacksForMonth(billingMonth: string): Promise<BillingPartnerPackRow[]> {
   const db = getDb()
-  await requirePackMarker(db)
   const packs = await db
     .select({
       id: billingPartnerPacks.id,
@@ -92,7 +86,6 @@ export async function listPacksForMonth(billingMonth: string): Promise<BillingPa
 
 export async function insertDraftPack(row: DraftPackWrite): Promise<{ id: string }> {
   const db = getDb()
-  await requirePackMarker(db)
   return db.transaction(async (tx) => {
     const [pack] = await tx
       .insert(billingPartnerPacks)
@@ -142,7 +135,6 @@ export async function markPackSent(
 
 export async function readPackDownload(packId: string): Promise<{ pathname: string } | null> {
   const db = getDb()
-  await requirePackMarker(db)
   const [pack] = await db
     .select({ blobPathname: billingPartnerPacks.blobPathname })
     .from(billingPartnerPacks)
@@ -155,7 +147,6 @@ export async function readPackDownload(packId: string): Promise<{ pathname: stri
 
 async function markSentInDb(update: PackSentUpdate): Promise<PackSentUpdate | null> {
   const db = getDb()
-  await requirePackMarker(db)
   const [row] = await db
     .update(billingPartnerPacks)
     .set({
@@ -180,13 +171,3 @@ async function markSentInDb(update: PackSentUpdate): Promise<PackSentUpdate | nu
   }
 }
 
-async function requirePackMarker(db: Db): Promise<void> {
-  const [marker] = await db
-    .select({ key: migrationMarkers.key })
-    .from(migrationMarkers)
-    .where(eq(migrationMarkers.key, PACK_MARKER))
-    .limit(1)
-  if (!marker) {
-    throw new BillingPartnerPackError("Billing partner packs are not available yet", 503)
-  }
-}

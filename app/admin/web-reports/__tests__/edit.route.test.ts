@@ -15,7 +15,6 @@ const ROLE_CLAIM = "https://assembledview.com/roles"
 const draft = {
   clientId: 9,
   clientName: "Paul Hartmann Pty Ltd",
-  migrationApplied: true,
   layout: [],
   currentVersion: 0,
   versions: [],

@@ -3,11 +3,11 @@ import "server-only"
 import { and, desc, eq, lte } from "drizzle-orm"
 
 import { getDb } from "@/db"
-import { clientWebReportVersions, clientWebReports, migrationMarkers } from "@/db/schema"
+import { clientWebReportVersions, clientWebReports } from "@/db/schema"
 import { getClientDashboardData } from "@/lib/api/dashboard"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
-import { MIGRATION_0098_KEY, parseLayout, planSave } from "@/lib/webReport/builder/layout"
+import { parseLayout, planSave } from "@/lib/webReport/builder/layout"
 import { loadWebReportData } from "@/lib/webReport/data/load"
 import type { WebReportLayoutItem } from "@/lib/webReport/elements"
 import { loadReportAccounts, windowsForRequest } from "@/lib/webReport/loadPage"
@@ -17,19 +17,11 @@ import { querySnowflake } from "@/lib/snowflake/query"
 import type { WebReportData } from "@/lib/webReport/types"
 import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
 
-export class BuilderMigrationError extends Error {
-  constructor() {
-    super("Builder needs migration 0098")
-    this.name = "BuilderMigrationError"
-  }
-}
-
 export type BuilderVersionRow = { version: number; savedAt: string | null }
 
 export type BuilderDraft = {
   clientId: number
   clientName: string
-  migrationApplied: boolean
   layout: WebReportLayoutItem[]
   currentVersion: number
   versions: BuilderVersionRow[]
@@ -45,21 +37,6 @@ function clientIdFromRow(row: Record<string, unknown> | null): number | null {
   const raw = row?.id ?? row?.clients_id
   const id = typeof raw === "number" ? raw : Number(raw)
   return Number.isFinite(id) && id > 0 ? id : null
-}
-
-export async function migration0098Applied(): Promise<boolean> {
-  try {
-    const db = getDb()
-    const [row] = await db
-      .select({ key: migrationMarkers.key })
-      .from(migrationMarkers)
-      .where(eq(migrationMarkers.key, MIGRATION_0098_KEY))
-      .limit(1)
-    return Boolean(row)
-  } catch (err) {
-    console.warn("[web-builder] could not read migration_markers", err)
-    return false
-  }
 }
 
 export async function resolveBuilderClient(
@@ -112,7 +89,6 @@ export async function loadBuilderDraft(
 ): Promise<BuilderDraft | null> {
   const client = await resolveBuilderClient(slug)
   if (!client) return null
-  const applied = await migration0098Applied()
   const accounts = await loadReportAccounts(client.clientId)
 
   let layout = fallbackLayout
@@ -121,42 +97,39 @@ export async function loadBuilderDraft(
   let brandTerms: string[] = []
   let defaultPeriod: ReportPeriod = "last_month"
 
-  if (applied) {
-    try {
-      const db = getDb()
-      const [report] = await db
-        .select()
-        .from(clientWebReports)
-        .where(eq(clientWebReports.clientId, client.clientId))
-        .limit(1)
-      if (report) {
-        currentVersion = report.currentVersion
-        brandTerms = report.brandTerms ?? []
-        defaultPeriod = isReportPeriod(report.defaultPeriod) ? report.defaultPeriod : "last_month"
-        const rows = await db
-          .select({
-            version: clientWebReportVersions.version,
-            savedAt: clientWebReportVersions.savedAt,
-            layout: clientWebReportVersions.layout,
-          })
-          .from(clientWebReportVersions)
-          .where(eq(clientWebReportVersions.reportId, report.id))
-          .orderBy(desc(clientWebReportVersions.version))
-          .limit(10)
-        versions = rows.map((row) => ({ version: row.version, savedAt: row.savedAt }))
-        const current = rows.find((row) => row.version === report.currentVersion) ?? rows[0]
-        const cleaned = current ? parseLayout(current.layout) : null
-        if (cleaned?.ok) layout = cleaned.layout
-      }
-    } catch (err) {
-      console.warn("[web-builder] saved report unavailable", err)
+  try {
+    const db = getDb()
+    const [report] = await db
+      .select()
+      .from(clientWebReports)
+      .where(eq(clientWebReports.clientId, client.clientId))
+      .limit(1)
+    if (report) {
+      currentVersion = report.currentVersion
+      brandTerms = report.brandTerms ?? []
+      defaultPeriod = isReportPeriod(report.defaultPeriod) ? report.defaultPeriod : "last_month"
+      const rows = await db
+        .select({
+          version: clientWebReportVersions.version,
+          savedAt: clientWebReportVersions.savedAt,
+          layout: clientWebReportVersions.layout,
+        })
+        .from(clientWebReportVersions)
+        .where(eq(clientWebReportVersions.reportId, report.id))
+        .orderBy(desc(clientWebReportVersions.version))
+        .limit(10)
+      versions = rows.map((row) => ({ version: row.version, savedAt: row.savedAt }))
+      const current = rows.find((row) => row.version === report.currentVersion) ?? rows[0]
+      const cleaned = current ? parseLayout(current.layout) : null
+      if (cleaned?.ok) layout = cleaned.layout
     }
+  } catch (err) {
+    console.warn("[web-builder] saved report unavailable", err)
   }
 
   return {
     clientId: client.clientId,
     clientName: client.clientName,
-    migrationApplied: applied,
     layout,
     currentVersion,
     versions,
@@ -177,7 +150,6 @@ type SaveInput = {
 }
 
 export async function savePublishedReport(input: SaveInput): Promise<{ version: number }> {
-  if (!(await migration0098Applied())) throw new BuilderMigrationError()
   const db = getDb()
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -231,7 +203,6 @@ export async function restorePublishedVersion(input: {
   version: number
   savedBy: string | null
 }): Promise<{ version: number; layout: WebReportLayoutItem[] } | null> {
-  if (!(await migration0098Applied())) throw new BuilderMigrationError()
   const db = getDb()
   return db.transaction(async (tx) => {
     const [report] = await tx

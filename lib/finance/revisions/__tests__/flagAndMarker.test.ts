@@ -10,11 +10,6 @@ import { billingRevisions } from "@/db/schema/billingRevisions"
 import { clientFeatureOn, setClientFeatureSnapshot } from "@/lib/features/client"
 
 import { isBillingRevisionsEnabled } from "../flag"
-import {
-  BillingRevisionsNotReadyError,
-  assertBillingRevisionsReady,
-  isBillingRevisionsMigrationApplied,
-} from "../marker"
 
 async function withEnv(key: string, value: string | undefined, fn: () => void | Promise<void>) {
   const prev = process.env[key]
@@ -42,19 +37,6 @@ test("browser: the root layout snapshot wins; before it, the build-time NEXT_PUB
   setClientFeatureSnapshot({ billing_revisions: false })
   await withEnv("NEXT_PUBLIC_BILLING_REVISIONS", "on", () => assert.equal(clientFeatureOn("billing_revisions"), false))
   setClientFeatureSnapshot(null)
-})
-
-test("marker gate: missing marker or a failed read means not ready", async () => {
-  assert.equal(await isBillingRevisionsMigrationApplied(async () => true), true)
-  assert.equal(await isBillingRevisionsMigrationApplied(async () => false), false)
-  assert.equal(
-    await isBillingRevisionsMigrationApplied(async () => {
-      throw new Error("relation does not exist")
-    }),
-    false,
-  )
-  await assert.rejects(assertBillingRevisionsReady(async () => false), BillingRevisionsNotReadyError)
-  await assertBillingRevisionsReady(async (key) => key === "0106_billing_revisions")
 })
 
 test("0106 SQL, the Supabase run file and the Drizzle mirror have the same columns", () => {

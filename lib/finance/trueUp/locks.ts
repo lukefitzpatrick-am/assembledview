@@ -9,7 +9,6 @@ import { sql, type SQL } from "drizzle-orm"
 import { getDb } from "@/db"
 import { rowsOf } from "@/lib/xero/dbRows"
 
-import { isTrueUpMigrationApplied } from "./marker"
 import { parseTrueUpLocks, type TrueUpLock } from "./resetGuard"
 
 export type LockExecutor = { execute: (q: SQL) => Promise<unknown> }
@@ -27,11 +26,10 @@ export function trueUpLocksSql(mbaNumber: string): SQL {
 
 export async function loadTrueUpLocks(
   mbaNumber: string,
-  deps: { exec?: LockExecutor; migrationApplied?: () => Promise<boolean> } = {},
+  deps: { exec?: LockExecutor } = {},
 ): Promise<TrueUpLock[]> {
   const mba = String(mbaNumber ?? "").trim()
   if (!mba) return []
-  if (!(await (deps.migrationApplied ?? (() => isTrueUpMigrationApplied()))())) return []
   const exec = deps.exec ?? getDb()
   return parseTrueUpLocks(rowsOf<Record<string, unknown>>(await exec.execute(trueUpLocksSql(mba))))
 }

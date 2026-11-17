@@ -18,7 +18,6 @@ function user(role: "admin" | "client") {
 const draft = {
   clientId: 9,
   clientName: "Paul Hartmann Pty Ltd",
-  migrationApplied: true,
   layout: [],
   currentVersion: 0,
   versions: [],

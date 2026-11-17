@@ -331,8 +331,6 @@ export type Dv360CheckRow = {
 
 /** Manual match support on the Bill lines view (MAR-4). */
 export type FixedCostManualMatchInfo = {
-  /** Migration 0107 has run (marker present). Until then the UI cannot save matches. */
-  ready: boolean
   /** Every MBA with a master, for the picker. */
   mbas: Array<{ mbaNumber: string; clientName: string }>
 }

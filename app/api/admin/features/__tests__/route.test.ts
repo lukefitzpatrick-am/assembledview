@@ -1,7 +1,7 @@
 /**
  * /api/admin/features: admin to read; finance switches need finance admin;
  * the role is checked before the key; Vercel switches and unknown keys are
- * refused; 409 until 0111.
+ * refused; a switch dependency is 409.
  */
 import assert from "node:assert/strict"
 import { mock, test } from "node:test"
@@ -63,11 +63,9 @@ test("bad shapes are 400 and never reach the write", { skip }, async () => {
   assert.equal(setMock.mock.callCount(), before)
 })
 
-test("service refusals pass through (Vercel switch 400, 0111 missing 409, a switch dependency 409)", { skip }, async () => {
+test("service refusals pass through (Vercel switch 400, a switch dependency 409)", { skip }, async () => {
   setMock.mock.mockImplementationOnce(async () => ({ ok: false, status: 400, code: "SET_IN_VERCEL", message: "Set in Vercel." }) as never)
   assert.equal((await POST(post({ key: "view_as", enabled: true }))).status, 400)
-  setMock.mock.mockImplementationOnce(async () => ({ ok: false, status: 409, code: "NOT_READY", message: "0111" }) as never)
-  assert.equal((await POST(post({ key: "web_search", enabled: true }))).status, 409)
   // B48 (S16): a dependency refusal reaches the page with its message.
   const message = "Turn on True-up report first: this switch needs it."
   setMock.mock.mockImplementationOnce(async () => ({ ok: false, status: 409, code: "SWITCH_DEPENDENCY", message }) as never)

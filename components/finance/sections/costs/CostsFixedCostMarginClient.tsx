@@ -379,11 +379,6 @@ function BillLinesPanel({ data, onChanged }: { data: FinanceFixedCostMarginPaylo
           ))}
         </Segmented>
         <span className="text-xs text-muted-foreground">{rows.length} bill lines</span>
-        {!manual?.ready ? (
-          <span className="text-xs text-muted-foreground">
-            Matching by hand needs migration 0107 (ap_bill_line_matches) to be run.
-          </span>
-        ) : null}
         {actionError ? <span className="text-xs text-status-critical-fg">{actionError}</span> : null}
       </div>
 
@@ -443,7 +438,7 @@ function BillLinesPanel({ data, onChanged }: { data: FinanceFixedCostMarginPaylo
                       {b.savedMatch.lineMissing ? " · not applied, line not live" : ""}
                     </span>
                   ) : null}
-                  {manual?.ready && b.savedMatch ? (
+                  {manual && b.savedMatch ? (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -454,7 +449,7 @@ function BillLinesPanel({ data, onChanged }: { data: FinanceFixedCostMarginPaylo
                       {removing === b.savedMatch.id ? "Removing…" : "Remove saved match"}
                     </Button>
                   ) : null}
-                  {manual?.ready && canMatchByHand(b) ? (
+                  {manual && canMatchByHand(b) ? (
                     <Button
                       variant="outline"
                       size="sm"

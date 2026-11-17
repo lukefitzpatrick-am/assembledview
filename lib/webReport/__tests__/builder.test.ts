@@ -3,7 +3,6 @@ import { test } from "node:test"
 
 import { builderGate } from "@/lib/webReport/builder/access"
 import {
-  BUILDER_NEEDS_MIGRATION,
   NEEDS_DATA_ELEMENTS,
   WEB_REPORT_VERSION_KEEP,
   addElement,
@@ -215,7 +214,6 @@ test("save plans a new version and keeps the last 10", () => {
   assert.equal(saved.ok, true)
   assert.equal(parseLayout([{ elementId: "nope", settings: {} }]).ok, false)
   assert.equal(savedForMessage("Golf Australia", 3), "Saved for Golf Australia · version 3")
-  assert.equal(BUILDER_NEEDS_MIGRATION, "Builder needs migration 0098")
 })
 
 test("restore and save requests validate before a write", () => {

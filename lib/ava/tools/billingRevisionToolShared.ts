@@ -1,6 +1,6 @@
 /**
  * Shared bits for preview_billing_revision and apply_billing_revision.
- * Admin only, BILLING_REVISIONS on, 0106 applied.
+ * Admin only, BILLING_REVISIONS on.
  */
 import { isBillingRevisionsEnabled } from "@/lib/finance/revisions/flag"
 import type { PreviewOk } from "@/lib/finance/revisions/revisionService"
@@ -11,10 +11,6 @@ export async function billingRevisionToolGate(context: AvaToolContext, name: str
   if (!context.roles.includes("admin")) return { content: `${name} is admin-only.`, isError: true }
   if (!(await isBillingRevisionsEnabled())) return { content: "Billing revisions are turned off (Admin > Features).", isError: true }
   if (!context.userSub) return { content: "Could not resolve the signed-in user.", isError: true }
-  const { isBillingRevisionsMigrationApplied } = await import("@/lib/finance/revisions/marker")
-  if (!(await isBillingRevisionsMigrationApplied())) {
-    return { content: "Billing revisions need migration 0106.", isError: true }
-  }
   return null
 }
 

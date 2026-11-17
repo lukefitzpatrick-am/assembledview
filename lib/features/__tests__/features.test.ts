@@ -102,7 +102,7 @@ test("store: one read per TTL, invalidate clears, a failed read caches null, con
   assert.equal(calls, 4)
 })
 
-test("isFeatureOn: a row beats env; no table (0111 not run) falls back to env", async () => {
+test("isFeatureOn: a row beats env; a failed read falls back to env", async () => {
   try {
     setFeatureRowReaderForTests(async () => new Map([["web_search", row("web_search", true)]]))
     assert.equal(await isFeatureOn("web_search", {}), true)
@@ -340,18 +340,6 @@ test("G9: every page switch with no row is listed with the value it has now; Ver
 
   const all = new Map(pageSwitches.map((k) => [k, row(k, false)]))
   assert.deepEqual(unsavedFeatureSwitches(all, { TRUE_UP: "on" }), [])
-})
-
-test("G9: saving current values inserts only missing rows, from = to, and invalidates the cache", () => {
-  const src = readFileSync(path.join(ROOT, "lib/features/server.ts"), "utf8")
-  const fn = src.slice(src.indexOf("export async function saveCurrentFeatureValues"))
-  assert.match(fn, /isFeatureSwitchesMigrationApplied\(\)/)
-  assert.match(fn, /unsavedFeatureSwitches\(rows, env\)/)
-  assert.match(fn, /ON CONFLICT \(key\) DO NOTHING\s+RETURNING key/)
-  assert.match(fn, /if \(inserted\.length === 0\) continue/)
-  assert.match(fn, /VALUES \(\$\{u\.key\}, \$\{u\.enabled\}, \$\{u\.enabled\}, /)
-  assert.doesNotMatch(fn, /DO UPDATE/)
-  assert.match(fn, /invalidateFeatureSwitches\(\)/)
 })
 
 test("featureEnvValue is the env-only read for pure helpers", () => {

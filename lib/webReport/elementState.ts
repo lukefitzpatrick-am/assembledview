@@ -25,7 +25,7 @@ export function elementViewState(id: WebElementId, data: WebReportData): Element
   if (id === "notes") return { status: "ok", message: "" }
   if (id === "kpiTracker") {
     const kpis = data.kpis
-    if (!kpis || kpis.status === "not_ready") return { status: "needs_report", message: "Not available yet" }
+    if (!kpis) return { status: "needs_report", message: "Not available yet" }
     if (kpis.status === "unavailable") return { status: "error", message: "Saved KPIs could not be loaded." }
     return { status: "ok", message: "" }
   }

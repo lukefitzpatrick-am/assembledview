@@ -22,8 +22,8 @@ export type WebKpiReportItem = {
 }
 
 export type WebKpiReport = {
-  /** not_ready: migration 0101 is not applied. unavailable: the KPI read failed. */
-  status: "ok" | "not_ready" | "unavailable"
+  /** unavailable: the KPI read failed. */
+  status: "ok" | "unavailable"
   /** Sydney today when the report was loaded. */
   today: string
   /** First of each month in the tracker span, oldest first. */

@@ -11,7 +11,6 @@ import { dateOnly, field, text } from "@/lib/webReport/rows"
 import {
   isPreviewPlatform,
   PREVIEW_PLATFORMS,
-  notReadyResult,
   runPreviewJob,
   type CachedPreviewRow,
   type PreviewAsset,
@@ -19,7 +18,6 @@ import {
   type PreviewJobResult,
 } from "./core"
 import { fetchPreviewImage } from "./fetchPreviewImage"
-import { readPreviewCacheGate } from "./markers"
 
 const ASSETS_SQL = `
 WITH recent AS (
@@ -151,39 +149,11 @@ async function upsertRow(row: PreviewCacheUpsert): Promise<void> {
     })
 }
 
-/**
- * Warehouse-only dry run: what the job would fetch if no cache row had a source
- * hash yet (true for every row until 0102 is applied). Reads no Postgres table.
- */
-export async function countPreviewCandidates(days: number): Promise<PreviewJobResult> {
-  return runPreviewJob(
-    {
-      loadAssets,
-      loadCached: async () => [],
-      loadClientByMba: async () => new Map(),
-      fetchImage: async () => ({ ok: false, reason: "network" }),
-      putBlob: async () => {
-        throw new Error("dry run")
-      },
-      deleteBlob: async () => undefined,
-      upsertRow: async () => {
-        throw new Error("dry run")
-      },
-    },
-    { days, confirm: false, limit: Number.MAX_SAFE_INTEGER },
-  )
-}
-
 export async function runCreativePreviewCache(options: {
   days: number
   confirm: boolean
   limit?: number
 }): Promise<PreviewJobResult> {
-  const gate = await readPreviewCacheGate()
-  if (!gate.ready) {
-    console.warn(`[creative-previews] ${gate.message}`)
-    return notReadyResult(options.days, !options.confirm)
-  }
   return runPreviewJob(
     {
       loadAssets,

@@ -12,7 +12,6 @@ const skip = mockModuleSkip()
 
 const KPI_ID = "11111111-1111-4111-8111-111111111111"
 
-class KpiMigrationError extends Error {}
 class KpiNotFoundError extends Error {}
 
 const getSessionMock = mock.fn(async (_req?: unknown) => null as null | { user: Record<string, unknown> })
@@ -30,7 +29,6 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/webReport/kpis/repo", {
     namedExports: {
-      KpiMigrationError,
       KpiNotFoundError,
       upsertKpi: upsertMock,
       setTargets: setTargetsMock,
@@ -38,7 +36,7 @@ if (supportsMockModule()) {
     },
   })
   await mock.module!("@/lib/webReport/kpis/warehouse", {
-    namedExports: { loadKpiEditor: mock.fn(async () => ({ migrationApplied: true, rows: [], eventNames: [] })) },
+    namedExports: { loadKpiEditor: mock.fn(async () => ({ rows: [], eventNames: [] })) },
   })
 }
 

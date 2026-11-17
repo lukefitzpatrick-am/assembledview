@@ -1,7 +1,6 @@
 /**
  * Saved manual bill line matches (`ap_bill_line_matches`, migration 0107,
- * MAR-4). Every read and write checks the 0107 marker first; until Luke runs
- * the 0107 SQL, reads return nothing and writes refuse.
+ * MAR-4). 0107 is applied live, so nothing checks its marker (B48).
  */
 
 import "server-only"
@@ -9,12 +8,10 @@ import "server-only"
 import { eq, sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
-import { apBillLineMatches, migrationMarkers } from "@/db/schema"
+import { apBillLineMatches } from "@/db/schema"
 import { FINANCE_STATUS_INCLUDED_SQL } from "@/lib/finance/sections/financeCampaignStatus"
 import {
   billLineForMatch,
-  MANUAL_MATCH_MARKER,
-  MANUAL_MATCH_NOT_READY_MESSAGE,
   monthToDate,
   type CreateManualMatchInput,
 } from "@/lib/finance/sections/fixedCostMargin/bills/manualMatch"
@@ -26,7 +23,7 @@ import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuar
 
 export class ManualMatchError extends Error {
   constructor(
-    readonly code: "NOT_READY" | "BILL_NOT_FOUND" | "BILL_LINE_NOT_FOUND" | "PLAN_LINE_NOT_FOUND" | "ALREADY_MATCHED" | "NOT_FOUND",
+    readonly code: "BILL_NOT_FOUND" | "BILL_LINE_NOT_FOUND" | "PLAN_LINE_NOT_FOUND" | "ALREADY_MATCHED" | "NOT_FOUND",
     message: string,
     readonly status: number
   ) {
@@ -51,34 +48,8 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-export type MarkerReader = (key: string) => Promise<boolean>
-
-export const readManualMatchMarker: MarkerReader = async (key) => {
-  const found = await getDb()
-    .select({ key: migrationMarkers.key })
-    .from(migrationMarkers)
-    .where(eq(migrationMarkers.key, key))
-    .limit(1)
-  return found.length > 0
-}
-
-/** True once migration_markers holds 0107. A failed read counts as not ready. */
-export async function isManualMatchReady(reader: MarkerReader = readManualMatchMarker): Promise<boolean> {
-  try {
-    return await reader(MANUAL_MATCH_MARKER)
-  } catch (error) {
-    console.warn("[fixed-cost-margin] 0107 marker read failed", error)
-    return false
-  }
-}
-
-async function assertReady(): Promise<void> {
-  if (!(await isManualMatchReady())) throw new ManualMatchError("NOT_READY", MANUAL_MATCH_NOT_READY_MESSAGE, 409)
-}
-
-/** Every saved match (empty until 0107 runs). */
+/** Every saved match. */
 export async function listSavedBillLineMatches(): Promise<SavedBillLineMatch[]> {
-  if (!(await isManualMatchReady())) return []
   const result = await getDb().execute(sql`
     SELECT id, xero_invoice_id, xero_line_item_id, LOWER(BTRIM(mba_number)) AS mba_number,
       LOWER(BTRIM(line_item_id)) AS line_item_id, to_char(month, 'YYYY-MM') AS month,
@@ -156,7 +127,6 @@ export async function createSavedBillLineMatch(
   input: CreateManualMatchInput,
   actor: { email: string; name: string | null }
 ): Promise<SavedBillLineMatch> {
-  await assertReady()
   const db = getDb()
   const billRows = rows(
     await db.execute(sql`
@@ -219,7 +189,6 @@ export async function createSavedBillLineMatch(
 
 /** Delete one saved match by id. */
 export async function deleteSavedBillLineMatch(id: number): Promise<void> {
-  await assertReady()
   const deleted = await getDb()
     .delete(apBillLineMatches)
     .where(eq(apBillLineMatches.id, id))

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic"
  * POST: saves a row for every /admin/features switch that has none, at the
  * value it has now (its env var or default), so no page switch reads an env
  * var any more (B7, G9). No body. Admin, and finance admin because finance
- * switches are among them. 409 until SQL 0111 is run.
+ * switches are among them.
  *
  * Production deployment only (B7 review, finding 2): the values saved are
  * this deployment's env vars, and the rows are global, so a localhost or
@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
     const out = await saveCurrentFeatureValues({
       actor: { id: user?.id ?? null, name: user?.name || user?.email || null },
     })
-    if (!out.ok) return NextResponse.json({ error: out.code, message: out.message }, { status: out.status })
     return NextResponse.json(out)
   } catch (error) {
     console.error("POST /api/admin/features/save-current", error)

@@ -7,7 +7,6 @@ import {
 import {
   createSavedBillLineMatch,
   deleteSavedBillLineMatch,
-  isManualMatchReady,
   loadMatchPlanLines,
   ManualMatchError,
 } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
@@ -31,8 +30,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "bad_request", message: "mba is required." }, { status: 400 })
   }
   try {
-    const [ready, lines] = await Promise.all([isManualMatchReady(), loadMatchPlanLines(mba)])
-    return NextResponse.json({ ready, mbaNumber: mba.toLowerCase(), lines })
+    const lines = await loadMatchPlanLines(mba)
+    return NextResponse.json({ mbaNumber: mba.toLowerCase(), lines })
   } catch (error) {
     return errorResponse(error, "GET")
   }

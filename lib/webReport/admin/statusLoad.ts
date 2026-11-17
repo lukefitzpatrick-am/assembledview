@@ -5,7 +5,6 @@ import { and, eq, inArray } from "drizzle-orm"
 import { getDb } from "@/db"
 import { clientPlatformAccounts, clientWebReports, clients } from "@/db/schema"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
-import { migration0098Applied } from "@/lib/webReport/builder/repo"
 import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 import {
   resolveWebReportAdminStatus,
@@ -21,11 +20,11 @@ import {
  */
 export type WebReportStatusResult =
   | { ok: true; status: WebReportAdminStatus }
-  | { ok: false; reason: "not_ready" | "no_client" | "error" }
+  | { ok: false; reason: "no_client" | "error" }
 
 export type WebReportStatusesResult =
   | { ok: true; bySlug: Record<string, WebReportAdminStatus> }
-  | { ok: false; reason: "not_ready" | "error" }
+  | { ok: false; reason: "error" }
 
 function clientIdFromRow(row: Record<string, unknown> | null): number | null {
   const raw = row?.id ?? row?.clients_id
@@ -34,7 +33,6 @@ function clientIdFromRow(row: Record<string, unknown> | null): number | null {
 }
 
 export async function loadWebReportStatusForClientId(clientId: number): Promise<WebReportStatusResult> {
-  if (!(await migration0098Applied())) return { ok: false, reason: "not_ready" }
   try {
     const db = getDb()
     const [reports, accounts] = await Promise.all([
@@ -84,7 +82,6 @@ export async function loadWebReportStatusForSlug(slug: string): Promise<WebRepor
 
 /** Every client with a slug, in three queries (client list badge). */
 export async function loadWebReportStatusesBySlug(): Promise<WebReportStatusesResult> {
-  if (!(await migration0098Applied())) return { ok: false, reason: "not_ready" }
   try {
     const db = getDb()
     const [clientRows, reports, accounts] = await Promise.all([

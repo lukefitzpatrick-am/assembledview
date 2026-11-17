@@ -362,7 +362,7 @@ export function TrueUpPageClient() {
       if (!res.ok) throw new Error(body.message ?? "Could not run the true-up.")
       if (body.status === "sent") toast({ title: "True-up saved and emailed" })
       else if (body.status === "saved_not_emailed") toast({ title: "True-up saved, the email did not send", description: body.emailError, variant: "destructive" })
-      else toast({ title: "True-up not run", description: body.skipped === "not_ready" ? "Migration 0109 is not applied yet." : "True-up is turned off." })
+      else toast({ title: "True-up not run", description: "True-up is turned off." })
     } catch (err) {
       toast({ title: "Could not run the true-up", description: err instanceof Error ? err.message : undefined, variant: "destructive" })
     } finally {

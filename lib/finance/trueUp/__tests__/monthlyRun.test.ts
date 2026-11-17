@@ -66,7 +66,6 @@ test("cron: off without TRUE_UP_CRON, outside the window it skips, then saves, e
   let alreadySent = false
   const io = {
     load,
-    migrationApplied: async () => true,
     alreadySent: async () => alreadySent,
     saveRun: async (row: TrueUpRunInsert) => (saved.push(row), 77),
     markEmailed: async (id: number) => {
@@ -109,7 +108,6 @@ test("manual: runs any time with the actor; an email failure keeps the saved run
       actor: { teamMemberId: 7, name: "Luke" },
       io: {
         load,
-        migrationApplied: async () => true,
         saveRun: async (row) => (saved.push(row), 5),
         markEmailed: async () => assert.fail("not marked when the email fails"),
         send: async () => {
@@ -121,9 +119,5 @@ test("manual: runs any time with the actor; an email failure keeps the saved run
     assert.ok("status" in out && out.status === "saved_not_emailed" && out.emailError === "SENDGRID_API_KEY not configured")
     assert.equal(saved[0]!.createdBy, 7)
     assert.equal(saved[0]!.source, "manual")
-  })
-  await withEnv({ TRUE_UP: "true" }, async () => {
-    const notReady = await runTrueUpMonthly({ source: "manual", io: { migrationApplied: async () => false } })
-    assert.deepEqual(notReady, { ok: true, skipped: "not_ready" })
   })
 })

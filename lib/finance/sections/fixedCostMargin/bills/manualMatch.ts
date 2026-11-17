@@ -6,12 +6,6 @@
 
 import { exGstCentsOf, type RawBillRow } from "./parse"
 
-/** migration_markers key that turns manual matching on. */
-export const MANUAL_MATCH_MARKER = "0107_ap_bill_line_matches"
-
-export const MANUAL_MATCH_NOT_READY_MESSAGE =
-  "Manual bill matches need migration 0107 (ap_bill_line_matches). Run sql/supabase/2026-10-28_0107_ap_bill_line_matches_SUPABASE.sql first."
-
 export const MANUAL_MATCH_NOTE_MAX = 500
 
 export type CreateManualMatchInput = {

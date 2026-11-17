@@ -3,7 +3,7 @@ import "server-only"
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
-import { migrationMarkers, webKpiTargets, webKpis } from "@/db/schema"
+import { webKpiTargets, webKpis } from "@/db/schema"
 import { roundMoney2 } from "@/lib/money/cents"
 
 import {
@@ -16,38 +16,11 @@ import {
   type WebKpiTarget,
 } from "./types"
 
-export const MIGRATION_0101_KEY = "0101_web_kpis"
-
-export class KpiMigrationError extends Error {
-  constructor() {
-    super("Web KPIs need migration 0101")
-    this.name = "KpiMigrationError"
-  }
-}
-
 export class KpiNotFoundError extends Error {
   constructor() {
     super("KPI not found for this client")
     this.name = "KpiNotFoundError"
   }
-}
-
-export async function migration0101Applied(): Promise<boolean> {
-  try {
-    const [row] = await getDb()
-      .select({ key: migrationMarkers.key })
-      .from(migrationMarkers)
-      .where(eq(migrationMarkers.key, MIGRATION_0101_KEY))
-      .limit(1)
-    return Boolean(row)
-  } catch (err) {
-    console.warn("[web-kpis] could not read migration_markers", err)
-    return false
-  }
-}
-
-async function requireMigration(): Promise<void> {
-  if (!(await migration0101Applied())) throw new KpiMigrationError()
 }
 
 type KpiRow = typeof webKpis.$inferSelect
@@ -84,10 +57,9 @@ async function targetsFor(kpiIds: string[]): Promise<Map<string, WebKpiTarget[]>
 
 /**
  * A client's KPIs with their monthly targets, active first, then sort order.
- * Empty until 0101 is applied. Pass includeInactive for the editor.
+ * Pass includeInactive for the editor.
  */
 export async function listKpis(clientId: number, options: { includeInactive?: boolean } = {}): Promise<WebKpi[]> {
-  if (!(await migration0101Applied())) return []
   const where = options.includeInactive
     ? eq(webKpis.clientId, clientId)
     : and(eq(webKpis.clientId, clientId), eq(webKpis.active, true))
@@ -102,7 +74,6 @@ export async function listKpis(clientId: number, options: { includeInactive?: bo
 
 /** Insert, or update when input.id is set. An update only touches a KPI of the same client. */
 export async function upsertKpi(input: WebKpiInput, actor: string): Promise<WebKpi> {
-  await requireMigration()
   const clean = validateKpiInput(input)
   const db = getDb()
   const now = new Date().toISOString()
@@ -151,7 +122,6 @@ export async function setTargets(
   targets: WebKpiTarget[],
   actor: string,
 ): Promise<WebKpiTarget[]> {
-  await requireMigration()
   const clean = validateTargets(targets)
   if (!(await kpiBelongsTo(kpiId, clientId))) throw new KpiNotFoundError()
   if (clean.length === 0) return []
@@ -179,7 +149,6 @@ export async function setTargets(
 
 /** Deactivated KPIs keep their targets and drop out of actuals and the report. */
 export async function deactivateKpi(kpiId: string, clientId: number, actor: string): Promise<boolean> {
-  await requireMigration()
   const rows = await getDb()
     .update(webKpis)
     .set({ active: false, updatedAt: new Date().toISOString(), updatedBy: actor })

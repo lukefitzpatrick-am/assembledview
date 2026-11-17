@@ -8,10 +8,9 @@
  */
 import "server-only"
 
-import { eq, sql } from "drizzle-orm"
+import { sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
-import { migrationMarkers } from "@/db/schema"
 import { isMarkerApplied } from "@/lib/db/markers"
 import { rowsOf } from "@/lib/xero/dbRows"
 
@@ -33,11 +32,6 @@ import {
 } from "./registry"
 import { createFeatureRowStore, type FeatureRowReader, type FeatureRowStore } from "./store"
 
-export const FEATURE_SWITCHES_MARKER = "0111_feature_switches"
-
-export const FEATURE_SWITCHES_NOT_READY_MESSAGE =
-  "Feature switches need migration 0111 (sql/supabase/2026-10-30_0111_feature_switches_SUPABASE.sql)."
-
 type RawRow = {
   key: string
   enabled: boolean
@@ -58,29 +52,8 @@ export function toFeatureRow(r: RawRow): FeatureRow {
   }
 }
 
-type MarkerReader = (key: string) => Promise<boolean>
-
-/** Own marker read (not lib/finance/revisions/marker, which imports this module through its flag). */
-const readMarker: MarkerReader = async (key) => {
-  const rows = await getDb()
-    .select({ key: migrationMarkers.key })
-    .from(migrationMarkers)
-    .where(eq(migrationMarkers.key, key))
-    .limit(1)
-  return rows.length > 0
-}
-
-export async function isFeatureSwitchesMigrationApplied(reader: MarkerReader = readMarker): Promise<boolean> {
-  try {
-    return await reader(FEATURE_SWITCHES_MARKER)
-  } catch (err) {
-    console.warn("[features] marker read failed", err)
-    return false
-  }
-}
-
+/** 0111 is applied live (B48): the table is always there; a failed read is null (the store). */
 export const readFeatureRowsFromDb: FeatureRowReader = async () => {
-  if (!(await isFeatureSwitchesMigrationApplied())) return null
   const rows = rowsOf<RawRow>(
     await getDb().execute(sql`
       SELECT key, enabled, updated_at::text AS updated_at, updated_by, updated_by_name, note
@@ -245,7 +218,6 @@ export type FeatureSwitchEvent = {
 }
 
 export async function readFeatureSwitchEvents(limit = 50): Promise<FeatureSwitchEvent[]> {
-  if (!(await isFeatureSwitchesMigrationApplied())) return []
   const rows = rowsOf<{
     id: number | string
     created_at: string
@@ -278,7 +250,7 @@ const SWITCH_WRITE_LOCK = sql`SELECT pg_advisory_xact_lock(hashtext('feature_swi
 
 export type SetFeatureSwitchResult =
   | { ok: true; key: FeatureKey; enabled: boolean; changed: boolean }
-  | { ok: false; status: number; code: "NOT_READY" | "UNKNOWN_KEY" | "SET_IN_VERCEL" | "SWITCH_DEPENDENCY"; message: string }
+  | { ok: false; status: number; code: "UNKNOWN_KEY" | "SET_IN_VERCEL" | "SWITCH_DEPENDENCY"; message: string }
 
 /**
  * Writes the switch row and one event in one transaction, then clears this
@@ -300,9 +272,6 @@ export async function setFeatureSwitch(args: {
   if (!def) return { ok: false, status: 400, code: "UNKNOWN_KEY", message: "Unknown feature switch." }
   if (def.source === "vercel") {
     return { ok: false, status: 400, code: "SET_IN_VERCEL", message: def.vercelReason ?? "This one is set in Vercel." }
-  }
-  if (!(await isFeatureSwitchesMigrationApplied())) {
-    return { ok: false, status: 409, code: "NOT_READY", message: FEATURE_SWITCHES_NOT_READY_MESSAGE }
   }
   const note = args.note?.trim() ? args.note.trim().slice(0, 500) : null
   const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
@@ -347,9 +316,7 @@ export async function setFeatureSwitch(args: {
   return { ok: true, key: def.key as FeatureKey, enabled: args.enabled, changed }
 }
 
-export type SaveCurrentFeatureValuesResult =
-  | { ok: true; saved: UnsavedFeatureSwitch[] }
-  | { ok: false; status: 409; code: "NOT_READY"; message: string }
+export type SaveCurrentFeatureValuesResult = { ok: true; saved: UnsavedFeatureSwitch[] }
 
 /**
  * B7 (G9): writes a row for every page switch that has none, at the value it
@@ -363,9 +330,6 @@ export async function saveCurrentFeatureValues(args: {
   actor: { id: number | null; name: string | null }
   env?: Record<string, string | undefined>
 }): Promise<SaveCurrentFeatureValuesResult> {
-  if (!(await isFeatureSwitchesMigrationApplied())) {
-    return { ok: false, status: 409, code: "NOT_READY", message: FEATURE_SWITCHES_NOT_READY_MESSAGE }
-  }
   const env = args.env ?? process.env
   const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
   const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null

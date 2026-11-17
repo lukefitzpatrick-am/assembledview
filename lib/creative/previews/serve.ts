@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 
 import { isPreviewPlatform, type PreviewPlatform } from "./core"
-import type { PreviewCacheGate } from "./gate"
 
 export const PREVIEW_CACHE_CONTROL = "private, max-age=86400"
 
@@ -12,7 +11,6 @@ export type ServedPreviewRow = {
 }
 
 export type ServePreviewDeps = {
-  gate: () => Promise<PreviewCacheGate>
   readRow: (platform: PreviewPlatform, creativeKey: string) => Promise<ServedPreviewRow | null>
   /** Internal staff, or a client user whose client group contains `clientId`. 0 (no client) is staff only. */
   checkAccess: (clientId: number) => Promise<{ ok: true } | { ok: false; response: Response }>
@@ -30,12 +28,6 @@ export async function servePreviewImage(
   const platform = params.platform.trim().toLowerCase()
   const creativeKey = params.creativeKey.trim()
   if (!isPreviewPlatform(platform) || !creativeKey) return notFound()
-
-  const gate = await deps.gate()
-  if (!gate.ready) {
-    console.warn(`[creative-previews] ${gate.message}`)
-    return notFound()
-  }
 
   const row = await deps.readRow(platform, creativeKey)
   if (!row || !row.blobPathname) return notFound()

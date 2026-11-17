@@ -1,8 +1,7 @@
 /**
  * True-up tables (migration 0109, monthly invoiced vs billing schedule).
- * SQL is source of truth. 0109 is authored and not applied. Do not
- * db.select() these tables until migration_markers contains 0109_true_up
- * (C-76): every read and write goes through lib/finance/trueUp/marker.ts.
+ * SQL is source of truth. 0109 is applied live (marker 0109_true_up), so code
+ * reads these tables without a marker check (B48).
  * RLS on. ava_readonly SELECT (ava_read policy) comes from 0110.
  */
 import { sql } from "drizzle-orm"

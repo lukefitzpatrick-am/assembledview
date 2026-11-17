@@ -5,10 +5,8 @@ import { NextRequest } from "next/server"
 
 import { assertStaffOrClientAccess, type AssertClientAccessDeps } from "@/lib/auth/assertClientAccess"
 import type { ClientGroup } from "@/lib/clients/clientGroup"
-import { previewCacheGate, PREVIEW_MARKER_0098, PREVIEW_MARKER_0102 } from "@/lib/creative/previews/gate"
 import { PREVIEW_CACHE_CONTROL, servePreviewImage, type ServePreviewDeps, type ServedPreviewRow } from "@/lib/creative/previews/serve"
 
-const READY = previewCacheGate([PREVIEW_MARKER_0098, PREVIEW_MARKER_0102])
 
 function group(ids: number[]): ClientGroup {
   return {
@@ -37,7 +35,6 @@ function deps(
   const request = new NextRequest("http://localhost/api/creative-previews/meta/1")
   return {
     blobReads,
-    gate: async () => READY,
     readRow: async () => row,
     checkAccess: (clientId) => assertStaffOrClientAccess(request, clientId, access),
     getBlob: async (pathname) => {
@@ -121,26 +118,5 @@ describe("servePreviewImage", () => {
     const res = await servePreviewImage({ platform: "dv360", creativeKey: "1" }, d)
     assert.equal(res.status, 404)
   })
-
-  it("does nothing and 404s until 0102 is applied", async () => {
-    let reads = 0
-    const d = deps(ROW, accessDeps(["admin"], []), {
-      gate: async () => previewCacheGate([PREVIEW_MARKER_0098]),
-      readRow: async () => {
-        reads++
-        return ROW
-      },
-    })
-    const res = await servePreviewImage({ platform: "meta", creativeKey: "1" }, d)
-    assert.equal(res.status, 404)
-    assert.equal(reads, 0)
-  })
 })
 
-describe("previewCacheGate", () => {
-  it("names the missing marker", () => {
-    assert.deepEqual(previewCacheGate([]), { ready: false, message: "0098 not applied" })
-    assert.deepEqual(previewCacheGate([PREVIEW_MARKER_0098]), { ready: false, message: "0102 not applied" })
-    assert.deepEqual(previewCacheGate([PREVIEW_MARKER_0098, PREVIEW_MARKER_0102]), { ready: true })
-  })
-})

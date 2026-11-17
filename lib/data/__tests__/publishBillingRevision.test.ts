@@ -31,16 +31,9 @@ const noDb = new Proxy({}, {
   },
 }) as unknown as Db
 
-test("refuses with NOT_READY (409) until 0106 is applied, before any DB write", async () => {
-  await assert.rejects(
-    publishBillingRevision(input({ markerReader: async () => false }), noDb),
-    (err: unknown) => err instanceof BillingRevisionWriteError && err.code === "NOT_READY" && err.status === 409,
-  )
-})
-
 test("refuses an empty reason before any DB write", async () => {
   await assert.rejects(
-    publishBillingRevision(input({ reason: "  ", markerReader: async () => true }), noDb),
+    publishBillingRevision(input({ reason: "  " }), noDb),
     (err: unknown) => err instanceof BillingRevisionWriteError && err.status === 400,
   )
 })

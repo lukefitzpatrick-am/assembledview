@@ -101,7 +101,7 @@ export function buildFeaturePageModel(args: {
     const refusal = featureToggleRefusal(def.key, !enabled, raw, live, markerApplied)
     let hint: string | null = null
     if (def.source === "vercel") hint = def.vercelReason ?? "Set in Vercel."
-    else if (!args.ready) hint = "Run SQL 0111 to switch from the page. Until then it reads its env var."
+    else if (!args.ready) hint = "The switches could not be read. Until the next read it reads its env var."
     else if (!allowed) hint = def.toggleRole === "finance_admin" ? "Finance admins only." : "Admins only."
     else if (refusal) hint = refusal
     else if ("requires" in def && def.requires?.length) {

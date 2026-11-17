@@ -7,12 +7,10 @@ import { creativePreviewCache } from "@/db/schema"
 
 import { isPreviewPlatform } from "./core"
 import type { DashboardPreviewCacheRow } from "./dashboard"
-import { readPreviewCacheGate } from "./markers"
 
 /**
- * Cache rows for the given creatives. Empty until 0098 and 0102 are applied
- * (the 0102 columns are not read before then). A read error is empty, so the
- * dashboard falls back to icon tiles.
+ * Cache rows for the given creatives (0098 and 0102 are applied live). A
+ * read error is empty, so the dashboard falls back to icon tiles.
  */
 export async function loadDashboardPreviews(
   creatives: ReadonlyArray<{ platform: string; creativeKey: string }>,
@@ -26,9 +24,6 @@ export async function loadDashboardPreviews(
     keysByPlatform.set(platform, keys)
   }
   if (keysByPlatform.size === 0) return []
-
-  const gate = await readPreviewCacheGate()
-  if (!gate.ready) return []
 
   try {
     const db = getDb()

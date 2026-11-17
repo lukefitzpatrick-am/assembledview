@@ -1,6 +1,6 @@
 /**
- * Billing revision routes: flag off 404, admin only, no_user 401, marker
- * missing 409, apply needs a token and confirm.
+ * Billing revision routes: flag off 404, admin only, no_user 401, apply
+ * needs a token and confirm.
  */
 import assert from "node:assert/strict"
 import { mock, test } from "node:test"
@@ -26,7 +26,6 @@ const getCurrentUserMock = mock.fn(async (): Promise<{ id: number; name: string;
   name: "Luke",
   email: "luke@assembledmedia.com.au",
 }))
-const markerMock = mock.fn(async () => true)
 const previewMock = mock.fn(async (_args: Record<string, unknown>) => ({ ok: true, previewToken: "t", plan: {} }))
 const applyMock = mock.fn(async (_args: Record<string, unknown>) => ({
   ok: true,
@@ -36,9 +35,6 @@ const applyMock = mock.fn(async (_args: Record<string, unknown>) => ({
 if (typeof mock.module === "function") {
   await mock.module("@/lib/requireRole", { namedExports: { requireFinanceAdmin: requireFinanceAdminMock } })
   await mock.module("@/lib/auth/getCurrentUser", { namedExports: { getCurrentUser: getCurrentUserMock } })
-  await mock.module("@/lib/finance/revisions/marker", {
-    namedExports: { isBillingRevisionsMigrationApplied: markerMock },
-  })
   await mock.module("@/lib/finance/revisions/revisionService", {
     namedExports: {
       previewRevision: previewMock,
@@ -75,7 +71,6 @@ function reset() {
   process.env.BILLING_REVISIONS = "on"
   requireFinanceAdminMock.mock.mockImplementation(async () => admin)
   getCurrentUserMock.mock.mockImplementation(async () => ({ id: 7, name: "Luke", email: "luke@assembledmedia.com.au" }))
-  markerMock.mock.mockImplementation(async () => true)
   previewMock.mock.resetCalls()
   applyMock.mock.resetCalls()
   requireFinanceAdminMock.mock.resetCalls()
@@ -108,14 +103,6 @@ test("no audit user: 401 no_user", { skip }, async () => {
   const res = await preview(post("preview", body100k))
   assert.equal(res.status, 401)
   assert.equal((await res.json()).error, "no_user")
-})
-
-test("marker missing: 409 not_ready", { skip }, async () => {
-  reset()
-  markerMock.mock.mockImplementation(async () => false)
-  const res = await apply(post("apply", { previewToken: "t", confirm: true }))
-  assert.equal(res.status, 409)
-  assert.equal((await res.json()).message, "Billing revisions need migration 0106")
 })
 
 test("preview parses PENFOLD020 $100k and passes the session sub", { skip }, async () => {

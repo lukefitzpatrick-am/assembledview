@@ -42,7 +42,7 @@ test("matched records: media keys with a Xero match, carrying matched_by", () =>
   assert.deepEqual(q.params, ["2026-04", "2026-12"])
 })
 
-test("loader wires the five reads into the report", async () => {
+test("loader wires the eight reads into the report", async () => {
   const calls: string[] = []
   const report = await loadTrueUpWith(
     async (q) => {
@@ -53,11 +53,12 @@ test("loader wires the five reads into the report", async () => {
       if (text.includes("max(last_synced_at)")) return { rows: [{ last_synced_at: "2026-10-29T00:15:00Z" }] }
       if (text.includes("FROM xero_ar_invoices i")) return { rows: INVOICES }
       if (text.includes("FROM finance_billing_records r")) return { rows: MATCHED_RECORDS }
+      if (text.includes("true_up_invoice_links") || text.includes("client_finance_owners") || text.includes("true_up_actions")) return { rows: [] }
       throw new Error(`unexpected query ${text}`)
     },
     { asOfMonth: "2026-09", fromMonth: "2026-07", now: new Date("2026-10-29T10:00:00Z") },
   )
-  assert.equal(calls.length, 5)
+  assert.equal(calls.length, 8, "the five report reads and the three 0109 reads (B48: 0109 is applied live)")
   assert.equal(report.xeroSyncedAt, "2026-10-29T00:15:00.000Z")
   assert.equal(report.generatedAt, "2026-10-29T10:00:00.000Z")
   assert.equal(report.rows.find((r) => r.mbaNumber === "golf025")?.components.fee.gap, -163893)

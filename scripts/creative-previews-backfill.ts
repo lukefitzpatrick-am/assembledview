@@ -3,10 +3,6 @@
  * delivery. Dry run by default (reads only; no Blob or Postgres writes).
  * `--confirm` fetches and writes in batches of 300 until nothing is left.
  *
- * With 0098 applied but not 0102, the dry run reads the warehouse only and
- * reports every candidate (no cache row has a source hash yet). `--confirm`
- * refuses until both markers exist.
- *
  * Usage:
  *   npm run creative-previews:backfill
  *   npm run creative-previews:backfill -- --days 60
@@ -18,9 +14,7 @@ import {
   PREVIEW_RUN_LIMIT,
   type PreviewJobResult,
 } from "@/lib/creative/previews/core"
-import { PREVIEW_0102_MISSING } from "@/lib/creative/previews/gate"
-import { countPreviewCandidates, runCreativePreviewCache } from "@/lib/creative/previews/job"
-import { readPreviewCacheGate } from "@/lib/creative/previews/markers"
+import { runCreativePreviewCache } from "@/lib/creative/previews/job"
 import { loadEnvLocal } from "@/scripts/migration/_shared"
 
 loadEnvLocal()
@@ -51,33 +45,17 @@ function printResult(label: string, result: PreviewJobResult): void {
 
 async function main(): Promise<void> {
   const { confirm, days } = parseArgs(process.argv.slice(2))
-  const gate = await readPreviewCacheGate()
 
   if (!confirm) {
-    if (gate.ready) {
-      printResult(
-        "Would fetch",
-        await runCreativePreviewCache({ days, confirm: false, limit: Number.MAX_SAFE_INTEGER }),
-      )
-    } else if (gate.message === PREVIEW_0102_MISSING) {
-      console.log("0102 not applied: warehouse-only count, every candidate counts as a fetch.")
-      printResult("Would fetch", await countPreviewCandidates(days))
-    } else {
-      console.log(gate.message)
-    }
+    printResult("Would fetch", await runCreativePreviewCache({ days, confirm: false, limit: Number.MAX_SAFE_INTEGER }))
     console.log(`\nDry run. Re-run with --confirm to write (batches of ${PREVIEW_RUN_LIMIT}).`)
-    return
-  }
-
-  if (!gate.ready) {
-    console.log(`${gate.message}. Nothing written.`)
     return
   }
 
   for (let batch = 1; ; batch++) {
     const result = await runCreativePreviewCache({ days, confirm: true })
     printResult(`Batch ${batch}`, result)
-    if (result.status !== "ok" || result.totals.deferred === 0 || result.totals.fetched === 0) break
+    if (result.totals.deferred === 0 || result.totals.fetched === 0) break
   }
 }
 

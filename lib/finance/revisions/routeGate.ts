@@ -1,7 +1,6 @@
 /**
  * Route gate for /api/finance/billing-revisions/*:
- * flag off -> 404, then admin (401/403), then the audit user (401 no_user),
- * then the 0106 marker (409 not_ready).
+ * flag off -> 404, then admin (401/403), then the audit user (401 no_user).
  */
 import "server-only"
 
@@ -12,8 +11,7 @@ import { hasResolvableAuditUserId } from "@/lib/auth/teamMemberAuditId"
 import type { RevisionActor } from "@/lib/data/publishBillingRevision"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
-import { BILLING_REVISIONS_NOT_READY_MESSAGE, isBillingRevisionsEnabled } from "./flag"
-import { isBillingRevisionsMigrationApplied } from "./marker"
+import { isBillingRevisionsEnabled } from "./flag"
 
 export type RevisionRouteGate = { response: NextResponse } | { sub: string; actor: RevisionActor }
 
@@ -30,14 +28,6 @@ export async function gateBillingRevisionRoute(request: NextRequest): Promise<Re
       response: NextResponse.json(
         { error: "no_user", message: "Could not resolve user for audit." },
         { status: 401 },
-      ),
-    }
-  }
-  if (!(await isBillingRevisionsMigrationApplied())) {
-    return {
-      response: NextResponse.json(
-        { error: "not_ready", code: "NOT_READY", message: BILLING_REVISIONS_NOT_READY_MESSAGE },
-        { status: 409 },
       ),
     }
   }
