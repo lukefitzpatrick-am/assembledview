@@ -3,11 +3,14 @@
  * page or layout that exports `dynamic = "force-static"` (or `"error"`),
  * `revalidate` or `generateStaticParams` fails lint: it would be prerendered,
  * and a prerendered page's scripts get no CSP nonce. API routes keep their
- * `revalidate`. Pages keep the hex and C-200 selectors the rule sits beside.
+ * `revalidate`. Pages keep the hex and C-200 selectors the rule sits beside,
+ * and a page given its own C-200 block (FINALfix X5) keeps the rule too.
  * ESLint runs as a process (`eslint` is not a listed dependency).
  */
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
@@ -78,4 +81,29 @@ test("no page or layout in app/ is prerendered today", () => {
   assert.ok(Object.keys(out).includes("app/privacy/page.tsx"), "the legal pages are linted")
   const prerendered = Object.entries(out).filter(([, messages]) => messages.some(isPrerender)).map(([file]) => file)
   assert.deepEqual(prerendered, [])
+})
+
+test("a page with its own C-200 block (a governed file) keeps the prerender rule, beside hex and URL", () => {
+  const file = "app/zz-governed/page.tsx"
+  const dir = mkdtempSync(path.join(tmpdir(), "c200-page-"))
+  try {
+    // The block codexImportBlocks gives a governed file: its syntax, then the Codex specifier selectors.
+    const config = path.join(dir, "eslint.config.mjs")
+    writeFileSync(
+      config,
+      [
+        `import base, { c200SyntaxFor } from ${JSON.stringify(path.join(repo, "eslint.config.mjs"))}`,
+        `import { CODEX_SPECIFIER_SELECTORS } from ${JSON.stringify(path.join(repo, "scripts/codex-boundary.mjs"))}`,
+        `const file = ${JSON.stringify(file)}`,
+        'export default [...base, { files: [file], rules: { "no-restricted-syntax": ["error", ...c200SyntaxFor(file), ...CODEX_SPECIFIER_SELECTORS] } }]',
+      ].join("\n"),
+    )
+    const src = [...PLANTED, 'export const c = "#ffffff"', 'export const u = "/api/codex/tasks"']
+    const messages = lint(["-c", config, "--stdin", "--stdin-filename", file], src.join("\n"))[file]
+    const lines = (pick) => [...new Set(messages.filter(pick).map((m) => m.line))].sort((a, b) => a - b)
+    assert.deepEqual(lines(isPrerender), each(PLANTED))
+    assert.deepEqual(lines((m) => !isPrerender(m)), [PLANTED.length + 1, PLANTED.length + 2], "hex and URL")
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

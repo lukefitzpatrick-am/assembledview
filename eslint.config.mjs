@@ -50,6 +50,10 @@ const PRERENDER_SELECTORS = [
 // Pages and layouts only: API routes are not pages and keep their revalidate.
 const PAGE_FILES = ["app/**/{page,layout}.{ts,tsx}"]
 const TASKS_PAGE_FILES = ["app/tasks/**/{page,layout}.{ts,tsx}"]
+/** The prerender selectors for a page or layout (PAGE_FILES as a test). */
+const prerenderSelectorsFor = (file) => (/^app\/(.+\/)?(page|layout)\.tsx?$/.test(file) ? PRERENDER_SELECTORS : [])
+/** A C-200 governed file's own block replaces no-restricted-syntax, so it repeats every selector the blocks below give that file. */
+export const c200SyntaxFor = (file) => [...hexSelectorsFor(file), ...codexUrlSelectorsFor(file), ...prerenderSelectorsFor(file)]
 
 /** ESLint 9 reads this file. */
 const config = [
@@ -135,7 +139,7 @@ const config = [
   // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.
   ...codexImportBlocks(ROOT, {
     restrictedImports: RESTRICTED_IMPORTS,
-    syntaxFor: (file) => [...hexSelectorsFor(file), ...codexUrlSelectorsFor(file)],
+    syntaxFor: c200SyntaxFor,
   }),
 ]
 
