@@ -22,6 +22,7 @@ const MIN_BODY = {
       mediaType: "search",
       rate: 1,
       enteredAmount: 100,
+      bursts: [],
     },
   ],
   feeLoading: {},

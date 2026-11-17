@@ -57,7 +57,12 @@ test("legacy burst without calculatedValue derives deliverables from budget and 
     ]),
   ]
   const rows = mapStandardRadioLineItemsToExpertRows(std, cols, CS, CE, { feePct: 0 })
+  // A one-week burst imports as a one-week span; count every quantity in that week either way.
   const wk1 = cols[1]!
-  const weekQty = rows[0]!.weeklyValues[wk1.weekKey]
-  assert.equal(weekQty, 500)
+  const row = rows[0]!
+  const weekQty = Number(row.weeklyValues[wk1.weekKey] || 0)
+  const spanQty = (row.mergedWeekSpans ?? [])
+    .filter((s) => s.startWeekKey === wk1.weekKey && s.endWeekKey === wk1.weekKey)
+    .reduce((sum, s) => sum + s.totalQty, 0)
+  assert.equal(weekQty + spanQty, 500)
 })

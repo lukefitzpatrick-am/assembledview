@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}))
 
 vi.mock("@/lib/pacing/maths", () => ({
   getAsOfDate: () => "2026-07-01",
+  getMelbourneYesterdayISO: () => "2026-06-30",
   computePacing: () => ({ status: "on_track", percentComplete: 50 }),
   calculateTimeProgress: () => 50,
   formatCurrency: (n: number) => `$${n}`,

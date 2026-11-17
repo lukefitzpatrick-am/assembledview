@@ -63,11 +63,13 @@ test("countTasksByStatus groups by the raw status column with no bind params", a
     },
     db
   )
-  assert.equal(captured.length, 1)
-  const group = groupByClause(captured[0].sql)
+  // The visibility filter runs its own reads first; the count is the one grouped query.
+  const grouped = captured.filter((c) => /group by/i.test(c.sql))
+  assert.equal(grouped.length, 1)
+  const group = groupByClause(grouped[0].sql)
   assert.equal(group, `"tasks"."status"`)
   assert.doesNotMatch(group, /\$\d/)
-  assert.match(captured[0].sql, /^select "status", count\(\*\) from "tasks"/i)
+  assert.match(grouped[0].sql, /^select "status", count\(\*\) from "tasks"/i)
 })
 
 test("countTasksByStatus folds unknown statuses into todo", async () => {

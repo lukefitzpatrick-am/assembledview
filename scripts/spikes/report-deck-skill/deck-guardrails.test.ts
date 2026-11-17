@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
@@ -67,8 +68,14 @@ test("report effort is ANTHROPIC_REPORT_EFFORT only", () => {
   else process.env.ANTHROPIC_REPORT_EFFORT = previous
 })
 
-test("chart slide, fixed channel stats, outcome, and conversion note", () => {
-  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "test_checks.py")
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+// test_checks.py reads the brand kit and out/ (both local only, not in git) and needs python-pptx.
+const deckKitSkip = ["kit/assembled-brand-kit/templates/Assembled-Media-Template-v5.potx", "out/hema007-v5-report-data.json"]
+  .filter((f) => !existsSync(path.join(HERE, f)))
+  .map((f) => `needs ${f} (local only)`)[0]
+
+test("chart slide, fixed channel stats, outcome, and conversion note", { skip: deckKitSkip }, () => {
+  const script = path.join(HERE, "test_checks.py")
   execFileSync(
     "python",
     [
