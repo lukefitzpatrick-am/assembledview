@@ -13,6 +13,7 @@ import {
 } from './lib/auth/viewAs';
 import { CSP_REPORT_PATH } from './lib/security/cspReport';
 import { applySecurityHeaders } from './lib/security/headers';
+import { featureEnvValue } from './lib/features/registry';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/privacy', '/data-deletion'];
@@ -108,7 +109,8 @@ async function authGate(request: NextRequest, event?: NextFetchEvent): Promise<N
     isAuthApi ||
     pathname.startsWith('/api/cron') ||
     // Browsers send violation reports without a session; the route rate-limits and logs only.
-    pathname === CSP_REPORT_PATH ||
+    // Open only while the policy is sent: switched off, it is gated like any API route.
+    (pathname === CSP_REPORT_PATH && featureEnvValue('security_headers')) ||
     STATIC_PATHS.includes(pathname)
   ) {
     return continueResponse;

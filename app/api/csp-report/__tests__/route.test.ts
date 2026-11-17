@@ -5,14 +5,17 @@
 import { NextRequest } from "next/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+let session: { user: Record<string, unknown> } | null = null
+
 vi.mock("@/lib/auth0", () => ({
-  auth0: { middleware: vi.fn(async () => undefined), getSession: vi.fn(async () => null) },
-  auth0Raw: { middleware: vi.fn(async () => undefined), getSession: vi.fn(async () => null) },
+  auth0: { middleware: vi.fn(async () => undefined), getSession: vi.fn(async () => session) },
+  auth0Raw: { middleware: vi.fn(async () => undefined), getSession: vi.fn(async () => session) },
 }))
 
 import { middleware } from "../../../../middleware"
 import { POST } from "../route"
 import { parseCspReports, takeCspReportSlot } from "@/lib/security/cspReport"
+import { buildViewAsPayload, buildViewAsUser, VIEW_AS_COOKIE, VIEW_AS_HINT_COOKIE } from "@/lib/auth/viewAs"
 
 function post(body: string, headers: Record<string, string> = {}) {
   return POST(
@@ -57,7 +60,11 @@ const REPORTING_API = [
   { type: "deprecation", body: { id: "x" } },
 ]
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
+  session = null
+})
 
 describe("parseCspReports", () => {
   it("keeps directive, blocked origin, page path, source path, line and disposition only", () => {
@@ -132,9 +139,57 @@ describe("POST /api/csp-report", () => {
 })
 
 describe("middleware and the report path", () => {
-  it("lets a report through with no session (browsers send reports without one)", async () => {
-    const res = await middleware(new NextRequest("https://av.example/api/csp-report", { method: "POST" }))
-    expect(res.status).toBe(200)
-    expect(res.headers.get("x-middleware-next")).toBe("1")
+  const ADMIN = { sub: "auth0|a", "https://assembledview.com/roles": ["admin"] }
+  const VIEWING = `${VIEW_AS_COOKIE}=signed; ${VIEW_AS_HINT_COOKIE}=legal_super`
+  const clientView = () =>
+    buildViewAsUser(
+      ADMIN,
+      buildViewAsPayload({ adminSub: ADMIN.sub, slug: "legal_super", clientId: 16, clientName: "Legal Super", minutes: 60, nowMs: Date.now(), nonce: "n" }),
+    )
+  const send = (path: string, init: { method?: string; cookie?: string } = {}) =>
+    middleware(
+      new NextRequest(`https://av.example${path}`, {
+        method: init.method ?? "POST",
+        headers: init.cookie ? { cookie: init.cookie } : undefined,
+      }),
+    )
+
+  it("security_headers on: lets a report through with no session or in a client view (browsers send reports without one)", async () => {
+    vi.stubEnv("SECURITY_HEADERS", "on")
+    for (const path of ["/api/csp-report", "/api/csp-report/"]) {
+      const res = await send(path)
+      expect(res.status, path).toBe(200)
+      expect(res.headers.get("x-middleware-next")).toBe("1")
+    }
+    session = { user: clientView() }
+    const viewing = await send("/api/csp-report", { cookie: VIEWING })
+    expect(viewing.headers.get("x-middleware-next")).toBe("1")
+  })
+
+  it("security_headers on: only the exact path is open", async () => {
+    vi.stubEnv("SECURITY_HEADERS", "on")
+    for (const path of ["/api/csp-reportx", "/api/csp-report/x", "/api/csp-report-x"]) {
+      for (const method of ["GET", "POST"]) {
+        const res = await send(path, { method })
+        expect(res.status, `${method} ${path}`).toBe(401)
+        expect(await res.json()).toEqual({ error: "unauthorised" })
+      }
+    }
+  })
+
+  it("security_headers off: the path is gated like any API route (401 with no session, 403 in a client view)", async () => {
+    for (const method of ["GET", "POST"]) {
+      const res = await send("/api/csp-report", { method })
+      expect(res.status, method).toBe(401)
+      expect(await res.json()).toEqual({ error: "unauthorised" })
+    }
+    session = { user: clientView() }
+    const viewing = await send("/api/csp-report", { cookie: VIEWING })
+    expect(viewing.status).toBe(403)
+    expect((await viewing.json()).error).toBe("read_only_view_as")
+    // csp_enforce alone does not open it either.
+    vi.stubEnv("CSP_ENFORCE", "on")
+    session = null
+    expect((await send("/api/csp-report")).status).toBe(401)
   })
 })

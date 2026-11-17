@@ -493,7 +493,7 @@ pct === 100 → fee = 0 (division guard)
 - `script-src` never takes `'unsafe-inline'`. An inline script the app adds carries the page nonce (`readNonce`).
 - Every page renders per request. No page sets `dynamic = "force-static"`, exports `revalidate` or `generateStaticParams`: a prerendered page has no nonce, so its scripts are blocked once the policy is enforced.
 - Only the app frames its pages (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`).
-- `/api/csp-report` takes no session and logs no query string, script sample, referrer, user agent or IP.
+- `/api/csp-report` takes no session only while `security_headers` is on; switched off, middleware gates it like any other API route. It logs no query string, script sample, referrer, user agent or IP.
 
 ## Legal
 

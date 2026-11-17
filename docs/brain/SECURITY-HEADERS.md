@@ -4,7 +4,7 @@ Decision S27 A: check what Vercel sends, add a baseline of security headers, run
 
 - Builder: `lib/security/headers.ts` (the one place the headers and the policy string are built).
 - Applied by: `middleware.ts` (`applySecurityHeaders`, on every response middleware handles).
-- Reports: `POST /api/csp-report` (`app/api/csp-report/route.ts`, parser `lib/security/cspReport.ts`).
+- Reports: `POST /api/csp-report` (`app/api/csp-report/route.ts`, parser `lib/security/cspReport.ts`). Open with no session only while `security_headers` is on (middleware). Switched off, it is gated like any API route: 401 with no session, 403 in a client view.
 - Tests: `lib/security/__tests__/headers.test.ts` (pins the policy string), `app/api/csp-report/__tests__/route.test.ts`.
 
 ## Switches (both `source: "vercel"`, owner Luke, off)
