@@ -13,12 +13,22 @@
 --   Before this: deploy the B53 code, rename on the Team tab every person
 --   whose name is an email (2 live on 18 Nov), and run the B53 alias script
 --   (it takes samantha@ off the second row).
+--   0. Run the marker table statement (no-op where the table exists).
 --   1. Run the BEFORE block. Every count must be 0.
 --   2. Run the DO block. It refuses (nothing done) if the marker exists or any
 --      row breaks a rule, and lists those rows. It rolls back if any AFTER
 --      check inside fails.
 --   3. Run the AFTER block.
 --   Then turn on roster_rules on /admin/features.
+
+-- ===================== 0. Marker table (adds no rows) =====================
+-- Creates public.migration_markers only if it is missing (live has it), so
+-- the BEFORE block can read it on any database.
+CREATE TABLE IF NOT EXISTS public.migration_markers (
+  key         text primary key,
+  applied_at  timestamptz not null default now(),
+  note        text
+);
 
 -- ===================== 1. BEFORE (read only) =====================
 SELECT count(*) AS marker_rows FROM public.migration_markers
@@ -35,12 +45,6 @@ SELECT address, string_agg(id::text, ', ' ORDER BY id) AS team_member_ids
   FROM held GROUP BY address HAVING count(DISTINCT id) > 1;                   -- expect no rows (run the B53 alias script)
 
 -- ===================== 2. CHANGE (one DO block) =====================
-CREATE TABLE IF NOT EXISTS public.migration_markers (
-  key         text primary key,
-  applied_at  timestamptz not null default now(),
-  note        text
-);
-
 DO $$
 DECLARE
   bad       text;
