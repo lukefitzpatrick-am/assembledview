@@ -4,7 +4,8 @@ import {
   type Auth0ListedUser,
 } from "@/lib/api/auth0Management"
 
-import { newRosterRow, type StoredRosterRow } from "./auth0LoginUpsert"
+import { aliasesForNewRosterEmail, type StoredRosterRow } from "./auth0LoginUpsert"
+import { newRosterRow } from "./rosterRules"
 import {
   listedUserRoles,
   rosterEligibilityForManagementUser,
@@ -80,7 +81,7 @@ async function upsertAdminFromAuth0(
   const existing = await store.findByEmail(email)
   if (!existing) {
     const row = newRosterRow(
-      { email, name: user.name, auth0UserId, lastLoginAt, rosterSource: "auth0_sync" },
+      { email, name: user.name, aliases: aliasesForNewRosterEmail(email), auth0UserId, lastLoginAt, rosterSource: "auth0_sync" },
       await store.listRoster(),
       rules,
       "[auth0-roster-sync]",

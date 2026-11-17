@@ -1,15 +1,17 @@
 import { isUniqueViolation, sqlStateOf } from "@/lib/db/pgError"
-import { normaliseEmail } from "@/lib/email/address"
+import { displayNameFromEmail, normaliseEmail } from "@/lib/email/address"
 import { isFreeMailDomain } from "@/lib/fireflies/learnableDomains"
 
-import { AliasCollisionError } from "./rosterAliasGuard"
+import type { RosterSource, StoredRosterRow } from "./auth0LoginUpsert"
+import { AliasCollisionError, dropCollidingNewAliases } from "./rosterAliasGuard"
 import { looksLikeEmail, rosterDisplayName, type RosterPerson } from "./rosterResolve"
 
 /**
  * The roster rules (S18 A, B53). Pure. Every roster write runs through
  * `prepareRosterWrite` when the `roster_rules` switch is on: the Team tab add
  * and edit (`createTeamMember`, `updateTeamMember`) and the Auth0 login and
- * sync inserts (`newRosterRow`).
+ * sync inserts (`newRosterRow`, here so the write modules keep their export
+ * lists).
  *
  *   1. Every person has a primary address (one email address).
  *   2. A name never holds an email address (no "@").
@@ -106,6 +108,62 @@ export function prepareRosterWrite(
   const initials = initialsAliasOf({ email, name })
   if (initials && initials !== email && !aliases.includes(initials) && !holderOf(initials, others)) aliases.push(initials)
   return { email, name, aliases }
+}
+
+/**
+ * The name for a new Auth0 row: the profile name, or a name built from the
+ * address when the profile has none or it holds an email (B53, S18: a name
+ * never holds an email address).
+ */
+function newRosterName(profileName: unknown, email: string): string {
+  const name = typeof profileName === "string" ? profileName.trim() : ""
+  return name && !name.includes("@") ? name : displayNameFromEmail(email) || email
+}
+
+/**
+ * The row an Auth0 login or sync inserts for a new address (one place for
+ * both writers). A generated alias someone holds is dropped. With `rules`
+ * (the `roster_rules` switch) the row goes through the roster rules: it
+ * gains its initials alias, and a row that breaks a rule (its address is
+ * already someone's alias) is not inserted (null, logged).
+ */
+export function newRosterRow(
+  input: {
+    email: string
+    name: unknown
+    aliases: string[]
+    auth0UserId: string | null
+    lastLoginAt: string
+    rosterSource: Exclude<RosterSource, "manual">
+  },
+  roster: readonly StoredRosterRow[],
+  rules: boolean,
+  logTag: string
+): StoredRosterRow | null {
+  const holders = roster.map((row) => ({ email: row.email, name: row.name, aliases: row.emailAliases, active: true }))
+  const { accepted, refused } = dropCollidingNewAliases(input.aliases, holders, input.email)
+  for (const item of refused) {
+    console.warn(`${logTag} skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`)
+  }
+  let write: RosterWrite = { email: input.email, name: newRosterName(input.name, input.email), aliases: accepted }
+  if (rules) {
+    try {
+      write = prepareRosterWrite(write, holders)
+    } catch (err) {
+      if (!(err instanceof RosterRuleError)) throw err
+      console.warn(`${logTag} skipped ${input.email}: ${err.message}`)
+      return null
+    }
+  }
+  return {
+    email: write.email,
+    name: write.name,
+    auth0UserId: input.auth0UserId,
+    emailAliases: write.aliases,
+    roleTitle: null,
+    lastLoginAt: input.lastLoginAt,
+    rosterSource: input.rosterSource,
+  }
 }
 
 export type InitialsGap = {
