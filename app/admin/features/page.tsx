@@ -178,7 +178,7 @@ function FeaturesPageInner() {
                   <p className="text-sm text-muted-foreground">{row.description}</p>
                   <p className="text-xs text-muted-foreground">
                     Owner {row.owner}
-                    {row.onSince ? ` · On since ${row.onSince} · Retire after ${row.retireAfter}` : ""}
+                    {row.onSince ? ` · On since ${row.onSince} · Retire after ${row.retireAfter}` : row.retirementNote ? ` · ${row.retirementNote}` : ""}
                     {row.pastRetirement ? ". Ask the owner to confirm it has run on in production, then retire it in a code batch." : ""}
                   </p>
                   {row.lastChanged ? (

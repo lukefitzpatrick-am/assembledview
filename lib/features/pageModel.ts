@@ -47,6 +47,8 @@ export type FeaturePageRow = {
   retireAfter: string | null
   /** Past `retireAfter`: the next batch should retire it once Luke confirms (S16). */
   pastRetirement: boolean
+  /** Shown in place of the dates where they can't be known: a Vercel switch writes no switch events. */
+  retirementNote: string | null
 }
 
 export type FeaturePageGroup = { area: FeatureArea; label: string; rows: FeaturePageRow[] }
@@ -134,6 +136,7 @@ export function buildFeaturePageModel(args: {
       onSince,
       retireAfter,
       pastRetirement: retireAfter != null && today > retireAfter,
+      retirementNote: def.source === "vercel" ? "Set in Vercel; on-since and retirement date are not tracked here" : null,
     }
   })
   return AREA_ORDER.map((area) => ({

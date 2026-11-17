@@ -45,3 +45,15 @@ test("a switch that is off, env-only or has no on time shows no dates and is nev
     assert.equal(row.pastRetirement, false, state.key)
   }
 })
+
+test("FINALfix (X4): a Vercel switch says its dates are not tracked here, instead of a blank; a database switch says nothing", () => {
+  for (const key of ["security_headers", "csp_enforce", "view_as"]) {
+    for (const enabled of [true, false]) {
+      const row = pageRow({ key, enabled, source: "vercel", row: null }, "2027-06-30")
+      assert.equal(row.retirementNote, "Set in Vercel; on-since and retirement date are not tracked here", key)
+      assert.equal(row.onSince, null, key)
+      assert.equal(row.pastRetirement, false, key)
+    }
+  }
+  assert.equal(pageRow({ key: "true_up", enabled: true, source: "switch", row: null, onSince: "2026-10-31T22:30:00+00:00" }, "2026-11-15").retirementNote, null)
+})

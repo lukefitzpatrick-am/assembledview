@@ -14,7 +14,7 @@ Decision S27 A: check what Vercel sends, add a baseline of security headers, run
 | `security_headers` | `SECURITY_HEADERS` | Every response middleware handles gets the baseline headers. Every page gets the policy as `Content-Security-Policy-Report-Only`. Nothing is blocked by the policy. |
 | `csp_enforce` | `CSP_ENFORCE` | The same policy moves to `Content-Security-Policy`: the browser blocks what it reported. Needs `security_headers` on (`requires`). |
 
-Both are read in middleware, which can't query the database, so they are set in Vercel and need a redeploy. Retirement (S16): 14 days after each is confirmed on in production, the next batch deletes it and its off path. Once `csp_enforce` retires the report-only path goes with it.
+Both are read in middleware, which can't query the database, so they are set in Vercel and need a redeploy. Retirement (S16): 14 days after each is confirmed on in production, the next batch deletes it and its off path. `/admin/features` can't show their on-since or retirement dates (a Vercel switch writes no switch events) and says so on the row, so note the day each goes on. Once `csp_enforce` retires the report-only path goes with it.
 
 ## Step 1: check what Vercel sends today
 
