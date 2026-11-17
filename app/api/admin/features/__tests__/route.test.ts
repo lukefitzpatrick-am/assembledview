@@ -25,7 +25,7 @@ if (typeof mock.module === "function") {
   })
   await mock.module("@/lib/features/server", {
     namedExports: {
-      readFeatureStates: async () => ({ ready: true, states: [] }),
+      readFeatureStates: async () => ({ ready: true, states: [], markers: [] }),
       readFeatureSwitchEvents: async () => [],
       setFeatureSwitch: setMock,
     },

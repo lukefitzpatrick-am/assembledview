@@ -81,6 +81,18 @@ describe("setFeatureSwitch", { skip }, () => {
     ])
   })
 
+  test("a switch whose migration marker is missing can't be turned on; once the marker exists it can", async () => {
+    assert.equal((await server.setFeatureSwitch({ key: "codex_v2", enabled: true, note: null, actor: ACTOR, env: {} })).ok, true)
+    const refused = await server.setFeatureSwitch({ key: "codex_saved_views", enabled: true, note: null, actor: ACTOR, env: {} })
+    assert.deepEqual(refused, { ok: false, status: 409, code: "SWITCH_DEPENDENCY", message: "Run migration 0117_codex_saved_views first: this switch needs it." })
+    assert.equal((await sql`SELECT count(*)::int AS n FROM feature_switches WHERE key = 'codex_saved_views'`)[0].n, 0)
+    await sql`INSERT INTO migration_markers (key) VALUES ('0117_codex_saved_views')`
+    const { setMarkerReaderForTests } = await import("@/lib/db/markers")
+    setMarkerReaderForTests(null) // forget the cached "missing" answer, as the recheck window would
+    assert.equal((await server.setFeatureSwitch({ key: "codex_saved_views", enabled: true, note: null, actor: ACTOR, env: {} })).ok, true)
+    assert.equal(await server.isFeatureOn("codex_saved_views", {}), true)
+  })
+
   test("on since: the latest event that turned it on, not a later save at the same value; a row with no such event uses its updated time", async () => {
     await sql`DELETE FROM feature_switches`
     await sql`DELETE FROM feature_switch_events`

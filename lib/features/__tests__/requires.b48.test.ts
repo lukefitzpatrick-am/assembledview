@@ -70,7 +70,7 @@ for (const def of SWITCHES) {
         setFeatureRowReaderForTests(async () => new Map(keys.map((k) => [k, row(k, on[k])])))
         const label = JSON.stringify(on)
         assert.equal(await isFeatureOn(def.key, {}), before(on), label)
-        assert.equal(effectiveFeatureOn(def.key, (k) => on[k] === true), before(on), label)
+        assert.equal(effectiveFeatureOn(def.key, (k) => on[k] === true, () => true), before(on), label)
         if (def.clientVisible) {
           const snapshot = await readClientFeatureSnapshot({})
           assert.equal(snapshot[def.key as keyof typeof snapshot], before(on), `snapshot ${label}`)

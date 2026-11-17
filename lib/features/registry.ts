@@ -55,6 +55,12 @@ export type FeatureDefinition = {
    * browser check repeats them (S16).
    */
   requires?: readonly string[]
+  /**
+   * A `migration_markers` key the switch's code assumes (S28 prep). Until it
+   * exists the switch reads off and can't be turned on, so code behind it
+   * never checks the marker or keeps a pre-migration path.
+   */
+  requiresMarker?: string
   /** Why a "vercel" switch can't move to the page. */
   vercelReason?: string
   /** Who confirms the switch is on in production and settles its retirement (S16). */
@@ -476,6 +482,7 @@ export const FEATURE_DEFINITIONS = [
   },
   {
     key: "codex_saved_views",
+    requiresMarker: "0117_codex_saved_views",
     label: "Tasks: saved views",
     description:
       "Tasks (Codex) list and board get a Views menu: save the current filters and layout as a named view, share it with staff, pick a view, rename or delete your own (F8). A view opens by link (/tasks?view=<id>); view=list and view=board still set the layout. Needs migration 0117 (codex_saved_views); before it runs the menu stays hidden and the page loads as today. Needs Tasks (Codex) on. Off: no Views menu and /api/codex/saved-views is 404.",
@@ -489,6 +496,7 @@ export const FEATURE_DEFINITIONS = [
   },
   {
     key: "codex_projects",
+    requiresMarker: "0118_codex_s1_projects",
     label: "Tasks: projects and sections",
     description:
       "Codex projects (S1, B38 and B39): a Projects tab on Tasks (list, create) and a board per project at /tasks/projects/<id> whose columns are the project's sections (drag between sections changes the section and status, a done section completes the task; drag within a section reorders; section menu to add, rename, move, collapse, set status and delete when empty; inline add; bulk paste up to 200 lines; hide or show completed). Also: a status change from the Tasks list, bulk edit or Tasks board on a task in a project moves it to the matching section, or is refused (409) when the project has no section with that status. B40: a List view per project (grouped by section, tasks without one in a No section group; sort and filter by assignee, due, priority and each field; saved views per project); task detail for project tasks (section, start date, assigned by set by the server, ASAP priority once 0118 is applied (on Tasks it sorts above High and is a filter), milestone, subtasks with their own assignee and dates, never a board card); custom single-select and multi-select (tags) fields per project with values on tasks, chips on cards (show or hide per project) and a settings panel. API under /api/codex/projects. Needs migration 0118 (codex_s1_projects); before it runs the Projects tab and boards say the database needs an update and the routes answer 503 migration_not_applied. B42: a Workload tab on Tasks (open tasks per person by week due, overdue, later and no due date; only tasks you can see). Private projects (B42): once 0118 is applied their tasks show only to the owner, creator and members on every Tasks surface (list, counts, search, task detail, bulk, saved views, Inbox, Team tab) and are left out of read-only panels outside Tasks, with this switch on or off. Needs Tasks (Codex) on. Off: no Projects tab, project boards say projects are off, every /api/codex/projects route is 404, PATCH and bulk behave as before, and nothing reads the new tables. Once 0118 is applied some task paths read the new columns switch or not: a subtask is never treated as a help child (Waiting on, done, reopen, delete), deleting a task deletes its subtasks, and Tasks cards and rows say \"Subtask of\" for a subtask. Before 0118 none of them reads anything new.",
@@ -674,23 +682,34 @@ export function resolveFeature(
 }
 
 /**
- * The live value of a switch: its own value (`raw`, from `resolveFeature`)
- * and every switch it requires, transitively (S16). The one place
- * requirements are resolved.
+ * The live value of a switch: its own value (`raw`, from `resolveFeature`),
+ * its migration marker, and every switch it requires, transitively (S16).
+ * The one place requirements are resolved.
  */
-export function effectiveFeatureOn(key: string, raw: (key: string) => boolean): boolean {
+export function effectiveFeatureOn(
+  key: string,
+  raw: (key: string) => boolean,
+  markerApplied: (marker: string) => boolean,
+): boolean {
   const def = featureDefinition(key)
   if (!def || !raw(key)) return false
-  return (def.requires ?? []).every((k) => effectiveFeatureOn(k, raw))
+  if (def.requiresMarker && !markerApplied(def.requiresMarker)) return false
+  return (def.requires ?? []).every((k) => effectiveFeatureOn(k, raw, markerApplied))
 }
+
+/** Every `requiresMarker` in the registry. */
+export const FEATURE_MARKERS: readonly string[] = [
+  ...new Set(FEATURE_DEFINITIONS.flatMap((d) => ("requiresMarker" in d && d.requiresMarker ? [d.requiresMarker] : []))),
+]
 
 function labelList(keys: readonly string[]): string {
   return keys.map((k) => featureDefinition(k)?.label ?? k).join(" and ")
 }
 
 /**
- * Why a switch can't be set to `enabled` now, or null (S16). On needs every
- * switch in its `requires` live (`live`: `effectiveFeatureOn`). Off is
+ * Why a switch can't be set to `enabled` now, or null (S16). On needs its
+ * migration marker and every switch in its `requires` live (`live`:
+ * `effectiveFeatureOn`). Off is
  * refused while a switch that requires it is on (`raw`: its own value), so
  * no switch is left on with its requirement off.
  */
@@ -699,9 +718,13 @@ export function featureToggleRefusal(
   enabled: boolean,
   raw: (key: string) => boolean,
   live: (key: string) => boolean,
+  markerApplied: (marker: string) => boolean,
 ): string | null {
   const def = featureDefinition(key)
   if (!def) return null
+  if (enabled && def.requiresMarker && !markerApplied(def.requiresMarker)) {
+    return `Run migration ${def.requiresMarker} first: this switch needs it.`
+  }
   if (enabled) {
     const off = (def.requires ?? []).filter((k) => !live(k))
     return off.length ? `Turn on ${labelList(off)} first: this switch needs ${off.length === 1 ? "it" : "them"}.` : null
@@ -721,10 +744,15 @@ export function canToggleFeature(def: FeatureDefinition, roles: { admin: boolean
  * live value in, and as their default in tests. Not for live gates.
  */
 export function featureEnvValue(key: FeatureKey, env: Record<string, string | undefined> = process.env): boolean {
-  return effectiveFeatureOn(key, (k) => {
-    const def = featureDefinition(k)
-    return def ? resolveFeature(def, null, env).enabled : false
-  })
+  // No database here: a marker counts as applied (no env-read switch names one).
+  return effectiveFeatureOn(
+    key,
+    (k) => {
+      const def = featureDefinition(k)
+      return def ? resolveFeature(def, null, env).enabled : false
+    },
+    () => true,
+  )
 }
 
 export type UnsavedFeatureSwitch = { key: FeatureKey; enabled: boolean; source: "env" | "default" }

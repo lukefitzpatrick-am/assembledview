@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
     // requireFinanceAdmin is the same admin role check today (lib/requireRole.ts),
     // so an admin may toggle finance switches too. Kept separate so it can narrow.
     const financeAdmin = true
-    const [{ ready, states }, events] = await Promise.all([readFeatureStates(), readFeatureSwitchEvents(50)])
+    const [{ ready, states, markers }, events] = await Promise.all([readFeatureStates(), readFeatureSwitchEvents(50)])
     return NextResponse.json({
       ready,
-      groups: buildFeaturePageModel({ ready, states, roles: { admin: true, financeAdmin } }),
+      groups: buildFeaturePageModel({ ready, states, markers, roles: { admin: true, financeAdmin } }),
       events,
       signing: [
         { purpose: "view-as", label: "View as client", source: signingKeySource("view-as") },

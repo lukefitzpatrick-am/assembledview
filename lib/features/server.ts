@@ -12,12 +12,14 @@ import { eq, sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
 import { migrationMarkers } from "@/db/schema"
+import { isMarkerApplied } from "@/lib/db/markers"
 import { rowsOf } from "@/lib/xero/dbRows"
 
 import {
   CLIENT_FEATURE_KEYS,
   effectiveFeatureOn,
   FEATURE_DEFINITIONS,
+  FEATURE_MARKERS,
   featureDefinition,
   featureToggleRefusal,
   resolveFeature,
@@ -97,9 +99,22 @@ function store(): FeatureRowStore {
   return globalStore.__avFeatureRowStore
 }
 
-/** Tests only: swap the reader (and clear the cache). */
-export function setFeatureRowReaderForTests(reader: FeatureRowReader | null): void {
+let markerReader: (marker: string) => Promise<boolean> = (marker) => isMarkerApplied(marker)
+
+/** The registry's `requiresMarker` keys that exist, through lib/db/markers (cached there). */
+async function readSwitchMarkers(): Promise<ReadonlySet<string>> {
+  const found = await Promise.all(FEATURE_MARKERS.map(async (m) => ((await markerReader(m)) ? m : null)))
+  return new Set(found.filter((m): m is string => m != null))
+}
+
+/**
+ * Tests only: swap the row reader (and clear the cache). While a reader is
+ * set, the switch markers read as `markers` (default: all applied); null
+ * puts the database back for both.
+ */
+export function setFeatureRowReaderForTests(reader: FeatureRowReader | null, markers: readonly string[] = FEATURE_MARKERS): void {
   globalStore.__avFeatureRowStore = reader ? createFeatureRowStore(reader) : undefined
+  markerReader = reader ? async (m) => markers.includes(m) : (m) => isMarkerApplied(m)
 }
 
 /** Clears this instance's cache after a toggle. */
@@ -123,13 +138,15 @@ function rawLookup(rows: ReadonlyMap<string, FeatureRow> | null, env: Record<str
 }
 
 /**
- * The live value: the switch's own value (row, else env, else default) and
- * every switch it requires, transitively. Callers never re-check `requires`.
+ * The live value: the switch's own value (row, else env, else default), its
+ * migration marker, and every switch it requires, transitively. Callers
+ * never re-check `requires` or the marker.
  */
 export async function isFeatureOn(key: FeatureKey, env: Record<string, string | undefined> = process.env): Promise<boolean> {
   const def = definitionOrThrow(key)
-  const rows = def.source === "vercel" && !def.requires?.length ? null : await readFeatureRows()
-  return effectiveFeatureOn(key, rawLookup(rows, env))
+  if (def.source === "vercel" && !def.requires?.length) return resolveFeature(def, null, env).enabled
+  const [rows, markers] = await Promise.all([readFeatureRows(), readSwitchMarkers()])
+  return effectiveFeatureOn(key, rawLookup(rows, env), (m) => markers.has(m))
 }
 
 export type FeatureState = {
@@ -166,8 +183,10 @@ async function readOnSince(): Promise<Map<string, string>> {
 export async function readFeatureStates(env: Record<string, string | undefined> = process.env): Promise<{
   ready: boolean
   states: FeatureState[]
+  /** The registry's migration markers that exist. */
+  markers: string[]
 }> {
-  const rows = await readFeatureRows()
+  const [rows, markers] = await Promise.all([readFeatureRows(), readSwitchMarkers()])
   const onSince = rows
     ? await readOnSince().catch((err) => {
         console.warn("[features] on-since read failed; page shows no dates", err)
@@ -176,6 +195,7 @@ export async function readFeatureStates(env: Record<string, string | undefined> 
     : new Map<string, string>()
   return {
     ready: rows != null,
+    markers: [...markers],
     states: FEATURE_DEFINITIONS.map((def) => {
       const r = resolveFeature(def, rows, env)
       return {
@@ -200,9 +220,10 @@ export type ClientFeatureSnapshot = Record<ClientFeatureKey, boolean>
 export async function readClientFeatureSnapshot(
   env: Record<string, string | undefined> = process.env,
 ): Promise<ClientFeatureSnapshot> {
-  const raw = rawLookup(await readFeatureRows(), env)
+  const [rows, markers] = await Promise.all([readFeatureRows(), readSwitchMarkers()])
+  const raw = rawLookup(rows, env)
   const out = {} as ClientFeatureSnapshot
-  for (const key of CLIENT_FEATURE_KEYS) out[key] = effectiveFeatureOn(key, raw)
+  for (const key of CLIENT_FEATURE_KEYS) out[key] = effectiveFeatureOn(key, raw, (m) => markers.has(m))
   return out
 }
 
@@ -256,7 +277,8 @@ export type SetFeatureSwitchResult =
  * Writes the switch row and one event in one transaction, then clears this
  * instance's cache. `from` is the value the app was using (row, env or default).
  * Refuses (409 SWITCH_DEPENDENCY, nothing written) to turn a switch on while
- * a requirement is off, or off while a switch that requires it is on (S16).
+ * its migration marker is missing or a requirement is off, or off while a
+ * switch that requires it is on (S16).
  * Switch writes take one transaction lock, so two toggles can't race past
  * the check (a missing row can't be locked with FOR UPDATE).
  */
@@ -279,6 +301,8 @@ export async function setFeatureSwitch(args: {
   const actorId = args.actor.id != null && Number.isFinite(args.actor.id) && args.actor.id > 0 ? args.actor.id : null
   const actorName = args.actor.name?.trim() ? args.actor.name.trim().slice(0, 200) : null
   const env = args.env ?? process.env
+  const markers = await readSwitchMarkers()
+  const markerApplied = (m: string) => markers.has(m)
   let changed = false
   const refusal = await getDb().transaction(async (tx): Promise<string | null> => {
     await tx.execute(SWITCH_WRITE_LOCK)
@@ -291,7 +315,7 @@ export async function setFeatureSwitch(args: {
       ).map((r) => [r.key, toFeatureRow(r)]),
     )
     const raw = rawLookup(rows, env)
-    const refused = featureToggleRefusal(def.key, args.enabled, raw, (k) => effectiveFeatureOn(k, raw))
+    const refused = featureToggleRefusal(def.key, args.enabled, raw, (k) => effectiveFeatureOn(k, raw, markerApplied), markerApplied)
     if (refused) return refused
     const before = raw(def.key)
     changed = before !== args.enabled

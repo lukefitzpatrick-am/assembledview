@@ -84,18 +84,21 @@ export function buildFeaturePageModel(args: {
   roles: { admin: boolean; financeAdmin: boolean }
   /** Melbourne today, YYYY-MM-DD. */
   today?: string
+  /** The registry's migration markers that exist (`readFeatureStates`); default none. */
+  markers?: readonly string[]
 }): FeaturePageGroup[] {
   const today = args.today ?? getMelbourneTodayISO()
   const byKey = new Map(args.states.map((s) => [s.key, s]))
   const raw = (key: string) => byKey.get(key)?.enabled ?? featureDefinition(key)?.defaultOn ?? false
-  const live = (key: string) => effectiveFeatureOn(key, raw)
+  const markerApplied = (m: string) => args.markers?.includes(m) === true
+  const live = (key: string) => effectiveFeatureOn(key, raw, markerApplied)
   const rows: FeaturePageRow[] = FEATURE_DEFINITIONS.map((def) => {
     const s = byKey.get(def.key)
     const enabled = s?.enabled ?? def.defaultOn
     const source = s?.source ?? (def.source === "vercel" ? "vercel" : "default")
     const allowed = canToggleFeature(def, args.roles)
     // S16: the same rule setFeatureSwitch enforces, so the page never offers a refused change.
-    const refusal = featureToggleRefusal(def.key, !enabled, raw, live)
+    const refusal = featureToggleRefusal(def.key, !enabled, raw, live, markerApplied)
     let hint: string | null = null
     if (def.source === "vercel") hint = def.vercelReason ?? "Set in Vercel."
     else if (!args.ready) hint = "Run SQL 0111 to switch from the page. Until then it reads its env var."

@@ -9,9 +9,10 @@ import test from "node:test"
 import { buildFeaturePageModel } from "@/lib/features/pageModel"
 import { effectiveFeatureOn, featureToggleRefusal } from "@/lib/features/registry"
 
-function rule(on: string[]) {
+function rule(on: string[], markers: string[] = ["0117_codex_saved_views", "0118_codex_s1_projects"]) {
   const raw = (k: string) => on.includes(k)
-  return (key: string, enabled: boolean) => featureToggleRefusal(key, enabled, raw, (k) => effectiveFeatureOn(k, raw))
+  const applied = (m: string) => markers.includes(m)
+  return (key: string, enabled: boolean) => featureToggleRefusal(key, enabled, raw, (k) => effectiveFeatureOn(k, raw, applied), applied)
 }
 
 test("on is refused while a requirement is off, naming it", () => {
@@ -51,6 +52,7 @@ test("/admin/features disables a refused toggle and says why", () => {
     ready: true,
     states: [state("true_up", true), state("true_up_cron", true), state("codex_v2", false), state("codex_search", false)],
     roles: { admin: true, financeAdmin: true },
+    markers: ["0117_codex_saved_views", "0118_codex_s1_projects"],
   }).flatMap((g) => g.rows)
   const trueUp = rows.find((r) => r.key === "true_up")!
   assert.equal(trueUp.canToggle, false)
