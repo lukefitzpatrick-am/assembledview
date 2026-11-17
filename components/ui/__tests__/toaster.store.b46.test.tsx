@@ -167,7 +167,7 @@ describe("Toaster with the one toast store", () => {
     expect(document.querySelectorAll("li")).toHaveLength(3)
   })
 
-  it("shows a repeat of an open toast once, and again after it closes (B46fix R3)", () => {
+  it("shows a repeat of a toast once, and again after it closes (B46fix R3)", () => {
     act(() => {
       root.render(<Toaster />)
     })
@@ -185,15 +185,66 @@ describe("Toaster with the one toast store", () => {
     })
     expect(document.querySelectorAll("li")).toHaveLength(3)
 
-    // A closing toast is not reused: the repeat sent during its exit shows.
+    // A repeat sent while the toast is closing shows as a new toast.
     act(() => {
-      handles[0].dismiss()
+      handles[12].dismiss()
       handles.push(toast({ variant: "destructive", title: "Error loading publishers", description: "Failed to fetch" }))
     })
     act(() => {
       vi.advanceTimersByTime(2_000)
     })
     expect(document.querySelectorAll("li")).toHaveLength(3)
+  })
+
+  it("restarts the close timer of an open toast when it repeats (WAVE0fix R6)", () => {
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ title: "Task created" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(4_000)
+    })
+    act(() => {
+      handles.push(toast({ title: "Task created" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    // 6 s after the first and 2 s after the repeat: still open, shown once.
+    expect(document.querySelectorAll("li")).toHaveLength(1)
+    expect(shown()).toContain("Task created")
+    act(() => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(shown()).not.toContain("Task created")
+  })
+
+  it("announces a repeated error to screen readers again (WAVE0fix R6)", () => {
+    const announced = () => [...document.querySelectorAll('[role="status"]')].map((n) => n.textContent).join(" ")
+    act(() => {
+      root.render(<Toaster />)
+    })
+    act(() => {
+      handles.push(toast({ variant: "destructive", title: "Save failed", description: "Network error" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(announced()).toContain("Save failed")
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(announced()).not.toContain("Save failed")
+    act(() => {
+      handles.push(toast({ variant: "destructive", title: "Save failed", description: "Network error" }))
+    })
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(announced()).toContain("Save failed")
+    expect(document.querySelectorAll("li")).toHaveLength(1)
   })
 
   it("frees the slot of a closed toast, so an open error outlasts many later toasts", () => {

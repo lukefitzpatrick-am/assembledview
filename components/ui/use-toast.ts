@@ -79,9 +79,13 @@ const addToRemoveQueue = (toastId: string) => {
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST": {
+      // A repeat (same variant, title and description) replaces the earlier toast, open or closing:
+      // it shows once, and as a new toast its timer restarts and screen readers announce it again.
+      const { variant, title, description } = action.toast
+      const others = state.toasts.filter((t) => !(t.variant === variant && t.title === title && t.description === description))
       // Newest first. At the limit, drop the oldest toast that is not an open error
       // (the new one included), or the oldest when every toast is an open error.
-      const toasts = [action.toast, ...state.toasts]
+      const toasts = [action.toast, ...others]
       if (toasts.length <= TOAST_LIMIT) return { ...state, toasts }
       const drop = toasts.findLastIndex((t) => !(t.open && t.variant === "destructive"))
       return { ...state, toasts: toasts.filter((_, i) => i !== (drop === -1 ? toasts.length - 1 : drop)) }
@@ -148,9 +152,7 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
-  // A repeat of an open toast (same variant, title and description) reuses it.
-  const same = memoryState.toasts.find((t) => t.open && t.variant === props.variant && t.title === props.title && t.description === props.description)
-  const id = same?.id ?? genId()
+  const id = genId()
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -159,7 +161,7 @@ function toast({ ...props }: Toast) {
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
-  if (!same) dispatch({
+  dispatch({
     type: "ADD_TOAST",
     toast: {
       ...props,
