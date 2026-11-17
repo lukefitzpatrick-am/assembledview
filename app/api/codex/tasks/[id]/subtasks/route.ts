@@ -16,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> }
  * POST `{ title, assignee_email?, start_on?, due_on? }` (B40): a subtask of
  * this task, last. Assigned by is the server's. One level only (409
  * nested_subtask). Edit, complete and delete a subtask through
- * /api/codex/tasks/[subtaskId]. Behind codex_projects; 503 before 0118.
+ * /api/codex/tasks/[subtaskId]. Behind codex_projects.
  */
 export async function POST(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()

@@ -11,7 +11,7 @@ export const runtime = "nodejs"
  * GET `?weeks=1..12` (B42, plan 5.5): open tasks per active roster person by
  * week of due date (this Sydney week and the next ones), with overdue, no due
  * date and later. Only tasks the viewer may see (private projects). Behind
- * codex_projects (404 before auth when off); 503 before 0118.
+ * codex_projects (404 before auth when off).
  */
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()

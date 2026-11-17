@@ -1,8 +1,7 @@
 "use client"
 
 /**
- * Task followers and attachments in the task detail (B41, codex_projects on;
- * nothing before 0118). Followers: the list, Follow or Unfollow, add a
+ * Task followers and attachments in the task detail (B41, codex_projects on). Followers: the list, Follow or Unfollow, add a
  * colleague. Attachments: files (private, opened through the gated route)
  * and links (shown with their host), with a count, add and delete (the
  * uploader or an admin). `TaskCollabPanelView` draws; `TaskCollabPanel`
@@ -208,7 +207,7 @@ export function TaskCollabPanelView({
   )
 }
 
-/** Loads followers and attachments; hidden until both load (switch off or before 0118: nothing). */
+/** Loads followers and attachments; hidden until both load (switch off: nothing). */
 export function TaskCollabPanel({ taskId, members, reloadKey }: { taskId: number; members: readonly TeamMember[]; reloadKey?: unknown }) {
   const { toast } = useToast()
   const [data, setData] = useState<TaskCollabData | null>(null)

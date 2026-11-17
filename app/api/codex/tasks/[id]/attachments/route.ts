@@ -18,7 +18,7 @@ type RouteContext = { params: Promise<{ id: string }> }
  * multipart with one `file` uploads it to Vercel Blob (private, 4 MB, the
  * types in lib/codex/attachments.ts); POST JSON `{ url, name? }` attaches a
  * link. Files are fetched through ./[attachmentId] only. Behind
- * codex_projects; 503 before 0118; a private project's task you cannot see
+ * codex_projects; a private project's task you cannot see
  * is 404.
  */
 async function gate(request: Request, context: RouteContext) {

@@ -9,7 +9,7 @@ export const runtime = "nodejs"
 
 /**
  * Your daily email digest switch (B41): PUT `{ email_digest: boolean }`.
- * Default on. Your own row only. Behind codex_notifications; 503 before 0118.
+ * Default on. Your own row only. Behind codex_notifications.
  */
 export async function PUT(request: Request) {
   const flag = await codexFlagGuard()

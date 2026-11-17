@@ -14,7 +14,7 @@ type RouteContext = { params: Promise<{ id: string }> }
  * PUT `{ field_id: number | null }` (B42, plan 4.2): link a single-select
  * field with a done option as this project's progress field, or unlink.
  * Behind codex_projects and codex_progress_field (404 before auth when off);
- * a field that cannot be linked is 409 progress_field_invalid; 503 before 0118.
+ * a field that cannot be linked is 409 progress_field_invalid.
  */
 export async function PUT(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()

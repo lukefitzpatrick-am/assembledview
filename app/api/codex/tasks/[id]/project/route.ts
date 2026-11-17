@@ -14,7 +14,7 @@ type RouteContext = { params: Promise<{ id: string }> }
  * GET (B40): the task detail's project part: project, sections, type, dates,
  * assigned by, custom fields and values, subtasks, a subtask's parent. A
  * private project the viewer cannot see comes back as `project: null`,
- * `project_hidden: true`. Behind codex_projects; 503 before 0118.
+ * `project_hidden: true`. Behind codex_projects.
  */
 export async function GET(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()

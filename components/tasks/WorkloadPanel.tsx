@@ -63,10 +63,6 @@ export function WorkloadPanel({ active }: { active: boolean }) {
     setState({ kind: "loading" })
     try {
       const res = await fetch("/api/codex/workload", { cache: "no-store" })
-      if (res.status === 503) {
-        setState({ kind: "error", message: "The workload needs a database update first." })
-        return
-      }
       if (!res.ok) {
         setState({ kind: "error", message: `The workload did not load (${res.status}).` })
         return

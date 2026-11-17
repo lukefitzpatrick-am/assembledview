@@ -18,8 +18,8 @@ type RouteContext = { params: Promise<{ id: string }> }
  * codex_roster_aliases): anyone else is 400 not_on_roster, a shared address
  * 400 ambiguous_address; someone who cannot see a private project is 409
  * follower_no_access.
- * DELETE stops you following (yourself only). Behind codex_projects; 503
- * before 0118; a private project's task you cannot see is 404.
+ * DELETE stops you following (yourself only). Behind codex_projects; a
+ * private project's task you cannot see is 404.
  */
 async function gate(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()

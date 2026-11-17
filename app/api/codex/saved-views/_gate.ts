@@ -8,7 +8,7 @@ import { jsonError } from "../_shared"
 /**
  * B42 (C-211, C-234): may `email` use views of `screen`? `tasks` always; a
  * project screen only with codex_projects on and the project visible to
- * them (a private project not theirs, a missing one, or before 0118: no).
+ * them (a private project not theirs or a missing one: no).
  * The projects store loads only for a project screen with the switch on.
  */
 export async function canUseSavedViewScreen(screen: string, email: string): Promise<boolean> {

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic"
  * The bell (B41): your recent notifications, newest first (`?limit=` 1 to
  * 100, default 30), the unread count and your email digest switch. Only
  * live tasks you can still see. Behind codex_notifications (which needs
- * codex_projects); 503 before 0118.
+ * codex_projects).
  */
 export async function GET(request: Request) {
   const flag = await codexFlagGuard()

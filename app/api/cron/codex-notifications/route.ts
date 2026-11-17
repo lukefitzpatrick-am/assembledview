@@ -20,7 +20,7 @@ export const preferredRegion = ["syd1"]
  * acts (`lib/cron/melbourneCrons`, S31). First the due tomorrow and overdue reminders, then one email digest
  * per person that already carries them (quiet hours and the per-person switch
  * respected; `runDailyNotifications`).
- * Auth: CRON_SECRET. Off (codex_notifications) or before 0118: skipped, 200.
+ * Auth: CRON_SECRET. Off (codex_notifications, which needs 0118): skipped, 200.
  * `?now=` (ISO) sets the clock for a local run.
  */
 export async function GET(request: Request) {

@@ -19,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string; attachmentId: string }> }
  * the task (its private project's rule), never a public URL; a link
  * attachment is opened from its URL, so GET on it is 404. DELETE by the
  * uploader or an admin (403 not_uploader), the Blob file after the row.
- * Behind codex_projects; 503 before 0118.
+ * Behind codex_projects.
  */
 async function gate(request: Request, context: RouteContext) {
   const flag = await codexFlagGuard()

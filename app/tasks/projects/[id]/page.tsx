@@ -14,8 +14,8 @@ export const metadata = pageMetadata("/tasks/projects/[id]")
 type PageProps = { params: Promise<{ id: string }> }
 
 /**
- * A Codex project board (B39). Needs codex_v2 and codex_projects; the board
- * itself says when migration 0118 has not run. The API routes do their own
+ * A Codex project board (B39). Needs codex_projects (which needs codex_v2
+ * and migration 0118). The API routes do their own
  * staff and project visibility checks.
  */
 export default async function ProjectBoardPage({ params }: PageProps) {

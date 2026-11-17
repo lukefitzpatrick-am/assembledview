@@ -11,7 +11,7 @@ export const runtime = "nodejs"
 /**
  * Mark your notifications read (B41): `{ ids: [..] }` (1 to 200 of your own;
  * anyone else's ids change nothing) or `{ all: true }`. Behind
- * codex_notifications; 503 before 0118.
+ * codex_notifications.
  */
 export async function POST(request: Request) {
   const flag = await codexFlagGuard()
