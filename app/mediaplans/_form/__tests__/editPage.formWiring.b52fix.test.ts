@@ -202,3 +202,26 @@ test("S1: the publish check gets the posted mode, plan dates and lines, stops be
   assert.deepEqual(entries(callText(page, "setPublishCheck(publishCheckFromRefusal(")), ["saveResult.data.publishProblems"])
   assert.match(page, /if \(saveResult\.data\.code === PUBLISH_VALIDATION_REFUSED\) \{\n\s+setPublishCheck\(publishCheckFromRefusal/)
 })
+
+test("X2: every client publish refusal stops before the PC4 collision worksheet writes billing overrides", () => {
+  const save = constFnText("handleSaveAll")
+  const firstWrite = Math.min(
+    save.indexOf("detectBillingCollisions("),
+    save.indexOf("writeCollisionDecisionEdits("),
+    save.indexOf("persistManualBillingOverrides("),
+  )
+  assert.ok(firstWrite > 0, "the PC4 worksheet is in handleSaveAll")
+  const checks = save.indexOf('if (modeResolved.uiMode !== "working_draft") {')
+  assert.ok(checks > 0 && checks < firstWrite, "the checks run before the worksheet")
+  for (const refusal of [
+    "lineItemsForSave = buildSavePlanLineItemsFromSnapshots(",
+    "countEnabledPublishIntegrityFlags(formValues) > 0",
+    "if (publisherPreflight.reject) {",
+    "if (publishPreflight.stop) {",
+  ]) {
+    const at = save.indexOf(refusal)
+    assert.ok(at > checks && at < firstWrite, `${refusal} runs before the worksheet`)
+    assert.equal(count(save, refusal), 1, `${refusal} runs once`)
+  }
+  assert.ok(save.indexOf("await postPlansSave(") > firstWrite)
+})

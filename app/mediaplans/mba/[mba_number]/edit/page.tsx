@@ -6727,6 +6727,133 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
       }
 
+      const shouldEnableProduction = Boolean(
+        formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
+      )
+
+      // One transactional save through POST /api/plans/save (the only save path).
+      setSaveStatus(
+        POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
+          name,
+          status: "pending" as const,
+        }))
+      )
+
+      const saveModeInput = buildSaveModeInput({
+        latestVersionNumber,
+        mediaPlan,
+        availableVersions,
+        selectedVersionNumber,
+        forceIncrement: false,
+        intent: saveIntent,
+        campaignStatus: formValues.mp_campaignstatus,
+      })
+      const modeResolved = resolvePostgresSaveMode(saveModeInput)
+
+      setSaveModeLabel(
+        formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
+      )
+
+      // FINALfix (X2): every publish refusal runs here, before the PC4
+      // collision worksheet below writes billing overrides, so a refused
+      // publish writes nothing. A working draft posts no lines and is not checked.
+      let lineItemsForSave: ReturnType<typeof buildSavePlanLineItemsFromSnapshots> = []
+      if (modeResolved.uiMode !== "working_draft") {
+        try {
+          lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+            {
+              television: televisionMediaLineItemsForSave,
+              radio: radioMediaLineItemsForSave,
+              newspaper: newspaperMediaLineItemsForSave,
+              magazines: magazinesMediaLineItemsForSave,
+              ooh: oohMediaLineItemsForSave,
+              cinema: cinemaMediaLineItemsForSave,
+              digiDisplay: digitalDisplayMediaLineItemsForSave,
+              digiAudio: digitalAudioMediaLineItemsForSave,
+              digiVideo: digitalVideoMediaLineItemsForSave,
+              bvod: bvodMediaLineItemsForSave,
+              integration: integrationMediaLineItemsForSave,
+              production: productionMediaLineItemsForSave,
+              search: searchMediaLineItemsForSave,
+              socialMedia: socialMediaMediaLineItemsForSave,
+              progDisplay: progDisplayMediaLineItemsForSave,
+              progVideo: progVideoMediaLineItemsForSave,
+              progBvod: progBvodMediaLineItemsForSave,
+              progAudio: progAudioMediaLineItemsForSave,
+              progOoh: progOohMediaLineItemsForSave,
+              influencers: influencersMediaLineItemsForSave,
+            },
+            billingSaveInputs.lineItems,
+            channelLoadSucceeded
+          )
+        } catch (buildErr: any) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            buildErr?.message || String(buildErr)
+          )
+          throw buildErr
+        }
+
+        if (
+          (modeResolved.mode === "publish" ||
+            modeResolved.mode === "new_version") &&
+          lineItemsForSave.length === 0 &&
+          countEnabledPublishIntegrityFlags(formValues) > 0
+        ) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            "Cannot publish version with 0 line items (BOSS006)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Publish rejected — no line items",
+            description: "Enable channels need at least one line item before publish.",
+          })
+          // B6 notes F4: the later modal steps did not run.
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
+          setIsSaving(false)
+          return
+        }
+
+        setMissingBuyTypeLineIds([])
+        setMissingBurstDateLineIds([])
+        setPublisherGuardBlocked([])
+        setPublisherGuardWarnings([])
+        setPublishCheck(NO_PUBLISH_CHECK)
+        // B19 Q4: same gate as the server, before the round trip.
+        const publisherPreflight = publisherGuardPreflight(modeResolved.mode, lineItemsForSave, [
+          ...billingPublishers,
+          ...publishersAddedHere,
+        ])
+        if (publisherPreflight.reject) {
+          setPublisherGuardBlocked(publisherPreflight.body.publisherIssues)
+          updateSaveStatus("Save plan (transactional)", "error", publisherPreflight.body.error)
+          toast({ variant: "destructive", ...publisherGuardBlockedToast(publisherPreflight.body.publisherIssues) })
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
+          setIsSaving(false)
+          return
+        }
+        // S1 A: the publish validation set, before the round trip.
+        const publishPreflight = publishValidationPreflight(
+          modeResolved.mode,
+          {
+            campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
+            campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
+          },
+          lineItemsForSave
+        )
+        setPublishCheck(publishPreflight.check)
+        if (publishPreflight.stop) {
+          updateSaveStatus("Save plan (transactional)", "error", publishPreflight.stop.error)
+          toast({ variant: "destructive", ...publishRefusedToast(publishPreflight.stop) })
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
+          setIsSaving(false)
+          return
+        }
+      }
+
       // PC4: collision worksheet — pause before the save when manual
       // lines' booked media totals diverged from current override shape.
       let billingMonthsForSave = workingBillingMonths
@@ -6882,33 +7009,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
       }
 
-      const shouldEnableProduction = Boolean(
-        formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
-      )
-
-      // One transactional save through POST /api/plans/save (the only save path).
-      setSaveStatus(
-        POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
-          name,
-          status: "pending" as const,
-        }))
-      )
-
-      const saveModeInput = buildSaveModeInput({
-        latestVersionNumber,
-        mediaPlan,
-        availableVersions,
-        selectedVersionNumber,
-        forceIncrement: false,
-        intent: saveIntent,
-        campaignStatus: formValues.mp_campaignstatus,
-      })
-      const modeResolved = resolvePostgresSaveMode(saveModeInput)
-
-      setSaveModeLabel(
-        formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
-      )
-
       // VC Stage 2b: save on a published tip writes a working draft — never
       // touch the version row and never cut a new version.
       if (modeResolved.uiMode === "working_draft") {
@@ -6943,65 +7043,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         return
       }
 
-      let lineItemsForSave
-      try {
-        lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
-          {
-            television: televisionMediaLineItemsForSave,
-            radio: radioMediaLineItemsForSave,
-            newspaper: newspaperMediaLineItemsForSave,
-            magazines: magazinesMediaLineItemsForSave,
-            ooh: oohMediaLineItemsForSave,
-            cinema: cinemaMediaLineItemsForSave,
-            digiDisplay: digitalDisplayMediaLineItemsForSave,
-            digiAudio: digitalAudioMediaLineItemsForSave,
-            digiVideo: digitalVideoMediaLineItemsForSave,
-            bvod: bvodMediaLineItemsForSave,
-            integration: integrationMediaLineItemsForSave,
-            production: productionMediaLineItemsForSave,
-            search: searchMediaLineItemsForSave,
-            socialMedia: socialMediaMediaLineItemsForSave,
-            progDisplay: progDisplayMediaLineItemsForSave,
-            progVideo: progVideoMediaLineItemsForSave,
-            progBvod: progBvodMediaLineItemsForSave,
-            progAudio: progAudioMediaLineItemsForSave,
-            progOoh: progOohMediaLineItemsForSave,
-            influencers: influencersMediaLineItemsForSave,
-          },
-          billingSaveInputs.lineItems,
-          channelLoadSucceeded
-        )
-      } catch (buildErr: any) {
-        updateSaveStatus(
-          "Save plan (transactional)",
-          "error",
-          buildErr?.message || String(buildErr)
-        )
-        throw buildErr
-      }
-
-      if (
-        (modeResolved.mode === "publish" ||
-          modeResolved.mode === "new_version") &&
-        lineItemsForSave.length === 0 &&
-        countEnabledPublishIntegrityFlags(formValues) > 0
-      ) {
-        updateSaveStatus(
-          "Save plan (transactional)",
-          "error",
-          "Cannot publish version with 0 line items (BOSS006)"
-        )
-        toast({
-          variant: "destructive",
-          title: "Publish rejected — no line items",
-          description: "Enable channels need at least one line item before publish.",
-        })
-        // B6 notes F4: the later modal steps did not run.
-        skipUnrunPostgresSaveSteps(updateSaveStatus)
-        setIsSaving(false)
-        return
-      }
-
       updateSaveStatus("Save plan (transactional)", "pending")
       const resolvedMasterId = resolveMasterIdFromCombinedPlan(mediaPlan)
       if (resolvedMasterId == null) {
@@ -7017,41 +7058,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       //   "increment_unpublished" → mode "new_version"
       //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
       //   "working_draft"         → never reaches here
-      setMissingBuyTypeLineIds([])
-      setMissingBurstDateLineIds([])
-      setPublisherGuardBlocked([])
-      setPublisherGuardWarnings([])
-      setPublishCheck(NO_PUBLISH_CHECK)
-      // B19 Q4: same gate as the server, before the round trip.
-      const publisherPreflight = publisherGuardPreflight(modeResolved.mode, lineItemsForSave, [
-        ...billingPublishers,
-        ...publishersAddedHere,
-      ])
-      if (publisherPreflight.reject) {
-        setPublisherGuardBlocked(publisherPreflight.body.publisherIssues)
-        updateSaveStatus("Save plan (transactional)", "error", publisherPreflight.body.error)
-        toast({ variant: "destructive", ...publisherGuardBlockedToast(publisherPreflight.body.publisherIssues) })
-        skipUnrunPostgresSaveSteps(updateSaveStatus)
-        setIsSaving(false)
-        return
-      }
-      // S1 A: the publish validation set, before the round trip.
-      const publishPreflight = publishValidationPreflight(
-        modeResolved.mode,
-        {
-          campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
-          campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
-        },
-        lineItemsForSave
-      )
-      setPublishCheck(publishPreflight.check)
-      if (publishPreflight.stop) {
-        updateSaveStatus("Save plan (transactional)", "error", publishPreflight.stop.error)
-        toast({ variant: "destructive", ...publishRefusedToast(publishPreflight.stop) })
-        skipUnrunPostgresSaveSteps(updateSaveStatus)
-        setIsSaving(false)
-        return
-      }
       const saveResult = await postPlansSave(
         assemblePlansSaveRequestBody(
           {
