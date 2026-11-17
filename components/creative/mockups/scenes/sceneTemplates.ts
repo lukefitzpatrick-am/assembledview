@@ -35,9 +35,3 @@ export const TV_SCENES: TvScene[] = [
     },
   },
 ]
-
-export function getTvScene(id: TvSceneId): TvScene {
-  const scene = TV_SCENES.find((item) => item.id === id)
-  if (!scene) throw new Error(`Unknown TV scene: ${id}`)
-  return scene
-}

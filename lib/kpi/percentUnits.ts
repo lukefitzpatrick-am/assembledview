@@ -22,8 +22,6 @@ export const KPI_RATIO_PERCENT_METRICS = [
   "viewability",
 ] as const
 
-export type KpiRatioPercentMetric = (typeof KPI_RATIO_PERCENT_METRICS)[number]
-
 /**
  * Register row — code assumes decimal storage; dual-store row migration
  * (and ETL reload from fixed Xano) is still pending Luke.

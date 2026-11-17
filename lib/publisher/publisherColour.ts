@@ -53,11 +53,3 @@ export function cssHexFromStored(hex: string | null | undefined): string | undef
   const parsed = parsePublisherColour(hex)
   return parsed.ok ? parsed.hex : undefined
 }
-
-/** Resolved brand hex, or the documented fallback (`null`) for empty/invalid. */
-export function publisherColourOrFallback(
-  raw: string | null | undefined,
-): string | null {
-  const parsed = parsePublisherColour(raw)
-  return parsed.ok ? parsed.hex : parsed.fallback
-}

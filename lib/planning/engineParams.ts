@@ -66,17 +66,3 @@ export function resolveEngineParams(
   }
   return resolved
 }
-
-export function defaultWeightsFromParams(params: EngineParams): {
-  A: number
-  T: number
-  E: number
-  C: number
-} {
-  return {
-    A: params.weight_A,
-    T: params.weight_T,
-    E: params.weight_E,
-    C: params.weight_C,
-  }
-}

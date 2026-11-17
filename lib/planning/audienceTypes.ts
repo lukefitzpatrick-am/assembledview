@@ -22,13 +22,6 @@ export type PlanningAudienceWritable = {
   created_by_email: string
 }
 
-/** Whitelisted PATCH fields only (staff attach / visibility / rename). */
-export type PlanningAudiencePatch = {
-  mba_number?: string | null
-  client_visible?: boolean
-  name?: string
-}
-
 /** Client-safe channel point for the reach × index chart (no BCS/cost/bench). */
 export type ClientSafeReachIndexPoint = {
   channel: string

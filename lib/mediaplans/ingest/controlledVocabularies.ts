@@ -96,10 +96,6 @@ export function getControlledVocabulary(
   return REGISTRY[key] ?? null
 }
 
-export function listControlledVocabularyKeys(): string[] {
-  return Object.keys(REGISTRY)
-}
-
 /** Labels in vocabulary order, "Other" last — same surface as the editor combobox. */
 export function choiceLabelsForVocabulary(
   vocab: ControlledVocabulary,

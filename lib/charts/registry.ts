@@ -233,14 +233,6 @@ export function getMediaBadgeStyle(key: string): {
   }
 }
 
-export function buildMediaChannelColorMap(channels: Array<string | null | undefined>): Record<string, string> {
-  return channels.reduce<Record<string, string>>((acc, channel) => {
-    if (!channel) return acc
-    acc[channel] = getMediaColor(channel)
-    return acc
-  }, {})
-}
-
 /**
  * Maps series names to colours: registry colours for known media types; otherwise deterministic assignment.
  * - `media`: each unknown name gets `getDeterministicColor` (stable per normalized key via hash).

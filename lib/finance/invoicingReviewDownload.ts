@@ -9,12 +9,11 @@
  */
 
 import { buildReceivablesWorkbookBytes } from "@/lib/finance/exportFinanceHub"
-import { buildInvoiceLinesCsv, INVOICE_LINES_CSV_HEADER } from "@/lib/finance/invoiceLinesCsv"
+import { buildInvoiceLinesCsv } from "@/lib/finance/invoiceLinesCsv"
 import {
   loadFinanceExcelClientMeta,
   type FinanceExcelClientMetaLoad,
 } from "@/lib/finance/excelFinanceExport"
-import { type AccountsPackRow, type PackBillingType } from "@/lib/finance/sendToAccounts"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -27,26 +26,6 @@ export type InvoicingReviewDeps = {
 export function invoicingReviewFileStem(range: { from: string; to: string }): string {
   return `Clients_billing_${range.from}_${range.to}`
 }
-
-/** Pack CSV columns and quoting, for every row shown (status = record status, as the pack). */
-export function invoicingReviewCsvRows(records: BillingRecord[]): AccountsPackRow[] {
-  return records.map((record) => ({
-    invoiceKey: record.invoice_key?.trim() ?? "",
-    persistedId: Number(record.persisted_record_id) || 0,
-    clientsId: Number(record.clients_id) || 0,
-    clientName: (record.client_name || "").trim(),
-    mbaNumber: (record.mba_number || "").trim(),
-    campaignName: (record.campaign_name || "").trim(),
-    billingType: record.billing_type as PackBillingType,
-    status: record.status || "",
-    billingMonth: record.billing_month,
-    total: Number(record.total || 0),
-    blockers: [],
-  }))
-}
-
-/** Review CSV: the shared invoice lines CSV (same builder as the Send to accounts pack). */
-export const INVOICING_REVIEW_CSV_HEADER = INVOICE_LINES_CSV_HEADER
 
 export function buildInvoicingReviewCsv(records: BillingRecord[]): string {
   return buildInvoiceLinesCsv(records)

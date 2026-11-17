@@ -358,62 +358,6 @@ export type CampaignInsightDetail = {
   replacedBy: CampaignInsightRow | null
 }
 
-/** Full detail for expand / GET /api/insights/[id]. */
-export async function getCampaignInsightById(
-  id: number,
-): Promise<CampaignInsightDetail | null> {
-  if (!Number.isFinite(id) || id <= 0) return null
-  const db = getDb()
-  const rows = await db
-    .select(INSIGHT_SELECT)
-    .from(schema.campaignInsights)
-    .where(eq(schema.campaignInsights.id, id))
-    .limit(1)
-  const raw = rows[0]
-  if (!raw) return null
-  const itemRow = mapRow(raw)
-
-  const replacedRows = await db
-    .select(INSIGHT_SELECT)
-    .from(schema.campaignInsights)
-    .where(eq(schema.campaignInsights.supersededBy, id))
-    .orderBy(desc(schema.campaignInsights.createdAt))
-  const replaced = replacedRows.map(mapRow)
-
-  let replacedBy: CampaignInsightRow | null = null
-  if (itemRow.supersededBy != null) {
-    const succ = await db
-      .select(INSIGHT_SELECT)
-      .from(schema.campaignInsights)
-      .where(eq(schema.campaignInsights.id, itemRow.supersededBy))
-      .limit(1)
-    if (succ[0]) replacedBy = mapRow(succ[0])
-  }
-
-  const meta = await resolveClientMeta([itemRow.clientId])
-  const c = meta.get(itemRow.clientId)
-  const item: CampaignInsightListItem = {
-    ...itemRow,
-    clientName: c?.name ?? null,
-    clientSlug: c?.slug ?? null,
-    superseded: replaced,
-  }
-
-  return { item, replaced, replacedBy }
-}
-
-/** Recent live insights for a client â designed to hit idx_campaign_insights_live. */
-export async function listRecentLiveInsightsForClient(
-  clientId: number,
-  limit = 5,
-): Promise<CampaignInsightListItem[]> {
-  return listCampaignInsights({
-    clientId,
-    includeSuperseded: false,
-    limit,
-  })
-}
-
 /** Recent live insights for an MBA. */
 export async function listRecentLiveInsightsForMba(
   mbaNumber: string,
@@ -424,29 +368,4 @@ export async function listRecentLiveInsightsForMba(
     includeSuperseded: false,
     limit,
   })
-}
-
-/**
- * EXPLAIN the default client live query. Used to verify
- * idx_campaign_insights_live appears in the plan.
- */
-export async function explainClientLiveInsightsPlan(
-  clientId: number,
-): Promise<string> {
-  const result = await getDb().execute(sql`
-    EXPLAIN (FORMAT TEXT)
-    SELECT id, mba_number, client_id, created_at
-    FROM campaign_insights
-    WHERE client_id = ${clientId}
-      AND superseded_by IS NULL
-    ORDER BY created_at DESC
-    LIMIT 5
-  `)
-  const rows = result as unknown as Array<{ "QUERY PLAN"?: string } | string>
-  if (Array.isArray(rows)) {
-    return rows
-      .map((r) => (typeof r === "string" ? r : r["QUERY PLAN"] ?? JSON.stringify(r)))
-      .join("\n")
-  }
-  return String(result)
 }

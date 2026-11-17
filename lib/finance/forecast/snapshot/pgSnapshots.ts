@@ -4,7 +4,7 @@
  */
 import "server-only"
 
-import { asc, desc, eq, sql } from "drizzle-orm"
+import { asc, desc, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { toApiRow } from "@/lib/data/toApiRow"
 import type {
@@ -155,22 +155,4 @@ export async function persistFinanceForecastSnapshotToPostgres(
   }
 
   return { snapshot_id: String(snapshotId) }
-}
-
-/** Author-only: count rows after apply / data-move. */
-export async function countFinanceForecastSnapshotRows(): Promise<{
-  headers: number
-  lines: number
-}> {
-  const db = getDb()
-  const headerRows = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.financeForecastSnapshots)
-  const lineRows = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.financeForecastSnapshotLines)
-  return {
-    headers: Number(headerRows[0]?.n ?? 0),
-    lines: Number(lineRows[0]?.n ?? 0),
-  }
 }

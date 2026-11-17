@@ -1,4 +1,4 @@
-import type { LineCardModel, LineCardPace } from "./lineCardTypes"
+import type { LineCardModel } from "./lineCardTypes"
 
 export type LineCardTileKey =
   | "live"
@@ -26,12 +26,6 @@ export function countLineCardTiles(models: LineCardModel[]): LineCardTileCounts 
     over_pacing: models.filter((row) => row.pace === "over_pacing").length,
     kpi_pending: models.filter((row) => row.kpiStatus === "kpi-pending").length,
   }
-}
-
-export function tileMatchesPace(tile: LineCardTileKey, pace: LineCardPace): boolean {
-  if (tile === "live") return true
-  if (tile === "kpi_pending") return false
-  return pace === tile
 }
 
 export function filterLineCardsByTile(

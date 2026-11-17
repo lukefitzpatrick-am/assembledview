@@ -100,6 +100,5 @@ export const publisherDetailsUpdateSchema = z.object({
 
 export type PublisherCreateInput = z.input<typeof publisherCreateSchema>
 export type PublisherCreateValues = z.infer<typeof publisherCreateSchema>
-export type PublisherUpdateValues = z.infer<typeof publisherUpdateSchema>
 export type PublisherDetailsInput = z.input<typeof publisherDetailsUpdateSchema>
 export type PublisherDetailsFormValues = z.infer<typeof publisherDetailsUpdateSchema>

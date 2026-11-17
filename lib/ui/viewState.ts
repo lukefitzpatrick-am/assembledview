@@ -15,8 +15,6 @@ export type ViewState<T> =
   | { status: "filtered-empty"; clear: () => void }
   | { status: "ready"; data: T; freshness?: ViewStateFreshness }
 
-export type ViewStateStatus = ViewState<unknown>["status"]
-
 /**
  * Thin adapter from common list-fetch + client-filter flags into a ViewState.
  * Does not fetch — map whatever the current surface already loaded.

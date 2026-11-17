@@ -309,8 +309,3 @@ export async function loadMatchPayload(
   cache.set(clientId, { at: nowMs, payload })
   return payload
 }
-
-export function clearMatchCache(clientId?: number): void {
-  if (clientId == null) cache.clear()
-  else cache.delete(clientId)
-}

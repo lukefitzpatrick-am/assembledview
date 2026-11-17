@@ -76,15 +76,3 @@ export function getDeliverySchedule(raw: unknown): unknown {
   if (!r) return null
   return firstDefined(r.deliverySchedule, r.delivery_schedule) ?? null
 }
-
-/**
- * Single normaliser — maps an incoming record to the canonical camelCase set.
- */
-export function normalizeFinanceFields(raw: unknown): CanonicalFinanceFields {
-  return {
-    clientPaysForMedia: normalizeClientPaysForMedia(raw),
-    budgetIncludesFees: normalizeBudgetIncludesFees(raw),
-    billingSchedule: getBillingSchedule(raw),
-    deliverySchedule: getDeliverySchedule(raw),
-  }
-}

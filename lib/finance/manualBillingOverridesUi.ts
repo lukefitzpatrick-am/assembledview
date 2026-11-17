@@ -506,18 +506,6 @@ export function clearLineOverrideMeta(
   }
 }
 
-export function lineHasPrepaymentMeta(
-  metaByLine: Map<string, LineOverrideMeta[]>,
-  lineItemId: string
-): boolean {
-  const canon = toBillingOverrideLineItemId(lineItemId)
-  for (const [key, list] of metaByLine) {
-    if (toBillingOverrideLineItemId(key) !== canon) continue
-    if (list.some((m) => m.component === "media" && m.reason === "prepayment")) return true
-  }
-  return false
-}
-
 /**
  * Full line-media in the earliest campaign/draft month, 0 elsewhere.
  * Uses the same syncLineItemMonthlyAmountAcrossAllMonthRows path as cell edits.
@@ -679,29 +667,6 @@ export function removeOptimisticMediaOverrideRow(
     if (rowComponent(r) !== "media") return true
     return toBillingOverrideLineItemId(rowLineId(r)) !== canon
   })
-}
-
-/** Merge/replace a fee prepayment row (MB-8 media + fee). */
-export function upsertOptimisticFeePrepaymentOverrideRow(
-  rows: BillingOverrideRow[],
-  lineItemId: string,
-  months: MonthAmount[],
-  dateBasis = ""
-): BillingOverrideRow[] {
-  const canon = toBillingOverrideLineItemId(lineItemId)
-  const next = rows.filter((r) => {
-    if (rowComponent(r) !== "fee") return true
-    return toBillingOverrideLineItemId(rowLineId(r)) !== canon
-  })
-  next.push({
-    line_item_id: canon,
-    component: "fee",
-    mode: "manual",
-    reason: "prepayment",
-    months,
-    date_basis: dateBasis,
-  })
-  return next
 }
 
 /** Drop fee override rows for a line (optimistic clear). */

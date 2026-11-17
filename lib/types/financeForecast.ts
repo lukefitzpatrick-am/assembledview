@@ -220,33 +220,6 @@ export interface FinanceForecastDataset {
   client_blocks: FinanceForecastClientBlock[]
 }
 
-export interface FinanceForecastFilters {
-  scenario: FinanceForecastScenario
-  financial_year_start_year: number
-  client_ids?: ReadonlyArray<string>
-  publisher_ids?: ReadonlyArray<string>
-  /** When true, include campaigns treated as probable (interpretation left to transforms). */
-  include_probable_campaigns?: boolean
-}
-
-/** Per-month and FY difference between two amounts (e.g. scenario A vs B or forecast vs actual). */
-export interface FinanceForecastVarianceLine {
-  client_id: string
-  client_name: string
-  campaign_id?: string | null
-  mba_number?: string | null
-  media_plan_version_id: string | number | null
-  version_number: number | null
-  group_key: FinanceForecastGroupKey
-  line_key: FinanceForecastLineKey
-  monthly_delta: FinanceForecastMonthlyAmounts
-  fy_delta: number
-  baseline_label?: string
-  comparison_label?: string
-  source?: FinanceForecastLineSource
-  debug?: FinanceForecastLineDebug
-}
-
 // ---------------------------------------------------------------------------
 // Raw inputs for transforms (tolerant shapes — no fetch or URL assumptions)
 // ---------------------------------------------------------------------------
@@ -304,11 +277,4 @@ export interface FinanceForecastPublisherInput {
   publishertype?: string | null
   financecode?: string | null
   extra?: Record<string, unknown>
-}
-
-/** Bundle passed into a forecast builder (no behaviour). */
-export interface FinanceForecastTransformInputs {
-  media_plan_versions: ReadonlyArray<FinanceForecastMediaPlanVersionInput>
-  clients: ReadonlyArray<FinanceForecastClientInput>
-  publishers: ReadonlyArray<FinanceForecastPublisherInput>
 }

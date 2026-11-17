@@ -25,7 +25,6 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import { addGst } from "@/lib/finance/gst"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
-import { MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS } from "@/lib/finance/planLineItemEnrichment"
 import { getAttachedFinanceSchedule } from "@/lib/finance/scheduleMonthsSource"
 import { matchMonthYear } from "@/lib/finance/utils"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
@@ -43,20 +42,6 @@ function campaignOptsFromVersion(version: Record<string, unknown>): ComputeCampa
     ...(start && !Number.isNaN(start.getTime()) ? { campaignStart: start } : {}),
     ...(end && !Number.isNaN(end.getTime()) ? { campaignEnd: end } : {}),
   }
-}
-
-function tableKeyToCamel(tableKey: string): string {
-  return tableKey.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
-}
-
-/** True when the version payload includes at least one channel line-item row. */
-export function versionHasChannelLineItems(version: Record<string, unknown>): boolean {
-  for (const tableKey of MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS) {
-    const camel = tableKeyToCamel(tableKey)
-    const raw = version[tableKey] ?? version[camel]
-    if (Array.isArray(raw) && raw.length > 0) return true
-  }
-  return false
 }
 
 function perLineFromScheduleMonths(months: BillingMonth[]): PerLineResult[] {

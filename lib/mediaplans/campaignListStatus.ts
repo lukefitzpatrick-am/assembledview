@@ -12,8 +12,6 @@ export const CAMPAIGN_LIST_STATUSES = [
   "Cancelled",
 ] as const
 
-export type CampaignListStatus = (typeof CAMPAIGN_LIST_STATUSES)[number]
-
 const KNOWN = new Set<string>(CAMPAIGN_LIST_STATUSES.map((s) => s.toLowerCase()))
 
 /** Title-case known statuses; leave unknown strings readable without inventing Completed. */

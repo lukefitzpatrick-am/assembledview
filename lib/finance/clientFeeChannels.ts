@@ -71,12 +71,6 @@ type Row = (typeof CLIENT_FEE_CHANNELS)[number]
 /** The 20 fee columns on a clients record. */
 export type ClientFeeField = Row["field"]
 
-/** The 8 original fee columns. */
-export type LegacyClientFeeField = Extract<Row, { since: "legacy" }>["field"]
-
-/** The 12 fee columns added by migration 0113. */
-export type ChannelClientFeeField = Extract<Row, { since: "0113" }>["field"]
-
 /** Every fee field, list order. */
 export const CLIENT_FEE_FIELDS: readonly ClientFeeField[] = CLIENT_FEE_CHANNELS.map((c) => c.field)
 

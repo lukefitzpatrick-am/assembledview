@@ -1,4 +1,3 @@
-export const CHANNEL_FACTORY_SOURCE_LABEL = "Channel Factory"
 
 export const CHANNEL_FACTORY_EXPECTED_HEADER =
   "Day|Campaign Advertiser ID|Campaign Name|Media Buy Name|Impressions|Clicks|Video Views|Video Completions 25% Rate|Video Completions 50% Rate|Video Completions 75% Rate|Video Fully Played Rate"
@@ -16,8 +15,6 @@ export const COL = {
   rateQ75: "Video Completions 75% Rate",
   rateFullyPlayed: "Video Fully Played Rate",
 } as const
-
-export const VISTAR_SOURCE_LABEL = "Vistar"
 
 export const VISTAR_EXPECTED_HEADER =
   "Day,Venue Type,Advertiser,Insertion Order Name,Insertion Order,Contract Number,Campaign Name,Campaign ID,Campaign Pixel,Creative Name,Creative ID,Creative Pixel,Metro Area,State/Territory,Impressions,Spots,Revenue,Total eCPM"

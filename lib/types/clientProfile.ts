@@ -28,7 +28,3 @@ export type ClientBrainFields = {
 export type ClientBrainPresence = {
   has_client_brain?: boolean
 }
-
-export type ClientProfileFields = ClientProfileLinks &
-  ClientBrainFields &
-  ClientBrainPresence

@@ -54,14 +54,6 @@ export function ensurePeriod(periodMonth: string): FinancePeriod {
   return p
 }
 
-export function getPeriod(periodMonth: string): FinancePeriod | null {
-  return memoryPeriods.get(toPeriodMonthKey(periodMonth)) ?? null
-}
-
-export function listPeriods(): FinancePeriod[] {
-  return [...memoryPeriods.values()].sort((a, b) => a.periodMonth.localeCompare(b.periodMonth))
-}
-
 export function getItems(periodId: number): FinanceRunItem[] {
   return [...(memoryItems.get(periodId) ?? [])]
 }
@@ -243,30 +235,4 @@ export function adminAmendMemory(args: {
   period.sheetVersion = audit.nextSheetVersion
   memoryPeriods.set(period.periodMonth, period)
   return { period, item: items[idx]!, audit }
-}
-
-export function pushNotification(args: {
-  audience: string
-  kind: string
-  payload: Record<string, unknown>
-}): AppNotification {
-  const n: AppNotification = {
-    id: notifSeq++,
-    audience: args.audience,
-    kind: args.kind,
-    payload: args.payload,
-    createdAt: new Date().toISOString(),
-    readAt: null,
-  }
-  memoryNotifications.unshift(n)
-  return n
-}
-
-export function listNotifications(audience?: string): AppNotification[] {
-  if (!audience) return [...memoryNotifications]
-  return memoryNotifications.filter((n) => n.audience === audience)
-}
-
-export function unreadCount(audience: string): number {
-  return memoryNotifications.filter((n) => n.audience === audience && !n.readAt).length
 }

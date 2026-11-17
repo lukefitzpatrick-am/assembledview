@@ -16,10 +16,6 @@ export const PDF_COLOURS = {
 /** Logo artboard is 1000×148. */
 export const PDF_LOGO_HEIGHT_RATIO = 148 / 1000
 
-export function pdfLogoHeight(width: number): number {
-  return width * PDF_LOGO_HEIGHT_RATIO
-}
-
 /**
  * Registers Plus Jakarta Sans (normal, bold, extrabold) and sets it as the
  * default. The font module is dynamic so client bundles load it only when a

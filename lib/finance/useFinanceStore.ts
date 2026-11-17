@@ -1,4 +1,3 @@
-import { useMemo } from "react"
 import { create } from "zustand"
 import type {
   BillingLineItem,
@@ -309,12 +308,6 @@ afterClientFeatureSnapshot(() => {
   }
   useFinanceStore.setState({ filters: next })
 })
-
-/** Expanded `filters.monthRange` as `YYYY-MM` strings (Accrual and other multi-month views). */
-export function useAccrualMonths(): string[] {
-  const key = useFinanceStore((s) => expandMonthRange(s.filters.monthRange).join("\u001f"))
-  return useMemo(() => (key.length === 0 ? [] : key.split("\u001f")), [key])
-}
 
 export type { FinanceStore, FinanceFilters }
 

@@ -10,7 +10,6 @@ export const DOC_SKIP_REASON = "Documents generate from published versions"
 
 export const DOC_STEP_MBA = "MBA PDF Upload"
 export const DOC_STEP_MEDIA_PLAN = "Media Plan Upload"
-export const DOC_STEP_AA_MEDIA_PLAN = "AA Media Plan Upload"
 /** Postgres publish path — one step so a generate failure cannot stay silent. */
 export const DOC_STEP_POSTGRES_GENERATE = "Generate documents"
 
@@ -33,9 +32,6 @@ export function shouldSkipDocsForCampaignStatus(version: {
   if (version == null) return true
   return !isVersionPublished(version)
 }
-
-/** Alias — prefer this name at new call sites. */
-export const shouldSkipDocsForUnpublishedVersion = shouldSkipDocsForCampaignStatus
 
 /** PC3 / persisted-render gate messages that must never look like save failures. */
 export function isExpectedDocGateSkipError(message: unknown): boolean {

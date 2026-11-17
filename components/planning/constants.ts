@@ -16,8 +16,6 @@ export const PLANNING_CATEGORIES = [
   "Other",
 ] as const
 
-export type PlanningCategory = (typeof PLANNING_CATEGORIES)[number]
-
 export type ObjectiveKind = "awareness" | "consideration" | "capture" | "retention"
 
 export type AudienceAccent = {

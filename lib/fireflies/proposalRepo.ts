@@ -11,10 +11,7 @@ import { createTask, softDeleteTask } from "@/lib/codex/repo"
 import { clampPage, clampPerPage } from "@/lib/codex/queryHelpers"
 import { taskVisibilityCondition } from "@/lib/codex/taskVisibility"
 import { inboxPageEnvelope } from "@/lib/fireflies/inboxPage"
-import {
-  isPossibleDuplicate,
-  type TeamMemberMatch,
-} from "@/lib/fireflies/actionItems"
+import { isPossibleDuplicate } from "@/lib/fireflies/actionItems"
 import type { RosterPerson } from "@/lib/fireflies/actionItemBlocks"
 import {
   dismissAutoCreatedPure,
@@ -86,13 +83,6 @@ function parseParticipants(raw: string | null): string[] {
     .split(/[,;\s]+/)
     .map((e) => e.trim().toLowerCase())
     .filter((e) => e.includes("@"))
-}
-
-export async function loadTeamRoster(
-  database: Db = getDb()
-): Promise<TeamMemberMatch[]> {
-  const people = await loadAutoCreateRoster(database)
-  return people.map((p) => ({ email: p.email, name: p.name }))
 }
 
 async function loadAutoCreateRoster(

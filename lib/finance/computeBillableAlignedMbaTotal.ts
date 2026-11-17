@@ -125,32 +125,3 @@ export type ComputeBillableAlignedMbaTotalInput = {
   /** Media plan version — used for client-pays media subtraction when delivery is present. */
   version: Record<string, unknown>
 }
-
-/**
- * MBA ex-GST total on the **same basis as billing** (client-pays = fee only).
- *
- * Prefer delivery-schedule month totals, then subtract campaign client-pays media
- * so delivery's planned media does not inflate the billable≠MBA gate.
- * When delivery is empty, fall back to billing-schedule headers (already fee-only
- * for client-pays lines — no further subtraction).
- */
-export function computeBillableAlignedMbaTotalExGst(
-  input: ComputeBillableAlignedMbaTotalInput
-): number {
-  const { deliveryMonths, billingMonths, version } = input
-
-  if (deliveryMonths.length > 0) {
-    const deliveryTotal =
-      Math.round(
-        deliveryMonths.reduce((sum, entry) => sum + monthExGstFromScheduleEntry(entry), 0) * 100
-      ) / 100
-    const clientPaysMedia = sumClientPaysForMediaMediaFromVersion(version, deliveryMonths)
-    return Math.round((deliveryTotal - clientPaysMedia) * 100) / 100
-  }
-
-  return (
-    Math.round(
-      billingMonths.reduce((sum, entry) => sum + monthExGstFromScheduleEntry(entry), 0) * 100
-    ) / 100
-  )
-}

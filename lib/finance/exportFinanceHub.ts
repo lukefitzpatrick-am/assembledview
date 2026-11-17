@@ -9,7 +9,6 @@ import {
   workbookToXlsxBuffer,
   type FinanceExcelClientMeta,
 } from "@/lib/finance/excelFinanceExport"
-import { exportBillingRecordsExcel, exportPayablesPublisherDetailExcel } from "@/lib/finance/export"
 import { BILLING_STATE } from "@/lib/design/status"
 
 function sanitizeExcelSheetName(name: string): string {
@@ -119,18 +118,4 @@ export async function buildReceivablesWorkbookBuffer(
 ): Promise<Buffer> {
   const buffer = await buildReceivablesWorkbookBytes(records, metaByClientId)
   return Buffer.from(buffer)
-}
-
-/** Payables line-detail workbook (agency total excludes client-paid-direct lines). */
-export async function exportPayablesWorkbook(
-  records: BillingRecord[],
-  monthLabel: string,
-  fileStem: string
-): Promise<void> {
-  await exportPayablesPublisherDetailExcel(records, monthLabel, fileStem)
-}
-
-/** Flat grid export (secondary “flat list” option). */
-export async function exportFlatBillingWorkbook(records: BillingRecord[], filename: string): Promise<void> {
-  await exportBillingRecordsExcel(records, filename)
 }

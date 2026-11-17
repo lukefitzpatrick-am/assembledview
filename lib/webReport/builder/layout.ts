@@ -151,12 +151,6 @@ export function savedForMessage(clientName: string, version: number): string {
   return `Saved for ${clientName} · version ${version}`
 }
 
-export function normaliseGa4PropertyRef(value: string | null | undefined): string | null {
-  if (!value) return null
-  const digits = value.replace(/^properties\//i, "").trim()
-  return digits.length > 0 ? digits : null
-}
-
 export function parseBrandTerms(value: string): string[] {
   const seen = new Set<string>()
   const terms: string[] = []

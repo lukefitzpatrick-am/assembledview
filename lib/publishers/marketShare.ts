@@ -15,8 +15,6 @@ import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuar
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import type { PublisherMediaTypeShare } from "@/lib/types/publisher"
 
-const COMMERCIAL_STATUSES = ["booked", "approved", "completed"] as const
-
 export type MarketSharePublisher = {
   id: number
   publisherName: string | null
@@ -206,5 +204,3 @@ export async function fetchPublisherMarketShareFromPostgres(
     fy,
   )
 }
-
-export const MARKET_SHARE_COMMERCIAL_STATUSES = COMMERCIAL_STATUSES

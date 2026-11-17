@@ -17,7 +17,6 @@ import {
   prebillStatusLabelFromFlags,
   provenanceTooltip,
 } from "@/lib/billing/manualBillingVocabulary"
-import { cn } from "@/lib/utils"
 import type { MediaTypeRowIndicators } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 
 function ExplainedBadge({
@@ -200,8 +199,4 @@ export function MbaFeeAdjustedPill({ show }: { show: boolean }) {
       />
     </TooltipProvider>
   )
-}
-
-export function mbaMediaTypeRowClassName(row?: MediaTypeRowIndicators): string {
-  return cn(row?.muted && "opacity-50 text-muted-foreground")
 }

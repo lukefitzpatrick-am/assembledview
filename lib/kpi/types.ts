@@ -376,9 +376,6 @@ export const publisherKpiPatchBodySchema = z
     { message: "At least one field to update is required" },
   )
 
-export type PublisherKpiCreateBody = z.infer<typeof publisherKpiCreateBodySchema>
-export type PublisherKpiPatchBody = z.infer<typeof publisherKpiPatchBodySchema>
-
 // --- new: campaign CRUD request bodies ---
 
 const campaignKpiItemSchema = z.object({

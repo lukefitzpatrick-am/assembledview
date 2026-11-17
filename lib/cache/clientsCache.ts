@@ -78,13 +78,6 @@ export function invalidateClientsCache() {
 }
 
 /**
- * @deprecated Prefer `getCachedClientsList`. Kept for callers that mutate cache after a direct fetch.
- */
-export function setCachedClients(data: any[], _ttlMs?: number) {
-  cacheEntry = { data, fetchedAt: Date.now() }
-}
-
-/**
  * Returns the full clients list, coalescing concurrent callers onto one
  * upstream fetch. Serves last-known-good on failure (`stale: true`); rejects
  * only when there has never been a successful fetch.

@@ -1,12 +1,3 @@
-/**
- * Central chart appearance tokens. Consume these instead of scattering hex in components.
- *
- * - User brand_colour and per-channel colour maps stay as runtime props/records.
- * - Domain media colours remain in `mediaTypeTheme` (lib/utils).
- * - MediaGanttChart keeps a local Excel-parity constant.
- */
-
-import { BRAND } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
 /** Recharts default grid / reference stroke in the DOM (matches shadcn chart selectors). */
@@ -14,9 +5,6 @@ const CHART_RECHARTS_GRID_STROKE = "#ccc" as const
 
 /** Recharts default dot sector stroke in the DOM. */
 const CHART_RECHARTS_DOT_STROKE = "#fff" as const
-
-/** Fallback series fill when a chart has no channel colour. Brand context, a warm neutral. */
-export const CHART_CHANNEL_FALLBACK_FILL = BRAND.colour.context
 
 /** Fixed plot height for client dashboard spend / insight charts (avoids aspect-video viewport stretch). */
 export const DASHBOARD_CHART_PLOT_HEIGHT = 400

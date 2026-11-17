@@ -100,11 +100,6 @@ export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
   },
 ] as const
 
-/** @deprecated Use CLIENTS_BILLING_TAB_ITEMS or financeSectionPillsForPath — FIN-1 retired the global pill row. */
-export const FINANCE_SECTION_PILL_ITEMS: readonly FinanceSectionNavItem[] = [
-  ...CLIENTS_BILLING_TAB_ITEMS,
-] as const
-
 /** Every product page path introduced by the sections scaffold (for manifest + tests). */
 export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/home",
@@ -189,12 +184,6 @@ export function isClientsBillingPath(pathname: string): boolean {
     p === "/finance/owners" ||
     p.startsWith("/finance/owners/")
   )
-}
-
-/** True when pathname belongs to the Publishers (costs) sidebar item. */
-export function isPublishersFinancePath(pathname: string): boolean {
-  const p = normalizeFinancePath(pathname)
-  return p === "/finance/costs" || p.startsWith("/finance/costs/")
 }
 
 /**

@@ -69,39 +69,6 @@ export function PlanDraftPill(props: {
   )
 }
 
-export function PlanDraftRecoveryBanner(props: {
-  summary: string
-  reason: string
-  otherEditor?: string | null
-  onResume: () => void
-  onCompare: () => void
-  onDiscard: () => void
-}) {
-  return (
-    <div
-      role="status"
-      className="mb-3 rounded-card border border-border bg-surface-panel p-3 shadow-e1"
-    >
-      <p className="text-sm text-foreground">{props.summary}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{props.reason}</p>
-      {props.otherEditor ? (
-        <p className="mt-1 text-xs text-muted-foreground">{props.otherEditor}</p>
-      ) : null}
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Button type="button" size="sm" onClick={props.onResume}>
-          Resume
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={props.onCompare}>
-          Compare
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
-          Discard
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 export function PlanDraftActiveBanner(props: {
   updatedAt: string
   summary: DraftDiffSummary

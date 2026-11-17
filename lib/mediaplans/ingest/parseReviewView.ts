@@ -21,7 +21,6 @@ import {
   leftoverExcludedLegend,
   parseReviewCounts,
   proposedSourceRows,
-  rowHasUnresolvedValue,
   rowNeedsDecision,
   siblingRowsForValue,
   unresolvedValuesForRow,
@@ -236,11 +235,4 @@ export function filterParseReviewRows(
     default:
       return rows
   }
-}
-
-export function rowHasUnresolvedValueOn(
-  review: IngestReviewPackage,
-  row: number,
-): boolean {
-  return rowHasUnresolvedValue(review, row)
 }

@@ -234,16 +234,3 @@ export function attributeMeeting(
     candidates: [],
   }
 }
-
-/** Domains from attendee emails excluding assembled (for MR-5 learn-on-assign). */
-export function externalDomainsFromEmails(
-  emails: string[],
-  assembled: Set<string>
-): string[] {
-  const out = new Set<string>()
-  for (const email of emails) {
-    const d = extractEmailDomain(email)
-    if (d && !isAssembledDomain(d, assembled)) out.add(d)
-  }
-  return [...out].sort()
-}

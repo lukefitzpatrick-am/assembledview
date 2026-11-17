@@ -4,7 +4,7 @@
  */
 import "server-only"
 
-import { eq, sql } from "drizzle-orm"
+import { sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { mapPlanMasterFromPostgres } from "@/lib/data/readMediaPlans"
 import { resolveClientIdForMaster } from "@/lib/data/writeClients"
@@ -135,15 +135,4 @@ export async function createMediaPlanMasterPostgresFirst(
   master.version_number = 1
 
   return { master }
-}
-
-/** Read-back helper for tests / ensureMaster logging. */
-export async function masterExistsById(masterId: number): Promise<boolean> {
-  const db = getDb()
-  const [row] = await db
-    .select({ id: schema.mediaPlanMasters.id })
-    .from(schema.mediaPlanMasters)
-    .where(eq(schema.mediaPlanMasters.id, masterId))
-    .limit(1)
-  return row != null
 }

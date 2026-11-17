@@ -5,7 +5,6 @@ import type { ReactNode } from "react"
 import { X } from "lucide-react"
 
 import { serializeSpreadsheetCellKey } from "@/lib/spreadsheet/cellKey"
-import { spreadsheetCellDomId } from "@/lib/spreadsheet/cellKey"
 import type { SpreadsheetCellKey } from "@/lib/spreadsheet/types"
 import { cn } from "@/lib/utils"
 import type { BillingCellAdjustmentKind } from "@/lib/billing/billingLineAdjustmentIndicators"
@@ -131,28 +130,4 @@ export function ManualBillingSpreadsheetCell({
       <TooltipContent>{tooltipLabel}</TooltipContent>
     </Tooltip>
   )
-}
-
-export function wrapSpreadsheetInputProps(
-  cellKey: SpreadsheetCellKey,
-  inputProps: {
-    id?: string
-    onFocus?: React.FocusEventHandler<HTMLInputElement>
-    onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
-  }
-): {
-  id: string
-  onFocus: React.FocusEventHandler<HTMLInputElement>
-  onKeyDown: React.KeyboardEventHandler<HTMLInputElement>
-} {
-  const serialized = serializeSpreadsheetCellKey(cellKey)
-  return {
-    id: spreadsheetCellDomId(serialized),
-    onFocus: (e) => {
-      inputProps.onFocus?.(e)
-    },
-    onKeyDown: (e) => {
-      inputProps.onKeyDown?.(e)
-    },
-  }
 }

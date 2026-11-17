@@ -15,8 +15,6 @@ export const MONEY_TARGETS = [
   "charge:installation",
 ] as const
 
-export type MoneyTarget = (typeof MONEY_TARGETS)[number]
-
 /** Absolute relative delta that blocks Accept (file total vs computed). */
 export const RECONCILIATION_BLOCK_PCT = 0.005
 

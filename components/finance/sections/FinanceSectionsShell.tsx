@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { navChipClass } from "@/components/layout/navChip"
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { useFinancePeriodsFlag } from "@/components/finance/sections/FinancePeriodsFlagContext"
 import { financeSectionPillsForPath } from "@/lib/finance/sections/nav"
 import { financeHref } from "@/lib/finance/sections/financeHref"
@@ -79,24 +78,5 @@ export function FinanceSectionsShell({
       </div>
       {children}
     </div>
-  )
-}
-
-export function FinanceSectionPlaceholderCard({
-  title,
-  body,
-}: {
-  title: string
-  body: string
-}) {
-  return (
-    <Panel>
-      <PanelHeader>
-        <PanelTitle>{title}</PanelTitle>
-      </PanelHeader>
-      <PanelContent>
-        <p className="text-sm text-muted-foreground">{body}</p>
-      </PanelContent>
-    </Panel>
   )
 }

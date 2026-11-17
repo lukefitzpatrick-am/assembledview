@@ -9,32 +9,3 @@ export const IAB_SIZES = [
   { width: 336, height: 280 },
   { width: 970, height: 90 },
 ] as const
-
-export function nearestIabSize(
-  width: number,
-  height: number,
-  tolerance = 2,
-): { width: number; height: number } | null {
-  for (const size of IAB_SIZES) {
-    if (size.width === width && size.height === height) return size
-  }
-  for (const size of IAB_SIZES) {
-    if (Math.abs(size.width - width) <= tolerance && Math.abs(size.height - height) <= tolerance) {
-      return { width: size.width, height: size.height }
-    }
-  }
-  return null
-}
-
-export function matchesCreativeSize(
-  slotWidth: number,
-  slotHeight: number,
-  creativeWidth: number,
-  creativeHeight: number,
-  tolerance = 4,
-): boolean {
-  return (
-    Math.abs(slotWidth - creativeWidth) <= tolerance &&
-    Math.abs(slotHeight - creativeHeight) <= tolerance
-  )
-}

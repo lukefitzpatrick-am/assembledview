@@ -5,7 +5,6 @@ import { findCurrentBurstIndex } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
 import {
-  fetchXanoLineItemsForMba,
   resolveLivePlanLineItems,
 } from "@/lib/pacing/plans/resolveLivePlanLineItems";
 import type {
@@ -49,15 +48,6 @@ const DIGITAL_TABLES: DigitalTableSpec[] = [
   { tableName: "media_plan_digi_audio", channelFamily: "digitalAudio" },
   { tableName: "media_plan_digi_bvod", channelFamily: "bvod" },
 ];
-
-export async function fetchDigitalLineItemsForMba(args: {
-  mba_number: string;
-  versionRowId: number;
-  versionNumber: number;
-  tableName: string;
-}): Promise<Record<string, unknown>[]> {
-  return fetchXanoLineItemsForMba(args);
-}
 
 /**
  * Plan deliverable totals by buy type — mirrors directDigitalAdapterShared.bookedDeliverables.

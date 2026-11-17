@@ -447,8 +447,6 @@ export function resolveCpvPlanRate(
   return { value, caption }
 }
 
-export type KpiReviewCostCaption = "plan rate" | "No click basis"
-
 /** Impression buys. Live plans only store `cpm` here; dcpm and vcpm are absent. */
 const CPM_FAMILY_BUY_TYPES = new Set(["cpm"])
 

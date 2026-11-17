@@ -637,35 +637,3 @@ export async function fetchFinanceSectionsSummary(
       : {}),
   }
 }
-
-/**
- * Per-MBA billing FYTD cents for reconciliation against blob hub.
- */
-export async function fetchReceivablesByMba(
-  q: FinanceSectionsSummaryQuery
-): Promise<Array<{ mba: string; cents: number }>> {
-  const db = getDb()
-  const fromDate = monthStartDate(q.from)
-  const toExclusive = monthEndExclusive(q.to)
-  const clientSql = clientFilterSql(q.clientIds)
-  const result = await db.execute(sql`
-    SELECT m.mba_number AS mba, COALESCE(SUM(sm.amount_cents), 0) AS cents
-    FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
-    INNER JOIN schedule_months sm ON sm.version_id = v.id
-      AND sm.basis = 'billing'
-      AND sm.component IN ('media', 'fee', 'adserving')
-      AND sm.month >= ${fromDate}::date
-      AND sm.month < ${toExclusive}::date
-    WHERE m.published_version_id IS NOT NULL
-      AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
-      AND ${clientSql}
-    GROUP BY m.mba_number
-    HAVING SUM(sm.amount_cents) <> 0
-    ORDER BY m.mba_number
-  `)
-  return executeRows(result).map((row) => ({
-    mba: String(row.mba ?? ""),
-    cents: asBigInt(row.cents),
-  }))
-}

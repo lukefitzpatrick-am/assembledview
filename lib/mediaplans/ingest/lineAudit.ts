@@ -143,10 +143,6 @@ export function sourceRowNumber(ref: string | null | undefined): number | null {
   return Number.isInteger(n) ? n : null
 }
 
-export function sourceRowRefFor(sheetName: string, row: number): string {
-  return `${sheetName}!r${row}`
-}
-
 function strOrNull(v: unknown): string | null {
   if (v == null) return null
   const s = String(v).replace(/\s+/g, " ").trim()

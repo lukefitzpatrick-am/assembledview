@@ -632,15 +632,6 @@ export function detectSheetShape(ws: ExcelJS.Worksheet): DetectedSheetShape {
   }
 }
 
-export async function detectWorkbookShapes(
-  buffer: Buffer,
-): Promise<DetectedSheetShape[]> {
-  const wb = new ExcelJS.Workbook()
-  // ExcelJS reads .xlsx and .xlsm via xlsx reader (macros ignored; sheet data preserved).
-  await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
-  return wb.worksheets.map((ws) => detectSheetShape(ws))
-}
-
 export async function detectWorkbookShapesFromFile(
   filePath: string,
 ): Promise<DetectedSheetShape[]> {

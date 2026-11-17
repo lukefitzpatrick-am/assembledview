@@ -79,12 +79,6 @@ export function addReportMeasures(
   }
 }
 
-export function measuresFromReportRow(row: ReportRow): Record<ReportMetricKey, number> {
-  const measures = emptyReportMeasures()
-  addReportMeasures(measures, row)
-  return measures
-}
-
 export function metricDef(key: ReportMetricKey): ReportMetricDef {
   return REPORT_METRICS.find((m) => m.key === key) ?? {
     key,

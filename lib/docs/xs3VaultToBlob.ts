@@ -11,10 +11,6 @@ export const XS3_KINDS = ["media_plan", "mba_pdf", "aa_media_plan"] as const sat
 
 export type Xs3Kind = (typeof XS3_KINDS)[number]
 
-export const XS3_MARKER_KEY = "xs3_vault_to_blob"
-
-export const XS3_FILE_CONCURRENCY = 4
-
 const FILE_KEY = {
   media_plan: "mediaPlanFile",
   mba_pdf: "mbaPdfFile",
@@ -133,90 +129,8 @@ export function xs3BlobPathname(
   return planDocumentBlobPathname(mbaNumber, versionNumber, kind, filename)
 }
 
-export function migratedFromXanoJson(args: {
-  url: string
-  pathname: string
-  name: string
-  size: number
-  mime: string
-  xanoUrl: string
-}): Xs3MigratedFileJson {
-  return {
-    url: args.url,
-    mime: args.mime,
-    name: args.name,
-    size: args.size,
-    source: "migrated_from_xano",
-    pathname: args.pathname,
-    xano_url: args.xanoUrl,
-  }
-}
-
 export type Xs3RunArgs = {
   dryRun: boolean
   limit: number | null
   kind: Xs3Kind | null
-}
-
-export function parseXs3Args(argv: string[]): Xs3RunArgs {
-  let dryRun = false
-  let limit: number | null = null
-  let kind: Xs3Kind | null = null
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-    if (arg === "--dry-run") {
-      dryRun = true
-      continue
-    }
-    if (arg === "--limit") {
-      const raw = argv[++i]
-      const n = Number(raw)
-      if (!raw || !Number.isInteger(n) || n < 1) {
-        throw new Error("--limit expects a positive integer")
-      }
-      limit = n
-      continue
-    }
-    if (arg === "--kind") {
-      const raw = argv[++i]
-      if (raw !== "media_plan" && raw !== "mba_pdf" && raw !== "aa_media_plan") {
-        throw new Error("--kind expects media_plan, mba_pdf, or aa_media_plan")
-      }
-      kind = raw
-      continue
-    }
-    throw new Error(`Unknown argument: ${arg}`)
-  }
-  return { dryRun, limit, kind }
-}
-
-/** Marker only after every kind was eligible and nothing failed. */
-export function shouldWriteXs3Marker(args: Xs3RunArgs, failures: number): boolean {
-  return !args.dryRun && args.limit == null && args.kind == null && failures === 0
-}
-
-export function xs3CsvLine(fields: {
-  versionId: number
-  kind: Xs3Kind
-  oldUrl: string
-  newUrl: string
-  bytes: number | ""
-  sha256: string
-  status: string
-}): string {
-  const cells = [
-    String(fields.versionId),
-    fields.kind,
-    fields.oldUrl,
-    fields.newUrl,
-    fields.bytes === "" ? "" : String(fields.bytes),
-    fields.sha256,
-    fields.status,
-  ]
-  return cells.map(csvCell).join(",")
-}
-
-function csvCell(value: string): string {
-  if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`
-  return value
 }

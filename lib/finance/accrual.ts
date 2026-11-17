@@ -22,12 +22,6 @@ export interface AccrualRow {
   difference: number
 }
 
-export interface AccrualApiResponse {
-  months: string[]
-  rows: AccrualRow[]
-  meta?: Record<string, unknown>
-}
-
 type FlattenedLine = {
   source: AccrualSource
   clientName: string

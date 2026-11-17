@@ -50,13 +50,3 @@ export function campaignReportPeriodMetrics(input: {
     paceReason: pace.paceReason,
   }
 }
-
-/** Flight-elapsed share of a planned budget. The campaign report does not use this for pace. */
-export function expectedMediaAtElapsed(
-  plannedBudget: number,
-  timeElapsedPct: number | null,
-): number | null {
-  if (timeElapsedPct == null || !Number.isFinite(timeElapsedPct)) return null
-  if (!(plannedBudget > 0)) return 0
-  return plannedBudget * timeElapsedPct
-}

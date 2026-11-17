@@ -53,10 +53,6 @@ export function toPeriodMonthDate(input: string | Date): string {
   return `${toPeriodMonthKey(input)}-01`
 }
 
-export function periodMonthKeyFromDate(d: Date): string {
-  return toPeriodMonthKey(d)
-}
-
 export function addPeriodMonths(yyyyMm: string, delta: number): string {
   const key = toPeriodMonthKey(yyyyMm)
   const [ys, ms] = key.split("-")

@@ -58,8 +58,3 @@ export function ledgerLabel(a: TrueUpActionRef): string {
       return `${comp}: credit note to raise against ${a.xeroInvoiceId ?? "an invoice"}`
   }
 }
-
-/** Every component a schedule fix could include (anything with a gap, ahead or behind). */
-export function fixableComponents(row: TrueUpMbaRow): TrueUpComponent[] {
-  return TRUE_UP_COMPONENTS.filter((c) => row.components[c].status !== "matches")
-}

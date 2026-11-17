@@ -75,20 +75,3 @@ export function allocate(
     dollars: Math.round((weights[i] / total) * budget / 1000) * 1000,
   }));
 }
-
-export function totalBcs(allocated: AllocatedChannel[]): number {
-  return allocated.reduce((s, a) => s + a.bcs * (a.pct / 100), 0);
-}
-
-/** Audience reach % (0–100): BCS allocation share × weekly channel reach. No fictional cap. */
-export function totalReach(allocated: AllocatedChannel[]): number {
-  return allocated.reduce((s, a) => s + a.ch.reachPct * 100 * (a.pct / 100), 0);
-}
-
-export function totalAttention(allocated: AllocatedChannel[]): number {
-  return allocated.reduce((s, a) => s + a.ch.attn * (a.pct / 100), 0);
-}
-
-export function effectiveCpm(allocated: AllocatedChannel[]): number {
-  return allocated.reduce((s, a) => s + a.ch.cpm * (a.pct / 100), 0);
-}

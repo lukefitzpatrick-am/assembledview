@@ -24,13 +24,6 @@ export const EMPTY_CAMPAIGN_READ_BEAT = "Nothing to report yet."
 
 export type CampaignReadStatus = "draft" | "published" | "generating" | "failed"
 
-export const CAMPAIGN_READ_STATUSES: readonly CampaignReadStatus[] = [
-  "draft",
-  "published",
-  "generating",
-  "failed",
-]
-
 export type CampaignRead = {
   id: number
   mbaNumber: string

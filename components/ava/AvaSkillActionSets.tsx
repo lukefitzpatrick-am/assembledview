@@ -75,47 +75,6 @@ export function AvaPacingCommentaryAction() {
   )
 }
 
-export function AvaCampaignCommentaryAction() {
-  return (
-    <AvaSkillAction
-      label="Write commentary"
-      message={AVA_SKILL_MESSAGES.writeCampaignCommentary}
-      className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
-    />
-  )
-}
-
-export function AvaCampaignReadAction({
-  onActivate,
-}: {
-  onActivate?: () => void
-} = {}) {
-  return (
-    <AvaSkillAction
-      label="Get AVA's read"
-      message={AVA_SKILL_MESSAGES.campaignRead}
-      className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
-      onActivate={onActivate}
-    />
-  )
-}
-
-export function AvaCampaignScenarioAction() {
-  return (
-    <AvaSkillAction
-      label="Plan a scenario"
-      message={AVA_SKILL_MESSAGES.planScenario}
-      className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
-    />
-  )
-}
-
-export function AvaPlanningInsightAction() {
-  return (
-    <AvaSkillAction label="Find the insight" message={AVA_SKILL_MESSAGES.findInsight} />
-  )
-}
-
 export function AvaCreativeSkillActions({
   hasSelectedAsset = false,
   disabledReason,

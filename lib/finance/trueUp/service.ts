@@ -42,8 +42,6 @@ import { TRUE_UP_NOT_READY_MESSAGE, isTrueUpActionsEnabled } from "./flag"
 import { loadTrueUp } from "./load"
 import { isTrueUpMigrationApplied } from "./marker"
 
-export type TrueUpServiceError = ServiceError
-
 function err(status: number, code: string, message: string, extra: Partial<ServiceError> = {}): ServiceError {
   return { ok: false, status, code, message, ...extra }
 }
@@ -374,7 +372,6 @@ export async function previewTrueUpUndo(args: {
 }
 
 const REASON_CODES = ["timing", "prebill", "client_agreed", "schedule_incomplete", "other"] as const
-export type TrueUpReasonCode = (typeof REASON_CODES)[number]
 
 export type TrueUpNoteInput = {
   mbaNumber: string

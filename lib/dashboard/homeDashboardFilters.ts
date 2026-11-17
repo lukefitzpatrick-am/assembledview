@@ -40,8 +40,6 @@ export const defaultDashboardViewFilters = (): DashboardViewFilters => ({
   month: null,
 })
 
-export const normalizeDashboardSearch = (value: string) => normalizeSearchText(value)
-
 export const normalizeClientFilterValue = (value: string) => normalizeSearchText(value)
 
 /** Live scopes: Approved / In-Progress, tolerant of case, hyphen/space, and trim. */

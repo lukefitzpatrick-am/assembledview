@@ -4,7 +4,6 @@ import { AlertTriangle, Loader2 } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   scrollToBuilderTarget,
   type BuilderIssue,
@@ -179,29 +178,5 @@ export function PlanWizardSaveMessages(props: {
         ))}
       </div>
     </div>
-  )
-}
-
-export function PlanWizardSaveDraftActions(props: {
-  children: ReactNode
-}) {
-  return <div className="mt-2 flex flex-col gap-1.5">{props.children}</div>
-}
-
-export function PlanWizardSaveDraftActionButton(props: {
-  children: ReactNode
-  variant?: "outline" | "ghost"
-  onClick: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant={props.variant ?? "outline"}
-      className="h-8 w-full"
-      onClick={props.onClick}
-    >
-      {props.children}
-    </Button>
   )
 }

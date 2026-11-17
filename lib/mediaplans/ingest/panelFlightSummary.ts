@@ -21,10 +21,6 @@ export function isFlightLive(f: PanelFlightLike): boolean {
   return f.is_live ?? f.isLive ?? true
 }
 
-export function isFlightBonus(f: PanelFlightLike): boolean {
-  return f.is_bonus ?? f.isBonus ?? false
-}
-
 export function flightPeriodCount(f: PanelFlightLike): number {
   const n = f.period_count ?? f.periodCount
   if (typeof n === "number" && Number.isFinite(n) && n > 0) return n

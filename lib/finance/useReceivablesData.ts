@@ -39,13 +39,6 @@ export function receivableRecordSectionLabel(billingType: BillingRecord["billing
   return billingType
 }
 
-/** Matches `ReceivablesTab` badge colours (media → blue, sow → violet, retainer → green). */
-export function billingTypeBadgeClass(type: BillingRecord["billing_type"]) {
-  if (type === "media") return "bg-blue-500/15 text-blue-700 dark:text-blue-300"
-  if (type === "sow") return "bg-violet-500/15 text-violet-700 dark:text-violet-300"
-  return "bg-green-500/15 text-green-700 dark:text-green-300"
-}
-
 export type MediaPlanGroup = {
   mbaNumber: string
   campaignName: string

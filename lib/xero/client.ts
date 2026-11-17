@@ -5,8 +5,6 @@
 
 import { XERO_API_BASE, XERO_IDENTITY_URL } from "@/lib/config/endpoints"
 
-export type XeroTokenProvider = () => Promise<string>
-
 let cachedToken: { token: string; expiresAtMs: number } | null = null
 
 export function clearXeroTokenCache(): void {

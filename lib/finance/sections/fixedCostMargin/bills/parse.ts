@@ -15,7 +15,7 @@
  */
 
 import { toCents } from "@/lib/money/cents"
-import { aliasPublisherFor, type SupplierKind } from "./suppliers"
+import { type SupplierKind } from "./suppliers"
 
 export type RawBillRow = {
   billId: number
@@ -217,9 +217,4 @@ export function findKnownMbas(textValue: string, known: ReadonlySet<string>): st
     }
   }
   return out
-}
-
-/** AV publisher name for AA media owner text via the alias list (re-exported for tests). */
-export function mediaOwnerAlias(textValue: string): string | null {
-  return aliasPublisherFor(textValue)
 }

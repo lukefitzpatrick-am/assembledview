@@ -335,9 +335,3 @@ export function loadMiLibrary(dir = miLibraryDir()): LoadedMiLibrary {
     version: loadMiLibraryVersion(dir),
   }
 }
-
-export function isCivicOutdoor(
-  record: MiPublisherRecord,
-): record is MiCivicOutdoorPublisher & MiPublisherRecord {
-  return record.publisher_slug === "civic-outdoor"
-}

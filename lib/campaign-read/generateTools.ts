@@ -8,7 +8,3 @@ export const CAMPAIGN_READ_GENERATE_TOOLS = [
 export type CampaignReadGenerateTool = (typeof CAMPAIGN_READ_GENERATE_TOOLS)[number]
 
 export const CAMPAIGN_READ_GENERATE_SURFACE = "campaign-read-generate"
-
-export function isCampaignReadGenerateTool(name: string): name is CampaignReadGenerateTool {
-  return (CAMPAIGN_READ_GENERATE_TOOLS as readonly string[]).includes(name)
-}

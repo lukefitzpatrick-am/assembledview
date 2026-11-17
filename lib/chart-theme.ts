@@ -98,19 +98,6 @@ export const NEUTRAL = {
   cursor: 'var(--av-cursor)',
 } as const;
 
-// ─────────────────────────────────────────────────────────────
-// Scale helpers
-// ─────────────────────────────────────────────────────────────
-function lerpRamp(ramp: readonly string[], t: number): string {
-  const x = Math.min(1, Math.max(0, t));
-  const i = Math.min(ramp.length - 1, Math.round(x * (ramp.length - 1)));
-  return ramp[i];
-}
-/** Sequential colour for a normalised value 0..1. */
-export const seqColor = (t: number) => lerpRamp(SEQUENTIAL, t);
-/** Diverging colour for a normalised value 0..1 (0 = coral, .5 = neutral, 1 = green). */
-export const divColor = (t: number) => lerpRamp(DIVERGING, t);
-
 /** Pick a categorical colour by index, wrapping. */
 export const seriesColor = (i: number, cb = false) =>
   (cb ? CHART_PALETTE_CB : CHART_PALETTE)[i % CHART_PALETTE.length];
@@ -142,12 +129,6 @@ export const fmt = {
   percentPoints: (points: number, dp = 0) => ratioAsPercent(points / 100, dp),
   /** 1240 → "1,240" */
   number: (n: number) => intNF.format(n),
-};
-
-/** Tabular-figure style — spread onto any <text>/<span> showing a value. */
-export const TABULAR: React.CSSProperties = {
-  fontVariantNumeric: 'tabular-nums',
-  letterSpacing: '-0.01em',
 };
 
 export const CHART_FONT = [BRAND.font.sans, ...BRAND.font.sansFallback]
@@ -258,20 +239,4 @@ export function channelColorFor(key: string, index = 0): string {
   const mapped = CHANNEL_COLOR_ALIASES[n] ?? (n in CHANNEL_COLORS ? (n as keyof typeof CHANNEL_COLORS) : undefined);
   if (mapped) return CHANNEL_COLORS[mapped];
   return seriesColor(index);
-}
-
-// ─────────────────────────────────────────────────────────────
-// shadcn ChartConfig helper — build a config object from a series map
-// so <ChartContainer> injects the right --color-<key> vars + legend labels.
-// ─────────────────────────────────────────────────────────────
-import type { ChartConfig } from '@/components/ui/chart';
-
-export function buildConfig(
-  series: { key: string; label: string; color?: string }[],
-  cb = false,
-): ChartConfig {
-  return series.reduce((acc, s, i) => {
-    acc[s.key] = { label: s.label, color: s.color ?? seriesColor(i, cb) };
-    return acc;
-  }, {} as ChartConfig);
 }

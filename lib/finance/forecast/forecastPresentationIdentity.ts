@@ -16,7 +16,6 @@ import {
   isFinanceForecastEntityBillingLine,
   isFinanceForecastMediaBreakoutLine,
   type FinanceForecastClientBlock,
-  type FinanceForecastDataset,
   type FinanceForecastLine,
   type FinanceForecastLineKey,
 } from "@/lib/types/financeForecast"
@@ -127,10 +126,6 @@ export function evaluateClientForecastIdentity(block: FinanceForecastClientBlock
     feesCommissionsMatchRevenueExTotal,
     feesCommissionsPlusOtherMatchRevenueExTotal,
   }
-}
-
-export function evaluateDatasetForecastIdentity(dataset: FinanceForecastDataset): ClientIdentityResult[] {
-  return dataset.client_blocks.map(evaluateClientForecastIdentity)
 }
 
 /** Hard gates used by FIN-5 tests: media == entity; Fees+Commissions+Other == revenue body ex total. */

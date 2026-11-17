@@ -258,8 +258,3 @@ export async function fetchPacingOrphanFixesFromPostgres(): Promise<
   return readPacingOrphanFixRows()
 }
 
-/** List orphan-fix audit rows from Postgres `pacing_orphan_fixes`. */
-export async function readPacingOrphanFixes(): Promise<Record<string, unknown>[]> {
-  return fetchPacingOrphanFixesFromPostgres()
-}
-

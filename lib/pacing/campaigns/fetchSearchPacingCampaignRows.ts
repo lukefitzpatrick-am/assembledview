@@ -218,20 +218,6 @@ export async function fetchCurrentVersionRowsForMasters(
   return map;
 }
 
-export async function fetchSearchLineItemsForMba(args: {
-  mba_number: string;
-  versionRowId: number;
-  versionNumber: number;
-}): Promise<Record<string, unknown>[]> {
-  const { fetchLineItemsFromPostgresByEndpoint } = await import("@/lib/data/readMediaPlans");
-  return fetchLineItemsFromPostgresByEndpoint(
-    "media_plan_search",
-    args.mba_number,
-    args.versionNumber,
-    { readLimits: true },
-  );
-}
-
 function mapSearchRowToCampaignRow(
   master: MediaPlanMaster,
   versionRow: VersionRow,

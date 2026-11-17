@@ -12,8 +12,6 @@ export const DECK_REPORTS_HREF = "/admin/reports"
 export const DECK_BUILDING_COPY =
   "Your deck is being built. This takes 1 to 3 minutes. You can leave this page; it'll be in Reports when it's done."
 
-export const DECK_STILL_COPY = "Still building. Check Reports shortly."
-
 export type DeckPanelPhase = "building" | "ready" | "failed" | "still"
 
 export function deckPanelPhase(input: { status: string; watchedMs: number }): DeckPanelPhase {

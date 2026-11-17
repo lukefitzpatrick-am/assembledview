@@ -36,39 +36,3 @@ export type FinanceForecastTargetUpsertCell = FinanceForecastTargetUpsertKey & {
   amount: number
   client_name?: string | null
 }
-
-/** GET /api/finance/forecast/targets */
-export type FinanceForecastTargetsListResponse = {
-  lines: FinanceForecastTargetLine[]
-  configured: boolean
-  financial_year_start_year: number
-  client_id?: string | null
-}
-
-/** POST /api/finance/forecast/targets — single cell upsert */
-export type FinanceForecastTargetPostRequest = {
-  client_id: string
-  /** Alias accepted by the route; normalised to financial_year_start_year. */
-  financial_year_start_year?: number
-  fy?: number
-  line_key: FinanceForecastLineKey
-  month_key: FinanceForecastMonthKey
-  amount: number
-  client_name?: string | null
-}
-
-export type FinanceForecastTargetPostResponse = {
-  ok: true
-  line: FinanceForecastTargetLine
-}
-
-/** PATCH /api/finance/forecast/targets — batch grid save */
-export type FinanceForecastTargetPatchRequest = {
-  cells: FinanceForecastTargetUpsertCell[]
-}
-
-export type FinanceForecastTargetPatchResponse = {
-  ok: true
-  upserted: number
-  lines: FinanceForecastTargetLine[]
-}

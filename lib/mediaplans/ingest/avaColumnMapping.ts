@@ -54,8 +54,6 @@ export const AVA_MAPPING_TARGET_DESCRIPTORS = [
   "reference:ignore",
 ] as const
 
-export type AvaMappingTarget = (typeof AVA_MAPPING_TARGET_DESCRIPTORS)[number]
-
 export type AvaColumnMappingProposal = {
   header: string
   sample_values: string[]
@@ -83,12 +81,6 @@ export type AvaMappingClient = {
     targets: readonly string[]
     columns: UnmappedColumnSample[]
   }) => Promise<AvaColumnMappingProposal[]>
-}
-
-export type AvaMappingRequestBody = {
-  publisherName: string | null
-  publisherConfidence: number
-  columns: UnmappedColumnSample[]
 }
 
 export type ParsedAvaMappingRequest =
@@ -367,14 +359,6 @@ export async function runAvaColumnMappingProposals(args: {
     columns,
   })
   return { proposals, ava_call_count: 1 }
-}
-
-/** Test helper: parse tool payload without network. */
-export function parseAvaMappingToolInputForTest(
-  raw: unknown,
-  columns: UnmappedColumnSample[],
-): AvaColumnMappingProposal[] {
-  return parseToolProposals(raw, columns)
 }
 
 export { parseToolProposals }

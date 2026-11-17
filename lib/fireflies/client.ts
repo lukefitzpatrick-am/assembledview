@@ -129,11 +129,3 @@ export class FirefliesClient {
     return all
   }
 }
-
-export function firefliesClientFromEnv(
-  transport?: FirefliesTransport
-): FirefliesClient {
-  const apiKey = process.env.FIREFLIES_API_KEY?.trim()
-  if (!apiKey) throw new Error("FIREFLIES_API_KEY is not set")
-  return new FirefliesClient({ apiKey, transport })
-}

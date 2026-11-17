@@ -2,8 +2,6 @@ import tokens from "./tokens.json"
 
 export const BRAND = tokens
 
-export type BrandColour = keyof typeof tokens.colour
-
 export const EMAIL_FONT_STACK = tokens.font.email
   .map((name) => (name.includes(" ") ? `'${name}'` : name))
   .join(", ")

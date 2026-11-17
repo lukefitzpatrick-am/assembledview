@@ -19,11 +19,6 @@ export type PublisherNameRow = {
   publisherName: string
 }
 
-export type ApBillForAttribution = {
-  id: number
-  contactName: string | null
-}
-
 export type ApAttributionResult = {
   publisherKey: string | null
   publisherLabel: string | null

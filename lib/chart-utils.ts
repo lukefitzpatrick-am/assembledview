@@ -6,19 +6,6 @@
 
 export const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Catmull-Rom → cubic-bezier smoothing through points. */
-export function smoothPath(p: [number, number][]): string {
-  if (p.length < 3) return p.map((q, i) => (i ? 'L' : 'M') + round(q[0]) + ' ' + round(q[1])).join(' ');
-  let d = 'M' + round(p[0][0]) + ' ' + round(p[0][1]);
-  for (let i = 0; i < p.length - 1; i++) {
-    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
-    d += ' C' + round(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + round(p1[1] + (p2[1] - p0[1]) / 6) +
-         ' ' + round(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + round(p2[1] - (p3[1] - p1[1]) / 6) +
-         ' ' + round(p2[0]) + ' ' + round(p2[1]);
-  }
-  return d;
-}
-
 /** Straight polyline through points. */
 export const polyline = (p: [number, number][]) =>
   p.map((q, i) => (i ? 'L' : 'M') + round(q[0]) + ' ' + round(q[1])).join(' ');

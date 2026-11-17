@@ -182,69 +182,10 @@ export function formatWorkbookCompareReport(report: WorkbookCompareReport): stri
   return lines.join("\n")
 }
 
-const PDF_TOTAL_LABELS = [
-  "Total Gross Media:",
-  "Service Fee:",
-  "Production:",
-  "Adserving/Tech:",
-  "Total ex. GST:",
-  "Total inc. GST:",
-] as const
-
 export type PdfTotalsCompare = {
   label: string
   expected: number | null
   actual: number | null
   diff: number | null
   match: boolean
-}
-
-function parsePdfTotals(text: string): Map<string, number> {
-  const out = new Map<string, number>()
-  const collapsed = text.replace(/\s+/g, " ")
-  for (const label of PDF_TOTAL_LABELS) {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const match = new RegExp(`${escaped}\\s*(\\$?[\\d,]+(?:\\.\\d{1,2})?)`).exec(
-      collapsed,
-    )
-    if (!match) continue
-    const value = parseMoneyInput(match[1] ?? "")
-    if (value != null) out.set(label, value)
-  }
-  return out
-}
-
-export function extractMbaPdfTotals(
-  text: string,
-): Array<{ label: string; value: number }> {
-  const parsed = parsePdfTotals(text)
-  return PDF_TOTAL_LABELS.flatMap((label) => {
-    const value = parsed.get(label)
-    return value == null ? [] : [{ label, value }]
-  })
-}
-
-export function compareMbaPdfTotals(
-  expectedText: string,
-  actualText: string,
-): { cells: PdfTotalsCompare[]; hasTotalsDiff: boolean } {
-  const expected = parsePdfTotals(expectedText)
-  const actual = parsePdfTotals(actualText)
-  const cells: PdfTotalsCompare[] = PDF_TOTAL_LABELS.map((label) => {
-    const exp = expected.has(label) ? expected.get(label)! : null
-    const act = actual.has(label) ? actual.get(label)! : null
-    const both = exp != null && act != null
-    const match = both && moneyEqual(exp, act)
-    return {
-      label,
-      expected: exp,
-      actual: act,
-      diff: both ? act - exp : null,
-      match,
-    }
-  })
-  return {
-    cells,
-    hasTotalsDiff: cells.some((c) => !c.match),
-  }
 }

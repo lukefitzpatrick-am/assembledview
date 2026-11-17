@@ -137,39 +137,3 @@ export function filterRecordsByBillingTypes<T extends { billing_type?: unknown; 
     return typeof bt === "string" && want.has(bt as BillingType)
   })
 }
-
-const ARRAY_KEYS = ["records", "data", "items", "result"] as const
-
-function filterFirstArrayField(
-  o: Record<string, unknown>,
-  types: BillingType[]
-): Record<string, unknown> | null {
-  const out = { ...o }
-  for (const key of ARRAY_KEYS) {
-    const arr = o[key]
-    if (Array.isArray(arr)) {
-      out[key] = filterRecordsByBillingTypes(arr as { billing_type?: unknown }[], types)
-      return out
-    }
-  }
-  return null
-}
-
-/** Apply strict billing_type filtering so upstream cannot silently return payables when only receivables were requested. */
-export function applyBillingTypeFilterToPayload(data: unknown, types: BillingType[]): unknown {
-  if (types.length === 0) return data
-  if (Array.isArray(data)) {
-    return filterRecordsByBillingTypes(data, types)
-  }
-  if (data && typeof data === "object") {
-    const o = data as Record<string, unknown>
-    const top = filterFirstArrayField(o, types)
-    if (top) return top
-    const inner = o.data
-    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-      const nested = filterFirstArrayField(inner as Record<string, unknown>, types)
-      if (nested) return { ...o, data: nested }
-    }
-  }
-  return data
-}

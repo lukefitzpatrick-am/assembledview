@@ -1,5 +1,4 @@
 import {
-  readAllPublisherKpis,
   readPublisherKpis,
 } from "@/lib/data/readKpi"
 import {
@@ -8,11 +7,6 @@ import {
   updatePublisherKpiPostgresFirst,
 } from "@/lib/data/writeKpi"
 import type { PublisherKpi, PublisherKpiInput } from "./types"
-
-/** Route-handler / server only — static import of server-only `readKpi`. */
-export async function fetchAllPublisherKpis(): Promise<PublisherKpi[]> {
-  return await readAllPublisherKpis()
-}
 
 export async function fetchPublisherKpis(
   publisherKey: string,

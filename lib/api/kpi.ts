@@ -45,16 +45,6 @@ export async function getCampaignKPIs(
   return Array.isArray(data) ? data : []
 }
 
-export async function saveCampaignKPIs(kpis: CampaignKPI[]): Promise<CampaignKPI[]> {
-  const response = await fetch("/api/kpis/campaign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(kpis),
-  })
-  const data = await jsonOrThrow<CampaignKPI[]>(response)
-  return Array.isArray(data) ? data : []
-}
-
 export async function syncCampaignKPIs(kpis: CampaignKPI[]): Promise<CampaignKPI[]> {
   const response = await fetch("/api/kpis/campaign/sync", {
     method: "POST",

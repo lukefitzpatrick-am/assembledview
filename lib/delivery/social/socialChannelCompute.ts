@@ -2,16 +2,11 @@ import { roundMoney2 } from "@/lib/money/cents"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import { mergeReportedSpendFromDate } from "@/lib/delivery/programmatic/applyReportedSpend"
 import { effectiveFixedCostFrom } from "@/lib/mediaplan/fixedCostFrom"
-import {
-  burstsWithoutUnitTarget,
-  packageHasNoUnitTarget,
-  type PackageUnitTargetOptions,
-} from "@/lib/delivery/packageUnitTarget"
+import { burstsWithoutUnitTarget, packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
-import { formatDateShort } from "@/lib/format/date"
 /**
  * Pure social delivery metric helpers extracted from SocialDeliveryContainer.
  */
@@ -37,7 +32,6 @@ import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialPlatform } from "@/lib/pacing/social/types"
-
 
 export type SocialLineItem = {
   line_item_id: string
@@ -308,7 +302,6 @@ function parseBursts(raw: SocialLineItem["bursts"] | SocialLineItem["bursts_json
   return []
 }
 
-
 export function formatCurrency(value: number | undefined) {
   return formatMoney(value ?? 0)
 }
@@ -323,26 +316,6 @@ export function formatNumber(value: number | undefined) {
 
 export function formatWholeNumber(value: number | undefined) {
   return Math.round(value ?? 0).toLocaleString("en-AU")
-}
-
-function formatDateAU(dateString: string | undefined) {
-  return formatDateShort(dateString)
-}
-
-function formatChartDateLabel(iso: string | undefined) {
-  if (!iso) return "—"
-  const d = new Date(`${iso}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return iso
-  return new Intl.DateTimeFormat("en-AU", { month: "short", day: "numeric" }).format(d)
-}
-
-function formatCompactNumber(value: number | undefined) {
-  const n = Number(value ?? 0)
-  if (!Number.isFinite(n)) return "0"
-  return new Intl.NumberFormat("en-AU", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(n)
 }
 
 export function formatLineItemHeader(lineItem: SocialLineItem) {
@@ -497,34 +470,6 @@ export function normalizeLineItems(lineItems: SocialLineItem[]) {
   })
 }
 
-function resolveLineItemRange(
-  item: SocialLineItem,
-  fallbackStart?: string,
-  fallbackEnd?: string
-) {
-  const bursts = item.bursts ?? parseBursts(item.bursts_json)
-  const dates: string[] = []
-  bursts.forEach((burst) => {
-    if (burst.start_date) dates.push(burst.start_date)
-    if (burst.end_date) dates.push(burst.end_date)
-  })
-
-  const start =
-    (dates.length ? dates.sort()[0] : null) ??
-    item.start_date ??
-    item.startDate ??
-    item.start ??
-    fallbackStart
-  const end =
-    (dates.length ? dates.sort().slice(-1)[0] : null) ??
-    item.end_date ??
-    item.endDate ??
-    item.end ??
-    fallbackEnd
-
-  return { start, end, bursts }
-}
-
 function getLineItemWindow(bursts: Burst[], fallbackStart?: string, fallbackEnd?: string) {
   const starts: Date[] = []
   const ends: Date[] = []
@@ -604,7 +549,6 @@ function buildCumulativeSeries(
     }
   })
 }
-
 
 function buildAggregatedMetrics(
   lineItemMetrics: SocialLineMetrics[],
@@ -784,7 +728,6 @@ function extractLineItemId(item: SocialLineItem): string | null {
   const id = item.line_item_id ?? (item as any).lineItemId ?? (item as any).LINE_ITEM_ID
   return cleanId(id)
 }
-
 
 export function computeSocialLineMetricsForPlatform(input: {
   activeItems: SocialLineItem[]
@@ -1061,82 +1004,4 @@ export function buildSocialAggregatePacing(
   filterRange?: DateRange,
 ): SocialLineMetrics["pacing"] {
   return buildAggregatedMetrics(lineItemMetrics, asAtISO, campaignStartISO, campaignEndISO, filterRange)
-}
-
-export function buildSocialAggregateTargetCurve(
-  lineItemMetrics: SocialLineMetrics[],
-  kpiTargets: KPITargetsMap | undefined,
-  pacingWindow: ReturnType<typeof getPacingWindow>,
-  filterRange: DateRange,
-  campaignStart: string,
-  campaignEnd: string,
-  /** B23fix P14. Unset reads the browser switch snapshot. */
-  packageOptions: PackageUnitTargetOptions = { packageNoUnitTarget: deliveryFlagsFromClient().packageNoUnitTarget },
-): TargetCurvePoint[] {
-  if (!kpiTargets || kpiTargets.size === 0) return []
-  if (!lineItemMetrics.length) return []
-  if (!pacingWindow.campaignStartISO || !pacingWindow.campaignEndISO) return []
-
-  const tclis: TargetCurveLineItem[] = []
-  for (const metric of lineItemMetrics) {
-    if (!metric.targetMetric) continue
-    const tcli = buildSocialTargetCurveLineItem(
-      metric.lineItem,
-      metric.bursts,
-      packageHasNoUnitTarget(metric.lineItem.buy_type, packageOptions),
-    )
-    if (tcli) tclis.push(tcli)
-  }
-  if (!tclis.length) return []
-
-  const metrics = new Set(lineItemMetrics.map((m) => m.targetMetric).filter(Boolean))
-  if (metrics.size !== 1) return []
-  const sharedMetric = Array.from(metrics)[0] as "clicks" | "views"
-
-  let curve = buildCumulativeTargetCurve({
-    campaignStartISO: pacingWindow.campaignStartISO,
-    campaignEndISO: pacingWindow.campaignEndISO,
-    lineItems: tclis,
-    kpiTargets,
-    metric: sharedMetric,
-    tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
-  })
-  const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
-  if (clipped?.start && clipped?.end && curve.length) {
-    const rs = clipped.start
-    const re = clipped.end
-    curve = curve.filter((p) => {
-      const d = parseDateOnly(p.date)
-      if (!d) return true
-      return d >= rs && d <= re
-    })
-  }
-  return curve
-}
-
-export function buildSocialAggregateCumulativeActual(
-  aggregateTargetCurve: TargetCurvePoint[],
-  aggregatePacing: SocialLineMetrics["pacing"],
-): Array<{ date: string; actual: number }> {
-  if (!aggregateTargetCurve.length) return []
-  const dailyByDate = new Map<string, number>()
-  for (const row of aggregatePacing.series) {
-    const prev = dailyByDate.get(String(row.date)) ?? 0
-    dailyByDate.set(String(row.date), prev + Math.max(0, Number(row.actualDeliverable ?? 0) || 0))
-  }
-  return buildCumulativeActualSeries(
-    aggregateTargetCurve.map((p) => p.date),
-    dailyByDate,
-  )
-}
-
-export function socialAggregateOnTrackStatus(
-  aggregateTargetCurve: TargetCurvePoint[],
-  aggregateCumulativeActual: Array<{ date: string; actual: number }>,
-  aggregatePacing: SocialLineMetrics["pacing"],
-): OnTrackStatus {
-  if (!aggregateTargetCurve.length) return "no-data"
-  const cumActualByDate = new Map(aggregateCumulativeActual.map((r) => [r.date, r.actual]))
-  const asAt = aggregatePacing.asAtDate ?? getMelbourneTodayISO()
-  return evaluateOnTrack(aggregateTargetCurve, cumActualByDate, asAt)
 }

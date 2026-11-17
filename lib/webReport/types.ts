@@ -1,5 +1,5 @@
 import type { WebKpiReport } from "@/lib/webReport/kpis/report"
-import type { DateWindow, ReportWindows } from "@/lib/webReport/periods"
+import type { ReportWindows } from "@/lib/webReport/periods"
 
 export type SourceStatus = "ok" | "not_connected" | "stale" | "needs_report" | "empty" | "error"
 
@@ -199,10 +199,4 @@ export function emptyTotals(): PeriodTotals {
     ctr: null,
     position: null,
   }
-}
-
-export function windowSpan(current: DateWindow, previous: DateWindow): DateWindow {
-  const from = current.from < previous.from ? current.from : previous.from
-  const to = current.to > previous.to ? current.to : previous.to
-  return { from, to }
 }

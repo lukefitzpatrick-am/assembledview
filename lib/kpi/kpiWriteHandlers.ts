@@ -27,8 +27,6 @@ export const KPI_ERROR = {
   INTERNAL: "KPI_INTERNAL_ERROR",
 } as const
 
-export type KpiErrorCode = (typeof KPI_ERROR)[keyof typeof KPI_ERROR]
-
 export type KpiHandlerResult = {
   status: number
   body: unknown

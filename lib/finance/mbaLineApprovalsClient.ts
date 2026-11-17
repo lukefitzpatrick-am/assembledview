@@ -199,16 +199,6 @@ export function selectedLineItemIdsFromApprovalRows(params: {
   return out
 }
 
-/** Stable fingerprint of the approval selection for version-spawn detection. */
-export function approvalSelectionFingerprint(
-  selectedByMedia: Record<string, string[]>
-): string {
-  const keys = Object.keys(selectedByMedia).sort()
-  return keys
-    .map((k) => `${k}:${[...(selectedByMedia[k] ?? [])].sort().join(",")}`)
-    .join("|")
-}
-
 /**
  * Stable fingerprint of the exclusion set for version-spawn detection (SV-3).
  * Omits channels with an empty excluded list so all-in and "no exclusions after

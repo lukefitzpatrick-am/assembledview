@@ -47,13 +47,6 @@ export function publisherLabelForFinanceGrouping(record: BillingRecord): string 
   return (record.line_items?.[0]?.publisher_name || "").trim() || "—"
 }
 
-export function recordMatchesPublisherNameFilter(record: BillingRecord, wantNames: Set<string>): boolean {
-  return (record.line_items || []).some((li) => {
-    const n = (li.publisher_name || "").trim()
-    return n && wantNames.has(n)
-  })
-}
-
 /**
  * Same shape as legacy `GET /api/finance/publishers`: iterate line items, skip client-pays,
  * accumulate by publisher → client → billing record (campaign).

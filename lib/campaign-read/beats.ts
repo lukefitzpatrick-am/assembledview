@@ -92,7 +92,3 @@ export function renderCampaignReadMarkdown(beats: CampaignReadBeats): string {
     return `## ${CAMPAIGN_READ_HEADINGS[key]}\n\n${beats[key]}`
   }).join("\n\n")
 }
-
-export function beatsEqual(a: CampaignReadBeats, b: CampaignReadBeats): boolean {
-  return CAMPAIGN_READ_BEAT_KEYS.every((key) => a[key] === b[key])
-}

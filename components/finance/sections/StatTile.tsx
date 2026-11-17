@@ -10,7 +10,6 @@ import React from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
-import type { ViewState } from "@/lib/ui/viewState"
 
 export type StatTileMoneyState =
   | { status: "loading" }
@@ -30,23 +29,6 @@ export type StatTileProps = {
   figure?: string
   /** Ready-figure colour. Defaults to the primary token. */
   valueClassName?: string
-}
-
-function moneyStateFromViewState(
-  vs: ViewState<number> | ViewState<{ cents: number }>
-): StatTileMoneyState {
-  if (vs.status === "loading") return { status: "loading" }
-  if (vs.status === "error") return { status: "error", message: vs.message }
-  if (vs.status === "empty" || vs.status === "filtered-empty") return { status: "empty" }
-  const data = vs.data
-  if (typeof data === "number") return { status: "ready", cents: data }
-  return { status: "ready", cents: data.cents }
-}
-
-export function statTileStateFromViewState(
-  vs: ViewState<number> | ViewState<{ cents: number }>
-): StatTileMoneyState {
-  return moneyStateFromViewState(vs)
 }
 
 export function StatTile({

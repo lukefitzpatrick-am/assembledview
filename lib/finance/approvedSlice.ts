@@ -166,12 +166,3 @@ export function computeApprovedSlice(input: ComputeApprovedSliceInput): Approved
 
   return { totalCents, lines }
 }
-
-/** Σ of a slice's line components (should equal totalCents). */
-export function sumApprovedSliceCents(slice: ApprovedSlice): number {
-  return slice.lines.reduce(
-    (s, l) =>
-      s + l.mediaCents + l.feeCents + l.adservingCents + l.productionCents,
-    0
-  )
-}

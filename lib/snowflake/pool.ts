@@ -332,15 +332,6 @@ function validateNumericRange(
 }
 
 /**
- * Mask sensitive values for logging (show first/last 2 chars)
- */
-function maskSensitive(value: string | undefined, showChars: number = 2): string {
-  if (!value) return "(not set)"
-  if (value.length <= showChars * 2) return "***"
-  return `${value.slice(0, showChars)}...${value.slice(-showChars)}`
-}
-
-/**
  * Validate all Snowflake configuration settings.
  * 
  * Checks:
@@ -474,46 +465,6 @@ function logPoolConfiguration(env: SnowflakeEnv): void {
       forcePoolWarm: FORCE_POOL_WARM,
     },
   })
-}
-
-/**
- * Get a summary of the current pool configuration.
- * Useful for health check endpoints and debugging.
- */
-export function getPoolConfiguration(): {
-  pool: { max: number; min: number; warmSize: number }
-  timeouts: { acquireMs: number; executeMs: number; initMs: number }
-  retry: { maxRetries: number; maxTotalTimeMs: number }
-  circuitBreaker: { threshold: number; resetMs: number }
-  connection: { account: string; warehouse: string; database: string; schema: string }
-} {
-  const env = getEnv()
-  return {
-    pool: {
-      max: POOL_MAX,
-      min: POOL_MIN_CONNECTIONS,
-      warmSize: POOL_WARM_SIZE,
-    },
-    timeouts: {
-      acquireMs: ACQUIRE_TIMEOUT_MS,
-      executeMs: EXECUTE_TIMEOUT_MS,
-      initMs: INIT_TIMEOUT_MS,
-    },
-    retry: {
-      maxRetries: MAX_RETRIES,
-      maxTotalTimeMs: MAX_TOTAL_RETRY_TIME_MS,
-    },
-    circuitBreaker: {
-      threshold: CIRCUIT_BREAKER_THRESHOLD,
-      resetMs: CIRCUIT_BREAKER_RESET_MS,
-    },
-    connection: {
-      account: env.account ?? "",
-      warehouse: env.warehouse ?? "",
-      database: env.database ?? "",
-      schema: env.schema ?? "",
-    },
-  }
 }
 
 /** Pool statistics for monitoring */

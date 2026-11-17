@@ -26,19 +26,3 @@ export function flipStaleOnPublish(args: {
 }
 
 export type StaleResolution = "resnapshot" | "keep"
-
-export function resolveStaleItem(
-  item: FinanceRunItem,
-  resolution: StaleResolution,
-  resnapshot?: Partial<FinanceRunItem>
-): FinanceRunItem {
-  if (item.status !== "stale") return item
-  if (resolution === "keep") {
-    return { ...item, status: "approved" }
-  }
-  return {
-    ...item,
-    ...resnapshot,
-    status: "pending",
-  }
-}

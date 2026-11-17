@@ -141,14 +141,6 @@ export async function readKpiActuals(input: {
   return computeKpiActuals({ kpis: active, window: input.window, events, metrics, ga4Readable, gscReadable })
 }
 
-/** Actuals for each active KPI over the window and each month in it. GA4 and Search Console come from client_platform_accounts. */
-export async function kpiActuals(clientId: number, window: DateWindow): Promise<WebKpiActual[]> {
-  const kpis = await listKpis(clientId)
-  if (kpis.length === 0) return []
-  const accounts = await reportAccounts(clientId)
-  return readKpiActuals({ kpis, window, ga4PropertyId: accounts.ga4PropertyId, gscSite: accounts.gscSite })
-}
-
 /**
  * Active KPIs with actuals for the report window and for the tracker's 12
  * months. Fails soft: not_ready before 0101, unavailable when the read fails.

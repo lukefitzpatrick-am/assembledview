@@ -1,4 +1,4 @@
-import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
+import { formatMoney } from "@/lib/format/money"
 
 export type FormatCurrencyCompactOptions = {
   currency?: string
@@ -18,24 +18,6 @@ const DEFAULT_FULL_MAX_FRACTION = 2
 
 function safeNumber(value: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
-}
-
-/**
- * Compact AUD for charts/KPI. Custom locale/currency options use the legacy
- * formatMoney overload (editor/export callers) — whole dollars, not compact notation.
- */
-export function formatCurrencyCompact(value: number, options?: FormatCurrencyCompactOptions): string {
-  if (options?.locale || options?.currency) {
-    return (
-      formatMoney(safeNumber(value), {
-        locale: options.locale ?? DEFAULT_LOCALE,
-        currency: options.currency ?? DEFAULT_CURRENCY,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }) || formatMoney(0, { decimals: 0 })
-    )
-  }
-  return formatMoneyCompact(safeNumber(value))
 }
 
 export function formatCurrencyFull(value: number, options?: FormatCurrencyFullOptions): string {

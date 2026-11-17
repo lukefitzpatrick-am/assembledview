@@ -32,8 +32,6 @@ export const CLIENT_KPI_MEDIA_TYPE_ORDER = [
   "production",
 ] as const
 
-export type ClientKpiMediaTypeSlug = (typeof CLIENT_KPI_MEDIA_TYPE_ORDER)[number]
-
 export const CLIENT_KPI_DIGITAL_BAND_END_INDEX = 11 // exclusive: first 11 are digital
 
 const LABEL_BY_SLUG = new Map(

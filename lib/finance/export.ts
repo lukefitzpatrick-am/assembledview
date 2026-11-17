@@ -1,6 +1,5 @@
 import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
-import type { PublisherGroup } from "@/lib/types/financePublisherGroup"
 
 export async function exportBillingRecordsExcel(records: BillingRecord[], filename: string) {
   const ExcelJS = (await import("exceljs")).default
@@ -29,25 +28,6 @@ export async function exportBillingRecordsExcel(records: BillingRecord[], filena
   sheet.getColumn("total").numFmt = "$#,##0.00"
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-  saveAs(blob, filename)
-}
-
-export function exportBillingRecordsCsv(records: BillingRecord[], filename: string) {
-  const rows = [
-    ["client_name", "mba_number", "campaign_name", "billing_type", "status", "billing_month", "total"].join(","),
-    ...records.map((r) =>
-      [
-        `"${(r.client_name || "").replace(/"/g, '""')}"`,
-        `"${(r.mba_number || "").replace(/"/g, '""')}"`,
-        `"${(r.campaign_name || "").replace(/"/g, '""')}"`,
-        r.billing_type,
-        r.status,
-        r.billing_month,
-        Number(r.total || 0).toFixed(2),
-      ].join(",")
-    ),
-  ]
-  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" })
   saveAs(blob, filename)
 }
 
@@ -158,65 +138,6 @@ export async function exportPayablesPublisherDetailExcel(
     sheet.getCell(totalRow, 8).value = "—"
   }
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-  saveAs(blob, `${fileStem}_${monthLabel.replace(/\s+/g, "_")}.xlsx`)
-}
-
-export function exportPayablesDetailCsv(records: BillingRecord[], filename: string): void {
-  const rows = buildPayablesDetailExportRows(records)
-  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`
-  const header = [
-    "publisher",
-    "client",
-    "mba",
-    "campaign",
-    "media",
-    "description",
-    "agency_owed",
-    "client_paid_direct",
-  ].join(",")
-  const body = rows.map((r) =>
-    [
-      esc(r.publisher),
-      esc(r.client),
-      esc(r.mba),
-      esc(r.campaign),
-      esc(r.mediaType),
-      esc(r.description),
-      r.agencyOwed.toFixed(2),
-      r.clientPaidDirect.toFixed(2),
-    ].join(",")
-  )
-  const agencySum = rows.reduce((s, r) => s + r.agencyOwed, 0)
-  const totalLine = ["Total (agency owed)", "", "", "", "", "", agencySum.toFixed(2), "—"].join(",")
-  const blob = new Blob([[header, ...body, totalLine].join("\n")], { type: "text/csv;charset=utf-8;" })
-  saveAs(blob, filename)
-}
-
-export async function exportPublishersExcel(publishers: PublisherGroup[], monthLabel: string, fileStem: string) {
-  const ExcelJS = (await import("exceljs")).default
-  const workbook = new ExcelJS.Workbook()
-  const sheet = workbook.addWorksheet("Publisher invoices")
-  sheet.columns = [{ width: 28 }, { width: 26 }, { width: 18 }, { width: 36 }, { width: 16 }]
-  sheet.mergeCells(1, 1, 1, 5)
-  sheet.getCell(1, 1).value = `Publisher media invoices — ${monthLabel}`
-  const headers = ["Publisher", "Client", "MBA number", "Campaign", "Media"]
-  headers.forEach((h, i) => (sheet.getCell(3, i + 1).value = h))
-  let row = 4
-  for (const pub of publishers) {
-    for (const client of pub.clients) {
-      for (const campaign of client.campaigns) {
-        sheet.getCell(row, 1).value = pub.publisherName
-        sheet.getCell(row, 2).value = client.clientName
-        sheet.getCell(row, 3).value = campaign.mbaNumber
-        sheet.getCell(row, 4).value = campaign.campaignName
-        sheet.getCell(row, 5).value = campaign.totalMedia
-        sheet.getCell(row, 5).numFmt = "$#,##0.00"
-        row++
-      }
-    }
-  }
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
   saveAs(blob, `${fileStem}_${monthLabel.replace(/\s+/g, "_")}.xlsx`)

@@ -14,5 +14,3 @@ export const DIGITAL_KPI_MEDIA_TYPES = [
   "influencers",
   "integration",
 ] as const
-
-export type DigitalKpiMediaType = (typeof DIGITAL_KPI_MEDIA_TYPES)[number]

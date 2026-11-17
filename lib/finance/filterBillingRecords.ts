@@ -105,18 +105,3 @@ export type HubBillingRecordFilterParams = {
   publishersIdCsv: string | null
   billingTypes: BillingType[]
 }
-
-/** Apply hub post-derive filters in billing-route order (used by payables route). */
-export function applyHubBillingRecordFilters(
-  rows: BillingRecord[],
-  params: HubBillingRecordFilterParams,
-  publisherIdMap: Map<number, string>
-): BillingRecord[] {
-  let merged = rows
-  merged = filterByClients(merged, params.clientsIdCsv)
-  merged = filterBySearch(merged, params.search)
-  merged = filterByStatuses(merged, params.statusCsv)
-  merged = filterByPublisherIds(merged, params.publishersIdCsv, publisherIdMap)
-  merged = filterByBillingTypes(merged, params.billingTypes)
-  return merged
-}

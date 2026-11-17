@@ -67,14 +67,6 @@ export async function readFinanceBillingRecords(): Promise<Record<string, unknow
   return fetchFinanceBillingRecordsFromPostgres()
 }
 
-export async function readFinanceBillingRecordById(
-  id: number | string
-): Promise<Record<string, unknown> | null> {
-  const numericId = Number(id)
-  if (!Number.isFinite(numericId)) return null
-  return fetchFinanceBillingRecordByIdFromPostgres(numericId)
-}
-
 // --- finance_billing_line_items ---
 
 export function mapFinanceBillingLineItemFromPostgres(
@@ -91,10 +83,6 @@ export async function fetchFinanceBillingLineItemsFromPostgres(): Promise<
   return rows.map((row) =>
     mapFinanceBillingLineItemFromPostgres(row as Record<string, unknown>)
   )
-}
-
-export async function readFinanceBillingLineItems(): Promise<Record<string, unknown>[]> {
-  return fetchFinanceBillingLineItemsFromPostgres()
 }
 
 // --- finance_edits ---
@@ -246,10 +234,6 @@ export async function fetchRevenueLineCatalogFromPostgres(): Promise<
   const db = getDb()
   const rows = await db.select().from(schema.revenueLineCatalog)
   return rows.map((row) => mapRevenueLineCatalogFromPostgres(row as Record<string, unknown>))
-}
-
-export async function readRevenueLineCatalog(): Promise<Record<string, unknown>[]> {
-  return fetchRevenueLineCatalogFromPostgres()
 }
 
 // --- scope_of_work ---

@@ -79,38 +79,3 @@ export function writeHubSavedViews(views: HubSavedView[]): void {
   localStorage.setItem(FINANCE_HUB_SAVED_VIEWS_KEY, JSON.stringify(views))
   window.dispatchEvent(new Event(SAVED_VIEWS_CHANGED_EVENT))
 }
-
-/** Upsert by name. Pass `report: null` to clear a report block; omit to preserve existing. */
-export function upsertHubSavedView(args: {
-  name: string
-  filters: FinanceFilters
-  report?: FinanceSavedReportConfig | null
-}): HubSavedView {
-  const name = args.name.trim()
-  const prev = readHubSavedViews()
-  const existing = prev.find((view) => view.name === name)
-  const next: HubSavedView = {
-    name,
-    filters: args.filters,
-  }
-  if (args.report === null) {
-    // intentionally omit report
-  } else if (args.report) {
-    next.report = args.report
-  } else if (existing?.report) {
-    next.report = existing.report
-  }
-  writeHubSavedViews([next, ...prev.filter((view) => view.name !== name)])
-  return next
-}
-
-export function subscribeHubSavedViews(onChange: () => void): () => void {
-  if (typeof window === "undefined") return () => {}
-  const handler = () => onChange()
-  window.addEventListener(SAVED_VIEWS_CHANGED_EVENT, handler)
-  window.addEventListener("storage", handler)
-  return () => {
-    window.removeEventListener(SAVED_VIEWS_CHANGED_EVENT, handler)
-    window.removeEventListener("storage", handler)
-  }
-}

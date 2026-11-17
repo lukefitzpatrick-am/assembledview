@@ -1,4 +1,4 @@
-import { parse, format, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth } from "date-fns"
+import { parse, format, startOfMonth, endOfMonth } from "date-fns"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
@@ -158,34 +158,6 @@ export function buildItemCode(
   // Remove spaces from media type for item code
   const cleanMediaType = mediaType.replace(/\s+/g, "")
   return `${prefix}.${cleanMediaType}`
-}
-
-/**
- * Get media type display name (container name)
- */
-export function getMediaTypeDisplayName(mediaTypeKey: string): string {
-  const displayNames: Record<string, string> = {
-    television: "Television",
-    radio: "Radio",
-    newspaper: "Newspaper",
-    magazines: "Magazines",
-    ooh: "OOH",
-    cinema: "Cinema",
-    digitalDisplay: "Digital Display",
-    digitalAudio: "Digital Audio",
-    digitalVideo: "Digital Video",
-    bvod: "BVOD",
-    integration: "Integration",
-    search: "Search",
-    socialMedia: "Social Media",
-    progDisplay: "Programmatic Display",
-    progVideo: "Programmatic Video",
-    progBvod: "Programmatic BVOD",
-    progAudio: "Programmatic Audio",
-    progOoh: "Programmatic OOH",
-    influencers: "Influencers",
-  }
-  return displayNames[mediaTypeKey] || mediaTypeKey
 }
 
 /**

@@ -32,13 +32,6 @@ export function normalizeStatus(status: any): string {
   return String(status).trim().toLowerCase()
 }
 
-/** Trim MBA identifiers for display. Join maps use `mbaJoinKey` (lowercase). */
-export function normalizeMbaKey(raw: unknown): string | null {
-  if (raw === null || raw === undefined) return null
-  const s = String(raw).trim()
-  return s.length > 0 ? s : null
-}
-
 export function numericVersion(v: any): number {
   return parseVersionNumber(v?.version_number ?? v?.versionNumber)
 }

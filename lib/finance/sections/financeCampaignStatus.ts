@@ -27,12 +27,6 @@ export const FINANCE_EXCLUDED_CAMPAIGN_STATUSES = [
   "cancelled",
 ] as const
 
-export type FinanceIncludedCampaignStatus =
-  (typeof FINANCE_INCLUDED_CAMPAIGN_STATUSES)[number]
-
-export type FinanceExcludedCampaignStatus =
-  (typeof FINANCE_EXCLUDED_CAMPAIGN_STATUSES)[number]
-
 const INCLUDED = new Set<string>(FINANCE_INCLUDED_CAMPAIGN_STATUSES)
 const EXCLUDED = new Set<string>(FINANCE_EXCLUDED_CAMPAIGN_STATUSES)
 

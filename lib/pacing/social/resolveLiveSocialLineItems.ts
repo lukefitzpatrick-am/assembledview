@@ -7,7 +7,6 @@ import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaig
 import { kpiPlanLineFromPlanItem } from "@/lib/pacing/kpi/planCpvRate";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import {
-  fetchXanoLineItemsForMba,
   resolveLivePlanLineItems,
 } from "@/lib/pacing/plans/resolveLivePlanLineItems";
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
@@ -38,17 +37,6 @@ export type LiveSocialLineItemInput = {
   versionRow: VersionRow;
   socialRow: Record<string, unknown>;
 };
-
-export async function fetchSocialLineItemsForMba(args: {
-  mba_number: string;
-  versionRowId: number;
-  versionNumber: number;
-}): Promise<Record<string, unknown>[]> {
-  return fetchXanoLineItemsForMba({
-    ...args,
-    tableName: SOCIAL_ENDPOINT,
-  });
-}
 
 /**
  * Resolves live social line items (masters, versions, Postgres social rows)

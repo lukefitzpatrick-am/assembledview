@@ -566,8 +566,3 @@ export async function reconcileDisputedWithArrivedCreditNotes(args?: {
     return { reconciled: 0 }
   }
 }
-
-/** Report-only replay helper (no writes). */
-export async function replayMatcherReportOnly(): Promise<MatchRunItemsResult> {
-  return stageMatchRunItems({ reportOnly: true })
-}

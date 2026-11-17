@@ -7,7 +7,6 @@ import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaig
 import { kpiPlanLineFromPlanItem } from "@/lib/pacing/kpi/planCpvRate";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import {
-  fetchXanoLineItemsForMba,
   resolveLivePlanLineItems,
 } from "@/lib/pacing/plans/resolveLivePlanLineItems";
 import {
@@ -75,15 +74,6 @@ const PROG_TABLES: ProgTableSpec[] = [
     snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progOoh,
   },
 ];
-
-export async function fetchProgrammaticLineItemsForMba(args: {
-  mba_number: string;
-  versionRowId: number;
-  versionNumber: number;
-  tableName: string;
-}): Promise<Record<string, unknown>[]> {
-  return fetchXanoLineItemsForMba(args);
-}
 
 /**
  * Platform label for the campaigns table — DV360 / Taboola when derivable

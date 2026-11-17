@@ -7,9 +7,7 @@
  */
 
 import {
-  billingMonthsInAustralianFinancialYear,
   currentFinanceFyStartYear,
-  referenceDateForFyStartYear,
   type FinanceMonthOptions,
 } from "@/lib/finance/months"
 import {
@@ -224,16 +222,7 @@ export function getAgencyEconomicsPreset(id: string): AgencyEconomicsPreset | un
   return AGENCY_ECONOMICS_PRESETS.find((p) => p.id === id)
 }
 
-/** "Where the money is" uses fee/billable only — still historic-gated via preset id. */
-export function presetNeedsAgencyHistoricGate(presetId: string | null | undefined): boolean {
-  return Boolean(presetId && getAgencyEconomicsPreset(presetId))
-}
-
 export function forecastRetainerMappingRef(): string {
   const def = getForecastRowDefinition(FINANCE_FORECAST_LINE_KEYS.retainer)
   return def?.mappingLogicRef ?? "buildClientLevelRevenueLines#client_monthlyretainer"
-}
-
-export function fyMonthsForRetainer(fy: number): string[] {
-  return billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fy))
 }

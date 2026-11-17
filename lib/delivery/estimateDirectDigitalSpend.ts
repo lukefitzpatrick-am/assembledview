@@ -25,8 +25,6 @@ import { packageHasNoUnitTarget } from "@/lib/delivery/packageUnitTarget"
 export const ESTIMATED_SPEND_LABEL = "Estimated spend"
 export const NO_PLANNED_IMPRESSIONS = "No planned impressions"
 
-export type DirectDigitalSpendMode = "estimated" | "actual" | "reported"
-
 export type EstimateDirectDigitalDay = DeriveSpendDayInput & {
   video3sViews?: number
 }

@@ -141,11 +141,3 @@ export interface FinanceForecastSnapshotStagingPayload {
   header: FinanceForecastSnapshotInsert
   lines: Array<Omit<FinanceForecastSnapshotLineInsert, "snapshot_id">>
 }
-
-/** Helpers typing: dataset fingerprint for audit (optional). */
-export type FinanceForecastDatasetFingerprint = {
-  /** Hash of serialised client_blocks + meta for quick equality checks. */
-  dataset_hash: string
-  /** Line count after normalisation (months × logical lines). */
-  line_row_count: number
-}

@@ -1,20 +1,10 @@
 /**
  * Pure search delivery helpers (from SearchDeliveryContainer).
  */
-import {
-  buildCumulativeActualSeries,
-  buildCumulativeTargetCurve,
-  evaluateOnTrack,
-  type OnTrackStatus,
-  type TargetCurveLineItem,
-  type TargetCurvePoint,
-} from "@/lib/kpi/deliveryTargetCurve"
-import { clipDateRangeToCampaign, parseDateOnly, type DateRange } from "@/lib/dashboard/dateFilter"
-import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
-import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
+import { type TargetCurveLineItem } from "@/lib/kpi/deliveryTargetCurve"
+import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
 import type { SearchPacingDailyRow, SearchPacingTotals } from "@/lib/snowflake/search-pacing-service"
 import { parseMoney } from "@/lib/money"
-import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 export type SearchApiDailyRow = SearchPacingDailyRow
@@ -446,68 +436,4 @@ export function buildSearchTargetCurveLineItems(
       }
     })
     .filter((x): x is TargetCurveLineItem => x !== null)
-}
-
-export function buildSearchAggregateTargetCurve(input: {
-  kpiTargets: KPITargetsMap | undefined
-  campaignStartISO: string
-  campaignEndISO: string
-  lineItems: TargetCurveLineItem[]
-  filterRange: DateRange
-  campaignStart: string
-  campaignEnd: string
-}): TargetCurvePoint[] {
-  const { kpiTargets, campaignStartISO, campaignEndISO, lineItems, filterRange, campaignStart, campaignEnd } = input
-  if (!kpiTargets || kpiTargets.size === 0) return []
-  if (!lineItems.length) return []
-  let curve = buildCumulativeTargetCurve({
-    campaignStartISO,
-    campaignEndISO,
-    lineItems,
-    kpiTargets,
-    metric: "clicks",
-    tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
-  })
-  const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
-  if (clipped?.start && clipped?.end && curve.length) {
-    const rs = clipped.start
-    const re = clipped.end
-    curve = curve.filter((p) => {
-      const d = parseDateOnly(p.date)
-      if (!d) return true
-      return d >= rs && d <= re
-    })
-  }
-  return curve
-}
-
-export function buildSearchCumulativeActualForCurve(
-  targetCurve: TargetCurvePoint[],
-  dailyClicksByDate: Map<string, number>,
-): Array<{ date: string; actual: number }> {
-  const dates = targetCurve.map((p) => p.date)
-  if (dates.length === 0) return []
-  return buildCumulativeActualSeries(dates, dailyClicksByDate)
-}
-
-export function searchOnTrackStatus(
-  targetCurve: TargetCurvePoint[],
-  cumulativeActual: Array<{ date: string; actual: number }>,
-  refLineISO: string,
-): OnTrackStatus {
-  if (!targetCurve.length) return "no-data"
-  const cumulativeActualByDate = new Map(cumulativeActual.map((r) => [r.date, r.actual]))
-  return evaluateOnTrack(targetCurve, cumulativeActualByDate, refLineISO)
-}
-
-export function buildDailyClicksMapFromSpendSeries(chartClicksSpend: Array<{ date: string; clicks: number }>) {
-  const m = new Map<string, number>()
-  for (const row of chartClicksSpend) {
-    m.set(row.date, Number(row.clicks) || 0)
-  }
-  return m
-}
-
-export function defaultRefLineISO(asAtISO: string | undefined): string {
-  return asAtISO || getMelbourneTodayISO()
 }

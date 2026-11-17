@@ -34,10 +34,6 @@ export function DraftDiffProvider(props: {
   )
 }
 
-export function useDraftDiffActive(): boolean {
-  return useContext(DraftDiffContext) != null
-}
-
 export function useDraftLineMeta(lineItemId: string): { isNew: boolean } {
   const ctx = useContext(DraftDiffContext)
   return useMemo(() => {
