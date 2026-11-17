@@ -181,6 +181,11 @@ test("a read module holds no write and imports only read modules and non-Codex c
     'import { acceptProposal } from "@/lib/fireflies/proposalRepo"',
     'import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"',
     "export const o = () => import(`@/lib/codex/repo`)",
+    // B53fix G3
+    "export const k = (db: Db) => db.execute(sql`TRUNCATE public.tasks`)",
+    'export const l = "TRUNCATE TABLE public.task_comments"',
+    'export const m = () => window.fetch("/x", { method: "DELETE" })',
+    'export const n = () => globalThis.fetch("/x", { method: "POST" })',
   ]
   assert.deepEqual(failing("lib/codex/clientMbas.ts", writes), each(writes))
   assert.deepEqual(failing("lib/codex/types.ts", writes.slice(9)), each(writes.slice(9)))
@@ -193,8 +198,18 @@ test("a read module holds no write and imports only read modules and non-Codex c
     'import { normaliseEmail } from "@/lib/email/address"',
     'import { buildTasksComposeHref } from "./composeLink"',
     'import { loadRosterPeople } from "@/lib/codex/rosterRead"',
+    'export const f = "truncate text-sm"',
+    'export const g = () => window.fetch("/x", { method: "GET" })',
   ]
   assert.deepEqual(failing("lib/codex/clientMbas.ts", reads), [])
+  /** Writes a read module's selectors do not see (C-285). Move a line to `writes` when lint learns it. */
+  const readGaps = [
+    'export const a = (db: Db, t: Table) => db["insert"](t).values({})',
+    'export const b = (db: Db, t: Table) => { const { update } = db; return update(t).set({ a: 1 }) }',
+    'export const c = (opts: RequestInit) => fetch("/x", { ...opts })',
+    'export const d = (db: Db) => db.execute(sql`ALTER TABLE public.tasks DROP COLUMN title`)',
+  ]
+  assert.deepEqual(failing("lib/codex/clientMbas.ts", readGaps), [])
   const types = ['import type { DbExecutor } from "@/lib/codex/repo"', 'import { createTask } from "@/lib/codex/repo"', 'export const k = () => import("@/lib/codex/repo")', 'import { DbExecutor } from "@/lib/codex/repo"']
   assert.deepEqual(failing("lib/codex/taskVisibility.ts", types), [2, 3, 4])
   assert.deepEqual(failing("lib/codex/clientMbas.ts", types.slice(0, 1)), [1])

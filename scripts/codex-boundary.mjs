@@ -169,7 +169,11 @@ const CODEX_WRITE_SELECTORS = [
   ]),
   { selector: "CallExpression[callee.property.name=/^(insert|update|delete)$/][callee.object.name=/^(db|tx|trx|database|executor)$/]", message: WRITE_MESSAGE },
   { selector: "MemberExpression[property.name=/^(values|set|where)$/] > CallExpression.object[callee.property.name=/^(insert|update|delete)$/]", message: WRITE_MESSAGE },
-  { selector: "CallExpression[callee.name='fetch'] > ObjectExpression > Property[key.name='method'][value.value!=/^GET$/i]", message: WRITE_MESSAGE },
+  { selector: "Literal[value=/\\bTRUNCATE\\s+(TABLE\\s+)?[\\w.\"]+/], TemplateElement[value.raw=/\\bTRUNCATE\\s+(TABLE\\s+)?[\\w.\"]+/]", message: WRITE_MESSAGE },
+  {
+    selector: "CallExpression:matches([callee.name='fetch'], [callee.object.name=/^(window|globalThis|self)$/][callee.property.name='fetch']) > ObjectExpression > Property[key.name='method'][value.value!=/^GET$/i]",
+    message: WRITE_MESSAGE,
+  },
 ]
 
 /** True for a repo path inside the Tasks zone. */
