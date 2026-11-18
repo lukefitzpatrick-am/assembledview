@@ -7,7 +7,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { callText, entries, pageSource } from "./pageWiringSource"
+import { callText, entries, OVER_BUDGET, pageSource } from "./pageWiringSource"
 
 const page = pageSource("app/mediaplans/create/page.tsx")
 const save = page.slice(page.indexOf("const handleSaveAll = async"), page.indexOf("\n};\n", page.indexOf("const handleSaveAll = async")))
@@ -25,13 +25,13 @@ test("save: handleSaveAll runs the preflight with the page's state, then stops o
   const call = save.indexOf("const saveStop = planSavePreflight(")
   const stop = save.indexOf("if (saveStop) {", call)
   const prompt = save.indexOf("setAaPublishPrompt(")
-  assert.ok(call > 0 && stop > call && prompt > stop && save.indexOf("window.confirm(") > stop)
+  assert.ok(call > 0 && stop > call && prompt > stop && save.indexOf(OVER_BUDGET) > stop)
   assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+if \(saveStop\.toast\) toast\(saveStop\.toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
 })
 
 test("C-165: a running save refuses a second one; the flag is set after every refusal and prompt, and cleared in finally", () => {
   const set = save.indexOf("saveAllInFlightRef.current = true")
-  assert.ok(set > save.indexOf("if (saveStop) {") && set > save.indexOf("window.confirm("), "set only once the save starts")
+  assert.ok(set > save.indexOf("if (saveStop) {") && set > save.indexOf(OVER_BUDGET), "set only once the save starts")
   assert.ok(set < save.indexOf("try {", set) && save.indexOf("try {", set) < save.indexOf("await handleSaveMediaPlan()"))
   assert.match(save, /\} finally \{\n\s+saveAllInFlightRef\.current = false\n\s+\}$/)
   assert.equal(save.split("saveAllInFlightRef.current = ").length - 1, 2, "set once, cleared once")
@@ -75,4 +75,11 @@ test("S1: the publish check gets the posted mode, plan dates and lines, stops be
   assert.ok(body.includes("campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start)"), "same dates as posted")
   assert.deepEqual(entries(callText(page, "setPublishCheck(publishCheckFromRefusal(")), ["saveResult.data.publishProblems"])
   assert.match(page, /if \(saveResult\.data\.code === PUBLISH_VALIDATION_REFUSED\) \{\n\s+setPublishCheck\(publishCheckFromRefusal/)
+})
+
+test("B57: over budget asks through useConfirm only when over budget, and the page renders its dialog", () => {
+  assert.match(save, /if \(budgetRemaining < 0\) \{\n\s+if \(!\(await confirm\(overBudgetQuestion\(budgetRemaining\)\)\)\) return\n\s+\}/)
+  assert.equal(page.split("useConfirm()").length - 1, 1)
+  assert.match(page, /\{confirmDialog\}\n\s+<\/>/)
+  assert.doesNotMatch(page, /window\.confirm|\balert\(/)
 })

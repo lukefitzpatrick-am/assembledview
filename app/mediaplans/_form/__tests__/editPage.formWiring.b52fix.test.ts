@@ -9,7 +9,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { loadedLinesByBillingKey } from "../planChannels"
-import { callText, count, entries, pageSource } from "./pageWiringSource"
+import { callText, count, entries, OVER_BUDGET, pageSource } from "./pageWiringSource"
 
 const page = pageSource("app/mediaplans/mba/[mba_number]/edit/page.tsx")
 
@@ -37,7 +37,7 @@ test("save: handleSaveAll runs the preflight with the page's state, then stops o
   ])
   const call = save.indexOf("const saveStop = planSavePreflight(")
   const stop = save.indexOf("if (saveStop) {", call)
-  const prompt = save.indexOf("window.confirm(")
+  const prompt = save.indexOf(OVER_BUDGET)
   assert.ok(call > 0 && stop > call && prompt > stop, "preflight, then its stop, then the prompts")
   assert.ok(save.indexOf("setAaPublishPrompt(") > stop && save.indexOf("await postPlansSave(") > stop)
   assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+if \(saveStop\.toast\) toast\(saveStop\.toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
@@ -224,4 +224,12 @@ test("X2: every client publish refusal stops before the PC4 collision worksheet 
     assert.equal(count(save, refusal), 1, `${refusal} runs once`)
   }
   assert.ok(save.indexOf("await postPlansSave(") > firstWrite)
+})
+
+test("B57: over budget asks through useConfirm only when over budget, and the page renders its dialog", () => {
+  const save = constFnText("handleSaveAll")
+  assert.match(save, /if \(budgetRemainingOverspend\) \{\n\s+if \(!\(await confirm\(overBudgetQuestion\(budgetRemaining\)\)\)\) return\n\s+\}/)
+  assert.equal(page.split("useConfirm()").length - 1, 1)
+  assert.match(page, /\{confirmDialog\}\n\s+<\/>/)
+  assert.doesNotMatch(page, /window\.confirm|\balert\(/)
 })

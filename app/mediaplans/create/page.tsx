@@ -69,6 +69,8 @@ import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
 import { toast } from "@/components/ui/use-toast"
+import { useConfirm } from "@/hooks/use-confirm"
+import { overBudgetQuestion } from "@/app/mediaplans/_form/overBudgetQuestion"
 import {
   applyClientsFetchResult,
   fetchClientsList,
@@ -655,6 +657,7 @@ function CreateMediaPlan() {
   const [isMbaGenerating, setIsMbaGenerating] = useState(false)
   const [draftStripDismissed, setDraftStripDismissed] = useState(false)
   const [discardConfirmAt, setDiscardConfirmAt] = useState<string | null>(null)
+  const { confirm, confirmDialog } = useConfirm()
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
@@ -5742,10 +5745,7 @@ const handleSaveAll = async (opts?: {
     }
   }
   if (budgetRemaining < 0) {
-    const proceed = window.confirm(
-      `Budget remaining is ${formatMoney(budgetRemaining)} (overspend). Save this plan anyway?`
-    )
-    if (!proceed) return
+    if (!(await confirm(overBudgetQuestion(budgetRemaining)))) return
   }
   saveAllInFlightRef.current = true
   // C-165: an MBA number request still in flight must not land once Save starts.
@@ -6495,6 +6495,7 @@ const handleSaveAll = async (opts?: {
           catchPlanDraftAction(planDraft.discard(), toast)
         }}
       />
+      {confirmDialog}
     </>
   )
 

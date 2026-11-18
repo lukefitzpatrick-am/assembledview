@@ -64,3 +64,6 @@ export function entries(text: string): string[] {
 export function count(src: string, needle: string): number {
   return src.split(needle).length - 1
 }
+
+/** B57: the over budget question, asked through `useConfirm`; no stops the save. */
+export const OVER_BUDGET = "if (!(await confirm(overBudgetQuestion(budgetRemaining)))) return"

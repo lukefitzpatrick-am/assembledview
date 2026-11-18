@@ -5,7 +5,8 @@
  *
  * Pure. The page shows the stop's toast (none for `silent`) and returns.
  * Prompts that ask the planner (over budget, AA publish warnings) stay in the
- * page: they are questions, not refusals.
+ * page: they are questions, not refusals. The over budget wording is
+ * `overBudgetQuestion` (B57).
  */
 import {
   billingAliasGhostSaveBlockMessage,

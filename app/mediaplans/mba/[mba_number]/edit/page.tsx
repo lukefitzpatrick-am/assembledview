@@ -89,6 +89,8 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead, TableFooter } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
+import { useConfirm } from "@/hooks/use-confirm"
+import { overBudgetQuestion } from "@/app/mediaplans/_form/overBudgetQuestion"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MediaPlanLoadModal } from "@/components/mediaplans/MediaPlanLoadModal"
@@ -1037,6 +1039,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [isMbaGenerating, setIsMbaGenerating] = useState(false)
   const [draftStripDismissed, setDraftStripDismissed] = useState(false)
   const [discardConfirmAt, setDiscardConfirmAt] = useState<string | null>(null)
+  const { confirm, confirmDialog } = useConfirm()
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientAddress, setClientAddress] = useState("")
@@ -6534,10 +6537,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
 
     if (budgetRemainingOverspend) {
-      const proceed = window.confirm(
-        `Budget remaining is ${formatMoney(budgetRemaining)} — this campaign is over budget. Save anyway?`
-      )
-      if (!proceed) return
+      if (!(await confirm(overBudgetQuestion(budgetRemaining)))) return
     }
 
     if (!opts?.ackAaWarnings) {
@@ -10040,6 +10040,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           catchPlanDraftAction(planDraft.discard(), toast)
         }}
       />
+      {confirmDialog}
     </>
   )
 
