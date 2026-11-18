@@ -27,7 +27,7 @@ type LegacyShape = {
 
 /**
  * Billing bursts in a channel's own legacy shape, moved unchanged from the old
- * bespoke containers (Social W5a; Integration W5b) and wired
+ * bespoke containers (Social W5a; Influencers and Integration W5b) and wired
  * as each config's `billingBursts`.
  *
  * The shape differs from the shared `getChannelBursts` on purpose, to keep
@@ -79,6 +79,9 @@ function legacyBillingBursts(shape: LegacyShape) {
 
 /** Social: deliverables from the burst, No Ad Serving always false. */
 export const getSocialMediaBursts = legacyBillingBursts({ mediaType: "social", deliverables: "burst" })
+
+/** Influencers: deliverables 0, No Ad Serving always false. */
+export const getInfluencersBursts = legacyBillingBursts({ mediaType: "influencers", deliverables: "zero" })
 
 /** Integration: deliverables 0, No Ad Serving from the line's camel `noAdserving` (C-36). */
 export const getIntegrationBursts = legacyBillingBursts({

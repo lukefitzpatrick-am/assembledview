@@ -627,7 +627,6 @@ export const influencersFormSchema = z.object({
   lineItems: z.array(influencersLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type InfluencersFormValues = z.infer<typeof influencersFormSchema>
 
 // --- Integration -------------------------------------------------------------
 export const integrationFormSchema = z.object({

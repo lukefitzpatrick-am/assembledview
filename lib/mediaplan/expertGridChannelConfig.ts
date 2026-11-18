@@ -2805,7 +2805,7 @@ export const INFLUENCERS_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "fixed_cost", label: "Fixed Cost" },
 ]
 
-export const INFLUENCERS_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+const INFLUENCERS_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
   { value: "manual_cpc", label: "Clicks" },
   { value: "completed_views", label: "Video Views" },
   { value: "conversion_value", label: "Conversion Value" },

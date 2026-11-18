@@ -64,6 +64,7 @@ import {
   createEmptySearchExpertRow,
   createEmptySocialMediaExpertRow,
   createEmptyIntegrationExpertRow,
+  createEmptyInfluencersExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -75,6 +76,7 @@ import {
   mapSearchExpertRowsToStandardLineItems,
   mapSocialMediaExpertRowsToStandardLineItems,
   mapIntegrationExpertRowsToStandardLineItems,
+  mapInfluencersExpertRowsToStandardLineItems,
   mapStandardBvodLineItemsToExpertRows,
   mapStandardCinemaLineItemsToExpertRows,
   mapStandardDigiAudioLineItemsToExpertRows,
@@ -105,6 +107,9 @@ import {
   mergeSearchStandardFromExpertWithPrevious,
   mergeSocialMediaStandardFromExpertWithPrevious,
   mergeIntegrationStandardFromExpertWithPrevious,
+  mergeInfluencersStandardFromExpertWithPrevious,
+  serializeInfluencersExpertRowsBaseline,
+  serializeInfluencersStandardLineItemsBaseline,
   serializeIntegrationExpertRowsBaseline,
   serializeIntegrationStandardLineItemsBaseline,
   serializeProgAudioExpertRowsBaseline,
@@ -123,7 +128,11 @@ import {
   serializeSocialMediaStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
-import { getIntegrationBursts, getSocialMediaBursts } from "@/lib/mediaplan/legacyBillingBursts"
+import {
+  getInfluencersBursts,
+  getIntegrationBursts,
+  getSocialMediaBursts,
+} from "@/lib/mediaplan/legacyBillingBursts"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
@@ -216,9 +225,20 @@ export type ContainerChannelConfig = {
   /**
    * Hydrate date for a saved burst with no valid date. "campaign" (unset) is
    * the campaign date as given; "campaignDay" is the start of that day
-   * (`defaultMediaBurstStartDate` / `defaultMediaBurstEndDate`).
+   * (`defaultMediaBurstStartDate` / `defaultMediaBurstEndDate`); "now" is the
+   * moment of hydrate (Influencers).
+   * shortcut: "now" keeps Influencers' old fallback (live: 0 bursts without a
+   * date); upgrade to "campaignDay" when Luke rules it (W5b question).
    */
-  burstDateFallback?: "campaign" | "campaignDay"
+  burstDateFallback?: "campaign" | "campaignDay" | "now"
+  /**
+   * Hydrated bursts carry only budget, buy amount, dates and deliverables (no
+   * saved `fee`, no ad serving overrides); a line saved with no bursts gets
+   * one with no deliverables or fee (Influencers). Unset: the full shape.
+   */
+  bareHydratedBursts?: boolean
+  /** false: Excel rows carry no line ids and no buy amount (Influencers). Unset: they do. */
+  excelLineIds?: boolean
   /** "after" puts a duplicated line straight after its source. Unset: at the end. */
   duplicatePlacement?: "after"
   /**
@@ -2382,15 +2402,33 @@ export const INFLUENCERS_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: influencersFormSchema,
   fetchPublishers: getPublishersForInfluencers,
   toExpert: mapStandardInfluencersLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapInfluencersExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeInfluencersStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeInfluencersStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeInfluencersExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyInfluencersExpertRow,
   billingMediaTypeLabel: "influencers",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getInfluencersBursts,
+  burstDateFallback: "now",
+  bareHydratedBursts: true,
+  duplicatePlacement: "after",
+  excelLineIds: false,
+  expertFromFeeKey: "feePctInfluencers",
+  summaryDimensions: {
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
+  shell: {
+    title: "Influencers Media",
+    themeKey: "influencers",
+    timelineMediaTypeKey: "influencers",
+    loadLabel: "Influencers",
+    exitConfirmYesAttr: "data-influencersexpert-exit-yes",
+    entryModeAriaLabel: "Influencers Media entry mode",
+    expertDialogTitle: "Influencers Media Expert Mode",
+  },
   gridConfig: INFLUENCERS_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,

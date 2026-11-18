@@ -485,12 +485,20 @@ export function useMediaChannelContainer(
         lastLoadKeyRef.current = loadKey
       }
       const campaignDay = config.burstDateFallback === "campaignDay"
-      const fallbackStart = campaignDay
-        ? defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
-        : campaignStartDate || new Date()
-      const fallbackEnd = campaignDay
-        ? defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
-        : campaignEndDate || new Date()
+      const now = new Date()
+      const fallbackStart =
+        config.burstDateFallback === "now"
+          ? now
+          : campaignDay
+            ? defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+            : campaignStartDate || new Date()
+      const fallbackEnd =
+        config.burstDateFallback === "now"
+          ? now
+          : campaignDay
+            ? defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+            : campaignEndDate || new Date()
+      const bare = config.bareHydratedBursts === true
       const transformedLineItems = prepareEditorLines(items, mbaNumber, mediaTypeIdCode).map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item)
         return {
@@ -501,29 +509,34 @@ export function useMediaChannelContainer(
           lineItemId: item.line_item_id || item.lineItemId,
           bursts:
             parsedBursts.length > 0
-              ? parsedBursts.map((burst: any) => ({
-                  budget: burst.budget || "",
-                  buyAmount: burst.buyAmount || "",
-                  startDate: coerceBurstDateLocal(burst.startDate) ?? fallbackStart,
-                  endDate: coerceBurstDateLocal(burst.endDate) ?? fallbackEnd,
-                  calculatedValue: computeLoadedDeliverables(
-                    item.buy_type || item.buyType || "",
-                    burst,
-                    Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-                    feePct ?? 0,
-                  ),
-                  fee: burst.fee || 0,
-                  adServingRatePct: burst.adServingRatePct,
-                  adServingImpressions: burst.adServingImpressions,
-                }))
+              ? parsedBursts.map((burst: any) => {
+                  const formBurst = {
+                    budget: burst.budget || "",
+                    buyAmount: burst.buyAmount || "",
+                    startDate: coerceBurstDateLocal(burst.startDate) ?? fallbackStart,
+                    endDate: coerceBurstDateLocal(burst.endDate) ?? fallbackEnd,
+                    calculatedValue: computeLoadedDeliverables(
+                      item.buy_type || item.buyType || "",
+                      burst,
+                      Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+                      feePct ?? 0,
+                    ),
+                  }
+                  if (bare) return formBurst
+                  return {
+                    ...formBurst,
+                    fee: burst.fee || 0,
+                    adServingRatePct: burst.adServingRatePct,
+                    adServingImpressions: burst.adServingImpressions,
+                  }
+                })
               : [
                   {
                     budget: "",
                     buyAmount: "",
                     startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
                     endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-                    calculatedValue: 0,
-                    fee: 0,
+                    ...(bare ? {} : { calculatedValue: 0, fee: 0 }),
                   },
                 ],
           totalMedia: item.total_media || 0,
@@ -871,10 +884,14 @@ export function useMediaChannelContainer(
             deliverablesAmount: burst.budget,
             grossMedia: String(mediaAmount),
             clientPaysForMedia: lineItem.clientPaysForMedia ?? false,
-            line_item_id: lineItemId,
-            lineItemId,
-            line_item: lineItemIndex + 1,
-            buyAmount: burst.buyAmount ?? burst.budget,
+            ...(config.excelLineIds === false
+              ? {}
+              : {
+                  line_item_id: lineItemId,
+                  lineItemId,
+                  line_item: lineItemIndex + 1,
+                  buyAmount: burst.buyAmount ?? burst.budget,
+                }),
           }
         }),
     )

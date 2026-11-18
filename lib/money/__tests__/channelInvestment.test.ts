@@ -116,7 +116,6 @@ const DIGITAL_CHARTS = [
 
 const OFFLINE_CHARTS = [
   ["CinemaContainer.tsx", "cinemalineItems", "feecinema"],
-  ["InfluencersContainer.tsx", "lineItems", "feeinfluencers"],
   ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
   ["NewspaperContainer.tsx", "newspaperlineItems", "feenewspapers"],
   ["OOHContainer.tsx", "lineItems", "feeooh"],
