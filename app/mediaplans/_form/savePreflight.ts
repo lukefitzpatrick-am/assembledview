@@ -4,8 +4,9 @@
  * S1 (publish refuses the hard list) builds here.
  *
  * `planSavePreflight` is pure. The page passes its stop to `showSaveStop`
- * and returns: a field stop (B58) is said once and focus moves to the field,
- * any other stop toasts (none for a second click while a save runs).
+ * and returns: a field stop (B58) is said once and focus moves to the field
+ * (a toast when no field shows it), any other stop toasts (none for a second
+ * click while a save runs).
  * Prompts that ask the planner (over budget, AA publish warnings) stay in the
  * page: they are questions, not refusals. The over budget wording is
  * `overBudgetQuestion` (B57).
@@ -40,9 +41,12 @@ type SaveStopCode =
 
 type SaveStop = {
   code: SaveStopCode
-  /** Null: refuse without a toast (a second click while a save runs, or a field stop). */
+  /** Null: refuse without a toast (a second click while a save runs). */
   toast: { title: string; description?: string; variant?: "destructive" } | null
-  /** A field's own error (shown under the field already): said, never toasted (B58). */
+  /**
+   * A field's own error (shown under the field already): said and focused,
+   * not toasted (B58). The toast shows only when no field on the page shows it.
+   */
   fieldMessage?: string
   /** Create: ask for a fresh MBA number (blank, or another client's). */
   refetchMbaNumber?: boolean
@@ -93,7 +97,7 @@ export function planSavePreflight(checks: CreateSaveChecks | EditSaveChecks): Sa
   if (checks.datesOutOfOrder) {
     return {
       code: "dates-out-of-order",
-      toast: null,
+      toast: { title: "Publish disabled", description: END_BEFORE_START_MESSAGE, variant: "destructive" },
       fieldMessage: END_BEFORE_START_MESSAGE,
     }
   }
@@ -170,18 +174,29 @@ function editStop(checks: EditSaveChecks): SaveStop | null {
 }
 
 /**
+ * The field a field stop is about: the invalid control whose described-by
+ * message reads the stop's words (the campaign end date), else a burst row's
+ * end date message. Never another invalid control on the page (B58fix R3).
+ */
+function fieldStopTarget(message: string): HTMLElement | null {
+  for (const control of document.querySelectorAll<HTMLElement>('[aria-invalid="true"][aria-describedby]')) {
+    const ids = control.getAttribute("aria-describedby")!.split(/\s+/)
+    if (ids.some((id) => id && document.getElementById(id)?.textContent?.trim() === message)) return control
+  }
+  return document.querySelector<HTMLElement>("[data-date-order-error]")
+}
+
+/**
  * Shows a stop. A field stop is said once (assertive) and focus moves to the
- * first field marked invalid, else to the first end date message (a burst
- * row). Any other stop toasts.
+ * field it is about. When no field on the page shows it (a burst row on a
+ * standard container shows no message), it toasts, as any other stop does.
  */
 export function showSaveStop(stop: SaveStop, toast: (message: NonNullable<SaveStop["toast"]>) => void): void {
-  if (stop.fieldMessage) {
+  const target = stop.fieldMessage ? fieldStopTarget(stop.fieldMessage) : null
+  if (stop.fieldMessage && target) {
     announce(stop.fieldMessage, "assertive")
-    const target =
-      document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
-      document.querySelector<HTMLElement>("[data-date-order-error]")
-    target?.scrollIntoView?.({ block: "center" })
-    target?.focus()
+    target.scrollIntoView?.({ block: "center" })
+    target.focus()
     return
   }
   if (stop.toast) toast(stop.toast)

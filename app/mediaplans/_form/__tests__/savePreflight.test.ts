@@ -140,9 +140,9 @@ test("edit: each refusal's toast", () => {
     variant: "destructive",
   })
   assert.equal(planSavePreflight({ ...editOk, clientsBlocked: true, clientsError: "x" })?.toast?.description, "x")
-  // B58: the end date error shows on the field; the stop says it and toasts nothing.
+  // B58: the end date error shows on the field; `showSaveStop` says it there. The toast is for a page with no such field (B58fix).
   const dates = planSavePreflight({ ...editOk, datesOutOfOrder: true })
-  assert.equal(dates?.toast, null)
+  assert.deepEqual(dates?.toast, { title: "Publish disabled", description: END_BEFORE_START_MESSAGE, variant: "destructive" })
   assert.equal(dates?.fieldMessage, END_BEFORE_START_MESSAGE)
   assert.equal(planSavePreflight({ ...editOk, linesStillLoading: true })?.toast?.title, "Line items still loading — please wait")
   assert.equal(

@@ -1,7 +1,8 @@
 /**
  * B58: a refused save that is a field's own error (end date before start) is
  * said once and moves focus to the field; it toasts nothing. Any other stop
- * still toasts and says nothing.
+ * still toasts and says nothing. B58fix R3: the field it is about, never
+ * another invalid control; a toast when no field shows the message.
  *
  * @vitest-environment jsdom
  */
@@ -54,7 +55,8 @@ describe("showSaveStop", () => {
         <>
           <Announcer />
           <input aria-label="Start date" />
-          <input aria-label="End date" aria-invalid="true" />
+          <input aria-label="End date" aria-invalid="true" aria-describedby="end-error" />
+          <p id="end-error">{END_BEFORE_START_MESSAGE}</p>
         </>,
       ),
     )
@@ -78,6 +80,59 @@ describe("showSaveStop", () => {
     act(() => showSaveStop(stop({ datesOutOfOrder: true }), vi.fn()))
     expect((document.activeElement as HTMLElement | null)?.dataset.dateOrderError).toBe("")
     expect(document.activeElement?.textContent).toBe(END_BEFORE_START_MESSAGE)
+  })
+
+  it("B58fix R3: focus goes to the field the stop is about, never another invalid control, and the end date before a burst message", () => {
+    act(() =>
+      root.render(
+        <>
+          <Announcer />
+          <input aria-label="Fixed cost" aria-invalid="true" aria-describedby="cost-error" />
+          <p id="cost-error">Fixed cost must be a number</p>
+          <input aria-label="Budget" aria-invalid="true" />
+          <EndDateOrderMessage start="2026-12-10" end="2026-12-01" />
+          <input aria-label="End date" aria-invalid="true" aria-describedby="end-hint end-error" />
+          <p id="end-hint">Last day on air</p>
+          <p id="end-error">{END_BEFORE_START_MESSAGE}</p>
+        </>,
+      ),
+    )
+    const toast = vi.fn()
+    act(() => showSaveStop(stop({ datesOutOfOrder: true }), toast))
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("End date")
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("B58fix R3: only a burst row out of order beside an unrelated invalid control: focus goes to the burst message", () => {
+    act(() =>
+      root.render(
+        <>
+          <Announcer />
+          <input aria-label="Fixed cost" aria-invalid="true" aria-describedby="cost-error" />
+          <p id="cost-error">Fixed cost must be a number</p>
+          <EndDateOrderMessage start="2026-12-10" end="2026-12-01" />
+        </>,
+      ),
+    )
+    act(() => showSaveStop(stop({ datesOutOfOrder: true }), vi.fn()))
+    expect((document.activeElement as HTMLElement | null)?.dataset.dateOrderError).toBe("")
+  })
+
+  it("B58fix R3: no field on the page shows the dates message (a burst on a standard container): it toasts and says nothing", () => {
+    act(() =>
+      root.render(
+        <>
+          <Announcer />
+          <input aria-label="Fixed cost" aria-invalid="true" />
+        </>,
+      ),
+    )
+    const before = assertive().innerHTML
+    const toast = vi.fn()
+    act(() => showSaveStop(stop({ datesOutOfOrder: true }), toast))
+    expect(toast).toHaveBeenCalledWith({ title: "Publish disabled", description: END_BEFORE_START_MESSAGE, variant: "destructive" })
+    expect(assertive().innerHTML).toBe(before)
+    expect(document.activeElement).toBe(document.body)
   })
 
   it("any other stop toasts as before and says nothing", () => {
