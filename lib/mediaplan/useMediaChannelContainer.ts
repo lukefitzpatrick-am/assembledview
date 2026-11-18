@@ -709,15 +709,19 @@ export function useMediaChannelContainer(
         budgetIncludesFees,
         feePct: feePct || 0,
       })
-      const calculatedValue =
-        config.deliverableRoundingPolicy === "rounded"
-          ? roundDeliverables(bt, rawCalculated)
-          : rawCalculated
+      if (Number.isNaN(rawCalculated)) return
+      const rounded = config.deliverableRoundingPolicy === "rounded"
+      const calculatedValue = rounded ? roundDeliverables(bt, rawCalculated) : rawCalculated
 
       const currentValue = form.getValues(
         `${fieldKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
       )
-      if (currentValue !== calculatedValue && !isNaN(calculatedValue)) {
+      // Rounded channels compare as numbers, as Digital Audio did (W5c): a
+      // saved "120" is not rewritten as 120.
+      const changed = rounded
+        ? Math.abs((Number(currentValue) || 0) - calculatedValue) > 1e-6
+        : currentValue !== calculatedValue
+      if (changed && !isNaN(calculatedValue)) {
         form.setValue(
           `${fieldKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`,
           calculatedValue,

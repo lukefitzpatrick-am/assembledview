@@ -109,7 +109,6 @@ test("the hook passes the form lines through and does not gross up again", () =>
 
 const DIGITAL_CHARTS = [
   ["BVODContainer.tsx", "bvodlineItems", "feebvod"],
-  ["DigitalAudioContainer.tsx", "digiaudiolineItems", "feedigiaudio"],
   ["DigitalDisplayContainer.tsx", "digidisplaylineItems", "feedigidisplay"],
 ] as const
 

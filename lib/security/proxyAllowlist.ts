@@ -26,7 +26,7 @@ export const MEDIA_DETAILS_ALLOWLIST: Record<string, MethodSet> = {
   magazines: M("GET"),
   // consumer: getMagazinesAdSizes; death: reference cutover
   magazines_adsizes: M("GET"),
-  // consumer: getAudioSites / createAudioSite → DigitalAudioContainer; death: reference cutover
+  // consumer: getAudioSites / createAudioSite; death: reference cutover
   audio_site: M("GET", "POST"),
   // consumer: getVideoSites / createVideoSite; death: reference cutover
   video_site: M("GET", "POST"),

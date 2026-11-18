@@ -34,7 +34,9 @@ import {
   getPublishersForSearch,
   getPublishersForSocialMedia,
   getPublishersForTelevision,
+  createAudioSite,
   createVideoSite,
+  getAudioSites,
   getVideoSites,
 } from "@/lib/api"
 import {
@@ -68,6 +70,7 @@ import {
   createEmptyIntegrationExpertRow,
   createEmptyInfluencersExpertRow,
   createEmptyDigiVideoExpertRow,
+  createEmptyDigitalAudioExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -86,6 +89,7 @@ import {
   mapStandardDigiDisplayLineItemsToExpertRows,
   mapStandardDigiVideoLineItemsToExpertRows,
   mapDigiVideoExpertRowsToStandardLineItems,
+  mapDigitalAudioExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
@@ -113,6 +117,9 @@ import {
   mergeIntegrationStandardFromExpertWithPrevious,
   mergeInfluencersStandardFromExpertWithPrevious,
   mergeDigiVideoStandardFromExpertWithPrevious,
+  mergeDigiAudioStandardFromExpertWithPrevious,
+  serializeDigiAudioExpertRowsBaseline,
+  serializeDigiAudioStandardLineItemsBaseline,
   serializeDigiVideoExpertRowsBaseline,
   serializeDigiVideoStandardLineItemsBaseline,
   serializeInfluencersExpertRowsBaseline,
@@ -136,6 +143,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
+  getDigiAudioBursts,
   getDigiVideoBursts,
   getInfluencersBursts,
   getIntegrationBursts,
@@ -203,6 +211,8 @@ export type ContainerSite = {
 type ContainerSites = {
   /** "Video" gives "Add New Video Site". */
   noun: string
+  /** Add Site lets the planner pick another publisher (Digital Audio). Unset: the line's, read-only. */
+  pickPublisher?: boolean
   fetch: () => Promise<ContainerSite[]>
   create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
@@ -1511,15 +1521,33 @@ export const DIGITALAUDIO_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: digiAudioFormSchema,
   fetchPublishers: getPublishersForDigiAudio,
   toExpert: mapStandardDigiAudioLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "digital audio",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  fromExpert: mapDigitalAudioExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeDigiAudioStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeDigiAudioStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeDigiAudioExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyDigitalAudioExpertRow,
+  // "digi audio" keys the audio ad serving rate (C-330).
+  billingMediaTypeLabel: "digi audio",
+  billingBursts: getDigiAudioBursts,
+  burstDateFallback: "now",
+  sites: { noun: "Audio", fetch: getAudioSites, create: createAudioSite, pickPublisher: true },
+  expertFromFeeKey: "feePctDigiAudio",
+  summaryDimensions: {
+    Publisher: "publisher",
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "rounded" as const,
+  shell: {
+    title: "Digital Audio",
+    themeKey: "digiaudio",
+    timelineMediaTypeKey: "digitalAudio",
+    loadLabel: "Digital Audio",
+    exitConfirmYesAttr: "data-digiaudio-expert-exit-yes",
+    entryModeAriaLabel: "Digital Audio entry mode",
+    expertDialogTitle: "Digital Audio Expert Mode",
+  },
   gridConfig: DIGIAUDIO_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,

@@ -125,3 +125,11 @@ export const getDigiVideoBursts = legacyBillingBursts({
   noAdserving: "lineLower",
   lineItemId: MEDIA_TYPE_ID_CODES.digitalVideo,
 })
+
+/** Digital Audio: Digital Video's shape, label "digi audio" (the audio ad serving rate). */
+export const getDigiAudioBursts = legacyBillingBursts({
+  mediaType: "digi audio",
+  deliverables: "saved",
+  noAdserving: "lineLower",
+  lineItemId: MEDIA_TYPE_ID_CODES.digitalAudio,
+})

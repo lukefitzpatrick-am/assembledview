@@ -5,7 +5,7 @@ import type { UseFormReturn } from "react-hook-form"
 import { PlusCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import type { ComboboxOption } from "@/components/ui/combobox"
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -161,19 +161,33 @@ export function useChannelSiteList(
     publisherOf,
     cardProps,
     onComboboxValueChange,
-    dialog: { noun: sites?.noun, open: lineIndex !== null, platform, name, setName, saving, close, add },
+    dialog: {
+      noun: sites?.noun,
+      pickPublisher: sites?.pickPublisher === true,
+      open: lineIndex !== null,
+      platform,
+      setPlatform,
+      name,
+      setName,
+      saving,
+      close,
+      add,
+    },
   }
 }
 
 /**
  * Add Site, on the shared dialog: focus moves in and is held there, Escape
  * and Cancel close it, Enter in the name field adds the site, and both
- * fields have labels. The publisher is the line's, read-only.
+ * fields have labels. The publisher is the line's: read-only, or a publisher
+ * pick when the config sets `pickPublisher`.
  */
 export function AddSiteDialog({
   dialog,
+  publishers,
 }: {
   dialog: ReturnType<typeof useChannelSiteList>["dialog"]
+  publishers: { publisher_name: string }[]
 }) {
   const id = useId()
   if (!dialog.noun) return null
@@ -194,12 +208,25 @@ export function AddSiteDialog({
               <Label htmlFor={`${id}-publisher`} className="text-right">
                 Publisher
               </Label>
-              <Input
-                id={`${id}-publisher`}
-                value={dialog.platform}
-                readOnly
-                className="col-span-3 bg-muted focus:ring-0"
-              />
+              {dialog.pickPublisher ? (
+                <Combobox
+                  id={`${id}-publisher`}
+                  value={dialog.platform}
+                  onValueChange={dialog.setPlatform}
+                  placeholder="Select Publisher"
+                  searchPlaceholder="Search publishers..."
+                  buttonClassName="col-span-3 h-9"
+                  className="col-span-3"
+                  options={publishers.map((p) => ({ value: p.publisher_name, label: p.publisher_name }))}
+                />
+              ) : (
+                <Input
+                  id={`${id}-publisher`}
+                  value={dialog.platform}
+                  readOnly
+                  className="col-span-3 bg-muted focus:ring-0"
+                />
+              )}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor={`${id}-site`} className="text-right">

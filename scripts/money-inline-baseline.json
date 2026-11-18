@@ -30,7 +30,6 @@
   "components/ingest/ParseReviewScreen.tsx": 1,
   "components/media-containers/BVODContainer.tsx": 9,
   "components/media-containers/CinemaContainer.tsx": 11,
-  "components/media-containers/DigitalAudioContainer.tsx": 9,
   "components/media-containers/DigitalDisplayContainer.tsx": 7,
   "components/media-containers/ExpertCard.tsx": 2,
   "components/media-containers/MagazinesContainer.tsx": 9,

@@ -491,7 +491,7 @@ export default function MediaChannelContainer({
         </DialogContent>
       </Dialog>
 
-      <AddSiteDialog dialog={siteList.dialog} />
+      <AddSiteDialog dialog={siteList.dialog} publishers={publishers} />
     </div>
   )
 }
