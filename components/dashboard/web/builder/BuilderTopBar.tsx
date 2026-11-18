@@ -8,6 +8,7 @@ import { BUILDER_FIELD_CLASS } from "@/components/dashboard/web/builder/Settings
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import type { WebAccountOption, WebAccountOptions, WebAccountPlatform } from "@/lib/webReport/builder/accounts"
 import { REPORT_PERIODS, type DateWindow, type ReportPeriod } from "@/lib/webReport/periods"
 
@@ -224,7 +225,7 @@ function AccountSelect({
   onLink: (platform: WebAccountPlatform, ref: string | null, label: string | null) => void
 }) {
   const list = options?.[platform] ?? []
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getMelbourneTodayISO()
   const known = current ? list.some((option) => option.ref.toLowerCase() === current.toLowerCase()) : true
   return (
     <label className="flex flex-col gap-1" htmlFor={id}>

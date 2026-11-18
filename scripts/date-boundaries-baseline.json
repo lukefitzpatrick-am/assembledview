@@ -4,7 +4,6 @@
   "components/dashboard/HeroKPIBar.tsx": 1,
   "components/dashboard/delivery/DeliveryDataProvider.tsx": 1,
   "components/dashboard/delivery/common/deliveryChartSpec.ts": 3,
-  "components/dashboard/web/builder/BuilderTopBar.tsx": 1,
   "components/finance/sections/inXero/InXeroPageClient.tsx": 1,
   "components/finance/sections/periods/PeriodDetail.tsx": 1,
   "components/finance/sections/reports/PlanReconciliationPageClient.tsx": 1,
