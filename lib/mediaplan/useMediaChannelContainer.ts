@@ -34,7 +34,6 @@ export type MediaCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_
 import {
   assignStableLineItemNumbers,
   keepLineIdsOnReorder,
-  lineDisplayNumber,
   prepareEditorLines,
   stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
@@ -645,7 +644,9 @@ export function useMediaChannelContainer(
       }
 
       return {
-        index: lineDisplayNumber(lineItem, index),
+        // The card's own number (its heading reads the same). Apply stamps
+        // `position`, and a Remove or Duplicate after it leaves the stamps stale (F5).
+        index: index + 1,
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -865,7 +866,7 @@ export function useMediaChannelContainer(
             : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0
           // The line's stored id, as save and billing carry it: the naming
           // workbook prints it as the last token of every trafficked name (C-340).
-          const lineNumber = lineDisplayNumber(lineItem, lineItemIndex)
+          const lineNumber = lineItemIndex + 1
           const lineItemId =
             String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim() ||
             buildLineItemId(mbaNumber, mediaTypeIdCode, lineNumber)
