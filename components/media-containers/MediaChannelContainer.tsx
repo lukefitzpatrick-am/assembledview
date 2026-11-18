@@ -43,40 +43,10 @@ import {
   mediaTypeOutlineStyle,
   mediaTypeSummaryStripeStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
-import type { FieldValues, UseFormReturn } from "react-hook-form"
-import type { ReactNode } from "react"
-
-type MediaChannelContainerRenderCtx = {
-  form: UseFormReturn<any>
-  feePct: number
-  config: ContainerChannelConfig
-  watchedLineItems: any[]
-  campaignStartDate: Date
-  campaignEndDate: Date
-}
-
-type MediaChannelContainerComputeOverrideArgs = {
-  lineItemIndex: number
-  totalMedia: number
-  totalCalculatedValue: number
-  feePct: number
-  form: UseFormReturn<any>
-  fieldKey: string
-}
+import type { FieldValues } from "react-hook-form"
 
 type MediaChannelContainerProps = MediaChannelContainerHookProps & {
   config: ContainerChannelConfig
-  /**
-   * Escape hatch (Family 4): inject UI after the header card / before line items.
-   */
-  renderExtra?: ReactNode | ((ctx: MediaChannelContainerRenderCtx) => ReactNode)
-  /**
-   * Escape hatch (Family 4): override ExpertCard total display (e.g. SocialMedia inline compute).
-   * Return null to use the default cpcCpvCpm total formula.
-   */
-  computeOverride?: (
-    args: MediaChannelContainerComputeOverrideArgs,
-  ) => { totalDisplay: string } | null
 }
 
 function buildEmptyLineItemPayload(
@@ -123,8 +93,6 @@ export default function MediaChannelContainer({
   mediaTypes,
   initialLineItems = [],
   onRawLineItemsChange,
-  renderExtra,
-  computeOverride,
 }: MediaChannelContainerProps) {
   const shell = config.shell
   if (!shell) {
@@ -188,17 +156,6 @@ export default function MediaChannelContainer({
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
   const summaryDimensions = Object.keys(config.summaryDimensions)
   const calculatedVariant = config.calculatedVariant as CpcFamilyVariant
-
-  const renderCtx: MediaChannelContainerRenderCtx = {
-    form,
-    feePct,
-    config,
-    watchedLineItems,
-    campaignStartDate,
-    campaignEndDate,
-  }
-  const extra =
-    typeof renderExtra === "function" ? renderExtra(renderCtx) : renderExtra
 
   const emptyPayload = () => ({
     ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate),
@@ -295,8 +252,6 @@ export default function MediaChannelContainer({
         </Card>
       </div>
 
-      {extra}
-
       <div>
           <div className="space-y-6">
             {expertModalOpen ? null : (
@@ -314,46 +269,10 @@ export default function MediaChannelContainer({
                       config.mediaTypeIdCode,
                       lineItemIndex + 1,
                     )
-                    const getTotals = (idx: number) => {
-                      const lineItem = form.getValues(`${fieldKey}.${idx}`)
-                      let totalMedia = 0
-                      let totalCalculatedValue = 0
-
-                      ;(lineItem?.bursts || []).forEach(
-                        (burst: {
-                          budget?: string
-                          calculatedValue?: number
-                        }) => {
-                          const budget =
-                            parseFloat(
-                              String(burst.budget ?? "").replace(/[^0-9.]/g, ""),
-                            ) || 0
-                          totalMedia += budget
-                          totalCalculatedValue += burst.calculatedValue || 0
-                        },
-                      )
-
-                      return { totalMedia, totalCalculatedValue }
-                    }
-
-                    const { totalMedia, totalCalculatedValue } =
-                      getTotals(lineItemIndex)
-
-                    const override = computeOverride?.({
-                      lineItemIndex,
-                      totalMedia,
-                      totalCalculatedValue,
-                      feePct,
-                      form,
-                      fieldKey,
-                    })
-
-                    const totalDisplay =
-                      override?.totalDisplay ??
-                      formatCardTitleFromLine(
-                        form.getValues(`${fieldKey}.${lineItemIndex}`),
-                        feePct || 0,
-                      )
+                    const totalDisplay = formatCardTitleFromLine(
+                      form.getValues(`${fieldKey}.${lineItemIndex}`),
+                      feePct || 0,
+                    )
 
                     return (
                       <ExpertCard

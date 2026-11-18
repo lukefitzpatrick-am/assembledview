@@ -35,7 +35,6 @@
   "components/media-containers/DigitalVideoContainer.tsx": 9,
   "components/media-containers/ExpertCard.tsx": 2,
   "components/media-containers/MagazinesContainer.tsx": 9,
-  "components/media-containers/MediaChannelContainer.tsx": 1,
   "components/media-containers/NewspaperContainer.tsx": 9,
   "components/media-containers/OOHContainer.tsx": 10,
   "components/media-containers/ProductionContainer.tsx": 3,

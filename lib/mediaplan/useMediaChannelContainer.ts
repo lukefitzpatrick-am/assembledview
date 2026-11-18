@@ -209,7 +209,6 @@ export function useMediaChannelContainer(
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
-  const [overallDeliverables, setOverallDeliverables] = useState(0)
   const form = useForm<any>({
     defaultValues: {
       [fieldKey]: emptyChannelLineItemsDefault(),
@@ -651,15 +650,6 @@ export function useMediaChannelContainer(
     (_lineItemIndex: number) => {
       const lineItems = form.getValues(fieldKey) || []
       const money = channelSummaryTotals(lineItems, feePct || 0)
-      let overallDeliverableCount = 0
-
-      lineItems.forEach((lineItem: any) => {
-        ;(lineItem.bursts || []).forEach((burst: any) => {
-          overallDeliverableCount += Number.parseFloat(String(burst?.calculatedValue ?? 0)) || 0
-        })
-      })
-
-      setOverallDeliverables(overallDeliverableCount)
       onTotalMediaChange(money.overallMedia, money.overallFee)
     },
     [form, feePct, onTotalMediaChange, fieldKey],
@@ -993,7 +983,6 @@ export function useMediaChannelContainer(
     mbaNumber,
     reorderedRef,
     feePct,
-    overallDeliverables,
     fieldKey,
     config,
   }
