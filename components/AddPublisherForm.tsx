@@ -9,7 +9,16 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { cssHexFromStored, NATIVE_COLOR_INPUT_FALLBACK } from "@/lib/publisher/publisherColourFormUtils"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import {
+  announceInvalid,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  showServerFieldErrors,
+} from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
@@ -18,6 +27,7 @@ import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEdito
 import { EMPTY_BEST_PRACTICE, type BestPractice } from "@/lib/types/bestPractice"
 import { readPublisherSaveError } from "@/lib/publisher/publisherSaveError"
 import {
+  PUBLISHER_FIELD_LABELS,
   publisherCreateSchema,
   type PublisherCreateInput,
   type PublisherCreateValues,
@@ -114,9 +124,8 @@ export function AddPublisherForm({ onSuccess, initialValues }: AddPublisherFormP
 
       if (!response.ok) {
         const failure = await readPublisherSaveError(response, "Failed to create publisher")
-        for (const [field, message] of Object.entries(failure.fieldErrors)) {
-          form.setError(field as "publisher_name" | "publisherid", { type: "server", message })
-        }
+        // A name or ID clash shows on its field, not in a toast (B58).
+        if (showServerFieldErrors(form, failure.fieldErrors, PUBLISHER_FIELD_LABELS)) return
         throw new Error(failure.message)
       }
 
@@ -138,7 +147,7 @@ export function AddPublisherForm({ onSuccess, initialValues }: AddPublisherFormP
   return (
     <>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-6xl mx-auto">
+        <form onSubmit={form.handleSubmit(onSubmit, announceInvalid(PUBLISHER_FIELD_LABELS))} className="space-y-8 max-w-6xl mx-auto">
           <FormField
             control={form.control}
             name="publisher_name"

@@ -84,6 +84,22 @@ const publisherCoreFields = {
   ...publisherCommsFields,
 }
 
+const titleCase = (key: string) => key.charAt(0).toUpperCase() + key.slice(1)
+
+/** The publisher forms' field labels, for the error summary (B58). */
+export const PUBLISHER_FIELD_LABELS: Readonly<Record<string, string>> = {
+  publisher_name: "Publisher Name",
+  publisherid: "Publisher ID",
+  publishertype: "Publisher Type",
+  billingagency: "Billing Agency",
+  financecode: "Finance Code",
+  publisher_colour: "Brand Colour",
+  best_practice: "Best Practice Notes",
+  ...Object.fromEntries(
+    Object.keys(publisherCommsFields).map((key) => [key, `${titleCase(key.replace(/_comms$/, ""))} Commission`]),
+  ),
+}
+
 export const publisherCreateSchema = z.object({
   ...publisherCoreFields,
 })

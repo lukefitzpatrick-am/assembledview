@@ -11,6 +11,7 @@ import {
   FieldValues,
   FormProvider,
   useFormContext,
+  type UseFormReturn,
 } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
@@ -183,6 +184,26 @@ function announceInvalid(labels?: Readonly<Record<string, string>>) {
 }
 
 /**
+ * A server refusal that names fields (a 409 or 422 with `fieldErrors`): each
+ * message goes under its field, focus goes to the first, one summary is
+ * announced. True when there was a field error to show; the caller then shows
+ * no toast for it.
+ */
+function showServerFieldErrors<T extends FieldValues>(
+  form: Pick<UseFormReturn<T>, "setError">,
+  fieldErrors: Partial<Record<string, string>>,
+  labels?: Readonly<Record<string, string>>,
+): boolean {
+  const named = Object.entries(fieldErrors).filter((entry): entry is [string, string] => Boolean(entry[1]))
+  if (named.length === 0) return false
+  named.forEach(([name, message], index) => {
+    form.setError(name as FieldPath<T>, { type: "server", message }, { shouldFocus: index === 0 })
+  })
+  announce(invalidFieldSummary(Object.fromEntries(named.map(([name, message]) => [name, { message }])), labels), "assertive")
+  return true
+}
+
+/**
  * The same summary as text by the Save button, after a failed submit, for a
  * form whose invalid field can be off screen or hidden. Not a live region:
  * `announceInvalid` says it once.
@@ -207,6 +228,7 @@ function FormErrorSummary({
 export {
   announceInvalid,
   FormErrorSummary,
+  showServerFieldErrors,
   useFormField,
   Form,
   FormItem,

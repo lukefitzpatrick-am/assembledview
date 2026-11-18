@@ -43,6 +43,7 @@ New and migrated tables use `DataTable` (`components/ui/data-table.tsx`). `Table
 
 - A field error shows under its field, never in a toast. react-hook-form forms use `FormField` / `FormControl` / `FormMessage` (`components/ui/form.tsx`): the control gets `aria-invalid` and `aria-describedby` pointing at the message.
 - Submit with `form.handleSubmit(onSubmit, announceInvalid(labels))`. A failed submit announces one summary ("Fix 2 fields: Label: message; ...") and react-hook-form focuses the first invalid field. Pass the control's `ref` (spread `{...field}`) so it can take focus.
+- A server refusal that names fields (a 409 or 422 with `fieldErrors`): `if (showServerFieldErrors(form, fieldErrors, labels)) return`. Same: each under its field, focus on the first, one summary. Any other failure is an action result and toasts.
 - A form whose invalid field can be hidden or far down also renders `<FormErrorSummary labels={labels} />` by its Save button: the same text, shown after a failed submit, not a live region.
 - Words for screen readers go through `announce(text, "polite" | "assertive")` (`components/ui/announcer.tsx`), never a new `aria-live` region. Assertive is for an error the user must act on.
 - Toasts are for the result of an action (saved, sent, failed to save). A toast announces itself; do not also `announce()` it.
