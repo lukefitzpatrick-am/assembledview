@@ -43,7 +43,6 @@
   "lib/partner-ingest/parsers/shared.ts": 1,
   "lib/partner-ingest/runPartnerIngest.ts": 2,
   "lib/partner-ingest/snowflakeWriter.ts": 1,
-  "lib/partner-ingest/sourceFile.ts": 1,
   "lib/reports/adminReportRunsStore.ts": 2,
   "lib/reports/campaignReport/expectedMedia.ts": 1,
   "lib/reports/campaignReport/generateCampaignReportForMba.ts": 1,

@@ -1,7 +1,13 @@
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+
+/**
+ * The received day as Graph sends it (the UTC day of receipt, kept so a file
+ * keeps its key). With no usable received time: the Melbourne day (C-277).
+ */
 function isoDay(receivedAt: string): string {
   const day = receivedAt.trim().slice(0, 10)
   if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day
-  return new Date().toISOString().slice(0, 10)
+  return getMelbourneTodayISO()
 }
 
 function safeMessageId(internetMessageId: string): string {
