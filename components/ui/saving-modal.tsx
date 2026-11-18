@@ -33,6 +33,8 @@ interface SavingModalProps {
   descriptionComplete?: string;
   descriptionError?: string;
   emptyStateLabel?: string;
+  /** Where focus goes when the window closes (B57 returns it to the opener unless this calls `preventDefault`). */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function SavingModal({
@@ -47,6 +49,7 @@ export function SavingModal({
   descriptionComplete = "All sections have been processed.",
   descriptionError = "Some sections failed to save. Review the errors below and fix them before retrying.",
   emptyStateLabel = "Saving changes...",
+  onCloseAutoFocus,
 }: SavingModalProps) {
   const hasItems = items.length > 0;
   const allComplete = savingDialogAllComplete(items);
@@ -75,7 +78,7 @@ export function SavingModal({
         }
       }}
     >
-      <DialogContent className="flex min-h-[200px] flex-col overflow-hidden border-2 border-secondary bg-background p-0 sm:max-w-[500px]">
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus} className="flex min-h-[200px] flex-col overflow-hidden border-2 border-secondary bg-background p-0 sm:max-w-[500px]">
         <div className="flex flex-col gap-4 p-6">
         <DialogTitle className="text-lg font-semibold">{dialogTitle}</DialogTitle>
         {hasItems && (

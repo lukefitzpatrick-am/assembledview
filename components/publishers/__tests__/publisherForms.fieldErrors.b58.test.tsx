@@ -227,6 +227,104 @@ describe("Edit publisher: errors on the field (B58)", () => {
   })
 })
 
+/** A save whose response waits until the saving window has drawn (B58fix R1). */
+function slowResponse() {
+  let respond!: (response: Response) => void
+  fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (respond = resolve)))
+  return async (response: Response) => {
+    expect(document.body.querySelector('[role="dialog"]'), "the saving window is open").not.toBeNull()
+    await act(async () => respond(response))
+    await settle()
+    await settle()
+    expect(document.body.querySelector('[role="dialog"]'), "the saving window has closed").toBeNull()
+  }
+}
+
+describe("Server field errors under the saving window (B58fix R1)", () => {
+  const NAME_CLASH = "Publisher name \"Seven West\" is already used by Seven (id 3)."
+
+  it("add: a name and ID clash that lands while the window is open ends on the first field, said once in the same order", async () => {
+    mount(<AddPublisherForm onSuccess={vi.fn()} />)
+    await settle()
+    await type("publisher_name", "Seven West")
+    await type("publisherid", "seven")
+    await type("financecode", "SEV01")
+    const respond = slowResponse()
+    button("Create Publisher").focus()
+    await save("Create Publisher")
+    await respond(
+      new Response(JSON.stringify({ error: CLASH, fieldErrors: { publisher_name: NAME_CLASH, publisherid: CLASH } }), {
+        status: 409,
+      }),
+    )
+
+    expect(toastMock).not.toHaveBeenCalled()
+    expect(field("publisher_name").getAttribute("aria-invalid")).toBe("true")
+    expect(field("publisherid").getAttribute("aria-invalid")).toBe("true")
+    expect(document.activeElement).toBe(field("publisher_name"))
+    expect(assertive().children).toHaveLength(1)
+    expect(assertive().textContent).toBe(`Fix 2 fields: Publisher Name: ${NAME_CLASH}; Publisher ID: ${CLASH}`)
+  })
+
+  it("add: a name and ID clash that lands before the window draws also focuses the first field", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: CLASH, fieldErrors: { publisher_name: NAME_CLASH, publisherid: CLASH } }), {
+        status: 409,
+      }),
+    )
+    mount(<AddPublisherForm onSuccess={vi.fn()} />)
+    await settle()
+    await type("publisher_name", "Seven West")
+    await type("publisherid", "seven")
+    await type("financecode", "SEV01")
+    await save("Create Publisher")
+
+    expect(document.activeElement).toBe(field("publisher_name"))
+  })
+
+  it("add: a clash on the ID alone ends on the ID field, not on Save", async () => {
+    mount(<AddPublisherForm onSuccess={vi.fn()} />)
+    await settle()
+    await type("publisher_name", "Seven West")
+    await type("publisherid", "seven")
+    await type("financecode", "SEV01")
+    const respond = slowResponse()
+    button("Create Publisher").focus()
+    await save("Create Publisher")
+    await respond(new Response(JSON.stringify({ error: CLASH, fieldErrors: { publisherid: CLASH } }), { status: 409 }))
+
+    expect(document.activeElement).toBe(field("publisherid"))
+  })
+
+  it("add: a save that fails for another reason returns focus to Save as before", async () => {
+    mount(<AddPublisherForm onSuccess={vi.fn()} />)
+    await settle()
+    await type("publisher_name", "Seven West")
+    await type("publisherid", "seven")
+    await type("financecode", "SEV01")
+    const respond = slowResponse()
+    button("Create Publisher").focus()
+    await save("Create Publisher")
+    await respond(new Response(JSON.stringify({ error: "Database unavailable" }), { status: 500 }))
+
+    expect(toastMock).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(button("Create Publisher"))
+  })
+
+  it("edit: a name clash that lands while the window is open ends on the name field", async () => {
+    mount(<EditPublisherForm publisher={PUBLISHER as never} onSuccess={vi.fn()} />)
+    await settle()
+    const respond = slowResponse()
+    button("Save").focus()
+    await save("Save")
+    await respond(new Response(JSON.stringify({ error: NAME_CLASH, fieldErrors: { publisher_name: NAME_CLASH } }), { status: 409 }))
+
+    expect(toastMock).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(field("publisher_name"))
+    expect(assertive().textContent).toBe(`Fix 1 field: Publisher Name: ${NAME_CLASH}`)
+  })
+})
+
 describe("PUBLISHER_FIELD_LABELS", () => {
   it("names every commission field as the form does", () => {
     expect(PUBLISHER_FIELD_LABELS.radio_comms).toBe("Radio Commission")

@@ -14,6 +14,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  focusServerErrorOnClose,
   showServerFieldErrors,
 } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
@@ -400,7 +401,7 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
           {isSaving ? "Saving..." : "Save"}
         </Button>
       </form>
-      <SavingModal isOpen={isSaving} />
+      <SavingModal isOpen={isSaving} onCloseAutoFocus={focusServerErrorOnClose(form)} />
     </Form>
   )
 }

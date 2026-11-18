@@ -187,7 +187,9 @@ function announceInvalid(labels?: Readonly<Record<string, string>>) {
  * A server refusal that names fields (a 409 or 422 with `fieldErrors`): each
  * message goes under its field, focus goes to the first, one summary is
  * announced. True when there was a field error to show; the caller then shows
- * no toast for it.
+ * no toast for it. A form that saves under a saving window also passes
+ * `focusServerErrorOnClose(form)` to that window: its focus trap refuses the
+ * field while it is open.
  */
 function showServerFieldErrors<T extends FieldValues>(
   form: Pick<UseFormReturn<T>, "setError">,
@@ -201,6 +203,21 @@ function showServerFieldErrors<T extends FieldValues>(
   })
   announce(invalidFieldSummary(Object.fromEntries(named.map(([name, message]) => [name, { message }])), labels), "assertive")
   return true
+}
+
+/**
+ * The saving window's `onCloseAutoFocus` for a form that uses
+ * `showServerFieldErrors` (B58fix). The refusal lands while the window is open,
+ * so focus goes to the first server error once it has closed, not back to
+ * Save. A save that did not end in a server field error closes as usual.
+ */
+function focusServerErrorOnClose<T extends FieldValues>(form: Pick<UseFormReturn<T>, "formState" | "setFocus">) {
+  return (event: Event) => {
+    const first = Object.entries(form.formState.errors).find(([, error]) => error?.type === "server")?.[0]
+    if (!first) return
+    event.preventDefault()
+    form.setFocus(first as FieldPath<T>)
+  }
 }
 
 /**
@@ -228,6 +245,7 @@ function FormErrorSummary({
 export {
   announceInvalid,
   FormErrorSummary,
+  focusServerErrorOnClose,
   showServerFieldErrors,
   useFormField,
   Form,

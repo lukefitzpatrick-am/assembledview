@@ -17,6 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  focusServerErrorOnClose,
   showServerFieldErrors,
 } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
@@ -420,7 +421,7 @@ export function AddPublisherForm({ onSuccess, initialValues }: AddPublisherFormP
         </form>
       </Form>
 
-      <SavingModal isOpen={isSaving} />
+      <SavingModal isOpen={isSaving} onCloseAutoFocus={focusServerErrorOnClose(form)} />
       <SuccessModal
         isOpen={showSuccess}
         onClose={() => setShowSuccess(false)}
