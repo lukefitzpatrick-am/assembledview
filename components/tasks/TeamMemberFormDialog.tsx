@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  announceInvalid,
   Form,
   FormControl,
   FormDescription,
@@ -52,6 +53,9 @@ type TeamMemberFormDialogProps = {
   member: TeamMember | null
   onSaved: () => void
 }
+
+/** Field labels for the error summary (B58). */
+const TEAM_MEMBER_FIELD_LABELS = { name: "Name", email: "Email" }
 
 export function TeamMemberFormDialog({
   open,
@@ -181,7 +185,7 @@ export function TeamMemberFormDialog({
     } finally {
       setSubmitting(false)
     }
-  })
+  }, announceInvalid(TEAM_MEMBER_FIELD_LABELS))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

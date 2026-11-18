@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  announceInvalid,
   Form,
   FormControl,
   FormDescription,
@@ -127,6 +128,9 @@ type TaskFormDialogProps = {
   /** When creating (task null), merge these into the empty-form defaults. */
   createPrefill?: TaskFormCreatePrefill | null
 }
+
+/** Field labels for the error summary (B58). */
+const TASK_FIELD_LABELS = { title: "Title", client_id: "Client", due_date: "Due date", recurring_rule: "Recurring" }
 
 export function TaskFormDialog({
   open,
@@ -416,7 +420,7 @@ export function TaskFormDialog({
     } finally {
       setSubmitting(false)
     }
-  })
+  }, announceInvalid(TASK_FIELD_LABELS))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -459,7 +463,8 @@ export function TaskFormDialog({
                     onValueChange={(v) => field.onChange(Number(v))}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      {/* ref: a failed save can focus the client (B58). */}
+                      <SelectTrigger ref={field.ref}>
                         <SelectValue placeholder="Select client" />
                       </SelectTrigger>
                     </FormControl>

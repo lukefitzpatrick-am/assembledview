@@ -53,8 +53,11 @@ export function useFieldErrors<K extends string>(labels: Readonly<Record<K, stri
       </p>
     ) : null
 
-  /** Clears one field's message (call when it changes). */
-  const clear = (key: K) => setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev))
+  /** Clears one field's message (call when it changes). Stable, so an effect can call it. */
+  const clear = React.useCallback(
+    (key: K) => setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev)),
+    [],
+  )
 
   return { check, control, message, clear }
 }

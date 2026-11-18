@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { useFieldErrors } from "@/hooks/use-field-errors"
 import type { TaskTemplate, TaskTemplateItem } from "@/lib/codex/types"
 
 type TemplateFormDialogProps = {
@@ -43,9 +44,12 @@ export function TemplateFormDialog({
   const [items, setItems] = useState<DraftItem[]>([])
   const [newLabel, setNewLabel] = useState("")
   const isEdit = Boolean(template)
+  const errors = useFieldErrors({ name: "Name" })
+  const clearError = errors.clear
 
   useEffect(() => {
     if (!open) return
+    clearError("name")
     if (template) {
       setName(template.name ?? "")
       setDescription(template.description ?? "")
@@ -61,7 +65,7 @@ export function TemplateFormDialog({
       setItems([])
     }
     setNewLabel("")
-  }, [open, template])
+  }, [open, template, clearError])
 
   const addDraftLabel = () => {
     const label = newLabel.trim()
@@ -84,14 +88,7 @@ export function TemplateFormDialog({
 
   const onSubmit = async () => {
     const trimmed = name.trim()
-    if (!trimmed) {
-      toast({
-        title: "Name required",
-        description: "Templates need a name.",
-        variant: "destructive",
-      })
-      return
-    }
+    if (!errors.check({ name: trimmed ? undefined : "Templates need a name." })) return
     setSubmitting(true)
     try {
       const payload = {
@@ -148,14 +145,18 @@ export function TemplateFormDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-name">Name</Label>
+            <Label htmlFor={errors.control("name").id}>Name</Label>
             <Input
-              id="tpl-name"
+              {...errors.control("name")}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                errors.clear("name")
+                setName(e.target.value)
+              }}
               placeholder="EOM reporting"
               disabled={submitting}
             />
+            {errors.message("name")}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tpl-desc">Description</Label>
