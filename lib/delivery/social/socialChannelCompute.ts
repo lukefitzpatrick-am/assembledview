@@ -33,6 +33,7 @@ import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialPlatform } from "@/lib/pacing/social/types"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { parseDateOnlyString } from "@/lib/dates/civil"
 
 export type SocialLineItem = {
   line_item_id: string
@@ -755,8 +756,8 @@ export function computeSocialLineMetricsForPlatform(input: {
     packageNoUnitTarget: input.packageNoUnitTarget ?? deliveryFlagsFromClient().packageNoUnitTarget,
   }
     if (!activeItems.length) return []
-    const today = startOfDay(new Date())
-    const asAtForSummary = parseDateNativeSafe(pacingWindow.asAtISO) ?? today
+    // Fallback is the Melbourne day (C-277). Only summariseDelivery's to-date totals read it, and nothing here reads them.
+    const asAtForSummary = parseDateNativeSafe(pacingWindow.asAtISO) ?? parseDateOnlyString(getMelbourneTodayISO())
     const campaignStartD = parseDateNativeSafe(campaignStart)
     const campaignEndD = parseDateNativeSafe(campaignEnd)
     const campaignDayRange =
