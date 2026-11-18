@@ -55,6 +55,26 @@ const prerenderSelectorsFor = (file) => (/^app\/(.+\/)?(page|layout)\.tsx?$/.tes
 /** A C-200 governed file's own block replaces no-restricted-syntax, so it repeats every selector the blocks below give that file. */
 export const c200SyntaxFor = (file) => [...hexSelectorsFor(file), ...codexUrlSelectorsFor(file), ...prerenderSelectorsFor(file)]
 
+// Bare globals that are Window properties in lib.dom: bind a local instead.
+const WINDOW_GLOBALS = [
+  { name: "status", message: "Bare `status` is Window.status (lib.dom). Bind a local." },
+  { name: "name", message: "Bare `name` is Window.name (lib.dom). Bind a local." },
+  { name: "length", message: "Bare `length` is Window.length (lib.dom). Bind a local." },
+  { name: "top", message: "Bare `top` is Window.top (lib.dom). Bind a local." },
+  { name: "self", message: "Bare `self` is Window.self (lib.dom). Use globalThis or bind a local." },
+  { name: "event", message: "Bare `event` is Window.event (lib.dom). Use the handler argument." },
+]
+
+// B57: one way to ask a question. The browser's boxes block the page, cannot be styled and some screen readers read them badly.
+const BROWSER_BOX_MESSAGE =
+  "Browser box. Ask with useConfirm() from @/hooks/use-confirm: confirm() for a question, notice() for a message (docs/brain/CONVENTIONS.md)."
+const BROWSER_BOXES = ["confirm", "alert", "prompt"]
+const BROWSER_BOX_GLOBALS = BROWSER_BOXES.map((name) => ({ name, message: BROWSER_BOX_MESSAGE }))
+const BROWSER_BOX_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
+  BROWSER_BOXES.map((property) => ({ object, property, message: BROWSER_BOX_MESSAGE })),
+)
+const TEST_FILES = ["**/*.test.{js,jsx,mjs,ts,tsx}", "**/__tests__/**"]
+
 /** ESLint 9 reads this file. */
 const config = [
   ...compat.extends("next/core-web-vitals"),
@@ -69,35 +89,23 @@ const config = [
       "app/**/*.ts",
       "app/**/*.tsx",
     ],
-    rules: {
-      "no-restricted-globals": [
-        "error",
-        {
-          name: "status",
-          message: "Bare `status` is Window.status (lib.dom). Bind a local.",
-        },
-        {
-          name: "name",
-          message: "Bare `name` is Window.name (lib.dom). Bind a local.",
-        },
-        {
-          name: "length",
-          message: "Bare `length` is Window.length (lib.dom). Bind a local.",
-        },
-        {
-          name: "top",
-          message: "Bare `top` is Window.top (lib.dom). Bind a local.",
-        },
-        {
-          name: "self",
-          message: "Bare `self` is Window.self (lib.dom). Use globalThis or bind a local.",
-        },
-        {
-          name: "event",
-          message: "Bare `event` is Window.event (lib.dom). Use the handler argument.",
-        },
-      ],
-    },
+    rules: { "no-restricted-globals": ["error", ...WINDOW_GLOBALS] },
+  },
+  // B57: no browser confirm(), alert() or prompt() outside tests. A later block replaces the rule's options, so app and lib repeat WINDOW_GLOBALS.
+  {
+    files: ["{app,lib}/**/*.{js,jsx,ts,tsx}"],
+    ignores: TEST_FILES,
+    rules: { "no-restricted-globals": ["error", ...WINDOW_GLOBALS, ...BROWSER_BOX_GLOBALS] },
+  },
+  {
+    files: ["{components,hooks,contexts}/**/*.{js,jsx,ts,tsx}"],
+    ignores: TEST_FILES,
+    rules: { "no-restricted-globals": ["error", ...BROWSER_BOX_GLOBALS] },
+  },
+  {
+    files: ["{app,lib,components,hooks,contexts}/**/*.{js,jsx,ts,tsx}"],
+    ignores: TEST_FILES,
+    rules: { "no-restricted-properties": ["error", ...BROWSER_BOX_PROPERTIES] },
   },
   {
     files: ["**/*.{js,jsx,mjs,cjs,ts,tsx}"],

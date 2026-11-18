@@ -37,6 +37,7 @@ New and migrated tables use `DataTable` (`components/ui/data-table.tsx`). `Table
   - A message that must be read before the flow goes on (what `alert()` did): `await notice({ title, description })`.
   - Nothing after the `await` runs before the answer. Cancel, Escape, a second question and unmounting answer no. Focus starts on Cancel (on OK for a notice).
 - A window is `Dialog`, `AlertDialog` or `Sheet` from `components/ui`, never a hand-built `fixed inset-0` panel. They give the focus trap, Escape, the stacking layer and a labelled title (`DialogTitle`), and they return focus to the control that opened them. Pass `aria-describedby={undefined}` when there is no description.
+- ESLint refuses `confirm`, `alert` and `prompt` as globals and on `window` or `globalThis` in `app`, `components`, `hooks`, `contexts` and `lib` (tests excepted; self-test `scripts/__tests__/eslint-browser-boxes.test.mjs`).
 
 ## Directory law
 
