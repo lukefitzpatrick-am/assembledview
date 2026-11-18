@@ -1,3 +1,4 @@
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceExcelClientMeta } from "@/lib/finance/excelFinanceExport"
 import type { FinanceCampaignData, FinanceLineItem, FinanceServiceRow } from "@/lib/finance/utils"
@@ -16,11 +17,12 @@ function groupKey(r: BillingRecord): string {
   return `${r.clients_id}\u001f${mba}\u001f${r.billing_month ?? ""}\u001f${r.billing_type}`
 }
 
-function invoiceIsoForRecord(r: BillingRecord): string {
+/** A row's invoice date: its own, else the 1st of its billing month, else the Melbourne day (C-277). */
+export function invoiceIsoForRecord(r: Pick<BillingRecord, "invoice_date" | "billing_month">): string {
   const trimmed = r.invoice_date?.trim()
   if (trimmed) return trimmed
   if (r.billing_month) return `${r.billing_month}-01`
-  return new Date().toISOString().slice(0, 10)
+  return getMelbourneTodayISO()
 }
 
 function lineItemsFromBillingLineItems(items: BillingLineItem[]): {

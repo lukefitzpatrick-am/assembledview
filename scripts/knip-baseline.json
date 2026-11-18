@@ -450,7 +450,6 @@
   "exports:lib/finance/computeAccrual.ts isAccrualReceivable",
   "exports:lib/finance/computeBillableAlignedMbaTotal.ts lineItemMediaAmount",
   "exports:lib/finance/computeBillableAlignedMbaTotal.ts sumClientPaysForMediaMediaFromScheduleMonths",
-  "exports:lib/finance/excelFinanceExport.ts billingRecordsToFinanceCampaigns",
   "exports:lib/finance/exportFinanceHub.ts receivableReviewStatusLabel",
   "exports:lib/finance/financeExportProductionRows.ts FINANCE_PRODUCTION_LINES_KEY",
   "exports:lib/finance/financeExportProductionRows.ts PRODUCTION_ITEM_CODES",

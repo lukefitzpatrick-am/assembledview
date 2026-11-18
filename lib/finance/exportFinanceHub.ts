@@ -1,6 +1,6 @@
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { filterApprovedReceivablesForExport } from "@/lib/finance/approvedReceivablesExport"
-import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
+import { billingRecordsToFinanceCampaigns, invoiceIsoForRecord } from "@/lib/finance/billingRecordToCampaignData"
 import {
   retainerRecordDescription,
   writeMediaFinanceWorksheet,
@@ -78,11 +78,7 @@ export async function buildReceivablesWorkbookBytes(
   if (retainer.length > 0) {
     const nextName = usedSheetNamesTracker()
     for (const r of retainer) {
-      const invoiceIso = r.invoice_date?.trim()
-        ? r.invoice_date
-        : r.billing_month
-          ? `${r.billing_month}-01`
-          : new Date().toISOString().slice(0, 10)
+      const invoiceIso = invoiceIsoForRecord(r)
       const clientLabel = (r.client_name || "Client").trim() || "Client"
       const meta = metaByClientId.get(r.clients_id)
       await writeRetainerFinanceWorksheet(workbook, nextName(clientLabel), {

@@ -1,7 +1,6 @@
 import type ExcelJS from "exceljs"
 import { format } from "date-fns"
 import { getClientDisplayName } from "@/lib/clients/slug"
-import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
 import { groupInvoiceMediaRows } from "@/lib/finance/groupInvoiceMediaRows"
 import { retainerInvoiceDescriptionForMonthKey } from "@/lib/finance/invoiceLineDescription"
@@ -496,60 +495,5 @@ export async function writeRetainerFinanceWorksheet(
 export async function workbookToXlsxBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
   const buffer = await workbook.xlsx.writeBuffer()
   return buffer as ArrayBuffer
-}
-
-function invoiceIsoForFinanceCampaign(r: BillingRecord): string {
-  const inv = r.invoice_date?.trim()
-  if (inv) return inv
-  if (r.billing_month) return `${r.billing_month}-01`
-  return new Date().toISOString().slice(0, 10)
-}
-
-export function billingRecordsToFinanceCampaigns(
-  records: BillingRecord[],
-  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
-): { media: FinanceCampaignData[]; sow: FinanceCampaignData[]; retainers: BillingRecord[] } {
-  const toCampaign = (r: BillingRecord): FinanceCampaignData => {
-    const line_items = r.line_items ?? []
-    const meta = clientMetaByClientId?.get(r.clients_id)
-    const legalBlock =
-      clientMetaByClientId != null
-        ? {
-            legalBusinessName: meta?.legalBusinessName ?? "",
-            abn: meta?.abn ?? "",
-          }
-        : {}
-    return {
-      clientName: r.client_name,
-      mbaNumber: r.mba_number ?? "",
-      poNumber: r.po_number ?? undefined,
-      campaignName: r.campaign_name ?? "",
-      paymentDays: r.payment_days,
-      paymentTerms: r.payment_terms,
-      invoiceDate: invoiceIsoForFinanceCampaign(r),
-      lineItems: line_items
-        .filter((li) => li.line_type === "media")
-        .map((li) => ({
-          itemCode: li.item_code,
-          mediaType: li.media_type ?? "",
-          description: li.description ?? "",
-          amount: li.amount,
-        })),
-      serviceRows: line_items
-        .filter((li) => li.line_type === "service")
-        .map((li) => ({
-          itemCode: li.item_code,
-          service: li.description ?? "",
-          amount: li.amount,
-        })),
-      total: r.total,
-      ...legalBlock,
-    }
-  }
-
-  const media = records.filter((r) => r.billing_type === "media").map(toCampaign)
-  const sow = records.filter((r) => r.billing_type === "sow").map(toCampaign)
-  const retainers = records.filter((r) => r.billing_type === "retainer")
-  return { media, sow, retainers }
 }
 
