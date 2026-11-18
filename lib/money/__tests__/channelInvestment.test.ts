@@ -111,7 +111,6 @@ const DIGITAL_CHARTS = [
   ["BVODContainer.tsx", "bvodlineItems", "feebvod"],
   ["DigitalAudioContainer.tsx", "digiaudiolineItems", "feedigiaudio"],
   ["DigitalDisplayContainer.tsx", "digidisplaylineItems", "feedigidisplay"],
-  ["DigitalVideoContainer.tsx", "digivideolineItems", "feedigivideo"],
 ] as const
 
 const OFFLINE_CHARTS = [

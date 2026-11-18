@@ -76,7 +76,6 @@
   "exports:components/media-containers/DebouncedWeekQtyInput.tsx EXPERT_WEEK_QTY_DEBOUNCE_MS",
   "exports:components/media-containers/DigitalAudioExpertGrid.tsx DIGIAUDIO_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/DigitalDisplayExpertGrid.tsx DIGITALDISPLAY_BUY_TYPE_OPTIONS",
-  "exports:components/media-containers/DigitalVideoExpertGrid.tsx DIGIVIDEO_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/ExpertCard.tsx isUnknownPublisherValue",
   "exports:components/media-containers/ExpertCard.tsx resolveExpertCardPrimaryTextField",
   "exports:components/media-containers/ExpertGridCombobox.tsx ComboboxModalProvider",

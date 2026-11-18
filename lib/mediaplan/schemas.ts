@@ -558,7 +558,6 @@ export const digivideoFormSchema = z.object({
   digivideolineItems: z.array(digivideoLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type DigiVideoFormValues = z.infer<typeof digivideoFormSchema>
 
 // --- BVOD --------------------------------------------------------------------
 export const bvodFormSchema = z.object({

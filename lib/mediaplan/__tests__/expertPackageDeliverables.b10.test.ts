@@ -177,7 +177,6 @@ test("card path: a package burst keeps the quantity typed (computeLoadedDelivera
 test("card path: every container and the shared hook skip package in handleValueChange", () => {
   const files = [
     "lib/mediaplan/useMediaChannelContainer.ts",
-    "components/media-containers/DigitalVideoContainer.tsx",
   ]
   for (const rel of files) {
     const src = readFileSync(join(process.cwd(), rel), "utf8")
