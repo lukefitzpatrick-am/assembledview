@@ -79,10 +79,9 @@ test("a changed buy type drops the carry", () => {
   const saved = [cpmLine("a", [{ budget: "$12,000.00", startDate: "2026-03-01", endDate: "2026-03-07" }])]
   const rows = search.open(saved)
   rows[0].buyType = "cpc"
-  rows[0].unitRate = 2
   const [line] = search.apply(rows, saved)
-  // 700,000 clicks at $2.00, grossed up at 12.5%.
-  assert.deepEqual(budgets(line), [160_000_000])
+  // The same rate, now per click: 700,000 clicks at $15.00, grossed up at 12.5%.
+  assert.deepEqual(budgets(line), [1_200_000_000])
 })
 
 test("a span stretched by a week is priced from the grid; the line's other burst stays", () => {
