@@ -671,7 +671,8 @@ export function useMediaChannelContainer(
       const rawBudget = parseMoney(burst?.budget) ?? 0
       const budgetIncludesFees =
         budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees)
-      const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1")
+      // A saved burst can hold a number (C-334): read it as its value.
+      const buyAmount = parseFloat(String(burst?.buyAmount ?? "").replace(/[^0-9.]/g, "") || "1")
       const buyTypeRaw = form.getValues(`${fieldKey}.${lineItemIndex}.buyType`)
 
       const buyTypeLower = String(buyTypeRaw || "").toLowerCase()
