@@ -77,6 +77,11 @@ test("S1: the publish check gets the posted mode, plan dates and lines, stops be
   assert.match(page, /if \(saveResult\.data\.code === PUBLISH_VALIDATION_REFUSED\) \{\n\s+setPublishCheck\(publishCheckFromRefusal/)
 })
 
+test("B57fix (review R1): save order is preflight stop, AA prompt, over budget question, in-flight flag", () => {
+  const at = ["if (saveStop) {", "setAaPublishPrompt(", OVER_BUDGET, "saveAllInFlightRef.current = true"].map((s) => save.indexOf(s))
+  assert.ok(at[0]! > 0 && at.every((n, i) => i === 0 || n > at[i - 1]!), `out of order: ${at.join(", ")}`)
+})
+
 test("B57: over budget asks through useConfirm only when over budget, and the page renders its dialog", () => {
   assert.match(save, /if \(budgetRemaining < 0\) \{\n\s+if \(!\(await confirm\(overBudgetQuestion\(budgetRemaining\)\)\)\) return\n\s+\}/)
   assert.equal(page.split("useConfirm()").length - 1, 1)
