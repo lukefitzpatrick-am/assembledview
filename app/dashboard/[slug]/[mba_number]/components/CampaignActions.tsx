@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Check, Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
+import { announce } from "@/components/ui/announcer"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -85,7 +86,6 @@ export default function CampaignActions({
   const [isDownloadingMba, setIsDownloadingMba] = useState(false)
   const [isDownloadingBilling, setIsDownloadingBilling] = useState(false)
   const [completedAction, setCompletedAction] = useState<"mediaPlan" | "mba" | "billing" | null>(null)
-  const [ariaStatus, setAriaStatus] = useState("")
   const [reportOpen, setReportOpen] = useState(false)
   const lineItemCount = Object.values(lineItems || {}).reduce(
     (sum, items) => sum + (Array.isArray(items) ? items.length : 0),
@@ -201,7 +201,7 @@ export default function CampaignActions({
 
   const handleDownloadMediaPlan = async () => {
     setIsDownloadingMediaPlan(true)
-    setAriaStatus("Downloading media plan")
+    announce("Downloading media plan")
     try {
       await downloadPlanFile({
         kind: "media_plan",
@@ -213,7 +213,6 @@ export default function CampaignActions({
         title: 'Success',
         description: 'Media plan downloaded successfully',
       })
-      setAriaStatus("Media plan downloaded successfully")
       markSuccess("mediaPlan")
     } catch (error) {
       console.error('Error downloading media plan:', error)
@@ -222,7 +221,6 @@ export default function CampaignActions({
         description: error instanceof Error ? error.message : 'Failed to download media plan',
         variant: 'destructive',
       })
-      setAriaStatus("Media plan download failed")
     } finally {
       setIsDownloadingMediaPlan(false)
     }
@@ -230,7 +228,7 @@ export default function CampaignActions({
 
   const handleDownloadMba = async () => {
     setIsDownloadingMba(true)
-    setAriaStatus("Downloading MBA")
+    announce("Downloading MBA")
     try {
       await downloadPlanFile({
         kind: "mba_pdf",
@@ -242,7 +240,6 @@ export default function CampaignActions({
         title: 'Success',
         description: 'MBA downloaded successfully',
       })
-      setAriaStatus("MBA downloaded successfully")
       markSuccess("mba")
     } catch (error) {
       console.error('Error downloading MBA:', error)
@@ -251,7 +248,6 @@ export default function CampaignActions({
         description: error instanceof Error ? error.message : 'Failed to download MBA',
         variant: 'destructive',
       })
-      setAriaStatus("MBA download failed")
     } finally {
       setIsDownloadingMba(false)
     }
@@ -259,14 +255,13 @@ export default function CampaignActions({
 
   const handleDownloadBilling = async () => {
     setIsDownloadingBilling(true)
-    setAriaStatus("Downloading billing schedule")
+    announce("Downloading billing schedule")
     try {
       await downloadBillingSchedule()
       toast({
         title: "Success",
         description: "Billing schedule downloaded successfully",
       })
-      setAriaStatus("Billing schedule downloaded successfully")
       markSuccess("billing")
     } catch (error) {
       toast({
@@ -274,7 +269,6 @@ export default function CampaignActions({
         description: error instanceof Error ? error.message : "Failed to download billing schedule",
         variant: "destructive",
       })
-      setAriaStatus("Billing schedule download failed")
     } finally {
       setIsDownloadingBilling(false)
     }
@@ -306,7 +300,6 @@ export default function CampaignActions({
       mbaNumber={mbaNumber}
       lineItemCount={lineItemCount}
       isBusy={isBusy}
-      ariaStatus={ariaStatus}
     >
       {showFloating ? (
         <div className="md:hidden">

@@ -12,7 +12,6 @@ export type CampaignExportsSectionProps = {
   /** When omitted, the line-items badge is not rendered */
   lineItemCount?: number
   isBusy: boolean
-  ariaStatus: string
   className?: string
   children: ReactNode
 }
@@ -26,7 +25,6 @@ export function CampaignExportsSection({
   mbaNumber,
   lineItemCount,
   isBusy,
-  ariaStatus,
   className,
   children,
 }: CampaignExportsSectionProps) {
@@ -53,10 +51,6 @@ export function CampaignExportsSection({
       )}
       aria-busy={isBusy}
     >
-      <span className="sr-only" aria-live="polite">
-        {ariaStatus}
-      </span>
-
       {pillChrome ? (
         <>
           <div className="hidden shrink-0 items-center gap-2 md:flex">

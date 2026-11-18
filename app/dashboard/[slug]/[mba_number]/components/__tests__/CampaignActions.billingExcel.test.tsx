@@ -21,6 +21,8 @@ vi.mock("@/components/ui/use-toast", () => ({
   },
 }))
 
+import { Announcer } from "@/components/ui/announcer"
+
 import CampaignActions from "../CampaignActions"
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -124,6 +126,8 @@ describe("CampaignActions billing Excel download", () => {
 
     act(() => {
       root.render(
+        <>
+        <Announcer />
         <CampaignActions
           variant="floating"
           mbaNumber="MBA-1"
@@ -137,7 +141,8 @@ describe("CampaignActions billing Excel download", () => {
           versionId={null}
           availableVersions={[]}
           currentVersion={1}
-        />,
+        />
+        </>,
       )
     })
 
@@ -164,5 +169,12 @@ describe("CampaignActions billing Excel download", () => {
 
     expect(downloads[0].blob.type).toBe(XLSX_MIME)
     expect(downloads[0].filename).toBe("billing-schedule-MBA-1.xlsx")
+
+    // B58: the start is said once through the one announcer; the result is the toast's to say.
+    const polite = container.querySelector('[data-announcer="polite"]')!
+    expect(polite.children).toHaveLength(1)
+    expect(polite.textContent).toBe("Downloading billing schedule")
+    expect(toastCalls.map((t) => t.description)).toEqual(["Billing schedule downloaded successfully"])
+    expect([...container.querySelectorAll("[aria-live]")].every((el) => el.hasAttribute("data-announcer"))).toBe(true)
   }, 15000)
 })

@@ -8259,7 +8259,6 @@ const handleSaveAll = async (opts?: {
                   isPlanSaving ||
                   isVersionSaving
                 }
-                ariaStatus=""
                 className="max-w-full"
               >
                 <p className="max-w-md text-xs text-muted-foreground">

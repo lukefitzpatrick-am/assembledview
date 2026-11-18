@@ -11338,7 +11338,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 mbaNumber={mbaNumber}
                 lineItemCount={editLineItemCount}
                 isBusy={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-                ariaStatus=""
                 className="max-w-full"
               >
                 <p className="max-w-md text-xs text-muted-foreground">
