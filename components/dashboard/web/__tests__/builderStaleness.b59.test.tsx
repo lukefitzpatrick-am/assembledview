@@ -1,15 +1,17 @@
 /** @vitest-environment jsdom */
 /**
  * B59 (C-277, S9 A): the web report builder's account picker says "no data
- * since" after 14 days counted to the Melbourne day, never the UTC day. The
- * picker runs only in the browser, so this file runs in Melbourne with the
- * clock mocked where the UTC day is the day before:
+ * since" after 14 days counted to the Melbourne day, never the UTC day or
+ * the viewer's own day. The picker runs only in the browser, but its bug is
+ * the viewer's zone, so this file runs in both zones (B59fix, review R1): the
+ * UTC pass stands in for a viewer outside Melbourne. Clock mocked where the
+ * UTC day is the day before:
  *   - 30 Nov 2026 21:00Z, 1 Dec 08:00 AEDT;
  *   - 30 Jun 2026 21:00Z, 1 Jul 07:00 AEST.
  * The last data date is 15 Melbourne days back: stale on the Melbourne day,
  * 14 days (not stale) on the UTC day.
  */
-import "@/lib/testing/melbourneZone"
+import "@/lib/testing/bothZones"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, it, vi } from "vitest"
