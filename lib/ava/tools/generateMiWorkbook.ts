@@ -5,9 +5,9 @@ import { parseMiAnswerMessage } from "@/lib/ava/chatInterviewQuestion"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import {
   buildMiWorkbook,
+  miCampaignFromLineItems,
   miPayloadFromResolve,
   miWorkbookFilename,
-  type MiWorkbookCampaign,
 } from "@/lib/specs/buildMiWorkbook"
 import {
   applyAnswers,
@@ -25,25 +25,6 @@ import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveM
 
 const XLSX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function campaignFromLineItems(
-  mba: string,
-  lineItems: Record<string, unknown[]>,
-): MiWorkbookCampaign {
-  const first = Object.values(lineItems).flat().find(
-    (item): item is Record<string, unknown> =>
-      Boolean(item && typeof item === "object" && !Array.isArray(item)),
-  )
-  return {
-    name: text(first?.campaign_name) || text(first?.mp_campaignname) || mba,
-    client: text(first?.client_name) || text(first?.client) || text(first?.brand) || "Client",
-    prepared_date: new Date().toISOString().slice(0, 10),
-  }
-}
 
 function answersFrom(input: Record<string, unknown>): MiAnswer[] {
   if (!Array.isArray(input.answers)) return []
@@ -221,7 +202,7 @@ export const generateMiWorkbookTool: AvaTool = {
       }
 
       const result = gate.result
-      const campaign = campaignFromLineItems(scopedMba.mba, lineItems)
+      const campaign = miCampaignFromLineItems(scopedMba.mba, lineItems)
       const { workbook, gapCount } = await buildMiWorkbook({
         ...miPayloadFromResolve(campaign, result),
         answers: resolvedAnswers,

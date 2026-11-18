@@ -1,6 +1,5 @@
 {
   "app/api/codex/time/proposals/route.ts": 2,
-  "app/api/mediaplans/mba/[mba_number]/material-instructions/route.ts": 1,
   "components/dashboard/ClientDashboardPageContent.tsx": 1,
   "components/dashboard/HeroKPIBar.tsx": 1,
   "components/dashboard/delivery/DeliveryDataProvider.tsx": 1,
@@ -12,7 +11,6 @@
   "components/pacing/detail/CampaignBurstsTab.tsx": 2,
   "components/planning/StageBrief.tsx": 1,
   "lib/ava/autopopulate/detectPlanStructure.ts": 4,
-  "lib/ava/tools/generateMiWorkbook.ts": 1,
   "lib/clients/platformAdvertisers.ts": 1,
   "lib/codex/notify.ts": 1,
   "lib/creative/performance/metrics.ts": 1,

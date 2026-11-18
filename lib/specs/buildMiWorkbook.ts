@@ -1,6 +1,7 @@
 import type ExcelJS from "exceljs"
 
 import { BRAND, hexToArgb, readableTextOn } from "@/lib/brand"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { excelFont, fillForHex, LINE_BORDER, stampAptos } from "@/lib/excel/brandSheet"
 import { loadTemplateStructure } from "./library.js"
 import type {
@@ -60,10 +61,31 @@ export function miWorkbookFilename(
   campaign: string,
   date: Date = new Date(),
 ): string {
-  const yyyy = date.getUTCFullYear()
-  const mm = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const dd = String(date.getUTCDate()).padStart(2, "0")
-  return `MI_${slugPart(client, "client")}_${slugPart(campaign, "campaign")}_${yyyy}${mm}${dd}.xlsx`
+  return `MI_${slugPart(client, "client")}_${slugPart(campaign, "campaign")}_${getMelbourneTodayISO(date).replaceAll("-", "")}.xlsx`
+}
+
+function trimmed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+/**
+ * The workbook's campaign block from a plan's line items, for the MI route
+ * and the Ava tool. Prepared Date is the Melbourne day (C-277).
+ */
+export function miCampaignFromLineItems(
+  mbaNumber: string,
+  lineItems: Record<string, unknown[]>,
+  preparedBy?: string,
+): MiWorkbookCampaign {
+  const first = Object.values(lineItems).flat().find(
+    (item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  )
+  return {
+    name: trimmed(first?.campaign_name) || trimmed(first?.mp_campaignname) || mbaNumber,
+    client: trimmed(first?.client_name) || trimmed(first?.client) || trimmed(first?.brand) || "Client",
+    ...(preparedBy !== undefined ? { prepared_by: preparedBy } : {}),
+    prepared_date: getMelbourneTodayISO(),
+  }
 }
 
 function questionContainer(question: MiOpenQuestion): string {

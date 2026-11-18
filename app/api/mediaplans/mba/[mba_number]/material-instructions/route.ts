@@ -9,9 +9,9 @@ import {
 } from "@/lib/specs/applyClientPrefill"
 import {
   buildMiWorkbook,
+  miCampaignFromLineItems,
   miPayloadFromResolve,
   miWorkbookFilename,
-  type MiWorkbookCampaign,
 } from "@/lib/specs/buildMiWorkbook"
 import { resolveMiHttpVersionScope } from "@/lib/specs/miHttpVersionScope"
 import { mergeAnswersForVersion } from "@/lib/specs/miResolutionStore"
@@ -37,26 +37,6 @@ type ExportBody = {
   versionNumber?: unknown
   /** Explicit MBA-wide only — silent omission is refused. */
   mbaWide?: unknown
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function campaignFromLineItems(
-  mbaNumber: string,
-  lineItems: Record<string, unknown[]>,
-  preparedBy?: string,
-): MiWorkbookCampaign {
-  const first = Object.values(lineItems).flat().find(
-    (item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)),
-  )
-  return {
-    name: text(first?.campaign_name) || text(first?.mp_campaignname) || mbaNumber,
-    client: text(first?.client_name) || text(first?.client) || text(first?.brand) || "Client",
-    prepared_by: preparedBy,
-    prepared_date: new Date().toISOString().slice(0, 10),
-  }
 }
 
 function resolvePlan(
@@ -130,7 +110,7 @@ async function exportWorkbook(
     })
   }
 
-  const campaign = campaignFromLineItems(
+  const campaign = miCampaignFromLineItems(
     mbaNumber,
     lineItems,
     body.prepared_by || session.user.name || session.user.email || undefined,
