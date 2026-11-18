@@ -26,6 +26,7 @@ import {
 } from "@/lib/mediaplan/containerChannelConfig"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { dedupeInitialLineItems, initialLinesLoadKey } from "@/lib/mediaplan/dedupeInitialLineItems"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields } from "@/lib/mediaplan/lineItemIds"
 
@@ -219,6 +220,7 @@ export function useMediaChannelContainer(
   const {
     fields: lineItemFields,
     append: appendLineItem,
+    insert: insertLineItem,
     remove: removeLineItemBase,
   } = useFieldArray({
     control: form.control,
@@ -459,9 +461,10 @@ export function useMediaChannelContainer(
         })),
       }
 
-      appendLineItem(clone)
+      if (config.duplicatePlacement === "after") insertLineItem(lineItemIndex + 1, clone)
+      else appendLineItem(clone)
     },
-    [appendLineItem, fieldKey, form, mbaNumber, mediaTypeIdCode, toast],
+    [appendLineItem, insertLineItem, config, fieldKey, form, mbaNumber, mediaTypeIdCode, toast],
   )
 
   const watchedLineItems = useWatch({
@@ -470,9 +473,17 @@ export function useMediaChannelContainer(
     defaultValue: form.getValues(fieldKey),
   })
 
+  const lastLoadKeyRef = useRef("")
   useStableHydration(
     initialLineItems,
-    (items) => {
+    (loaded) => {
+      let items = loaded
+      if (config.dedupeOnLoad) {
+        items = dedupeInitialLineItems(loaded, config.mediaTypeString)
+        const loadKey = initialLinesLoadKey(items)
+        if (lastLoadKeyRef.current === loadKey) return
+        lastLoadKeyRef.current = loadKey
+      }
       const campaignDay = config.burstDateFallback === "campaignDay"
       const fallbackStart = campaignDay
         ? defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
@@ -828,7 +839,10 @@ export function useMediaChannelContainer(
             ? computedBurst.mediaAmount
             : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0
           const lineItemId = buildLineItemId(mbaNumber, mediaTypeIdCode, lineItemIndex + 1)
-          const recomputedDeliverable = computeDeliverableFromMedia({
+          const keepsQuantity =
+            config.excelPackageKeepsQuantity &&
+            String(lineItem.buyType || "").toLowerCase() === "package"
+          const recomputedDeliverable = keepsQuantity ? NaN : computeDeliverableFromMedia({
             buyType: lineItem.buyType as Parameters<
               typeof computeDeliverableFromMedia
             >[0]["buyType"],

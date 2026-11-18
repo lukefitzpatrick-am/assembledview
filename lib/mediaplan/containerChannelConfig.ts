@@ -63,6 +63,7 @@ import {
   createEmptyProgVideoExpertRow,
   createEmptySearchExpertRow,
   createEmptySocialMediaExpertRow,
+  createEmptyIntegrationExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -73,6 +74,7 @@ import {
   mapProgVideoExpertRowsToStandardLineItems,
   mapSearchExpertRowsToStandardLineItems,
   mapSocialMediaExpertRowsToStandardLineItems,
+  mapIntegrationExpertRowsToStandardLineItems,
   mapStandardBvodLineItemsToExpertRows,
   mapStandardCinemaLineItemsToExpertRows,
   mapStandardDigiAudioLineItemsToExpertRows,
@@ -102,6 +104,9 @@ import {
   mergeProgVideoStandardFromExpertWithPrevious,
   mergeSearchStandardFromExpertWithPrevious,
   mergeSocialMediaStandardFromExpertWithPrevious,
+  mergeIntegrationStandardFromExpertWithPrevious,
+  serializeIntegrationExpertRowsBaseline,
+  serializeIntegrationStandardLineItemsBaseline,
   serializeProgAudioExpertRowsBaseline,
   serializeProgAudioStandardLineItemsBaseline,
   serializeProgBvodExpertRowsBaseline,
@@ -118,7 +123,7 @@ import {
   serializeSocialMediaStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
-import { getSocialMediaBursts } from "@/lib/mediaplan/socialMediaBursts"
+import { getIntegrationBursts, getSocialMediaBursts } from "@/lib/mediaplan/legacyBillingBursts"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
@@ -214,6 +219,15 @@ export type ContainerChannelConfig = {
    * (`defaultMediaBurstStartDate` / `defaultMediaBurstEndDate`).
    */
   burstDateFallback?: "campaign" | "campaignDay"
+  /** "after" puts a duplicated line straight after its source. Unset: at the end. */
+  duplicatePlacement?: "after"
+  /**
+   * Drop repeated initial lines and skip a reload with the same lines
+   * (`dedupeInitialLineItems`, Integration). Unset: every new array hydrates.
+   */
+  dedupeOnLoad?: boolean
+  /** Excel rows keep a package line's saved quantity (Integration, C-168). Unset: budget ÷ rate. */
+  excelPackageKeepsQuantity?: boolean
 }
 
 /**
@@ -2526,15 +2540,33 @@ export const INTEGRATION_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: integrationFormSchema,
   fetchPublishers: getPublishersForIntegration,
   toExpert: mapStandardIntegrationLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapIntegrationExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeIntegrationStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeIntegrationStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeIntegrationExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyIntegrationExpertRow,
   billingMediaTypeLabel: "integration",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getIntegrationBursts,
+  burstDateFallback: "campaignDay",
+  duplicatePlacement: "after",
+  dedupeOnLoad: true,
+  excelPackageKeepsQuantity: true,
+  expertFromFeeKey: "feePctIntegration",
+  summaryDimensions: {
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
+  shell: {
+    title: "Integration Media",
+    themeKey: "integration",
+    timelineMediaTypeKey: "integration",
+    loadLabel: "Integration",
+    exitConfirmYesAttr: "data-integrationexpert-exit-yes",
+    entryModeAriaLabel: "Integration Media entry mode",
+    expertDialogTitle: "Integration Media Expert Mode",
+  },
   gridConfig: INTEGRATION_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,

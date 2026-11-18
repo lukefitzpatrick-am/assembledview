@@ -83,8 +83,6 @@
   "exports:components/media-containers/ExpertGridWeekContextMenu.tsx WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON",
   "exports:components/media-containers/InfluencersExpertGrid.tsx INFLUENCERS_BID_STRATEGY_OPTIONS",
   "exports:components/media-containers/InfluencersExpertGrid.tsx INFLUENCERS_BUY_TYPE_OPTIONS",
-  "exports:components/media-containers/IntegrationExpertGrid.tsx INTEGRATION_BID_STRATEGY_OPTIONS",
-  "exports:components/media-containers/IntegrationExpertGrid.tsx INTEGRATION_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/MagazinesExpertGrid.tsx MAGAZINES_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/NewspaperExpertGrid.tsx NEWSPAPER_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/OohExpertGrid.tsx OOH_BUY_TYPE_OPTIONS",

@@ -634,7 +634,6 @@ export const integrationFormSchema = z.object({
   lineItems: z.array(integrationLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type IntegrationFormValues = z.infer<typeof integrationFormSchema>
 
 // --- Programmatic Display ----------------------------------------------------
 export const progDisplayFormSchema = z.object({

@@ -5,7 +5,7 @@ import { SOCIALMEDIA_CONTAINER_CONFIG } from "@/lib/mediaplan/containerChannelCo
 import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from "@/lib/generateMediaPlan"
 
-export { getSocialMediaBursts } from "@/lib/mediaplan/socialMediaBursts"
+export { getSocialMediaBursts } from "@/lib/mediaplan/legacyBillingBursts"
 
 interface SocialMediaContainerProps {
   clientId: string

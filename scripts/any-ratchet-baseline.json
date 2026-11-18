@@ -28,7 +28,6 @@
   "components/media-containers/DigitalDisplayContainer.tsx": 11,
   "components/media-containers/DigitalVideoContainer.tsx": 11,
   "components/media-containers/InfluencersContainer.tsx": 11,
-  "components/media-containers/IntegrationContainer.tsx": 12,
   "components/media-containers/MagazinesContainer.tsx": 9,
   "components/media-containers/MediaChannelContainer.tsx": 3,
   "components/media-containers/NewspaperContainer.tsx": 11,

@@ -102,8 +102,7 @@ test("every container save transform spreads mapFormToApi of its own config", ()
     ["components/media-containers/DigitalAudioContainer.tsx", /\.\.\.mapFormToApi\(DIGITALAUDIO_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
     ["components/media-containers/BVODContainer.tsx", /\.\.\.mapFormToApi\(BVOD_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
     ["components/media-containers/OOHContainer.tsx", /\.\.\.mapFormToApi\(OOH_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
-    ["components/media-containers/IntegrationContainer.tsx", /\.\.\.mapFormToApi\(INTEGRATION_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
-    // Programmatic and Search share the hook.
+    // Programmatic, Search, Social and Integration share the hook.
     ["lib/mediaplan/useMediaChannelContainer.ts", /\.\.\.mapFormToApi\(config\.fieldMap, lineItem\)/],
   ]
   for (const [file, re] of files) {

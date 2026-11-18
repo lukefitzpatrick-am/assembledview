@@ -7,7 +7,7 @@ import test from "node:test"
  * Do not import `containerChannelConfig.ts` here — it pulls `lib/api.ts` and
  * requires Xano env. Pin the contract from source.
  *
- * 7 shared-shell channels live in the hook; 13 bespoke containers own their
+ * 8 shared-shell channels live in the hook; 12 bespoke containers own their
  * useForm defaultValues. All twenty must start empty so Add creates the first
  * line (ContainerEmptyLinesPlaceholder). Edit hydrate still replaces via
  * useStableHydration — do not change that path.
@@ -24,7 +24,6 @@ const LINE_ITEM_DEFAULT_OWNERS = [
   "components/media-containers/DigitalAudioContainer.tsx",
   "components/media-containers/DigitalVideoContainer.tsx",
   "components/media-containers/BVODContainer.tsx",
-  "components/media-containers/IntegrationContainer.tsx",
   "components/media-containers/InfluencersContainer.tsx",
   "components/media-containers/ProductionContainer.tsx",
 ] as const
