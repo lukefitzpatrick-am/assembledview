@@ -264,7 +264,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -530,7 +530,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -1094,7 +1094,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -1360,7 +1360,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -1924,7 +1924,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -2190,7 +2190,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -2790,7 +2790,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -3064,7 +3064,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -3673,7 +3673,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -3947,7 +3947,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -4520,7 +4520,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -4786,7 +4786,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -5350,7 +5350,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -5616,7 +5616,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -5918,7 +5918,8 @@
   "siteOptions": [
     "(Unnamed site)",
     "Site B1",
-    "Site B2"
+    "Site B2",
+    "Site B3"
   ],
   "sitePick": {
     "adServingRates": [
@@ -6185,7 +6186,7 @@
         "line_item": 4,
         "line_item_id": "tst001BV4",
         "market": "National",
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "site": "Site A1",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
@@ -6451,7 +6452,7 @@
         "mp_client_name": "",
         "mp_plannumber": "",
         "no_adserving": true,
-        "platform": "Pub A",
+        "platform": "Legacy platform",
         "publisher": "Pub A",
         "site": "Site A1",
         "targeting": "placement 4",
@@ -6752,7 +6753,7 @@
   },
   "addSiteCreated": [
     {
-      "platform": "Pub B",
+      "platform": "Pub A",
       "site": "Site New"
     }
   ],
@@ -6942,7 +6943,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -6962,7 +6963,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -7022,7 +7023,7 @@
         "line_item_id": "tst001BV4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -7184,7 +7185,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "targeting": "placement 1",
         "totalMedia": 12999
       },
@@ -7289,7 +7290,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "targeting": "placement 4",
         "totalMedia": 2000
       },
@@ -7772,7 +7773,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -7792,7 +7793,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -7852,7 +7853,7 @@
         "line_item_id": "tst001BV4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -8014,7 +8015,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "targeting": "placement 1",
         "totalMedia": 0
       },
@@ -8119,7 +8120,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "targeting": "placement 4",
         "totalMedia": 2000
       },
@@ -8586,7 +8587,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -8606,7 +8607,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -8646,7 +8647,7 @@
         "line_item_id": "tst001BV3",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -8808,7 +8809,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "targeting": "placement 1",
         "totalMedia": 0
       },
@@ -8878,7 +8879,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "targeting": "placement 4",
         "totalMedia": 2000
       },
@@ -9366,7 +9367,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -9386,7 +9387,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -9426,7 +9427,7 @@
         "line_item_id": "tst001BV3",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -9628,7 +9629,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "targeting": "placement 1",
         "totalMedia": 0
       },
@@ -9698,7 +9699,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "targeting": "placement 4",
         "totalMedia": 2000
       },
@@ -10326,7 +10327,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -10346,7 +10347,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-22",
         "targeting": "placement 1"
       },
@@ -10366,7 +10367,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-03-01",
         "targeting": "placement 1"
       },
@@ -10386,7 +10387,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-03-08",
         "targeting": "placement 1"
       },
@@ -10406,7 +10407,7 @@
         "line_item_id": "tst001BV1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-03-15",
         "targeting": "placement 1"
       },
@@ -10446,7 +10447,7 @@
         "line_item_id": "tst001BV3",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -10665,7 +10666,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "targeting": "placement 1",
         "totalMedia": 0
       },
@@ -10733,7 +10734,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "targeting": "placement 4",
         "totalMedia": 2000
       },

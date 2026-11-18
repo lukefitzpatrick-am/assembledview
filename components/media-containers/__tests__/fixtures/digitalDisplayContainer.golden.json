@@ -6266,7 +6266,8 @@
   "siteOptions": [
     "(Unnamed site)",
     "Site B1",
-    "Site B2"
+    "Site B2",
+    "Site B3"
   ],
   "sitePick": {
     "adServingRates": [
@@ -7150,7 +7151,7 @@
   },
   "addSiteCreated": [
     {
-      "platform": "Pub B",
+      "platform": "Pub A",
       "site": "Site New"
     }
   ],
@@ -7355,7 +7356,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -7374,7 +7375,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -7431,7 +7432,7 @@
         "line_item_id": "tst001DD4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -7605,7 +7606,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "totalMedia": 12999
       },
       {
@@ -7704,7 +7705,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "totalMedia": 2000
       },
       {
@@ -8235,7 +8236,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -8254,7 +8255,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -8311,7 +8312,7 @@
         "line_item_id": "tst001DD4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -8485,7 +8486,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "totalMedia": 0
       },
       {
@@ -8584,7 +8585,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "totalMedia": 2000
       },
       {
@@ -9099,7 +9100,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -9118,7 +9119,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -9156,7 +9157,7 @@
         "line_item_id": "tst001DD4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -9330,7 +9331,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "totalMedia": 0
       },
       {
@@ -9396,7 +9397,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "totalMedia": 2000
       },
       {
@@ -9932,7 +9933,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -9951,7 +9952,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -9989,7 +9990,7 @@
         "line_item_id": "tst001DD4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -10201,7 +10202,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "totalMedia": 0
       },
       {
@@ -10267,7 +10268,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "totalMedia": 2000
       },
       {
@@ -10893,7 +10894,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-01-12",
         "targeting": "placement 1"
       },
@@ -10912,7 +10913,7 @@
         "line_item_id": "tst001DD1",
         "market": "National",
         "platform": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "startDate": "2026-02-16",
         "targeting": "placement 1"
       },
@@ -10950,7 +10951,7 @@
         "line_item_id": "tst001DD4",
         "market": "National",
         "platform": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "startDate": "2026-02-02",
         "targeting": "placement 4"
       },
@@ -11160,7 +11161,7 @@
         "no_adserving": false,
         "platform": "Pub B",
         "publisher": "Pub B",
-        "site": "Site New",
+        "site": "Site B2",
         "totalMedia": 0
       },
       {
@@ -11226,7 +11227,7 @@
         "no_adserving": true,
         "platform": "Pub A",
         "publisher": "Pub A",
-        "site": "Site A1",
+        "site": "Site New (catalogue)",
         "totalMedia": 2000
       },
       {

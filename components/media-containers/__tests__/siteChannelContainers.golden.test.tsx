@@ -58,11 +58,13 @@ const SITES = [
   { id: 21, platform: "Pub B", site: "Site B1" },
   { id: 22, platform: "Pub B", site: "Site B2" },
   { id: 23, platform: "Pub B", site: "" },
+  { id: 24, platform: " pub  b", site: "Site B3" },
 ]
 const created: { channel: string; data: unknown }[] = []
 const createSite = (channel: string) => async (data: { platform: string; site: string }) => {
   created.push({ channel, data })
-  return { id: 99, ...data }
+  // The catalogue's own spelling, so a line takes the created site's name.
+  return { id: 99, platform: data.platform, site: `${data.site} (catalogue)` }
 }
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -174,8 +176,10 @@ function siteLines(code: string, own: LineSpec[], budget = "$5,000.00") {
       client_pays_for_media: true,
       bursts: [burst("$1,000.00", "$20.00")],
     }),
-    // FB-6 No Ad Serving; a stale calculatedValue; no end date; bursts as a string.
+    // FB-6 No Ad Serving; a stale calculatedValue; no end date; bursts as a
+    // string; a platform that is not the publisher.
     L(4, {
+      platform: "Legacy platform",
       no_adserving: true,
       bursts: JSON.stringify([
         burst("$2,000.00", "$2.00", "2026-02-02", undefined, { calculatedValue: 99999 }),
@@ -567,9 +571,11 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle()
     out.sitePick = snapshot(rec)
 
-    // 7. Add Site from line 1: the dialog takes the line's publisher, creates
-    //    the site and writes it to the line.
-    const siteItem = itemForLabel("Site", 0)
+    // 7. Add Site from line 4 (a platform that is not its publisher): the
+    //    dialog takes the line's publisher, creates the site and writes the
+    //    publisher, platform and created site to the line.
+    expand(4)
+    const siteItem = itemForLabel("Site", 1)
     const addSite = [...siteItem.querySelectorAll("button")].find(
       (b) => b.getAttribute("role") !== "combobox",
     ) as HTMLButtonElement | undefined
