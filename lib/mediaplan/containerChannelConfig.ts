@@ -217,6 +217,16 @@ type ContainerSites = {
   create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
 
+/** What a channel's line load and save transforms see (W5d). */
+export type ContainerLineContext = {
+  feePct: number
+  mbaNumber: string
+  campaignStartDate: Date
+  campaignEndDate: Date
+  /** The line's index in the form. */
+  index: number
+}
+
 /** UI chrome for MediaChannelContainer (titles, theme, timeline key, exit attr). */
 type ContainerChannelShell = {
   title: string
@@ -289,6 +299,18 @@ export type ContainerChannelConfig = {
    * Site; Excel rows carry `site`. Unset: none of these.
    */
   sites?: ContainerSites
+  /**
+   * The channel's own load transform (W5d, V62 A): takes the form line the
+   * hook built and the saved line (after `prepareEditorLines`) and returns
+   * the line the form holds. Unset: the hook's line as built.
+   */
+  hydrateLine?: (line: any, saved: any, ctx: ContainerLineContext) => any
+  /**
+   * The channel's own save transform (W5d, V62 A): takes the save row the
+   * hook built and the form line (after `assignStableLineItemNumbers`) and
+   * returns the row the plan page saves. Unset: the hook's row as built.
+   */
+  saveLine?: (row: any, line: any, ctx: ContainerLineContext) => any
 }
 
 /**

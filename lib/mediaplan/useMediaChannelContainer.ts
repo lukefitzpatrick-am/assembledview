@@ -498,9 +498,9 @@ export function useMediaChannelContainer(
             ? defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
             : campaignEndDate || new Date()
       const bare = config.bareHydratedBursts === true
-      const transformedLineItems = prepareEditorLines(items, mbaNumber, mediaTypeIdCode).map((item: any) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, mediaTypeIdCode).map((item: any, index: number) => {
         const parsedBursts = resolveLineItemBursts(item)
-        return {
+        const line = {
           ...mapHydrationToForm(config.fieldMap, item),
           line_item: item.line_item ?? item.lineItem,
           lineItem: item.lineItem ?? item.line_item,
@@ -542,6 +542,14 @@ export function useMediaChannelContainer(
           totalDeliverables: item.total_deliverables || 0,
           totalFee: item.total_fee || 0,
         }
+        if (!config.hydrateLine) return line
+        return config.hydrateLine(line, item, {
+          feePct: feePct ?? 0,
+          mbaNumber,
+          campaignStartDate,
+          campaignEndDate,
+          index,
+        })
       })
 
       form.reset({
@@ -563,7 +571,7 @@ export function useMediaChannelContainer(
       mediaTypeIdCode,
     )
 
-    const transformedLineItems = stableItems.map((lineItem) => {
+    const transformedLineItems = stableItems.map((lineItem, index) => {
       let totalMedia = 0
       lineItem.bursts.forEach((burst: any) => {
         const budget = parseMoney(burst.budget) ?? 0
@@ -575,7 +583,7 @@ export function useMediaChannelContainer(
         }
       })
 
-      return {
+      const row = {
         media_plan_version: 0,
         mba_number: mbaNumber || "",
         mp_client_name: "",
@@ -587,6 +595,14 @@ export function useMediaChannelContainer(
         line_item: lineItem.line_item,
         totalMedia: totalMedia,
       }
+      if (!config.saveLine) return row
+      return config.saveLine(row, lineItem, {
+        feePct: feePct || 0,
+        mbaNumber,
+        campaignStartDate,
+        campaignEndDate,
+        index,
+      })
     })
 
     publishMediaLineItemsIfChanged(
@@ -606,7 +622,9 @@ export function useMediaChannelContainer(
     onMediaLineItemsChange,
     fieldKey,
     mediaTypeIdCode,
-    config.fieldMap,
+    config,
+    campaignStartDate,
+    campaignEndDate,
   ])
 
   const overallTotals = useMemo(() => {
