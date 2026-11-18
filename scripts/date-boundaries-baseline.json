@@ -20,7 +20,6 @@
   "lib/docs/buildMediaItemsFromPersisted.ts": 2,
   "lib/finance/api.ts": 1,
   "lib/finance/billingOverrideDateBasis.ts": 2,
-  "lib/finance/invoices/clientInvoices.ts": 1,
   "lib/finance/periods/labels.ts": 1,
   "lib/finance/sections/summaryQuery.ts": 1,
   "lib/finance/sections/useInvoicingReceivablesData.ts": 1,

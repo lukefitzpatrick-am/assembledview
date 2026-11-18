@@ -18,7 +18,7 @@ import { rowsOf } from "@/lib/xero/dbRows"
 
 import { resolveInvoiceClients } from "./resolveInvoiceClient"
 import { isFeatureOn } from "@/lib/features/server"
-import { melbourneParts } from "@/lib/dates/melbourne"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /**
  * The client_invoices switch (Admin > Features). With no switch row it reads
@@ -195,48 +195,34 @@ type ArCandidateRow = {
   xero_contact_id: string | null
 }
 
-export async function loadClientInvoicesForClient(
-  clientId: number,
-  options?: { todayYmd?: string },
-): Promise<ClientInvoicesPayload> {
+export async function loadClientInvoicesForClient(clientId: number): Promise<ClientInvoicesPayload> {
   const db = getDb()
-  const [todayRows, invoiceRows] = await Promise.all([
-    options?.todayYmd
-      ? Promise.resolve([] as { sydney_today: string }[])
-      : rowsOf<{ sydney_today: string }>(
-          await db.execute(
-            sql`SELECT (timezone('Australia/Sydney', now()))::date::text AS sydney_today`,
-          ),
-        ),
-    rowsOf<ArCandidateRow>(
-      await db.execute(sql`
-        SELECT
-          i.xero_invoice_id,
-          i.invoice_number,
-          i.issue_date::text AS issue_date,
-          i.due_date::text AS due_date,
-          i.fully_paid_date::text AS fully_paid_date,
-          i.status,
-          i.total,
-          i.amount_due,
-          i.amount_paid,
-          i.mba_number,
-          i.pdf_file,
-          i.xero_contact_id,
-          c.name AS contact_name
-        FROM xero_ar_invoices i
-        LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
-        WHERE i.issue_date >= ${FY26_AR_START}
-          AND upper(btrim(coalesce(i.status, ''))) IN ('AUTHORISED', 'PAID')
-          AND ${sql.raw(arNotCreditNoteSql("i"))}
-      `),
-    ),
-  ])
+  const invoiceRows = rowsOf<ArCandidateRow>(
+    await db.execute(sql`
+      SELECT
+        i.xero_invoice_id,
+        i.invoice_number,
+        i.issue_date::text AS issue_date,
+        i.due_date::text AS due_date,
+        i.fully_paid_date::text AS fully_paid_date,
+        i.status,
+        i.total,
+        i.amount_due,
+        i.amount_paid,
+        i.mba_number,
+        i.pdf_file,
+        i.xero_contact_id,
+        c.name AS contact_name
+      FROM xero_ar_invoices i
+      LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
+      WHERE i.issue_date >= ${FY26_AR_START}
+        AND upper(btrim(coalesce(i.status, ''))) IN ('AUTHORISED', 'PAID')
+        AND ${sql.raw(arNotCreditNoteSql("i"))}
+    `),
+  )
 
-  const todayYmd =
-    options?.todayYmd ??
-    todayRows[0]?.sydney_today?.slice(0, 10) ??
-    melbourneParts(new Date()).ymd
+  // Ageing counts to the Melbourne day from the app clock, as Owed does (C-277).
+  const todayYmd = getMelbourneTodayISO()
 
   const candidates: ClientInvoiceCandidate[] = []
   for (const row of invoiceRows) {
