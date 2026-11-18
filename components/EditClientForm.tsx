@@ -21,6 +21,7 @@ import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSe
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { TypedNumberInput } from "@/components/clients/TypedNumberInput"
 import { useToast } from "@/components/ui/use-toast"
+import { useConfirm } from "@/hooks/use-confirm"
 import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 import { clientFeatureOn } from "@/lib/features/client"
 import {
@@ -66,6 +67,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
   const channelFeesOn = clientFeatureOn("channel_client_fees")
 
   const { toast } = useToast()
+  const { notice, confirmDialog } = useConfirm()
 
   const formData = buildEditClientDefaults(client as Record<string, unknown> & { id: number })
 
@@ -111,7 +113,10 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
       onSuccess()
     } catch (error) {
       console.error("Failed to update client:", error)
-      alert(`Failed to update client: ${error instanceof Error ? error.message : "Unknown error"}`)
+      await notice({
+        title: "Could not update the client",
+        description: `Failed to update client: ${error instanceof Error ? error.message : "Unknown error"}`,
+      })
     } finally {
       setIsSaving(false)
     }
@@ -825,6 +830,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
       message="Client updated successfully"
       onClose={() => setShowSuccess(false)}
     />
+    {confirmDialog}
     </>
   )
 }

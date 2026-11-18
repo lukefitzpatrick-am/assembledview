@@ -10,6 +10,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { LoadingDots } from "@/components/ui/loading-dots"
+import { useConfirm } from "@/hooks/use-confirm"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
 import { formatInvoiceDate } from "@/lib/finance/utils"
 import { retainerInvoiceDescription } from "@/lib/finance/invoiceLineDescription"
@@ -97,6 +98,7 @@ export function ClientFinanceExcelExportDialog({
   const [includeRetainer, setIncludeRetainer] = useState(true)
   const [includeSow, setIncludeSow] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const { notice, confirmDialog } = useConfirm()
 
   const encodedClient = encodeURIComponent(clientName)
   const monthlyRetainer = readNumberField(clientRecord, "monthlyretainer")
@@ -107,7 +109,10 @@ export function ClientFinanceExcelExportDialog({
 
   const onDownload = async () => {
     if (!includeMedia && !includeRetainer && !includeSow) {
-      window.alert("Select at least one export type (media, retainer, or scopes of work).")
+      await notice({
+        title: "Nothing selected",
+        description: "Select at least one export type (media, retainer, or scopes of work).",
+      })
       return
     }
 
@@ -189,11 +194,13 @@ export function ClientFinanceExcelExportDialog({
       }
 
       if (workbook.worksheets.length === 0) {
-        window.alert(
-          warnings.length > 0
-            ? warnings.join("\n")
-            : "Nothing to export for the selected month and options."
-        )
+        await notice({
+          title: "Nothing to export",
+          description:
+            warnings.length > 0
+              ? warnings.join("\n")
+              : "Nothing to export for the selected month and options.",
+        })
         return
       }
 
@@ -207,18 +214,19 @@ export function ClientFinanceExcelExportDialog({
       saveAs(blob, `Finance_${stem}_${monthLabel}.xlsx`)
 
       if (warnings.length > 0) {
-        window.alert(`Downloaded workbook. Note:\n${warnings.join("\n")}`)
+        await notice({ title: "Downloaded workbook", description: `Note:\n${warnings.join("\n")}` })
       }
       onOpenChange(false)
     } catch (e) {
       console.error(e)
-      window.alert(e instanceof Error ? e.message : "Export failed.")
+      await notice({ title: "Export failed", description: e instanceof Error ? e.message : "Export failed." })
     } finally {
       setDownloading(false)
     }
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -291,5 +299,7 @@ export function ClientFinanceExcelExportDialog({
         </div>
       </DialogContent>
     </Dialog>
+    {confirmDialog}
+    </>
   )
 }

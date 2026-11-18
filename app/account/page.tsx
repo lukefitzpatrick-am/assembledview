@@ -19,6 +19,7 @@ import {
 
 import { PageHeader } from "@/components/layout/PageHeader"
 import { useUser } from "@/components/AuthWrapper"
+import { useConfirm } from "@/hooks/use-confirm"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -81,6 +82,7 @@ type NotificationSettings = Record<NotificationKey, boolean>
 export default function AccountPage() {
   const { user, isLoading, error } = useUser()
   const router = useRouter()
+  const { confirm, notice, confirmDialog } = useConfirm()
   const [mounted, setMounted] = useState(false)
   const [notifications, setNotifications] = useState<NotificationSettings>({
     campaignAlerts: true,
@@ -137,13 +139,21 @@ export default function AccountPage() {
   }
 
   const handleExportData = () => {
-    alert("Data export feature would be implemented here")
+    void notice({ title: "Export data", description: "Data export feature would be implemented here." })
   }
 
-  const handleDeleteAccount = () => {
-    if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-      alert("Account deletion would be implemented here - requires admin approval")
-    }
+  const handleDeleteAccount = async () => {
+    const yes = await confirm({
+      title: "Delete your account?",
+      description: "Are you sure you want to delete your account? This action cannot be undone.",
+      confirmLabel: "Delete account",
+      tone: "destructive",
+    })
+    if (!yes) return
+    await notice({
+      title: "Delete account",
+      description: "Account deletion would be implemented here. It needs admin approval.",
+    })
   }
 
   const toggleNotification = (key: NotificationKey) => {
@@ -398,6 +408,7 @@ export default function AccountPage() {
           </TabsContent>
         </Tabs>
       </div>
+      {confirmDialog}
     </main>
   )
 }
