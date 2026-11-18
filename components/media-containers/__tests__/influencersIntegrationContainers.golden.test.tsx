@@ -15,7 +15,8 @@
  *
  * Hydrate covers every buy type live on each channel, fee-inclusive and
  * client-pays lines, a saved burst `fee`, a burst with no dates and one with
- * no end date (Influencers falls back to now: Date is pinned), a stale
+ * no end date (Influencers falls back to now: Date is pinned), a line saved
+ * with no bursts, a stale
  * calculatedValue, a bonus quantity saved as a string, and No Ad Serving
  * (FB-6), including Integration's camel `noAdserving` (C-36). Integration
  * also loads a repeated line id and two repeated lines with no id (its load
@@ -154,6 +155,8 @@ function influencersLines(budget?: string) {
         burst("$2,000.00", "$2.00", "2026-02-02", undefined, { calculatedValue: 99999 }),
       ]),
     }),
+    // Saved with no bursts: hydrate gives one empty burst.
+    L(6, { buy_type: "fixed_cost", bursts: [] }),
   ]
 }
 
@@ -211,6 +214,8 @@ function integrationLines(budget?: string) {
     { ...firstLine("IT", "Seven"), objective: "repeated id" },
     noId("Seven"),
     noId("Seven"),
+    // Saved with no bursts: hydrate gives one empty burst.
+    L(9, { buy_type: "cpm", bursts: [] }),
   ]
 }
 
