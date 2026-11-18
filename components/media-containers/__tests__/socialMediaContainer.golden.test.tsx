@@ -324,7 +324,7 @@ describe("SocialMediaContainer golden (W5a)", () => {
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(["tst001SM2", "tst001SM4"])
     expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(["tst001SM2", "tst001SM4"])
 
-    const text =`${JSON.stringify(out, null, 2)}\n`
+    const text = `${JSON.stringify(out, null, 2)}\n`
     if (process.env.UPDATE_GOLDEN === "1") {
       writeFileSync(GOLDEN, text)
     }

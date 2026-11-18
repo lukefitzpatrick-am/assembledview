@@ -445,7 +445,7 @@ describe.each(CHANNELS)("$name container golden (W5afix)", (channel) => {
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([2, 4]))
     expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(ids([2, 4]))
 
-    const golden =resolve(
+    const golden = resolve(
       process.cwd(),
       `components/media-containers/__tests__/fixtures/${channel.name}Container.golden.json`,
     )
