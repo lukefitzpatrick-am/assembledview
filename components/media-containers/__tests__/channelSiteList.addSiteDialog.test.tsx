@@ -163,11 +163,11 @@ describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel
     host.remove()
   })
 
-  const lines = (code: string) => [
+  const lines = (code: string, firstPublisher = "Pub A") => [
     {
       line_item_id: `tst001${code}1`,
       line_item: 1,
-      publisher: "Pub A",
+      publisher: firstPublisher,
       platform: null,
       buy_type: "cpm",
       bursts: [{ budget: "1000", buyAmount: "10", startDate: "2026-01-05", endDate: "2026-01-31" }],
@@ -182,7 +182,7 @@ describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel
     },
   ]
 
-  async function mount() {
+  async function mount(firstPublisher?: string) {
     const media: unknown[][] = []
     const { Component } = channel
     act(() => {
@@ -200,7 +200,7 @@ describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel
           campaignBudget={0}
           campaignId=""
           mediaTypes={[]}
-          initialLineItems={lines(channel.code)}
+          initialLineItems={lines(channel.code, firstPublisher)}
         />,
       )
     })
@@ -324,6 +324,44 @@ describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel
       announcerHost.remove()
     }
   }, 30_000)
+
+  it.runIf(channel.pickPublisher)(
+    "B58fix R5: a blank publisher marks the publisher combobox (aria-invalid, aria-describedby), takes focus and adds nothing",
+    async () => {
+      const announcerHost = document.createElement("div")
+      document.body.appendChild(announcerHost)
+      const announcerRoot = createRoot(announcerHost)
+      act(() => announcerRoot.render(<Announcer />))
+      try {
+        // A line whose stored publisher is only spaces opens the dialog with no publisher.
+        await mount("  ")
+        const [button] = addButton(1)
+        await open(button)
+        const d = dialogFor()!
+        expect(d, "dialog").toBeTruthy()
+        const picker = labelled(d, "Publisher") as HTMLButtonElement
+        expect(picker.getAttribute("role")).toBe("combobox")
+        const name = labelled(d, "Site name") as HTMLInputElement
+        act(() => setInput(name, "Site New"))
+        act(() => name.form!.requestSubmit())
+        await settle(50)
+        expect(created).toEqual([])
+        expect(picker.getAttribute("aria-invalid")).toBe("true")
+        expect(document.getElementById(picker.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+          "Publisher is required",
+        )
+        expect(name.getAttribute("aria-invalid")).toBeNull()
+        expect(document.activeElement).toBe(picker)
+        expect(announcerHost.querySelector('[data-announcer="assertive"]')?.textContent).toBe(
+          "Fix 1 field: Publisher: Publisher is required",
+        )
+      } finally {
+        act(() => announcerRoot.unmount())
+        announcerHost.remove()
+      }
+    },
+    30_000,
+  )
 
   it("asks for a publisher first on a line with none, and opens no dialog", async () => {
     await mount()

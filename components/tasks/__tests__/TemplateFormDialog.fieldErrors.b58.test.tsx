@@ -58,12 +58,12 @@ function nameInput(): HTMLInputElement {
   return document.getElementById(label.getAttribute("for")!) as HTMLInputElement
 }
 
-function mount(onSaved = vi.fn(), onOpenChange = vi.fn()) {
+function mount(onSaved = vi.fn(), onOpenChange = vi.fn(), open = true) {
   act(() =>
     root.render(
       <>
         <Announcer />
-        <TemplateFormDialog open template={null} onOpenChange={onOpenChange} onSaved={onSaved} />
+        <TemplateFormDialog open={open} template={null} onOpenChange={onOpenChange} onSaved={onSaved} />
       </>,
     ),
   )
@@ -85,6 +85,25 @@ describe("TemplateFormDialog name (B58)", () => {
     const said = container.querySelector('[data-announcer="assertive"]')!
     expect(said.children).toHaveLength(1)
     expect(said.textContent).toBe("Fix 1 field: Name: Templates need a name.")
+  })
+
+  it("B58fix R5: closed and opened again, the old error is gone", async () => {
+    const onSaved = vi.fn()
+    const onOpenChange = vi.fn()
+    mount(onSaved, onOpenChange)
+    await settle()
+    await act(async () => button("Create template").click())
+    await settle()
+    expect(nameInput().getAttribute("aria-invalid")).toBe("true")
+
+    mount(onSaved, onOpenChange, false)
+    await settle()
+    mount(onSaved, onOpenChange, true)
+    await settle()
+
+    expect(nameInput().getAttribute("aria-invalid")).toBeNull()
+    expect(nameInput().hasAttribute("aria-describedby")).toBe(false)
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Templates need a name.")
   })
 
   it("a named template saves as before", async () => {
