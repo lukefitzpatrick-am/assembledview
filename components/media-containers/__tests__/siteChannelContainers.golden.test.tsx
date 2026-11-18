@@ -734,6 +734,16 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle()
     out.duplicateAndAdd = snapshot(rec)
 
+    // 10b. W5d: on the duplicated line (a cpm line; new cards are expanded)
+    //      type a budget and buy amount whose deliverables are not whole
+    //      (C-333 on the rounded channels), so step 11 shows what Apply does
+    //      to an expanded card.
+    const copy = (rec.media ?? []).length - 2
+    typeAndBlur(`input[name$=".${copy}.bursts.0.budget"]`, "$1,000.00")
+    typeAndBlur(`input[name$=".${copy}.bursts.0.buyAmount"]`, "3")
+    await settle()
+    out.typedBeforeGrid = snapshot(rec)
+
     // 11. Expert grid: edit a row 2 text cell, then Apply. jsdom has no layout,
     //     so give the grid's scroller a height or the virtualiser mounts no rows.
     const offsetHeight = vi

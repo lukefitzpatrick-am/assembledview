@@ -319,6 +319,13 @@ export type ContainerChannelConfig = {
    */
   sites?: ContainerSites
   /**
+   * Expert Apply leaves each card expanded or collapsed as it was (Digital
+   * Audio and BVOD, W5d). When the grid closes, an expanded card's
+   * deliverables field mounts and writes its raw value over the applied one
+   * (C-333), as the old containers did. Unset: Apply collapses every card.
+   */
+  expertApplyKeepsExpanded?: boolean
+  /**
    * The channel's own load transform (W5d, V62 A): takes the form line the
    * hook built and the saved line (after `prepareEditorLines`) and returns
    * the line the form holds. Unset: the hook's line as built.
@@ -1639,6 +1646,7 @@ export const DIGITALAUDIO_CONTAINER_CONFIG: ContainerChannelConfig = {
   // "digi audio" keys the audio ad serving rate (C-330).
   billingMediaTypeLabel: "digi audio",
   billingBursts: getDigiAudioBursts,
+  expertApplyKeepsExpanded: true,
   burstDateFallback: "now",
   sites: { noun: "Audio", fetch: getAudioSites, create: createAudioSite, pickPublisher: true },
   expertFromFeeKey: "feePctDigiAudio",

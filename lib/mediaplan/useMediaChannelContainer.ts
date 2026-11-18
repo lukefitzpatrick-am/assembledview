@@ -415,7 +415,7 @@ export function useMediaChannelContainer(
       form.getValues(fieldKey) || [],
     )
     setExpertExitConfirmOpen(false)
-    collapseAllLineItems()
+    if (!config.expertApplyKeepsExpanded) collapseAllLineItems()
     setExpertApplyPendingPageSave(true)
     setExpertModalOpen(false)
   }, [
