@@ -90,8 +90,6 @@
   "exports:components/media-containers/OohExpertGrid.tsx OOH_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/OohExpertGrid.tsx OOH_FORMAT_OPTIONS",
   "exports:components/media-containers/RadioExpertGrid.tsx RADIO_BUY_TYPE_OPTIONS",
-  "exports:components/media-containers/SocialMediaExpertGrid.tsx SOCIALMEDIA_BID_STRATEGY_OPTIONS",
-  "exports:components/media-containers/SocialMediaExpertGrid.tsx SOCIALMEDIA_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/TelevisionExpertGrid.tsx TV_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/burst-calculated-fields.tsx getTelevisionBurstCalculatedColumnLabel",
   "exports:components/media-containers/expertGridSticky.ts EXPERT_GRID_STICKY_BG",

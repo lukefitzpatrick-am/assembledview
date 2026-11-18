@@ -62,6 +62,7 @@ import {
   createEmptyProgOohExpertRow,
   createEmptyProgVideoExpertRow,
   createEmptySearchExpertRow,
+  createEmptySocialMediaExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -71,6 +72,7 @@ import {
   mapProgOohExpertRowsToStandardLineItems,
   mapProgVideoExpertRowsToStandardLineItems,
   mapSearchExpertRowsToStandardLineItems,
+  mapSocialMediaExpertRowsToStandardLineItems,
   mapStandardBvodLineItemsToExpertRows,
   mapStandardCinemaLineItemsToExpertRows,
   mapStandardDigiAudioLineItemsToExpertRows,
@@ -99,6 +101,7 @@ import {
   mergeProgOohStandardFromExpertWithPrevious,
   mergeProgVideoStandardFromExpertWithPrevious,
   mergeSearchStandardFromExpertWithPrevious,
+  mergeSocialMediaStandardFromExpertWithPrevious,
   serializeProgAudioExpertRowsBaseline,
   serializeProgAudioStandardLineItemsBaseline,
   serializeProgBvodExpertRowsBaseline,
@@ -111,8 +114,13 @@ import {
   serializeProgVideoStandardLineItemsBaseline,
   serializeSearchExpertRowsBaseline,
   serializeSearchStandardLineItemsBaseline,
+  serializeSocialMediaExpertRowsBaseline,
+  serializeSocialMediaStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
+import { getSocialMediaBursts } from "@/lib/mediaplan/socialMediaBursts"
+import type { BillingBurst } from "@/lib/billing/types"
+import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import {
   bvodFormSchema,
@@ -195,6 +203,17 @@ export type ContainerChannelConfig = {
   fieldMap: FieldMapEntry[]
   /** Required for MediaChannelContainer; optional until a channel is converted. */
   shell?: ContainerChannelShell
+  /**
+   * Billing bursts when the channel keeps its own legacy shape (W5a, Social).
+   * Unset: the shared `getChannelBursts` (line id, line No Ad Serving).
+   */
+  billingBursts?: (form: UseFormReturn, feePct: number, mbaNumber?: string) => BillingBurst[]
+  /**
+   * Hydrate date for a saved burst with no valid date. "campaign" (unset) is
+   * the campaign date as given; "campaignDay" is the start of that day
+   * (`defaultMediaBurstStartDate` / `defaultMediaBurstEndDate`).
+   */
+  burstDateFallback?: "campaign" | "campaignDay"
 }
 
 /**
@@ -2203,15 +2222,30 @@ export const SOCIALMEDIA_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: socialMediaFormSchema,
   fetchPublishers: getPublishersForSocialMedia,
   toExpert: mapStandardSocialMediaLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "social media",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  fromExpert: mapSocialMediaExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeSocialMediaStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeSocialMediaStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeSocialMediaExpertRowsBaseline,
+  createEmptyExpertRow: createEmptySocialMediaExpertRow,
+  billingMediaTypeLabel: "social",
+  billingBursts: getSocialMediaBursts,
+  burstDateFallback: "campaignDay",
+  expertFromFeeKey: "feePctSocial",
+  summaryDimensions: {
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
+  shell: {
+    title: "Social Media",
+    themeKey: "socialmedia",
+    timelineMediaTypeKey: "socialMedia",
+    loadLabel: "Social Media",
+    exitConfirmYesAttr: "data-socialmedia-expert-exit-yes",
+    entryModeAriaLabel: "Social Media entry mode",
+    expertDialogTitle: "Social Media Expert Mode",
+  },
   gridConfig: SOCIALMEDIA_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,

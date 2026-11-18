@@ -113,7 +113,6 @@ const DIGITAL_CHARTS = [
   ["DigitalDisplayContainer.tsx", "digidisplaylineItems", "feedigidisplay"],
   ["DigitalVideoContainer.tsx", "digivideolineItems", "feedigivideo"],
   ["IntegrationContainer.tsx", "lineItems", "feeintegration"],
-  ["SocialMediaContainer.tsx", "lineItems", "feesocial"],
 ] as const
 
 const OFFLINE_CHARTS = [

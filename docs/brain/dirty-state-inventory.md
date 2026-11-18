@@ -39,7 +39,7 @@ Edit dirty **set** sites are mostly `markUnsavedChanges` / `markPassiveChannelCh
 
 ## The 15 Expert dirty sites
 
-Fourteen `*Container.tsx` files hold local `expertApplyPendingPageSave`. The fifteenth is `useMediaChannelContainer` (shared by Prog\* + Search via `MediaChannelContainer`).
+Thirteen `*Container.tsx` files hold local `expertApplyPendingPageSave`. The fourteenth is `useMediaChannelContainer` (shared by Prog\*, Search and Social via `MediaChannelContainer`).
 
 | # | Site | Mechanism | Local expert dirty | Sets pending on Apply | Clears pending |
 |---|---|---|---|---|---|
@@ -55,11 +55,11 @@ Fourteen `*Container.tsx` files hold local `expertApplyPendingPageSave`. The fif
 | 10 | `BVODContainer` | Bespoke | yes | yes | same |
 | 11 | `IntegrationContainer` | Bespoke | yes | yes | same |
 | 12 | `ProductionContainer` | Bespoke | yes | yes | same |
-| 13 | `SocialMediaContainer` | Bespoke | yes | yes | same |
+| 13 | `SocialMediaContainer` | Shared (W5a): see row 15 | no | via the hook | via the hook |
 | 14 | `InfluencersContainer` | Bespoke | yes | yes | same |
 | 15 | `useMediaChannelContainer` → `MediaChannelContainer` | Shared hook + shell | hook owns state; shell renders | yes (hook) | subscribe in hook |
 
-Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`.
+Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`, `SocialMediaContainer`.
 
 Per-channel Expert **grid** dirty (modal exit confirm) is separate: baseline serialize ≠ current rows. Discard / leave-without-Apply closes the modal and does **not** touch `expertApplyPendingPageSave`. Apply writes form with `{ shouldDirty: true }` (trips page `form.watch`) **and** (except OOH) sets pending true.
 
@@ -139,7 +139,7 @@ Page Save SUCCESS (or any true→false of hasUnsavedChanges)
 
 ## C-38 — OOH gap (FIXED)
 
-`OOHContainer.handleExpertApply` sets `setExpertApplyPendingPageSave(true)` with its 13 bespoke peers + `useMediaChannelContainer`. Characterisation requires the setTrue.
+`OOHContainer.handleExpertApply` sets `setExpertApplyPendingPageSave(true)` with its 12 bespoke peers + `useMediaChannelContainer`. Characterisation requires the setTrue.
 
 ---
 

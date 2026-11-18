@@ -41,7 +41,7 @@
   "components/media-containers/ProgVideoContainer.tsx": 5,
   "components/media-containers/RadioContainer.tsx": 13,
   "components/media-containers/SearchContainer.tsx": 7,
-  "components/media-containers/SocialMediaContainer.tsx": 11,
+  "components/media-containers/SocialMediaContainer.tsx": 4,
   "components/media-containers/TelevisionContainer.tsx": 14,
   "components/ui/csv-export-button.tsx": 1,
   "components/ui/table-with-export.tsx": 1,

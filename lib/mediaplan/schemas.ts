@@ -621,7 +621,6 @@ export const socialMediaFormSchema = z.object({
   lineItems: z.array(socialMediaLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type SocialMediaFormValues = z.infer<typeof socialMediaFormSchema>
 
 // --- Influencers -------------------------------------------------------------
 export const influencersFormSchema = z.object({

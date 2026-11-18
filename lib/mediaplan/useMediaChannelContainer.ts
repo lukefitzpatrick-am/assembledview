@@ -74,6 +74,8 @@ export type MediaChannelContainerHookProps = {
   campaignId: string
   mediaTypes: string[]
   initialLineItems?: any[]
+  /** Raw form lines on every change (Social's create-page line count). */
+  onRawLineItemsChange?: (lineItems: unknown[]) => void
 }
 
 interface Publisher {
@@ -147,6 +149,25 @@ export function getChannelBursts(
   )
 }
 
+/** The channel's own billing bursts when its config has them, else the shared shape. */
+function channelBillingBursts(
+  config: ContainerChannelConfig,
+  form: UseFormReturn,
+  feePct: number,
+  mbaNumber: string | undefined,
+  fieldKey: string,
+): BillingBurst[] {
+  if (config.billingBursts) return config.billingBursts(form, feePct, mbaNumber)
+  return getChannelBursts(
+    form,
+    feePct,
+    mbaNumber,
+    config.mediaTypeIdCode as MediaCode,
+    config.billingMediaTypeLabel,
+    fieldKey,
+  )
+}
+
 export function calculateChannelInvestmentPerMonth(
   form: UseFormReturn<any>,
   feePct: number,
@@ -171,12 +192,12 @@ export function useMediaChannelContainer(
     campaignStartDate,
     campaignEndDate,
     initialLineItems,
+    onRawLineItemsChange,
   } = props
 
   // All channel containers use the same RHF root key today.
   const fieldKey = "lineItems"
   const mediaTypeIdCode = config.mediaTypeIdCode as MediaCode
-  const billingLabel = config.billingMediaTypeLabel
 
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([])
   const prevBurstsRef = useRef<BillingBurst[]>([])
@@ -452,6 +473,13 @@ export function useMediaChannelContainer(
   useStableHydration(
     initialLineItems,
     (items) => {
+      const campaignDay = config.burstDateFallback === "campaignDay"
+      const fallbackStart = campaignDay
+        ? defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+        : campaignStartDate || new Date()
+      const fallbackEnd = campaignDay
+        ? defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
+        : campaignEndDate || new Date()
       const transformedLineItems = prepareEditorLines(items, mbaNumber, mediaTypeIdCode).map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item)
         return {
@@ -465,12 +493,8 @@ export function useMediaChannelContainer(
               ? parsedBursts.map((burst: any) => ({
                   budget: burst.budget || "",
                   buyAmount: burst.buyAmount || "",
-                  startDate:
-                    coerceBurstDateLocal(burst.startDate) ??
-                    (campaignStartDate || new Date()),
-                  endDate:
-                    coerceBurstDateLocal(burst.endDate) ??
-                    (campaignEndDate || new Date()),
+                  startDate: coerceBurstDateLocal(burst.startDate) ?? fallbackStart,
+                  endDate: coerceBurstDateLocal(burst.endDate) ?? fallbackEnd,
                   calculatedValue: computeLoadedDeliverables(
                     item.buy_type || item.buyType || "",
                     burst,
@@ -791,14 +815,7 @@ export function useMediaChannelContainer(
   }, [overallTotals.overallFee, overallTotals.overallMedia, onTotalMediaChange])
 
   useEffect(() => {
-    const calculatedBursts = getChannelBursts(
-      form,
-      feePct || 0,
-      mbaNumber,
-      mediaTypeIdCode,
-      billingLabel,
-      fieldKey,
-    )
+    const calculatedBursts = channelBillingBursts(config, form, feePct || 0, mbaNumber, fieldKey)
     let burstIndex = 0
 
     const items: LineItem[] = (form.getValues(fieldKey) || []).flatMap(
@@ -857,20 +874,17 @@ export function useMediaChannelContainer(
     onLineItemsChange,
     fieldKey,
     mediaTypeIdCode,
-    billingLabel,
+    config,
   ])
+
+  useEffect(() => {
+    onRawLineItemsChange?.(form.getValues(fieldKey) || [])
+  }, [watchedLineItems, form, fieldKey, onRawLineItemsChange])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const investmentByMonth = calculateChannelInvestmentPerMonth(form, feePct || 0, fieldKey)
-      const bursts = getChannelBursts(
-        form,
-        feePct || 0,
-        mbaNumber,
-        mediaTypeIdCode,
-        billingLabel,
-        fieldKey,
-      )
+      const bursts = channelBillingBursts(config, form, feePct || 0, mbaNumber, fieldKey)
 
       const hasInvestmentChanges =
         JSON.stringify(investmentByMonth) !== JSON.stringify(prevInvestmentRef.current)
@@ -906,8 +920,7 @@ export function useMediaChannelContainer(
     onInvestmentChange,
     fieldKey,
     mbaNumber,
-    mediaTypeIdCode,
-    billingLabel,
+    config,
   ])
 
   return {

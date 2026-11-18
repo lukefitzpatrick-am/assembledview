@@ -122,6 +122,7 @@ export default function MediaChannelContainer({
   campaignId,
   mediaTypes,
   initialLineItems = [],
+  onRawLineItemsChange,
   renderExtra,
   computeOverride,
 }: MediaChannelContainerProps) {
@@ -179,6 +180,7 @@ export default function MediaChannelContainer({
     campaignId,
     mediaTypes,
     initialLineItems,
+    onRawLineItemsChange,
   })
 
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)

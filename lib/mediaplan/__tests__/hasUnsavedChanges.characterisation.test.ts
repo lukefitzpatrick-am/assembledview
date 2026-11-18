@@ -107,11 +107,10 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "NewspaperContainer.tsx",
   "ProductionContainer.tsx",
   "RadioContainer.tsx",
-  "SocialMediaContainer.tsx",
   "TelevisionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 13 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
+test("CHARACTERISATION: 12 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
   for (const file of [
     ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
     "OOHContainer.tsx",
@@ -152,7 +151,7 @@ test("CHARACTERISATION: MediaChannelContainer consumes hook pending flag (does n
   assert.doesNotMatch(shell, /subscribeMediaPlanPageSaved/)
 })
 
-test("CHARACTERISATION: Prog*/Search thin containers have no local expertApplyPending state", () => {
+test("CHARACTERISATION: Prog*/Search/Social thin containers have no local expertApplyPending state", () => {
   for (const file of [
     "ProgAudioContainer.tsx",
     "ProgBVODContainer.tsx",
@@ -160,6 +159,7 @@ test("CHARACTERISATION: Prog*/Search thin containers have no local expertApplyPe
     "ProgOOHContainer.tsx",
     "ProgVideoContainer.tsx",
     "SearchContainer.tsx",
+    "SocialMediaContainer.tsx",
   ]) {
     const src = read(`components/media-containers/${file}`)
     assert.doesNotMatch(

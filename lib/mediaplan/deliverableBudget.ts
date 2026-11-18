@@ -187,8 +187,8 @@ export interface ComputeDeliverableInput {
  * Used by:
  *   - computeLoadedDeliverables (data load) in every Container
  *   - handleValueChange (form interaction) in every Container
- *   - CpcFamilyBurstCalculatedField / SocialLineBurstCalculatedField /
- *     TelevisionBurstTarpsField (live display) in burst-calculated-fields.tsx
+ *   - CpcFamilyBurstCalculatedField / TelevisionBurstTarpsField (live
+ *     display) in burst-calculated-fields.tsx
  *
  * Replaces inline switch statements duplicated across 19+ container files.
  *
