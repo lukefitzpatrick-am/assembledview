@@ -6,6 +6,7 @@ import { Slot } from "@radix-ui/react-slot"
 import {
   Controller,
   ControllerProps,
+  FieldErrors,
   FieldPath,
   FieldValues,
   FormProvider,
@@ -13,6 +14,8 @@ import {
 } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
+import { invalidFieldSummary } from "@/lib/ui/invalidFields"
+import { announce } from "@/components/ui/announcer"
 import { Label } from "@/components/ui/label"
 
 const Form = FormProvider
@@ -166,7 +169,44 @@ const FormMessage = React.forwardRef<
 })
 FormMessage.displayName = "FormMessage"
 
+/**
+ * How a form shows errors (B58). Each field's `FormMessage` sits under it,
+ * linked by `aria-describedby`, with `aria-invalid` on the control. Pass this
+ * as `handleSubmit`'s second argument: a failed submit says one summary
+ * through the announcer, and react-hook-form moves focus to the first invalid
+ * field (`shouldFocusError`, on by default). Never a toast for a field error.
+ */
+function announceInvalid(labels?: Readonly<Record<string, string>>) {
+  return (errors: FieldErrors) => {
+    announce(invalidFieldSummary(errors, labels), "assertive")
+  }
+}
+
+/**
+ * The same summary as text by the Save button, after a failed submit, for a
+ * form whose invalid field can be off screen or hidden. Not a live region:
+ * `announceInvalid` says it once.
+ */
+function FormErrorSummary({
+  labels,
+  className,
+}: {
+  labels?: Readonly<Record<string, string>>
+  className?: string
+}) {
+  const { formState } = useFormContext()
+  const text = formState.submitCount > 0 ? invalidFieldSummary(formState.errors, labels) : ""
+  if (!text) return null
+  return (
+    <p data-form-error-summary="" className={cn("text-sm font-medium text-destructive", className)}>
+      {text}
+    </p>
+  )
+}
+
 export {
+  announceInvalid,
+  FormErrorSummary,
   useFormField,
   Form,
   FormItem,
