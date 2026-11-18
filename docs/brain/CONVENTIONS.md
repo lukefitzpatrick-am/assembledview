@@ -30,6 +30,14 @@ Every route renders `PageShell` and `PageHeader` (or a hero built on `PageHeroTi
 
 New and migrated tables use `DataTable` (`components/ui/data-table.tsx`). `Table` primitives stay for layout-only tables (forms, key-value grids). Bespoke table components are debt to move onto `DataTable`.
 
+## Asking a question, showing a window
+
+- Ask with `useConfirm()` (`hooks/use-confirm.tsx`), never the browser's `confirm()`, `alert()` or `prompt()`. Render `{confirmDialog}` once in the component.
+  - A question: `if (!(await confirm({ title, description, confirmLabel, tone }))) return`. Name the action in `confirmLabel` ("Delete", "Save anyway"). Deletes and anything that cannot be undone take `tone: "destructive"`.
+  - A message that must be read before the flow goes on (what `alert()` did): `await notice({ title, description })`.
+  - Nothing after the `await` runs before the answer. Cancel, Escape, a second question and unmounting answer no. Focus starts on Cancel (on OK for a notice).
+- A window is `Dialog`, `AlertDialog` or `Sheet` from `components/ui`, never a hand-built `fixed inset-0` panel. They give the focus trap, Escape, the stacking layer and a labelled title (`DialogTitle`), and they return focus to the control that opened them. Pass `aria-describedby={undefined}` when there is no description.
+
 ## Directory law
 
 | Put it in | When |

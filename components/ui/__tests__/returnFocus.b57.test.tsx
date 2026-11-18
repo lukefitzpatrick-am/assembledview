@@ -50,7 +50,7 @@ function button(label: string): HTMLButtonElement {
 function pressEscape() {
   const target = document.activeElement ?? document.body
   act(() => {
-    target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))
   })
 }
 
