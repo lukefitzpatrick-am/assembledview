@@ -174,13 +174,10 @@ export function oohPersistedPosition(item: PositionedLine, index: number): numbe
   return index
 }
 
-/** 1-based "Line N" label. Never the `line_item_id` suffix. */
-export function oohLineDisplayNumber(item: object, index: number): number {
+/** 1-based "Line N" label from a line's persisted position, every channel. Never the `line_item_id` suffix. */
+export function lineDisplayNumber(item: object, index: number): number {
   return oohPersistedPosition(item as PositionedLine, index) + 1
 }
-
-/** Same label for every channel. */
-export const lineDisplayNumber = oohLineDisplayNumber
 
 /** Export / summary order follows position, not the id suffix. */
 export function orderOohLinesForExport<T>(items: readonly T[]): T[] {

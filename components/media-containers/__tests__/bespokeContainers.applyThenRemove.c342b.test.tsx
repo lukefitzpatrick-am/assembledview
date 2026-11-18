@@ -1,7 +1,7 @@
 /**
  * C342B (C342fix review F5): Cinema, Radio, Television, Magazines and
- * Newspaper number their summary's "Line N" and their Excel rows'
- * `line_item` from the card order, as the shared hook does. Apply stamps each
+ * Newspaper (and OOH, C342Bfix L3) number their summary's "Line N" and their
+ * Excel rows' `line_item` from the card order, as the shared hook does. Apply stamps each
  * line's `position`; a Remove after it left the stamps stale, so the summary
  * read Line 2, Line 3 while the cards said 1 and 2. Screen and Excel number
  * only: save numbers lines by their place.
@@ -22,6 +22,7 @@ vi.mock("@/contexts/MediaPlanContext", () => ({
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
+  getPublishersForOoh: async () => [{ id: 9, publisher_name: "JCDecaux" }],
   getPublishersForCinema: async () => [{ id: 1, publisher_name: "Hoyts" }],
   getPublishersForRadio: async () => [{ id: 2, publisher_name: "Nova" }],
   getRadioStations: async () => [],
@@ -40,6 +41,7 @@ const { default: RadioContainer } = await import("@/components/media-containers/
 const { default: TelevisionContainer } = await import("@/components/media-containers/TelevisionContainer")
 const { default: MagazinesContainer } = await import("@/components/media-containers/MagazinesContainer")
 const { default: NewspaperContainer } = await import("@/components/media-containers/NewspaperContainer")
+const { default: OohContainer } = await import("@/components/media-containers/OOHContainer")
 
 const CHANNELS: Array<{
   name: string
@@ -68,6 +70,7 @@ const CHANNELS: Array<{
     network: "News Corp",
     buyType: "insertions",
   },
+  { name: "OOH", Container: OohContainer, code: "OH", props: { feeooh: 0 }, network: "JCDecaux", buyType: "panels" },
 ]
 
 const noop = () => {}
