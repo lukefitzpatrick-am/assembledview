@@ -13,7 +13,6 @@
   "lib/clients/platformAdvertisers.ts": 1,
   "lib/codex/notify.ts": 1,
   "lib/creative/performance/metrics.ts": 1,
-  "lib/creative/previews/job.ts": 1,
   "lib/dashboard/homeBrief.ts": 1,
   "lib/delivery/channelCoverage.ts": 1,
   "lib/delivery/programmatic/programmaticCompute.ts": 1,

@@ -5,6 +5,8 @@ import { and, eq, inArray, sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
 import { creativePreviewCache, mediaPlanMasters } from "@/db/schema"
+import { addDaysISO } from "@/lib/dates/civil"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { dateOnly, field, text } from "@/lib/webReport/rows"
 
@@ -47,11 +49,6 @@ WHERE a.preview_image_url IS NOT NULL
    OR (a.preview_kind = 'video' AND a.view_url IS NOT NULL)
 `
 
-function windowStart(days: number, today: Date): string {
-  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
-  start.setUTCDate(start.getUTCDate() - days)
-  return start.toISOString().slice(0, 10)
-}
 
 export function assetsFromWarehouse(rows: Record<string, unknown>[]): PreviewAsset[] {
   const out: PreviewAsset[] = []
@@ -78,7 +75,7 @@ export function assetsFromWarehouse(rows: Record<string, unknown>[]): PreviewAss
 }
 
 async function loadAssets(days: number): Promise<PreviewAsset[]> {
-  const raw = await querySnowflake<Record<string, unknown>>(ASSETS_SQL, [windowStart(days, new Date())], {
+  const raw = await querySnowflake<Record<string, unknown>>(ASSETS_SQL, [addDaysISO(getMelbourneTodayISO(), -days)], {
     label: "creative-previews-assets",
   })
   return assetsFromWarehouse(raw ?? [])
