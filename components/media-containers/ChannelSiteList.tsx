@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react"
 import type { UseFormReturn } from "react-hook-form"
 import { PlusCircle } from "lucide-react"
 
@@ -46,8 +46,6 @@ export function useChannelSiteList(
   const [platform, setPlatform] = useState("")
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
-  // The button that opened Add Site: focus goes back to it when the dialog closes.
-  const opener = useRef<HTMLElement | null>(null)
 
   const load = useCallback(
     async (errorTitle: string) => {
@@ -69,7 +67,7 @@ export function useChannelSiteList(
   const publisherOf = (li: number): string =>
     form.watch(`${fieldKey}.${li}.publisher`) || form.watch(`${fieldKey}.${li}.platform`) || ""
 
-  const openFor = (li: number, publisher: string, button: HTMLElement) => {
+  const openFor = (li: number, publisher: string) => {
     if (!publisher) {
       toast({
         title: "Select a Publisher First",
@@ -78,7 +76,6 @@ export function useChannelSiteList(
       })
       return
     }
-    opener.current = button
     setLineIndex(li)
     setName("")
     setPlatform(publisher)
@@ -111,7 +108,7 @@ export function useChannelSiteList(
             size="sm"
             className="h-auto p-1"
             aria-label={addSiteLabel(sites.noun, li + 1)}
-            onClick={(e) => openFor(li, publisher, e.currentTarget)}
+            onClick={() => openFor(li, publisher)}
           >
             <PlusCircle className="h-5 w-5 text-primary" aria-hidden />
           </Button>
@@ -177,7 +174,6 @@ export function useChannelSiteList(
       saving,
       close,
       add,
-      opener,
     },
   }
 }
@@ -203,14 +199,7 @@ export function AddSiteDialog({
   }
   return (
     <Dialog open={dialog.open} onOpenChange={(open) => (open ? undefined : dialog.close())}>
-      <DialogContent
-        className="sm:max-w-[425px]"
-        onCloseAutoFocus={(e) => {
-          // No trigger: Radix would drop focus on the page body (W5c review F1).
-          e.preventDefault()
-          dialog.opener.current?.focus()
-        }}
-      >
+      <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>Add New {dialog.noun} Site</DialogTitle>
