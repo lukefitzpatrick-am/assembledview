@@ -108,6 +108,19 @@ describe("ClientLayout privacy shell", () => {
     expect(container.querySelector("[data-testid='app-sidebar']")).not.toBeNull()
   })
 
+  it("mounts the one announcer: a polite and an assertive region (B58)", () => {
+    nav.pathname = "/dashboard"
+    act(() => {
+      root.render(
+        <ClientLayout clientSlugs={[]}>
+          <p>Dashboard</p>
+        </ClientLayout>,
+      )
+    })
+    expect(container.querySelectorAll('[data-announcer="polite"][aria-live="polite"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-announcer="assertive"][aria-live="assertive"]')).toHaveLength(1)
+  })
+
   it("opens the command palette from the search pill", () => {
     if (!Element.prototype.hasPointerCapture) {
       Element.prototype.hasPointerCapture = () => false

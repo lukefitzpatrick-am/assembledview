@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { MediaPlanProvider } from "@/contexts/MediaPlanContext"
 import { Toaster } from "@/components/ui/toaster"
+import { Announcer } from "@/components/ui/announcer"
 import { ChatWidget } from "@/components/ChatWidget"
 import { SessionExpiredBanner } from "@/components/auth/SessionExpiredBanner"
 import { usePathname } from "next/navigation"
@@ -139,6 +140,7 @@ export function ClientLayout({
               </SidebarInset>
             </div>
             <Toaster />
+            <Announcer />
             {isShellVisible && <CommandPalette />}
             <AssistantMount isShellVisible={isShellVisible} />
           </MediaPlanProvider>
