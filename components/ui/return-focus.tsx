@@ -17,6 +17,7 @@ const OpenerContext = React.createContext<React.MutableRefObject<HTMLElement | n
 export function OpenerScope({ open, children }: { open: boolean | undefined; children: React.ReactNode }) {
   const opener = React.useRef<HTMLElement | null>(null)
   const wasOpen = React.useRef(false)
+  // shortcut: opener captured during render, move to a layout effect if React Compiler or a suspended open shows a wrong opener
   if (open && !wasOpen.current && typeof document !== "undefined") {
     const active = document.activeElement
     opener.current = active instanceof HTMLElement && active !== document.body ? active : null
