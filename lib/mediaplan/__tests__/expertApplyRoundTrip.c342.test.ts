@@ -462,6 +462,28 @@ for (const ch of CHANNELS) {
 }
 
 /**
+ * Fixed cost and package rates are already the line's money: an edited row is
+ * never grossed up, fee-inclusive or not. A fixed cost burst is its rate; a
+ * package burst is the grid's quantity x the rate.
+ */
+for (const ch of CHANNELS) {
+  for (const bt of ["fixed_cost", "package"].filter((b) => ch.buyTypes.includes(b))) {
+    test(`${ch.name}: a fee-inclusive ${bt} line repriced in the grid is not grossed up`, () => {
+      const v: Variant = { incl: true, fee: 12.5, clientPays: false }
+      const saved = [savedPlan(ch, v).find((l) => l._label === `${bt} round`)!]
+      const id = saved[0]!.line_item_id
+      const applied = readLines(applyNoEdit(ch, v, saved, (rows) => {
+        rowOf(rows, id).unitRate = 2000
+      })).get(id)!
+      for (const b of applied.bursts) {
+        // Package: the 8 in the grid x $2,000.00 (its saved deliverable follows the package rule, B10).
+        assert.equal(b.cents, bt === "fixed_cost" ? 200_000 : 8 * 200_000, `${b.dates}: ${b.budget}`)
+      }
+    })
+  }
+}
+
+/**
  * C-345: a line whose bursts have different rates. An untouched burst keeps
  * its own rate; an edited cell prices at the row's rate (the first burst's);
  * a rate edit reprices every cell.
