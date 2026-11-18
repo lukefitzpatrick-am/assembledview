@@ -129,7 +129,6 @@ describe.each<FormKind>(["add", "edit"])("%s client form: brand colour box (C-17
     toastMock.mockReset()
     fetchMock = vi.fn(async () => new Response("{}", { status: 200 }))
     vi.stubGlobal("fetch", fetchMock)
-    vi.spyOn(window, "alert").mockImplementation(() => {})
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)

@@ -122,7 +122,6 @@ describe("EditClientForm fee boxes keep what is typed (B22fix R1)", () => {
     toastMock.mockReset()
     fetchMock = vi.fn(async () => new Response("{}", { status: 200 }))
     vi.stubGlobal("fetch", fetchMock)
-    vi.spyOn(window, "alert").mockImplementation(() => {})
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
