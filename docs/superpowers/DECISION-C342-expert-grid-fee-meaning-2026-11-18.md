@@ -1,7 +1,7 @@
 # Decision: what the schedule grid's quantity and cost mean on a fee-inclusive line (C-342, V66)
 
-Status: awaiting Luke (V66). Nothing is changed in the app. The bug is pinned by `lib/mediaplan/__tests__/expertApplyRoundTrip.c342.test.ts`.
-Written 18 Nov 2026, batch C342fix, from release head `9d708bf7`. Supabase SELECT only (counts and MBA numbers).
+Status: **B built, awaiting confirmation (V66).** Batch C342B built option B on a held branch: apply it only after Luke confirms V66 B. Until then the release head is as this paper first described.
+Written 18 Nov 2026, batch C342fix, from release head `9d708bf7`. Supabase SELECT only (counts and MBA numbers). Updated 19 Nov 2026 in C342B (sections 3 and 4, and section 7: what was built).
 
 ## 1. Why this is a decision and not a fix
 
@@ -19,7 +19,7 @@ What the grid shows today for one fee-inclusive cpm line: budget $12,000.00, CPM
 
 - The numbers a planner sees and types are on the net's scale. The money labels call them gross.
 - Apply is split by channel:
-  - 13 channels read quantity x rate as the gross budget: Search, Social, Influencers, Integration, Digital Video, Digital Display, the five programmatic channels, Newspaper, Magazines. A fee-inclusive cpm, cpc or cpv line (cpm on press) loses the fee share on every Apply and compounds: $12,000.00, then 10500, then 9187.5.
+  - 13 channels read quantity x rate as the gross budget: Search, Social, Influencers, Integration, Digital Video, Digital Display, the five programmatic channels, Newspaper, Magazines. A fee-inclusive cpm, cpc or cpv line (cpm and insertions on press) loses the fee share on every Apply and compounds: $12,000.00, then 10500, then 9187.5. Press insertions lose it too: the saved count was worked from the net, so whole count x rate is the net ($7,777.77 at $2,950 saves 5900).
   - 5 channels read it as the net and gross it up: Digital Audio, BVOD, Cinema, Radio, Television. Right for cpm, cpc, cpv and spots (bar rounding). Wrong for fixed cost and package, whose rate is already the gross: $12,000.00 becomes 13714.29 once.
   - OOH carries each burst's saved budget on its span, so a no-edit Apply is exact. But it also ignores rate and quantity edits on those spans (C-344).
 - So the fix decides what a typed number means on some channels. That is Luke's rule.
@@ -52,6 +52,12 @@ Both make the grid's cost gross, as V66 A says. They differ in what the week cel
 - Typed quantity: real deliverables on every channel. New on the 13 channels: 700,000 typed on a fee-inclusive Search line saves $12,000.00 and 700,000 (today $10,500.00 and 612,500).
 - Code: to-expert carry on 20 mappers (one helper), from-expert on 18 (one helper), the grid's shared cost helpers (`expertRowCost.ts`), the grid's edit paths dropping the carry. More code than A.
 
+### Risks the C342fix review added (F4)
+
+- A: a lump-sum package at rate $0.00 or blank (live: Television 2 lines, $185,000; BVOD 1 line, $95,000) has no budget ÷ rate; package quantities become budget ÷ rate (8 becomes 12); typed and pasted deliverables stay netted on 13 channels.
+- B: one cell can hold several bursts (two bursts in one week, overlapping bursts that cannot be a span, day detail, a multi-week burst spread over weeks), so the carry needs a rule (section 7); the carry must hold deliverables and rate too (C-345).
+- Both: the grid's "Fees (x% on net)" label was wrong; the figure is a slice of gross.
+
 ### Not offered
 
 - The W5e builder's old B (Apply clears Budget Includes Fees): it changes the line's fee basis and every billing and finance view of it. Not recommended.
@@ -63,14 +69,23 @@ Both make the grid's cost gross, as V66 A says. They differ in what the week cel
 
 ## 4. Goldens either option changes
 
-No golden changed in this batch. Either option changes the expert Apply step of fee-inclusive lines only, back to the saved values. From the W5e notes and review:
+From the C342fix review (F3), read leaf by leaf; the B column is what C342B's run gave (section 7 lists every changed value).
 
-- Social: $5,000.00 (Apply today 4375).
-- Search and Prog Display: $12,000.00 (today 10500).
-- Digital Video and Digital Display: $8,000.00 and $1,000.00 (today 7000 and 875).
-- Influencers and Integration: $8,000.00 (today 7000).
-- Cinema CN13: $1,000.00 (today 1001.14).
-- Cinema package line, $12,000.00 saved with quantity 8 at $1,000.00 (today 8000): A saves $12,000.00 but the package quantity becomes 12 (budget ÷ rate); B saves $12,000.00 and 8 (the carry). Under 90%: worked by hand, not run.
+| Golden | Line | Saved | Today | A | B |
+|---|---|---|---|---|---|
+| Search | 2, 5 (cpm, fee-inclusive) | $12,000.00 | 10500 | 12000 | 12000 |
+| Prog Display | 2, 7 (cpm, fee-inclusive) | $12,000.00 | 10500 | 12000 | 12000 |
+| Social | 2, 9 (cpc, fee-inclusive) | $5,000.00 | 4375 | 5000 | 5000 |
+| Social | 1 burst 2 (cpm, fee on top, $18.75 vs $15.00) | $9,250.50 | 7400.4 | 9250.5, deliverables 616,700 | 9250.5, 493,360, rate $18.75 |
+| Digital Video, Digital Display | 2 / 8 and 2 / 14 (cpm, fee-inclusive) | $8,000.00 / $1,000.00 | 7000 / 875 | saved | saved |
+| Influencers 7, Integration 10 | cpm, fee-inclusive | $8,000.00 | 7000 | 8000 | 8000 |
+| Cinema | 2 (spots, fee-inclusive) | $7,777.00 | 7428.57 | 7777 | 7777 |
+| Cinema | 12 (spots, fee-inclusive) | $1,000.00 | 1001.14 | 1000 | 1000 |
+| Cinema 7, BVOD 7, Digital Audio 6 | package, fee on top, 8 at $1,000.00 | $12,000.00 | 8000 | 12000, quantity 12 | 12000, 8 |
+| BVOD | 12 ($15.00 and $8.00 bursts) | $1,500.00, $800.00 | 22500, 4000, 3999.99 | depends on the rate rule | $1,500.00 and $800.00, two bursts as saved |
+
+- Not fee-inclusive, and moved by the carry under B only: bonus burst splits (BVOD, Cinema, Digital Audio line 1: 2 bursts to 5 today, 2 as saved under B); package inclusions and package deliverables (Digital Display 8, Influencers 4, Integration 2, 3 and 5: the grid's rule value, 0 or 1, back to the saved 3, 4 or 8).
+- Unchanged by either: Search and Prog Display line 1's zero-quantity bonus burst is still dropped (no money, no quantity); Cinema line 10's blank fixed cost and Influencers line 6's blank line still come back as $0 with 1 deliverable (no saved budget to carry).
 
 ## 5. SELECT for finance: fee-inclusive lines whose budget moved by exactly the fee share
 
@@ -159,3 +174,17 @@ order by mba_number, version_number, channel, excel_number;
 
 - Run 18 Nov 2026: 10 lines in 9 versions of 6 MBAs (BICAU001, hartm015, hema001, jayco017, PGAAUS015, trwico002).
 - It cannot see a Remove, Duplicate or Apply made in a session before the workbook was made.
+
+## 7. What C342B built (option B)
+
+Held branch `c342b`; apply only after Luke confirms V66 B.
+
+- **Cells:** real deliverables on every channel, as before.
+- **Untouched cells:** on open each row carries its saved bursts (`lib/mediaplan/expertCarry.ts`). On Apply a group of cells the planner has not touched gives its saved bursts back: budget, deliverables, rate, cost and amount (Production), dates. Untouched is read from the values (spans, week cells, day cells, and the row's rate, buy type and Budget Includes Fees), so every edit path in the grid drops the carry for what it changed. Typing a cell's own number back counts as untouched.
+- **Edited cells:** quantity x rate, grossed up on a fee-inclusive line (`expertCellBudget`, the card's rule read backwards); fixed cost and package never grossed up; bonus and package inclusions $0. A rate edit reprices every cell of the row.
+- **Several bursts in one cell (review F4):** the bursts that share a week, or a span, form one group. The rule: carry the group whole while every cell in it is untouched; price it whole from the grid once any cell in it is edited (the burst count can then change, as it always has). Chosen over "gross up each burst in proportion" (needs a share rule per burst and still guesses at what the planner meant) and over "refuse the edit" (a new block on the planner's main tool, needing a switch and copy). It is the smaller rule and it never invents money: the result is either the saved line or what the grid shows.
+- **Mixed rates (C-345):** an untouched burst keeps its own rate; an edited cell prices at the row's rate (the first burst's).
+- **OOH (C-344):** the span `gross` stamp is gone; OOH uses the shared carry, so span and rate edits reach the line.
+- **Grid money:** Net Media, the footer and OOH's totals show the line's budget (carried budgets plus the gross of the rest); $ cells show and take the gross (the recommended sub-choice); the fee label reads "x% of gross".
+- **Known limit (C-361):** a burst the import spreads into week cells under a span keeps that share only while untouched.
+- **Proof:** `expertApplyRoundTrip.c342.test.ts` (all 152 cases and Production exact; edits follow the card's rule; mixed rates, several bursts in one week, OOH spans; both zones), `expertCarry.c342b.test.ts`, `sharedChannelContainer.gridMoney.c342b.test.tsx` (mounted), every container golden (only expert Apply steps move, each back to the saved line).
