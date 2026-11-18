@@ -14,7 +14,10 @@ const weekKeys = ["2026-01-05", "2026-01-12"] as const
 test("expertRowQuantitySum sums weekly values and merged spans", () => {
   const row = {
     weeklyValues: { "2026-01-05": 10, "2026-01-12": 5 },
-    mergedWeekSpans: [{ totalQty: 3 }, { totalQty: NaN }],
+    mergedWeekSpans: [
+      { startWeekKey: "2026-01-05", endWeekKey: "2026-01-12", totalQty: 3 },
+      { startWeekKey: "2026-01-05", endWeekKey: "2026-01-12", totalQty: NaN },
+    ],
   }
   assert.equal(expertRowQuantitySum(row, weekKeys), 18)
 })
@@ -46,7 +49,7 @@ test("expertRowGrossCost: bonus returns 0", () => {
   assert.equal(expertRowGrossCost(row, weekKeys), 0)
 })
 
-test("expertRowNetMedia applies fee split", () => {
+test("expertRowNetMedia: a fee-inclusive line's cells are deliverables, so qty × rate is the net (V66 B)", () => {
   const row = {
     buyType: "cpc",
     unitRate: 10,
@@ -54,7 +57,8 @@ test("expertRowNetMedia applies fee split", () => {
     budgetIncludesFees: true,
     clientPaysForMedia: false,
   }
-  assert.equal(expertRowNetMedia(row, weekKeys, 15), 425)
+  assert.ok(Math.abs(expertRowNetMedia(row, weekKeys, 15) - 500) < 1e-9)
+  assert.equal(expertRowNetMedia({ ...row, budgetIncludesFees: false }, weekKeys, 15), 500)
 })
 
 test("expertRowNetMediaTooltip strings", () => {
@@ -81,8 +85,14 @@ test("expertRowCostSplit returns raw, net, and fee", () => {
     budgetIncludesFees: true,
     clientPaysForMedia: false,
   }
+  // Fee-inclusive: 100 clicks x $10 is the $1,000 net; the budget is $1,111.11, the fee its 10%.
   const split = expertRowCostSplit(row, weekKeys, 10)
-  assert.equal(split.raw, 1000)
-  assert.equal(split.net, 900)
-  assert.equal(split.fee, 100)
+  assert.ok(Math.abs(split.raw - 1000 / 0.9) < 1e-9)
+  assert.ok(Math.abs(split.net - 1000) < 1e-9)
+  assert.ok(Math.abs(split.fee - 1000 / 9) < 1e-9)
+  // Fee on top: the $1,000 is the budget and the net; the fee sits on top.
+  const onTop = expertRowCostSplit({ ...row, budgetIncludesFees: false }, weekKeys, 10)
+  assert.equal(onTop.raw, 1000)
+  assert.equal(onTop.net, 1000)
+  assert.ok(Math.abs(onTop.fee - 1000 / 9) < 1e-9)
 })

@@ -1,4 +1,5 @@
-import { expertRowRawCost } from "@/lib/mediaplan/expertChannelMappings"
+import { expertCellBudget, expertRowRawCost } from "@/lib/mediaplan/expertChannelMappings"
+import { carriedMoney, weekKeyOfDay, type ExpertCarry } from "@/lib/mediaplan/expertCarry"
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import {
   expertGridParseNum,
@@ -16,9 +17,11 @@ export type ExpertRowCostFields = {
    * never double-counts.
    */
   dailyValues?: ExpertDailyValues
-  mergedWeekSpans?: ReadonlyArray<{ totalQty?: number }>
+  mergedWeekSpans?: ReadonlyArray<{ startWeekKey: string; endWeekKey: string; totalQty?: number }>
   budgetIncludesFees?: boolean
   clientPaysForMedia?: boolean
+  /** What Apply writes back for cells the planner has not touched (`expertCarry.ts`). */
+  expertCarry?: ExpertCarry
 }
 
 /** Σ weekly + day-detail + merged quantity. */
@@ -43,7 +46,10 @@ export function expertRowQuantitySum(
   return weekly + daily + merged
 }
 
-/** Gross media $ before fee split. */
+/**
+ * Σ quantity × rate, before any fee. The lump-sum projection on open compares
+ * it with the card; the grid's money columns read {@link expertRowBudget}.
+ */
 export function expertRowGrossCost(
   row: ExpertRowCostFields,
   weekKeys: readonly string[]
@@ -53,13 +59,54 @@ export function expertRowGrossCost(
   return expertRowRawCost(row.buyType, rate, qty)
 }
 
+/** Σ quantity outside the given week columns (weeks, their days, and spans that start there). */
+function quantityOutside(
+  row: ExpertRowCostFields,
+  weekKeys: readonly string[],
+  skip: ReadonlySet<string>
+): number {
+  let q = 0
+  for (const k of weekKeys) if (!skip.has(k)) q += expertGridParseNum(row.weeklyValues[k])
+  for (const [d, v] of Object.entries(row.dailyValues ?? {})) {
+    const k = weekKeyOfDay(d, weekKeys)
+    if (k === undefined || !skip.has(k)) q += expertGridParseNum(v)
+  }
+  for (const sp of row.mergedWeekSpans ?? []) {
+    if (!skip.has(sp.startWeekKey) && Number.isFinite(sp.totalQty)) q += sp.totalQty as number
+  }
+  return q
+}
+
+/**
+ * V66 B: the row's budget, what Apply will save. Cells the planner has not
+ * touched carry their saved budgets; the rest is Σ quantity × rate, grossed
+ * up on a fee-inclusive line ({@link expertCellBudget}).
+ */
+export function expertRowBudget(
+  row: ExpertRowCostFields,
+  weekKeys: readonly string[],
+  feePct: number
+): number {
+  const rate = expertGridParseNum(row.unitRate)
+  const carried = carriedMoney(row, weekKeys)
+  const qty =
+    carried.weekKeys.size > 0
+      ? quantityOutside(row, weekKeys, carried.weekKeys)
+      : expertRowQuantitySum(row, weekKeys)
+  if (carried.weekKeys.size > 0 && qty === 0) return carried.budget
+  return (
+    carried.budget +
+    expertCellBudget(row.buyType, rate, qty, !!row.budgetIncludesFees, feePct)
+  )
+}
+
 /** Net media $ after fee split. */
 export function expertRowNetMedia(
   row: ExpertRowCostFields,
   weekKeys: readonly string[],
   feePct: number
 ): number {
-  const raw = expertRowGrossCost(row, weekKeys)
+  const raw = expertRowBudget(row, weekKeys, feePct)
   return expertRowFeeSplit(
     raw,
     !!row.budgetIncludesFees,
@@ -75,7 +122,7 @@ export function expertRowCostSplit(
   weekKeys: readonly string[],
   feePct: number
 ): { raw: number; net: number; fee: number } {
-  const raw = expertRowGrossCost(row, weekKeys)
+  const raw = expertRowBudget(row, weekKeys, feePct)
   const { net, fee } = expertRowFeeSplit(
     raw,
     !!row.budgetIncludesFees,

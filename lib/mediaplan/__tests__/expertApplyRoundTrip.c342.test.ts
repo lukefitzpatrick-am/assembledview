@@ -1,23 +1,25 @@
 import "@/lib/testing/bothZones"
 /**
- * C-342, C-343 and C-344: plan to schedule grid to plan, with no edit, on
- * every channel that has an expert grid (20), every buy type its grid offers
- * that a line is priced on, a round and an awkward budget, Budget Includes
- * Fees on and off, client fee 0 and 12.5%, client pays on and off. Then the
- * same plan with one other row edited. Production (no fee, no buy type) has
- * its own case.
+ * C-342 to C-345, V66 B: plan to schedule grid to plan on every channel that
+ * has an expert grid (20), every buy type its grid offers that a line is
+ * priced on, a round and an awkward budget, Budget Includes Fees on and off,
+ * client fee 0 and 12.5%, client pays on and off. Production (no fee, no buy
+ * type) has its own case.
  *
  * The path is the one the containers run: `toExpert` (open the grid),
  * `fromExpert` with the container's fee options, then `mergeFromExpert`
- * (Apply). A grid round trip with no edit should return every burst as it was
- * saved: budget to the cent and of the same type, deliverables and dates.
+ * (Apply).
  *
- * Where it does not today, the case is pinned in `PINNED` (what moves, by how
- * much) and listed as a todo with the numbers. A pinned case that becomes
- * exact, or a new case that moves, fails this file. Fee-inclusive cases at
- * 12.5% are C-342 (the fee share, plus C-343 rounding); every other pinned
- * case is C-343 (a whole-unit deliverable times the rate is not the saved
- * budget). Fixing both empties `PINNED`.
+ * - No edit: every burst comes back as saved (budget to the cent and of the
+ *   same type, deliverables, buy amount, dates) and every line keeps its buy
+ *   type and flags. A budget that is not a whole multiple of its rate
+ *   (C-343) and a line whose bursts have different rates (C-345) included.
+ * - One other row edited: nothing else moves, and the edit reaches its row.
+ * - An edited cell: its deliverables are what was typed and its budget is
+ *   the card's rule read backwards (net = budget x (1 - fee) on a
+ *   fee-inclusive line, so budget = quantity x rate / (1 - fee); fee on top,
+ *   budget = quantity x rate). The line's other cells stay as saved.
+ * - A cell that holds several bursts, OOH spans (C-344) and the grid's money.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -48,7 +50,7 @@ import {
   SOCIALMEDIA_BUY_TYPE_OPTIONS,
   TV_BUY_TYPE_OPTIONS,
 } from "@/lib/mediaplan/expertGridChannelConfig"
-import { budgetCellDisplay } from "@/lib/mediaplan/expertGridDayEntry"
+import { budgetCellDisplay, qtyFromBudgetInput } from "@/lib/mediaplan/expertGridDayEntry"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowCostSplit, expertRowQuantitySum } from "@/lib/mediaplan/expertRowCost"
 import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
@@ -164,161 +166,6 @@ function savedPlan(ch: Channel, v: Variant) {
   return lines
 }
 
-/**
- * C-344: OOH carries each imported burst's saved budget on its merged span
- * (`gross`) and Apply writes that budget back whatever the planner typed,
- * so a rate or quantity edit on an imported span never reaches the budget.
- */
-const EDIT_IGNORED = new Set(["OOH"])
-
-/** Today's moves, per case. Empty when C-342 and C-343 are fixed. */
-const PINNED: Record<string, string> = {
-  "Search | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Search | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Search | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Search | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Search | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Search | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Search | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Search | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Social | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Social | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Social | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Social | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Social | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Social | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Social | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Social | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Influencers | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Influencers | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Influencers | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Integration | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Integration | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Integration | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Integration | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Integration | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Integration | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Integration | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Integration | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Digital Video | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Video | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Digital Video | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Digital Display | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Display | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Digital Display | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Digital Audio | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Digital Audio | fee-inclusive, fee 12.5%": "10 budgets +908186c, 0 deliverables",
-  "Digital Audio | fee-inclusive, fee 12.5%, client pays": "10 budgets +908186c, 0 deliverables",
-  "BVOD | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "BVOD | fee-inclusive, fee 12.5%": "10 budgets +908186c, 0 deliverables",
-  "BVOD | fee-inclusive, fee 12.5%, client pays": "10 budgets +908186c, 0 deliverables",
-  "Prog Display | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Display | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Prog Display | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Prog Video | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Video | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Prog Video | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Prog BVOD | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog BVOD | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Prog BVOD | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Prog Audio | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog Audio | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Prog Audio | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Prog OOH | fee on top, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee on top, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee on top, fee 12.5%": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee on top, fee 12.5%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee-inclusive, fee 0%": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee-inclusive, fee 0%, client pays": "2 budgets +114c, 0 deliverables",
-  "Prog OOH | fee-inclusive, fee 12.5%": "12 budgets -1483116c, 12 deliverables",
-  "Prog OOH | fee-inclusive, fee 12.5%, client pays": "12 budgets -1483116c, 12 deliverables",
-  "Newspaper | fee on top, fee 0%": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee on top, fee 0%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee on top, fee 12.5%": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee on top, fee 12.5%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee-inclusive, fee 0%": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee-inclusive, fee 0%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Newspaper | fee-inclusive, fee 12.5%": "6 budgets -869998c, 8 deliverables",
-  "Newspaper | fee-inclusive, fee 12.5%, client pays": "6 budgets -869998c, 8 deliverables",
-  "Magazines | fee on top, fee 0%": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee on top, fee 0%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee on top, fee 12.5%": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee on top, fee 12.5%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee-inclusive, fee 0%": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee-inclusive, fee 0%, client pays": "2 budgets +214446c, 0 deliverables",
-  "Magazines | fee-inclusive, fee 12.5%": "6 budgets -869998c, 8 deliverables",
-  "Magazines | fee-inclusive, fee 12.5%, client pays": "6 budgets -869998c, 8 deliverables",
-  "Cinema | fee on top, fee 0%": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee on top, fee 0%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee on top, fee 12.5%": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee on top, fee 12.5%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee-inclusive, fee 0%": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee-inclusive, fee 0%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Cinema | fee-inclusive, fee 12.5%": "10 budgets +906670c, 0 deliverables",
-  "Cinema | fee-inclusive, fee 12.5%, client pays": "10 budgets +906670c, 0 deliverables",
-  "Radio | fee on top, fee 0%": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee on top, fee 0%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee on top, fee 12.5%": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee on top, fee 12.5%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee-inclusive, fee 0%": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee-inclusive, fee 0%, client pays": "2 budgets +4446c, 0 deliverables",
-  "Radio | fee-inclusive, fee 12.5%": "10 budgets +906670c, 0 deliverables",
-  "Radio | fee-inclusive, fee 12.5%, client pays": "10 budgets +906670c, 0 deliverables",
-  "Television | fee on top, fee 0%": "6 budgets +7338c, 0 deliverables",
-  "Television | fee on top, fee 0%, client pays": "6 budgets +7338c, 0 deliverables",
-  "Television | fee on top, fee 12.5%": "6 budgets +7338c, 0 deliverables",
-  "Television | fee on top, fee 12.5%, client pays": "6 budgets +7338c, 0 deliverables",
-  "Television | fee-inclusive, fee 0%": "6 budgets +7338c, 0 deliverables",
-  "Television | fee-inclusive, fee 0%, client pays": "6 budgets +7338c, 0 deliverables",
-  "Television | fee-inclusive, fee 12.5%": "18 budgets +848818c, 0 deliverables",
-  "Television | fee-inclusive, fee 12.5%, client pays": "18 budgets +848818c, 0 deliverables",
-}
-
 function applyNoEdit(ch: Channel, v: Variant, saved: any[], edit?: (rows: any[]) => void) {
   const rows = ch.toExpert(saved, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
   edit?.(rows)
@@ -397,11 +244,7 @@ function readLines(lines: any[]): Map<string, { label: string; buyType: string; 
 
 type Moves = { budgets: number; centsDelta: number; deliverables: number; other: number; sample: string[] }
 
-/**
- * What moved between the saved plan and the plan after Apply. A package
- * line's deliverable is left out: with `expert_package_quantity` off it is
- * 0 (digital grids) or 1 (press) by rule (B10, C-168), not by this bug.
- */
+/** What moved between the saved plan and the plan after Apply. */
 function movesBetween(saved: any[], applied: any[], skipId?: string): Moves {
   const was = readLines(saved)
   const now = readLines(applied)
@@ -425,7 +268,7 @@ function movesBetween(saved: any[], applied: any[], skipId?: string): Moves {
         m.centsDelta += a.cents - b.cents
         if (m.sample.length < 4) m.sample.push(`${line.label} ${b.dates}: ${b.budget} -> ${a.budget}`)
       }
-      if (line.buyType !== "package" && !(Math.abs(a.deliverables - b.deliverables) < 1e-6)) {
+      if (!(Math.abs(a.deliverables - b.deliverables) < 1e-6)) {
         m.deliverables += 1
         if (m.sample.length < 4) m.sample.push(`${line.label} ${b.dates}: deliverables ${b.deliverables} -> ${a.deliverables}`)
       }
@@ -442,67 +285,129 @@ function movesBetween(saved: any[], applied: any[], skipId?: string): Moves {
   return m
 }
 
-const summary = (m: Moves) => `${m.budgets} budgets ${m.centsDelta >= 0 ? "+" : ""}${m.centsDelta}c, ${m.deliverables} deliverables`
+const summary = (m: Moves) =>
+  `${m.budgets} budgets ${m.centsDelta >= 0 ? "+" : ""}${m.centsDelta}c, ${m.deliverables} deliverables, ${m.other} other`
+const NO_MOVES = "0 budgets +0c, 0 deliverables, 0 other"
 
-/** Production has no fee and no buy type: cost x amount, the 20th grid. */
-test("Production: no edit returns every burst as saved", () => {
-  const saved: any[] = [
-    {
-      mediaType: "Production",
-      publisher: "Studio",
-      description: "Edit",
-      market: "National",
-      unitRate: 1234.56,
-      line_item_id: "c342Production1",
-      lineItemId: "c342Production1",
-      line_item: 1,
-      lineItem: 1,
-      bursts: FLIGHTS.map((f) => ({ cost: 1234.56, amount: 3, budget: "$3,703.68", buyAmount: "3", calculatedValue: 3, ...f })),
-      _label: "production",
-    },
-  ]
-  const rows = M.mapStandardProductionLineItemsToExpertRows(saved, COLS, START, END)
-  const applied = S.mergeProductionStandardFromExpertWithPrevious(
-    M.mapProductionExpertRowsToStandardLineItems(rows, COLS, START, END),
-    saved
-  )
-  const moves = movesBetween(saved, applied)
-  // Pinned (C-343): the two-week burst comes back as one burst a week, its
-  // amount split 2 and 1. The line's money is unchanged.
-  assert.deepEqual(moves.sample, ["production: 2 bursts -> 3"])
-  const total = (lines: any[]) => lines[0].bursts.reduce((c: number, b: any) => c + toCents(parseBurstMoney(b.budget)), 0)
-  assert.equal(total(applied), total(saved))
-})
-test.todo("Production: a multi-week burst should come back as one burst (C-343)")
+const chan = (name: string) => CHANNELS.find((c) => c.name === name)!
+const weekKeys = COLS.map((c) => c.weekKey)
+const cents = (n: number) => Math.round(n * 100)
+/** A burst's values, not the text of its budget (Apply writes "12000" for "$12,000.00"). */
+const valuesOf = (b: Burst | undefined) => (b ? { ...b, budget: undefined } : b)
+
+/** The grid row of a saved line. */
+const rowOf = (rows: any[], id: string) => rows.find((r: any) => r.sourceLineItemId === id)
 
 /**
- * What the grid shows for a fee-inclusive line today (the rule question in
- * C-342). One cpm line, $12,000.00 a week for one week, CPM $15.00, fee 12.5%,
- * saved deliverables 700,000 (the net $10,500.00 buys them). Every channel
- * imports the saved deliverables, so the grid's quantity is the net's, its
- * $ Budget cell is quantity x rate (the net), and its Net Media column and
- * footer take the fee off that again.
+ * Multiply the quantity a planner sees in the week that holds `ymd`: the week
+ * cell, the merged span that starts there, or that week's day cells (the
+ * import puts a one-week burst in whichever its channel uses).
  */
-for (const name of ["Search", "BVOD"]) {
-  test(`${name}: the grid shows a fee-inclusive $12,000.00 line as $10,500.00 (C-342)`, () => {
-    const ch = CHANNELS.find((c) => c.name === name)!
+function scaleWeek(row: any, ymd: string, factor: number) {
+  const k = [...weekKeys].reverse().find((w) => w <= ymd)!
+  const cell = row.weeklyValues[k]
+  if (cell !== "" && cell !== undefined && Number(cell) !== 0) {
+    row.weeklyValues[k] = Number(cell) * factor
+    return
+  }
+  const span = (row.mergedWeekSpans ?? []).find((sp: any) => sp.startWeekKey === k)
+  if (span) {
+    span.totalQty = span.totalQty * factor
+    return
+  }
+  const days = Object.keys(row.dailyValues ?? {}).filter((d) => d >= k && d < (weekKeys[weekKeys.indexOf(k) + 1] ?? "9999"))
+  assert.ok(days.length > 0, `no quantity in week ${k}`)
+  for (const d of days) row.dailyValues[d] = Number(row.dailyValues[d]) * factor
+}
+
+/** Production has no fee and no buy type: cost x amount, the 20th grid. */
+const productionLine = (bursts: any[]) => ({
+  mediaType: "Production",
+  publisher: "Studio",
+  description: "Edit",
+  market: "National",
+  unitRate: 1234.56,
+  line_item_id: "c342Production1",
+  lineItemId: "c342Production1",
+  line_item: 1,
+  lineItem: 1,
+  bursts,
+  _label: "production",
+})
+const productionApply = (saved: any[], edit?: (rows: any[]) => void) => {
+  const rows = M.mapStandardProductionLineItemsToExpertRows(saved, COLS, START, END)
+  edit?.(rows)
+  return S.mergeProductionStandardFromExpertWithPrevious(
+    M.mapProductionExpertRowsToStandardLineItems(rows, COLS, START, END),
+    saved
+  ) as any[]
+}
+
+test("Production: no edit returns every burst as saved, a multi-week burst as one burst (C-343)", () => {
+  const saved: any[] = [
+    productionLine(FLIGHTS.map((f) => ({ cost: 1234.56, amount: 3, budget: "$3,703.68", buyAmount: "3", calculatedValue: 3, ...f }))),
+  ]
+  const applied = productionApply(saved)
+  assert.equal(summary(movesBetween(saved, applied)), NO_MOVES, movesBetween(saved, applied).sample.join("; "))
+  assert.deepEqual(
+    applied[0].bursts.map((b: any) => [b.cost, b.amount, b.budget, b.buyAmount, b.calculatedValue]),
+    [
+      [1234.56, 3, "3703.68", "3", 3],
+      [1234.56, 3, "3703.68", "3", 3],
+    ]
+  )
+})
+
+test("Production: an edited week is cost x the amount typed; the other burst stays as saved", () => {
+  const saved: any[] = [
+    productionLine(FLIGHTS.map((f) => ({ cost: 1234.56, amount: 3, budget: "$3,703.68", buyAmount: "3", calculatedValue: 3, ...f }))),
+  ]
+  const applied = productionApply(saved, (rows) => scaleWeek(rows[0], FLIGHTS[0]!.startDate, 2))
+  const [first, second] = byStart(applied[0].bursts)
+  assert.deepEqual([first.amount, cents(parseBurstMoney(first.budget))], [6, cents(1234.56 * 6)])
+  assert.deepEqual([second.amount, second.budget, day(second.startDate), day(second.endDate)], [3, "3703.68", "2026-03-08", "2026-03-21"])
+})
+
+/**
+ * What the grid shows for a fee-inclusive line (V66 B). One cpm line,
+ * $12,000.00 for one week, CPM $15.00, fee 12.5%, saved deliverables 700,000
+ * (the net $10,500.00 buys them). The cells hold the 700,000; the $ cell, the
+ * Net Media column and the footer show the card's money.
+ */
+for (const name of ["Search", "BVOD", "OOH"]) {
+  test(`${name}: the grid shows a fee-inclusive $12,000.00 cpm line as the card does`, () => {
+    const ch = chan(name)
     const v: Variant = { incl: true, fee: 12.5, clientPays: false }
     const line = { ...savedPlan(ch, v).find((l) => l._label === "cpm round")!, bursts: [savedBurst("cpm", "round", v, FLIGHTS[0]!)] }
     const [row] = ch.toExpert([line], COLS, START, END)
-    const weekKeys = COLS.map((c) => c.weekKey)
+    const fees = { budgetIncludesFees: true, feePct: 12.5 }
     assert.equal(expertRowQuantitySum(row, weekKeys), 700_000)
-    assert.equal(budgetCellDisplay(row.buyType, Number(row.unitRate), expertRowQuantitySum(row, weekKeys)), (10500).toLocaleString())
+    assert.equal(budgetCellDisplay(row.buyType, Number(row.unitRate), expertRowQuantitySum(row, weekKeys), fees), (12000).toLocaleString())
+    assert.equal(qtyFromBudgetInput(row.buyType, Number(row.unitRate), 12_000, fees), 700_000)
     const split = expertRowCostSplit(row, weekKeys, 12.5)
-    assert.deepEqual(
-      { raw: split.raw, net: split.net, fee: split.fee },
-      { raw: 10_500, net: 9_187.5, fee: 1_312.5 },
-      "quantity x rate is read as the gross: Net Media $9,187.50, Total w/ fees $10,500.00"
-    )
+    assert.deepEqual({ raw: split.raw, net: split.net, fee: split.fee }, { raw: 12_000, net: 10_500, fee: 1_500 })
+    // The same row once the planner edits it: priced from the grid, same money.
+    scaleWeek(row, FLIGHTS[0]!.startDate, 1.5)
+    const edited = expertRowCostSplit(row, weekKeys, 12.5)
+    assert.deepEqual([cents(edited.raw), cents(edited.net), cents(edited.fee)], [1_800_000, 1_575_000, 225_000])
   })
 }
 
+test("the grid's money is the saved budget for an untouched awkward line (C-343), fee-inclusive and on top", () => {
+  for (const incl of [true, false]) {
+    const v: Variant = { incl, fee: 12.5, clientPays: false }
+    const line = savedPlan(chan("Search"), v).find((l) => l._label === "cpc awkward")!
+    const [row] = chan("Search").toExpert([line], COLS, START, END)
+    const split = expertRowCostSplit(row, weekKeys, 12.5)
+    assert.equal(cents(split.raw), 2 * 777_777)
+  }
+})
+
 const DUMP_FILE = process.env.C342_DUMP_FILE
 const dump: Record<string, string> = {}
+
+/** Buy types a cell's quantity prices (rate x quantity), where the fee rule bites. */
+const RATE_PRICED = new Set(Object.keys(RATES))
 
 for (const ch of CHANNELS) {
   for (const v of VARIANTS) {
@@ -511,32 +416,154 @@ for (const ch of CHANNELS) {
     const editId = saved[saved.length - 1]!.line_item_id as string
     const noEdit = applyNoEdit(ch, v, saved)
     const moves = movesBetween(saved, noEdit)
-    if (moves.budgets + moves.deliverables + moves.other > 0) dump[key] = summary(moves)
+    if (summary(moves) !== NO_MOVES) dump[key] = summary(moves)
 
-    test(`${key}: no edit returns every burst as saved, or the known C-342 / C-343 move`, () => {
-      assert.equal(moves.other, 0, moves.sample.join("; "))
-      assert.equal(summary(moves), PINNED[key] ?? summary({ budgets: 0, centsDelta: 0, deliverables: 0, other: 0, sample: [] }), moves.sample.join("; "))
+    test(`${key}: no edit returns every burst and line as saved`, () => {
+      assert.equal(summary(moves), NO_MOVES, moves.sample.join("; "))
     })
-    if (PINNED[key]) test.todo(`${key}: should return as saved; today ${PINNED[key]} (${moves.sample.slice(0, 2).join("; ")})`)
 
-    test(`${key}: editing one other row changes nothing on the rest`, () => {
+    test(`${key}: editing one other row changes nothing on the rest, and the edit reaches its row`, () => {
       const edited = applyNoEdit(ch, v, saved, (rows) => {
-        const row = rows.find((r: any) => r.sourceLineItemId === editId)
-        row.unitRate = 2000
+        rowOf(rows, editId).unitRate = 2000
       })
       const rest = movesBetween(noEdit, edited, editId)
-      assert.equal(rest.budgets + rest.deliverables + rest.other, 0, rest.sample.join("; "))
-      const target = readLines(edited).get(editId)!
-      if (EDIT_IGNORED.has(ch.name)) {
-        assert.equal(target.bursts[0]!.cents, 100_000, "C-344 pinned: the span keeps its saved budget")
-      } else {
-        assert.notEqual(target.bursts[0]!.cents, 100_000, "the edited row's new rate reaches its budget")
-      }
+      assert.equal(summary(rest), NO_MOVES, rest.sample.join("; "))
+      // A fixed cost rate is the budget (C-344: OOH no longer keeps $1,000.00).
+      assert.equal(readLines(edited).get(editId)!.bursts[0]!.cents, 200_000)
     })
-    if (EDIT_IGNORED.has(ch.name)) {
-      test.todo(`${key}: C-344, a rate edit on an imported span should reach its budget; today it keeps $1,000.00`)
-    }
+
+    test(`${key}: an edited cell holds the deliverables typed and the card's money; the line's other burst stays as saved`, () => {
+      const rated = saved.filter((l) => RATE_PRICED.has(l.buyType))
+      assert.ok(rated.length > 0)
+      const applied = applyNoEdit(ch, v, saved, (rows) => {
+        for (const l of rated) scaleWeek(rowOf(rows, l.line_item_id), FLIGHTS[0]!.startDate, 2)
+      })
+      const after = readLines(applied)
+      const before = readLines(saved)
+      for (const l of rated) {
+        const [was1, was2] = before.get(l.line_item_id)!.bursts
+        const [now1, now2] = after.get(l.line_item_id)!.bursts
+        const typed = 2 * was1!.deliverables
+        assert.ok(Math.abs(now1!.deliverables - typed) < 1e-6, `${l._label}: deliverables ${now1!.deliverables}, typed ${typed}`)
+        const rate = parseBurstMoney(l.bursts[0].buyAmount)
+        const media = l.buyType === "cpm" ? (typed / 1000) * rate : typed * rate
+        const net = v.incl ? (now1!.cents / 100) * (1 - v.fee / 100) : now1!.cents / 100
+        assert.ok(Math.abs(net - media) <= 0.01, `${l._label}: budget ${now1!.budget} buys ${net} of media, typed ${media}`)
+        assert.deepEqual(valuesOf(now2), valuesOf(was2), `${l._label}: the untouched burst`)
+      }
+      // Lines with no edit are as saved.
+      const untouched = movesBetween(
+        saved.filter((l) => !RATE_PRICED.has(l.buyType)),
+        applied
+      )
+      assert.equal(summary(untouched), NO_MOVES, untouched.sample.join("; "))
+    })
   }
+}
+
+/**
+ * C-345: a line whose bursts have different rates. An untouched burst keeps
+ * its own rate; an edited cell prices at the row's rate (the first burst's);
+ * a rate edit reprices every cell.
+ */
+for (const name of ["Social", "Radio", "OOH", "Digital Audio", "Prog Display"]) {
+  for (const incl of [false, true]) {
+    test(`${name}: a ${incl ? "fee-inclusive" : "fee on top"} line with two burst rates (C-345)`, () => {
+      const ch = chan(name)
+      const bt = name === "Radio" ? "spots" : name === "OOH" ? "panels" : "cpm"
+      const rates = bt === "cpm" ? ["$15.00", "$18.75"] : ["$600.00", "$750.00"]
+      const v: Variant = { incl, fee: 12.5, clientPays: false }
+      const bursts = FLIGHTS.map((f, i) => {
+        const b = { budget: i === 0 ? "$12,000.00" : "$9,250.50", buyAmount: rates[i]! }
+        return { ...b, calculatedValue: computeLoadedDeliverables(bt, b, incl, v.fee), ...f }
+      })
+      const saved = [{ ...savedPlan(ch, v).find((l) => l.buyType === bt)!, bursts }]
+      const id = saved[0]!.line_item_id
+      assert.equal(summary(movesBetween(saved, applyNoEdit(ch, v, saved))), NO_MOVES)
+
+      const second = readLines(applyNoEdit(ch, v, saved, (rows) => scaleWeek(rowOf(rows, id), FLIGHTS[1]!.startDate, 1)))
+      assert.equal(second.get(id)!.bursts[1]!.cents, 925_050, "typing the cell's own number back is no edit")
+
+      const edited = readLines(applyNoEdit(ch, v, saved, (rows) => scaleWeek(rowOf(rows, id), FLIGHTS[1]!.startDate, 2)))
+      const [b1, b2] = edited.get(id)!.bursts
+      assert.deepEqual([b1!.cents, b1!.buyAmountCents], [1_200_000, cents(parseBurstMoney(rates[0]))], "burst 1 untouched")
+      assert.equal(b2!.buyAmountCents, cents(parseBurstMoney(rates[0])), "the edited cell prices at the row's rate")
+
+      const rerated = readLines(applyNoEdit(ch, v, saved, (rows) => {
+        rowOf(rows, id).unitRate = parseBurstMoney(rates[1])
+      }))
+      assert.deepEqual(rerated.get(id)!.bursts.map((b) => b.buyAmountCents), [cents(parseBurstMoney(rates[1])), cents(parseBurstMoney(rates[1]))])
+    })
+  }
+}
+
+/**
+ * A cell that holds several bursts is one group: carried whole while it is
+ * untouched, priced from the grid whole once it is edited. Here two bursts in
+ * one week (3 and 4 days) beside a two-week burst.
+ */
+for (const ch of CHANNELS) {
+  for (const incl of [false, true]) {
+    test(`${ch.name}: two bursts in one week (${incl ? "fee-inclusive" : "fee on top"})`, () => {
+      const v: Variant = { incl, fee: 12.5, clientPays: false }
+      const bt = ch.buyTypes.find((b) => RATE_PRICED.has(b))!
+      const rate = RATES[bt]!.round
+      const burst = (budget: string, startDate: string, endDate: string) => {
+        const b = { budget, buyAmount: rate }
+        return { ...b, calculatedValue: computeLoadedDeliverables(bt, b, incl, v.fee), startDate, endDate }
+      }
+      const line = {
+        ...savedPlan(ch, v).find((l) => l.buyType === bt)!,
+        bursts: [
+          burst("$3,000.00", "2026-03-01", "2026-03-03"),
+          burst("$4,000.00", "2026-03-04", "2026-03-07"),
+          burst("$7,777.77", "2026-03-08", "2026-03-21"),
+        ],
+      }
+      const id = line.line_item_id
+      const saved = [line]
+      assert.equal(summary(movesBetween(saved, applyNoEdit(ch, v, saved))), NO_MOVES)
+
+      const edited = applyNoEdit(ch, v, saved, (rows) => scaleWeek(rowOf(rows, id), "2026-03-01", 2))
+      const bursts = readLines(edited).get(id)!.bursts
+      const weekOne = bursts.filter((b) => b.dates < "2026-03-08")
+      const typed = weekOne.reduce((q, b) => q + b.deliverables, 0)
+      const savedQty = saved[0]!.bursts.slice(0, 2).reduce((q: number, b: any) => q + b.calculatedValue, 0)
+      assert.ok(Math.abs(typed - 2 * savedQty) < 1e-6, `week one deliverables ${typed}`)
+      const r = parseBurstMoney(rate)
+      const media = bt === "cpm" ? (typed / 1000) * r : typed * r
+      const budget = weekOne.reduce((c, b) => c + b.cents, 0) / 100
+      assert.ok(Math.abs(budget * (incl ? 0.875 : 1) - media) <= 0.01 * weekOne.length, `week one ${budget} for ${media} of media`)
+      assert.deepEqual(valuesOf(bursts.at(-1)), valuesOf(readLines(saved).get(id)!.bursts.at(-1)), "the two-week burst stays as saved")
+    })
+  }
+}
+
+/** C-344: an OOH span's quantity and rate edits reach the saved line. */
+for (const incl of [false, true]) {
+  test(`OOH: a ${incl ? "fee-inclusive" : "fee on top"} panels span takes its quantity and rate edits (C-344)`, () => {
+    const ch = chan("OOH")
+    const v: Variant = { incl, fee: 12.5, clientPays: false }
+    const saved = [savedPlan(ch, v).find((l) => l._label === "panels round")!]
+    const id = saved[0]!.line_item_id
+    const rows = ch.toExpert(saved, COLS, START, END)
+    const span = rowOf(rows, id).mergedWeekSpans.find((sp: any) => sp.startYmd === "2026-03-08")
+    assert.ok(span, "the two-week burst opens as a span")
+    const was = readLines(saved).get(id)!.bursts[1]!
+
+    const fewer = was.deliverables - 1
+    const cut = readLines(applyNoEdit(ch, v, saved, (r) => {
+      rowOf(r, id).mergedWeekSpans.find((sp: any) => sp.startYmd === "2026-03-08").totalQty = fewer
+    })).get(id)!.bursts[1]!
+    assert.equal(cut.deliverables, fewer)
+    assert.ok(Math.abs((cut.cents / 100) * (incl ? 0.875 : 1) - fewer * 1500) <= 0.01)
+
+    const rerated = readLines(applyNoEdit(ch, v, saved, (r) => {
+      rowOf(r, id).unitRate = 3000
+    })).get(id)!.bursts[1]!
+    assert.equal(rerated.deliverables, was.deliverables)
+    assert.ok(Math.abs((rerated.cents / 100) * (incl ? 0.875 : 1) - was.deliverables * 3000) <= 0.01)
+  })
 }
 
 if (DUMP_FILE) {

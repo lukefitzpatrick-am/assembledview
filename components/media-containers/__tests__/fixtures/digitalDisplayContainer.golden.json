@@ -19566,17 +19566,17 @@
         "budgetIncludesFees": true,
         "buyType": "cpm",
         "clientPaysForMedia": false,
-        "deliverables": 382812.5,
-        "deliveryMediaAmount": 6125,
+        "deliverables": 437500,
+        "deliveryMediaAmount": 7000,
         "endDate": "2026-03-07T13:00:00.000Z",
-        "feeAmount": 875,
+        "feeAmount": 1000,
         "feePercentage": 12.5,
         "lineItemId": "tst001DD2",
-        "mediaAmount": 6125,
+        "mediaAmount": 7000,
         "mediaType": "digi display",
         "noAdserving": false,
         "startDate": "2026-02-08T13:00:00.000Z",
-        "totalAmount": 7000
+        "totalAmount": 8000
       },
       {
         "budgetIncludesFees": false,
@@ -19662,7 +19662,7 @@
         "budgetIncludesFees": false,
         "buyType": "package_inclusions",
         "clientPaysForMedia": false,
-        "deliverables": 1,
+        "deliverables": 3,
         "deliveryMediaAmount": 0,
         "endDate": "2026-02-21T13:00:00.000Z",
         "feeAmount": 0,
@@ -19758,17 +19758,17 @@
         "budgetIncludesFees": true,
         "buyType": "cpm",
         "clientPaysForMedia": false,
-        "deliverables": 255208.33333333334,
-        "deliveryMediaAmount": 765.625,
+        "deliverables": 291666.6666666667,
+        "deliveryMediaAmount": 875,
         "endDate": "2026-03-07T13:00:00.000Z",
-        "feeAmount": 109.375,
+        "feeAmount": 125,
         "feePercentage": 12.5,
         "lineItemId": "tst001DD15",
-        "mediaAmount": 765.625,
+        "mediaAmount": 875,
         "mediaType": "digi display",
         "noAdserving": false,
         "startDate": "2026-02-08T13:00:00.000Z",
-        "totalAmount": 875
+        "totalAmount": 1000
       },
       {
         "budgetIncludesFees": false,
@@ -19832,10 +19832,10 @@
         "buyingDemo": "P18+",
         "clientPaysForMedia": false,
         "creative": "creative 2 edited",
-        "deliverables": 382812.5,
-        "deliverablesAmount": "7000",
+        "deliverables": 437500,
+        "deliverablesAmount": "8000",
         "endDate": "2026-03-08",
-        "grossMedia": "6125",
+        "grossMedia": "7000",
         "lineItemId": "tst001DD2",
         "line_item": 2,
         "line_item_id": "tst001DD2",
@@ -19946,7 +19946,7 @@
         "buyingDemo": "P18+",
         "clientPaysForMedia": false,
         "creative": "creative 9",
-        "deliverables": 1,
+        "deliverables": 3,
         "deliverablesAmount": "0",
         "endDate": "2026-02-22",
         "grossMedia": "0",
@@ -20060,10 +20060,10 @@
         "buyingDemo": "P18+",
         "clientPaysForMedia": false,
         "creative": "creative 2",
-        "deliverables": 255208.33333333334,
-        "deliverablesAmount": "875",
+        "deliverables": 291666.6666666667,
+        "deliverablesAmount": "1000",
         "endDate": "2026-03-08",
-        "grossMedia": "765.625",
+        "grossMedia": "875",
         "lineItemId": "tst001DD15",
         "line_item": 14,
         "line_item_id": "tst001DD15",
@@ -20099,11 +20099,11 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$11,880.89",
+        "amount": "$12,684.46",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$3,471.67",
+        "amount": "$3,793.09",
         "monthYear": "March 2026"
       }
     ],
@@ -20154,9 +20154,9 @@
         "budget_includes_fees": true,
         "bursts": [
           {
-            "budget": "7000",
+            "budget": "8000",
             "buyAmount": "$16.00",
-            "calculatedValue": 382812.5,
+            "calculatedValue": 437500,
             "endDate": "2026-03-07T13:00:00.000Z",
             "startDate": "2026-02-08T13:00:00.000Z"
           }
@@ -20180,7 +20180,7 @@
         "platform": "Pub A",
         "publisher": "Pub A",
         "site": "Site A1",
-        "totalMedia": 6125
+        "totalMedia": 7000
       },
       {
         "bid_strategy": "cpm",
@@ -20354,7 +20354,7 @@
           {
             "budget": "0",
             "buyAmount": "0",
-            "calculatedValue": 1,
+            "calculatedValue": 3,
             "endDate": "2026-02-21T13:00:00.000Z",
             "startDate": "2026-02-01T13:00:00.000Z"
           }
@@ -20550,9 +20550,9 @@
         "budget_includes_fees": true,
         "bursts": [
           {
-            "budget": "875",
+            "budget": "1000",
             "buyAmount": "$3.00",
-            "calculatedValue": 255208.33333333334,
+            "calculatedValue": 291666.6666666667,
             "endDate": "2026-03-07T13:00:00.000Z",
             "startDate": "2026-02-08T13:00:00.000Z"
           }
@@ -20576,7 +20576,7 @@
         "platform": "Pub A",
         "publisher": "Pub A",
         "site": "Site A1",
-        "totalMedia": 765.625
+        "totalMedia": 875
       },
       {
         "bid_strategy": "",
@@ -20635,12 +20635,12 @@
       ],
       [
         {
-          "budget": "7000",
+          "budget": "8000",
           "buyAmount": "$16.00",
-          "calculatedValue": 382812.5,
+          "calculatedValue": 437500,
           "endDate": "2026-03-08",
-          "feeAmount": "$875.00",
-          "mediaAmount": "$6,125.00",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
           "startDate": "2026-02-09"
         }
       ],
@@ -20703,7 +20703,7 @@
         {
           "budget": "0",
           "buyAmount": "0",
-          "calculatedValue": 1,
+          "calculatedValue": 3,
           "endDate": "2026-02-22",
           "feeAmount": "$0.00",
           "mediaAmount": "$0.00",
@@ -20767,12 +20767,12 @@
       ],
       [
         {
-          "budget": "875",
+          "budget": "1000",
           "buyAmount": "$3.00",
-          "calculatedValue": 255208.33333333334,
+          "calculatedValue": 291666.6666666667,
           "endDate": "2026-03-08",
-          "feeAmount": "$109.38",
-          "mediaAmount": "$765.63",
+          "feeAmount": "$125.00",
+          "mediaAmount": "$875.00",
           "startDate": "2026-02-09"
         }
       ],
@@ -20789,8 +20789,8 @@
       ]
     ],
     "totals": [
-      25240.63,
-      3605.81
+      26225,
+      3746.43
     ]
   },
   "create": {

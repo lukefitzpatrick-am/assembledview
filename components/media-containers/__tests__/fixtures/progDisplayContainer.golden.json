@@ -4888,16 +4888,16 @@
         "line_item_id": "tst001PD2",
         "bursts": [
           {
-            "budget": "10500",
+            "budget": "12000",
             "buyAmount": "$15.00",
             "startDate": "2026-01-04T13:00:00.000Z",
             "endDate": "2026-01-30T13:00:00.000Z",
-            "calculatedValue": 612500
+            "calculatedValue": 700000
           }
         ],
         "feePct": 12.5,
         "line_item": 2,
-        "totalMedia": 9187.5
+        "totalMedia": 10500
       },
       {
         "media_plan_version": 0,
@@ -5064,16 +5064,16 @@
         "line_item_id": "tst001PD8",
         "bursts": [
           {
-            "budget": "10500",
+            "budget": "12000",
             "buyAmount": "$15.00",
             "startDate": "2026-01-04T13:00:00.000Z",
             "endDate": "2026-01-30T13:00:00.000Z",
-            "calculatedValue": 612500
+            "calculatedValue": 700000
           }
         ],
         "feePct": 12.5,
         "line_item": 8,
-        "totalMedia": 9187.5
+        "totalMedia": 10500
       },
       {
         "media_plan_version": 0,
@@ -5134,13 +5134,13 @@
       ],
       [
         {
-          "budget": "10500",
+          "budget": "12000",
           "buyAmount": "$15.00",
           "startDate": "2026-01-05",
           "endDate": "2026-01-31",
-          "calculatedValue": 612500,
-          "mediaAmount": "$9,187.50",
-          "feeAmount": "$1,312.50"
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
         }
       ],
       [
@@ -5189,13 +5189,13 @@
       ],
       [
         {
-          "budget": "10500",
+          "budget": "12000",
           "buyAmount": "$15.00",
           "startDate": "2026-01-05",
           "endDate": "2026-01-31",
-          "calculatedValue": 612500,
-          "mediaAmount": "$9,187.50",
-          "feeAmount": "$1,312.50"
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
         }
       ],
       [
@@ -5246,15 +5246,15 @@
       {
         "startDate": "2026-01-04T13:00:00.000Z",
         "endDate": "2026-01-30T13:00:00.000Z",
-        "mediaAmount": 9187.5,
-        "deliveryMediaAmount": 9187.5,
-        "feeAmount": 1312.5,
-        "totalAmount": 10500,
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
         "mediaType": "prog display",
         "feePercentage": 12.5,
         "clientPaysForMedia": false,
         "budgetIncludesFees": true,
-        "deliverables": 612500,
+        "deliverables": 700000,
         "buyType": "cpm",
         "noAdserving": false,
         "lineItemId": "tst001PD2"
@@ -5326,15 +5326,15 @@
       {
         "startDate": "2026-01-04T13:00:00.000Z",
         "endDate": "2026-01-30T13:00:00.000Z",
-        "mediaAmount": 9187.5,
-        "deliveryMediaAmount": 9187.5,
-        "feeAmount": 1312.5,
-        "totalAmount": 10500,
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
         "mediaType": "prog display",
         "feePercentage": 12.5,
         "clientPaysForMedia": false,
         "budgetIncludesFees": true,
-        "deliverables": 612500,
+        "deliverables": 700000,
         "buyType": "cpm",
         "noAdserving": false,
         "lineItemId": "tst001PD8"
@@ -5403,11 +5403,11 @@
         "creative": "creative 2 edited",
         "startDate": "2026-01-05",
         "endDate": "2026-01-31",
-        "deliverables": 612500,
+        "deliverables": 700000,
         "buyingDemo": "P18+",
         "buyType": "cpm",
-        "deliverablesAmount": "10500",
-        "grossMedia": "9187.5",
+        "deliverablesAmount": "12000",
+        "grossMedia": "10500",
         "clientPaysForMedia": false,
         "line_item_id": "tst001PD2",
         "lineItemId": "tst001PD2",
@@ -5498,11 +5498,11 @@
         "creative": "creative 2",
         "startDate": "2026-01-05",
         "endDate": "2026-01-31",
-        "deliverables": 612500,
+        "deliverables": 700000,
         "buyingDemo": "P18+",
         "buyType": "cpm",
-        "deliverablesAmount": "10500",
-        "grossMedia": "9187.5",
+        "deliverablesAmount": "12000",
+        "grossMedia": "10500",
         "clientPaysForMedia": false,
         "line_item_id": "tst001PD8",
         "lineItemId": "tst001PD8",
@@ -5532,7 +5532,7 @@
     "investment": [
       {
         "monthYear": "January 2026",
-        "amount": "$23,122.45"
+        "amount": "$26,122.45"
       },
       {
         "monthYear": "February 2026",
@@ -5544,8 +5544,8 @@
       }
     ],
     "totals": [
-      32875,
-      4696.42
+      35500,
+      5071.42
     ],
     "rawCount": null
   },

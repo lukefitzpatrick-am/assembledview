@@ -1,4 +1,5 @@
-import { expertRowRawCost } from "@/lib/mediaplan/expertChannelMappings"
+import { expertCellBudget } from "@/lib/mediaplan/expertChannelMappings"
+import { netFromGross } from "@/lib/mediaplan/deliverableBudget"
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import { weekKeysInSpanInclusive } from "@/lib/mediaplan/expertGridShared"
 import type { ExpertWeeklyValues } from "@/lib/mediaplan/expertModeWeeklySchedule"
@@ -25,17 +26,33 @@ export type DayDetailRowFields = {
   }>
 }
 
-/** Inverse of {@link expertRowRawCost}: $ typed in budget mode → deliverable qty. */
+/**
+ * The row's fee basis for its $ cells. V66 B: a $ cell shows and takes the
+ * line's budget (gross on a fee-inclusive line), the same money as the card.
+ */
+export type BudgetCellFees = { budgetIncludesFees: boolean; feePct: number }
+
+/**
+ * Inverse of {@link budgetCellDisplay}: $ typed in budget mode → deliverable
+ * qty. The budget is gross on a fee-inclusive line, so the deliverables are
+ * what its net buys (the card's rule); fixed cost and package rates are the
+ * budget already.
+ */
 export function qtyFromBudgetInput(
   buyType: string | null | undefined,
   unitRate: number,
-  budget: number
+  budget: number,
+  fees: BudgetCellFees
 ): number {
   if (!Number.isFinite(budget)) return 0
   if (!Number.isFinite(unitRate) || unitRate === 0) return 0
   const bt = String(buyType || "").toLowerCase()
-  if (bt === "cpm") return (budget / unitRate) * 1000
-  return budget / unitRate
+  const media =
+    bt === "fixed_cost" || bt === "package"
+      ? budget
+      : netFromGross(budget, fees.budgetIncludesFees, fees.feePct)
+  if (bt === "cpm") return (media / unitRate) * 1000
+  return media / unitRate
 }
 
 /** Rate-less buy types cannot take budget entry (no conversion exists). */
@@ -48,14 +65,22 @@ export function rowSupportsBudgetEntry(
   return Number.isFinite(unitRate) && unitRate > 0
 }
 
-/** Cell display for budget mode: derived qty × rate, 2dp. */
+/**
+ * Cell display for budget mode: the cell's budget, 2dp (qty × rate, grossed
+ * up on a fee-inclusive line). shortcut: a cell shows qty × the row's rate,
+ * so an untouched burst with its own rate or a budget that is not a whole
+ * multiple of the rate shows a few cents or its rate's difference here while
+ * the row's Net Media, the footer and Apply use the saved budget; upgrade by
+ * reading `expertCarry` per cell if planners need the cells exact too.
+ */
 export function budgetCellDisplay(
   buyType: string | null | undefined,
   unitRate: number,
-  qty: number
+  qty: number,
+  fees: BudgetCellFees
 ): string {
   if (!Number.isFinite(qty) || qty === 0) return ""
-  const cost = expertRowRawCost(buyType, unitRate, qty)
+  const cost = expertCellBudget(buyType, unitRate, qty, fees.budgetIncludesFees, fees.feePct)
   if (!Number.isFinite(cost) || cost === 0) return ""
   return (Math.round(cost * 100) / 100).toLocaleString(undefined, {
     minimumFractionDigits: 0,

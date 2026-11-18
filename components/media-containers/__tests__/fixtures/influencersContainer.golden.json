@@ -5300,15 +5300,15 @@
         "buyType": "cpm",
         "clientPaysForMedia": false,
         "deliverables": 0,
-        "deliveryMediaAmount": 6125,
+        "deliveryMediaAmount": 7000,
         "endDate": "2026-03-07T13:00:00.000Z",
-        "feeAmount": 875,
+        "feeAmount": 1000,
         "feePercentage": 12.5,
-        "mediaAmount": 6125,
+        "mediaAmount": 7000,
         "mediaType": "influencers",
         "noAdserving": false,
         "startDate": "2026-02-08T13:00:00.000Z",
-        "totalAmount": 7000
+        "totalAmount": 8000
       },
       {
         "budgetIncludesFees": false,
@@ -5393,7 +5393,7 @@
         "buyingDemo": "P18+",
         "clientPaysForMedia": false,
         "creative": "creative 4",
-        "deliverables": 1,
+        "deliverables": 4,
         "deliverablesAmount": "0",
         "endDate": "2026-03-29",
         "grossMedia": "0",
@@ -5438,10 +5438,10 @@
         "buyingDemo": "P18+",
         "clientPaysForMedia": false,
         "creative": "creative 7",
-        "deliverables": 382812.5,
-        "deliverablesAmount": "7000",
+        "deliverables": 437500,
+        "deliverablesAmount": "8000",
         "endDate": "2026-03-08",
-        "grossMedia": "6125",
+        "grossMedia": "7000",
         "market": "National",
         "platform": "Instagram",
         "startDate": "2026-02-09",
@@ -5469,11 +5469,11 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$7,285.71",
+        "amount": "$8,000.00",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$2,000.00",
+        "amount": "$2,285.71",
         "monthYear": "March 2026"
       }
     ],
@@ -5583,7 +5583,7 @@
           {
             "budget": "0",
             "buyAmount": "0",
-            "calculatedValue": 1,
+            "calculatedValue": 4,
             "endDate": "2026-03-28T13:00:00.000Z",
             "startDate": "2026-03-01T13:00:00.000Z"
           }
@@ -5671,9 +5671,9 @@
         "budget_includes_fees": true,
         "bursts": [
           {
-            "budget": "7000",
+            "budget": "8000",
             "buyAmount": "$16.00",
-            "calculatedValue": 382812.5,
+            "calculatedValue": 437500,
             "endDate": "2026-03-07T13:00:00.000Z",
             "startDate": "2026-02-08T13:00:00.000Z"
           }
@@ -5694,7 +5694,7 @@
         "objective": "objective 7",
         "platform": "Instagram",
         "targeting_attribute": "targeting 7",
-        "totalMedia": 6125
+        "totalMedia": 7000
       },
       {
         "bid_strategy": "",
@@ -5774,7 +5774,7 @@
         {
           "budget": "0",
           "buyAmount": "0",
-          "calculatedValue": 1,
+          "calculatedValue": 4,
           "endDate": "2026-03-29",
           "feeAmount": "$0.00",
           "mediaAmount": "$0.00",
@@ -5805,12 +5805,12 @@
       ],
       [
         {
-          "budget": "7000",
+          "budget": "8000",
           "buyAmount": "$16.00",
-          "calculatedValue": 382812.5,
+          "calculatedValue": 437500,
           "endDate": "2026-03-08",
-          "feeAmount": "$875.00",
-          "mediaAmount": "$6,125.00",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
           "startDate": "2026-02-09"
         }
       ],
@@ -5827,8 +5827,8 @@
       ]
     ],
     "totals": [
-      29125,
-      4160.71
+      30000,
+      4285.71
     ]
   },
   "create": {

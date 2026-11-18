@@ -25,6 +25,7 @@ import {
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
 import { projectLumpSumCardBudgetsOntoExpertRows } from "./cardExpertBudgetSync"
+import { attachExpertCarry, mapRowsWithCarry } from "./expertCarry"
 import { ingestSourceRowRefsFromFormSnapshot } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import {
   burstDatesForExpertSpan,
@@ -378,6 +379,27 @@ export function expertRowRawCost(
   return netMediaFromDeliverables(bt as BuyType, q, r)
 }
 
+/**
+ * V66 B: the budget of a grid cell the planner edited. The cell holds real
+ * deliverables, so quantity x rate is the media they buy; on a fee-inclusive
+ * line the budget is that media grossed up (`grossFromNet`: the card's rule,
+ * net = budget x (1 - fee), read backwards). Fixed cost and package rates are
+ * already the line's money, so they are never grossed up. Bonus and package
+ * inclusions are 0. Fee on top: quantity x rate, as before.
+ */
+export function expertCellBudget(
+  buyType: string | undefined | null,
+  unitRate: number,
+  qty: number,
+  budgetIncludesFees: boolean,
+  feePct: number
+): number {
+  const media = expertRowRawCost(buyType, unitRate, qty)
+  const bt = String(buyType || "").toLowerCase()
+  if (bt === "fixed_cost" || bt === "package") return media
+  return grossFromNet(media, budgetIncludesFees, feePct)
+}
+
 /** Net media for deliverable math; uses linear {@link netFromGross} when budget includes fees (same as OOHContainer). */
 function oohNetBudgetForDeliverables(
   rawBudget: number,
@@ -441,7 +463,6 @@ function accumulateDistributableBurstForExpertImport(
     campaignEndDate: Date
     distribute: (total: number, overlapKeys: string[]) => void
     spanBuyType?: string
-    spanGross?: number
   }
 ): void {
   const {
@@ -453,7 +474,6 @@ function accumulateDistributableBurstForExpertImport(
     campaignEndDate,
     distribute,
     spanBuyType,
-    spanGross,
   } = params
 
   const overlapKeys = radioWeekKeysOverlappingBurstWindow(
@@ -499,7 +519,6 @@ function accumulateDistributableBurstForExpertImport(
       rowIndex: ctx.rowIndex,
       mergeIdx: ctx.mergeIdx,
       buyType: spanBuyType,
-      gross: spanGross,
     })
     if (imported) {
       ctx.mergedWeekSpans.push(imported.span)
@@ -1095,7 +1114,7 @@ export function mapOohExpertRowsToStandardLineItems(
 ): StandardOohFormLineItem[] {
   const feePct = options?.feePctOoh ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -1127,8 +1146,7 @@ export function mapOohExpertRowsToStandardLineItems(
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
       spanDates?: ExpertSpanDateOverrides,
-      burstBuyType?: string,
-      grossOverride?: number
+      burstBuyType?: string
     ) => {
       const effectiveBuyType = burstBuyType || buyType
       const btLower = String(effectiveBuyType || "").toLowerCase()
@@ -1163,9 +1181,7 @@ export function mapOohExpertRowsToStandardLineItems(
       )
       const grossBudget = isInclusionBuyType
         ? 0
-        : grossOverride != null && Number.isFinite(grossOverride) && grossOverride > 0
-          ? grossOverride
-          : expertRowRawCost(effectiveBuyType, unitRate, qty)
+        : expertCellBudget(effectiveBuyType, unitRate, qty, budgetIncludesFees, feePct)
       const netForCalc = oohNetBudgetForDeliverables(
         grossBudget,
         budgetIncludesFees,
@@ -1216,8 +1232,7 @@ export function mapOohExpertRowsToStandardLineItems(
         startCol,
         endCol,
         span,
-        span.buyType,
-        span.gross
+        span.buyType
       )
     }
 
@@ -1230,8 +1245,7 @@ export function mapOohExpertRowsToStandardLineItems(
       if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
         const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
         for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
-          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
-          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const grossBudget = expertCellBudget(bt, unitRate, db.qty, budgetIncludesFees, feePct)
           const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
           bursts.push({
             budget: formatBurstBudget(grossBudget),
@@ -1291,7 +1305,7 @@ export function mapRadioExpertRowsToStandardLineItems(
 ): StandardRadioFormLineItem[] {
   const feePct = options?.feePctRadio ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -1335,8 +1349,7 @@ export function mapRadioExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = usesManualDeliverable
         ? roundDeliverables(bt, qty)
         : roundDeliverables(bt, qty)
@@ -1358,8 +1371,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
         const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
         for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
-          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
-          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const grossBudget = expertCellBudget(bt, unitRate, db.qty, budgetIncludesFees, feePct)
           const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
           bursts.push({
             budget: formatBurstBudget(grossBudget),
@@ -1377,8 +1389,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
 
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = usesManualDeliverable
         ? roundDeliverables(bt, qty)
         : roundDeliverables(bt, qty)
@@ -1619,10 +1630,6 @@ export function mapStandardOohLineItemsToExpertRows(
             weeklyValues
           ),
         spanBuyType: isBonusBurst ? "bonus" : undefined,
-        spanGross: (() => {
-          const stamped = parseNum(b.budget)
-          return stamped > 0 ? stamped : undefined
-        })(),
       })
       mergeIdx = importCtx.mergeIdx
     }
@@ -1673,9 +1680,15 @@ export function mapStandardOohLineItemsToExpertRows(
       ...(ingestSourceRowRefs.length > 0 ? { ingestSourceRowRefs } : {}),
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -1810,9 +1823,15 @@ export function mapStandardRadioLineItemsToExpertRows(
       ...(ingestSourceRowRefs.length > 0 ? { ingestSourceRowRefs } : {}),
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -2008,7 +2027,7 @@ export function mapProductionExpertRowsToStandardLineItems(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): StandardProductionFormLineItem[] {
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const id = deriveExpertSourceLineItemId(row, lineNo)
@@ -2222,9 +2241,15 @@ export function mapStandardProductionLineItemsToExpertRows(
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -2323,7 +2348,7 @@ export function mapCinemaExpertRowsToStandardLineItems(
   options?: ExpertToStandardBurstOptions
 ): StandardCinemaFormLineItem[] {
   const feePct = options?.feePctCinema ?? 0
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -2354,8 +2379,7 @@ export function mapCinemaExpertRowsToStandardLineItems(
         campaignStartDate,
         campaignEndDate
       )
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
       const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
       bursts.push({
@@ -2372,8 +2396,7 @@ export function mapCinemaExpertRowsToStandardLineItems(
       if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
         const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
         for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
-          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
-          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const grossBudget = expertCellBudget(bt, unitRate, db.qty, budgetIncludesFees, feePct)
           const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
           bursts.push({
             budget: formatBurstBudget(grossBudget),
@@ -2389,8 +2412,7 @@ export function mapCinemaExpertRowsToStandardLineItems(
       if (cell === "" || cell === undefined) continue
       const qty = typeof cell === "number" ? cell : parseNum(cell)
       if (!Number.isFinite(qty)) continue
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = roundDeliverables(bt, qty)
       const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
       const { start, end } = burstWindowForWeekColumn(col, campaignStartDate, campaignEndDate)
@@ -2526,9 +2548,15 @@ export function mapStandardCinemaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -2711,7 +2739,7 @@ export function mapTvExpertRowsToStandardLineItems(
 ): StandardTelevisionFormLineItem[] {
   const feePct = options?.feePctTelevision ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -2761,8 +2789,7 @@ export function mapTvExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = usesManualDeliverable
         ? roundDeliverables(bt, qty)
         : roundDeliverables(bt, qty)
@@ -2979,9 +3006,15 @@ export function mapStandardTvLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -3139,7 +3172,7 @@ export function mapBvodExpertRowsToStandardLineItems(
 ): StandardBvodFormLineItem[] {
   const feePct = options?.feePctBvod ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -3188,8 +3221,7 @@ export function mapBvodExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = usesManualDeliverable
         ? roundDeliverables(bt, qty)
         : roundDeliverables(bt, qty)
@@ -3227,8 +3259,7 @@ export function mapBvodExpertRowsToStandardLineItems(
       if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
         const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
         for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
-          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
-          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const grossBudget = expertCellBudget(bt, unitRate, db.qty, budgetIncludesFees, feePct)
           const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
           bursts.push({
             budget: formatBurstBudget(grossBudget),
@@ -3406,9 +3437,15 @@ export function mapStandardBvodLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -3572,7 +3609,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
 ): StandardDigiVideoFormLineItem[] {
   const feePct = options?.feePctDigiVideo ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -3608,7 +3645,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
         rawBudget,
@@ -3842,9 +3879,15 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -4010,7 +4053,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
 ): StandardDigiDisplayFormLineItem[] {
   const feePct = options?.feePctDigiDisplay ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -4046,7 +4089,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = oohNetBudgetForDeliverables(
         rawBudget,
@@ -4280,9 +4323,15 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -4443,7 +4492,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
 ): StandardDigiAudioFormLineItem[] {
   const feePct = options?.feePctDigiAudio ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -4492,8 +4541,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       const usesManualDeliverable =
         isInclusionBuyType ||
         isFixedDeliverableBuyType
-      const netMedia = netMediaFromDeliverables(bt, qty, unitRate)
-      const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+      const grossBudget = expertCellBudget(bt, unitRate, qty, budgetIncludesFees, feePct)
       const calculatedValue = usesManualDeliverable
         ? roundDeliverables(bt, qty)
         : roundDeliverables(bt, qty)
@@ -4531,8 +4579,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       if (row.dailyValues && weekHasDailyValues(row.dailyValues, dKeys)) {
         const dayCols = buildDayColumnsForWeek(col, campaignStartDate, campaignEndDate)
         for (const db of emitDayBurstsForWeek(dayCols, row.dailyValues)) {
-          const netMedia = netMediaFromDeliverables(bt, db.qty, unitRate)
-          const grossBudget = grossFromNet(netMedia, budgetIncludesFees, feePct)
+          const grossBudget = expertCellBudget(bt, unitRate, db.qty, budgetIncludesFees, feePct)
           const buyAmountStr = isInclusionBuyType ? "0" : formatRate(unitRate)
           bursts.push({
             budget: formatBurstBudget(grossBudget),
@@ -4710,9 +4757,15 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -4871,7 +4924,7 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
 ): StandardSocialMediaFormLineItem[] {
   const feePct = options?.feePctSocial ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -4907,7 +4960,7 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -5139,9 +5192,15 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -5295,7 +5354,7 @@ export function mapSearchExpertRowsToStandardLineItems(
 ): StandardSearchFormLineItem[] {
   const feePct = options?.feePctSearch ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -5331,7 +5390,7 @@ export function mapSearchExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -5559,9 +5618,15 @@ export function mapStandardSearchLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -5722,7 +5787,7 @@ export function mapInfluencersExpertRowsToStandardLineItems(
 ): StandardInfluencersFormLineItem[] {
   const feePct = options?.feePctInfluencers ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -5758,7 +5823,7 @@ export function mapInfluencersExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -5998,9 +6063,15 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -6161,7 +6232,7 @@ export function mapIntegrationExpertRowsToStandardLineItems(
 ): StandardIntegrationFormLineItem[] {
   const feePct = options?.feePctIntegration ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -6197,7 +6268,7 @@ export function mapIntegrationExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -6437,9 +6508,15 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey)
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey)
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -6531,7 +6608,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
 ): StandardNewspaperFormLineItem[] {
   const feePct = options?.feePctNewspaper ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -6567,7 +6644,7 @@ export function mapNewspaperExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -6799,11 +6876,17 @@ export function mapStandardNewspaperLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -6892,7 +6975,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
 ): StandardMagazineFormLineItem[] {
   const feePct = options?.feePctMagazines ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const unitRate = parseNum(row.unitRate)
     const buyType = row.buyType
@@ -6928,7 +7011,7 @@ export function mapMagazineExpertRowsToStandardLineItems(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
       const rawBudget = grossBudget
       const netForCalc = radioNetBudgetForDeliverables(
         rawBudget,
@@ -7158,11 +7241,17 @@ export function mapStandardMagazineLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -7280,7 +7369,7 @@ function buildBurstsFromProgExpertLikeRow(
         campaignEndDate,
         parsePushBurstDateInput(dateInput)
       )
-    const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+    const grossBudget = expertCellBudget(buyType, unitRate, qty, budgetIncludesFees, feePct)
     const rawBudget = grossBudget
     const netForCalc = oohNetBudgetForDeliverables(
       rawBudget,
@@ -7523,7 +7612,7 @@ export function mapProgAudioExpertRowsToStandardLineItems(
 ): StandardProgAudioFormLineItem[] {
   const feePct = options?.feePctProgAudio ?? 0
 
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
@@ -7638,11 +7727,17 @@ export function mapStandardProgAudioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -7725,7 +7820,7 @@ export function mapProgBvodExpertRowsToStandardLineItems(
   options?: ExpertToStandardBurstOptions
 ): StandardProgBvodFormLineItem[] {
   const feePct = options?.feePctProgBvod ?? 0
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
@@ -7833,11 +7928,17 @@ export function mapStandardProgBvodLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -7928,7 +8029,7 @@ export function mapProgDisplayExpertRowsToStandardLineItems(
   options?: ExpertToStandardBurstOptions
 ): StandardProgDisplayFormLineItem[] {
   const feePct = options?.feePctProgDisplay ?? 0
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
@@ -8040,11 +8141,17 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -8131,7 +8238,7 @@ export function mapProgVideoExpertRowsToStandardLineItems(
   options?: ExpertToStandardBurstOptions
 ): StandardProgVideoFormLineItem[] {
   const feePct = options?.feePctProgVideo ?? 0
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
@@ -8241,11 +8348,17 @@ export function mapStandardProgVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }
 
@@ -8330,7 +8443,7 @@ export function mapProgOohExpertRowsToStandardLineItems(
   options?: ExpertToStandardBurstOptions
 ): StandardProgOohFormLineItem[] {
   const feePct = options?.feePctProgOoh ?? 0
-  return rows.map((row, idx) => {
+  return mapRowsWithCarry(rows, weekColumns, (row, idx) => {
     const lineNo = idx + 1
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
@@ -8439,10 +8552,16 @@ export function mapStandardProgOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return projectLumpSumCardBudgetsOntoExpertRows(
-    __expertImportRows,
-    weekColumns.map((c) => c.weekKey),
-    // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-    { keepZeroPackageQty: true }
+  return attachExpertCarry(
+    projectLumpSumCardBudgetsOntoExpertRows(
+      __expertImportRows,
+      weekColumns.map((c) => c.weekKey),
+      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+      { keepZeroPackageQty: true }
+    ),
+    lineItems,
+    weekColumns,
+    campaignStartDate,
+    campaignEndDate
   )
 }

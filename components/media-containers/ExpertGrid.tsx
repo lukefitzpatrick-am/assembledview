@@ -143,7 +143,7 @@ import {
   ExpertGridDescriptorPinButton,
 } from "@/components/media-containers/ExpertGridDescriptorChrome"
 import {
-  expertRowGrossCost,
+  expertRowBudget,
   expertRowNetMedia,
   expertRowNetMediaTooltip,
   expertRowQuantitySum,
@@ -3319,7 +3319,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         clientPaysForMedia,
         bursts: [
           {
-            budget: expertRowGrossCost(row, weekKeys),
+            budget: expertRowBudget(row, weekKeys, feePercent),
             buyType,
             budgetIncludesFees,
             clientPaysForMedia,
@@ -3830,6 +3830,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                       const net = expertRowNetMedia(row, weekKeys, feePercent)
                       const qtySum = expertRowQuantitySum(row, weekKeys)
                       const rowUnitRate = parseNum(row.unitRate)
+                      const rowBudgetFees = {
+                        budgetIncludesFees: !!row.budgetIncludesFees,
+                        feePct: feePercent,
+                      }
                       const rowBudgetEntryOk = rowSupportsBudgetEntry(
                         row.buyType,
                         rowUnitRate
@@ -4466,7 +4470,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                       : budgetCellDisplay(
                                           row.buyType,
                                           rowUnitRate,
-                                          rawV === "" ? 0 : rawV
+                                          rawV === "" ? 0 : rawV,
+                                          rowBudgetFees
                                         )
                                     : qtyDisplayV
                                 renderedWeekCells.push(
@@ -4523,7 +4528,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                               qtyFromBudgetInput(
                                                 row.buyType,
                                                 rowUnitRate,
-                                                budget
+                                                budget,
+                                                rowBudgetFees
                                               )
                                             )
                                           )
@@ -4591,7 +4597,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                           : budgetCellDisplay(
                                               row.buyType,
                                               rowUnitRate,
-                                              rawV === "" ? 0 : rawV
+                                              rawV === "" ? 0 : rawV,
+                                              rowBudgetFees
                                             )
                                         : qtyDisplayV
                                     renderedWeekCells.push(
@@ -4661,7 +4668,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                                   qtyFromBudgetInput(
                                                     row.buyType,
                                                     rowUnitRate,
-                                                    budget
+                                                    budget,
+                                                    rowBudgetFees
                                                   )
                                                 )
                                               )
@@ -4735,7 +4743,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     : budgetCellDisplay(
                                         row.buyType,
                                         rowUnitRate,
-                                        cellQtyNum
+                                        cellQtyNum,
+                                        rowBudgetFees
                                       )
                                   : display
                               const budgetEntryBlocked =
@@ -5469,7 +5478,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                               qtyFromBudgetInput(
                                                 row.buyType,
                                                 rowUnitRate,
-                                                budget
+                                                budget,
+                                                rowBudgetFees
                                               )
                                             )
                                           )
@@ -5763,7 +5773,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
               </span>
               <span className="inline-flex items-baseline gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm">
                 <span className="text-muted-foreground">
-                  Fees ({feePercent}% on net)
+                  Fees ({feePercent}% of gross)
                 </span>
                 <span className="font-semibold tabular-nums text-foreground">
                   {formatAUD(containerTotals.fee)}

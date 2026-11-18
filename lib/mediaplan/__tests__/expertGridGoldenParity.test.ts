@@ -4,6 +4,12 @@
  * Search / OOH / ProgVideo / Radio / Cinema / DigiVideo to the cent — do not
  * change expected values without intentional behaviour change review.
  *
+ * C342B (V66 B): the rows here are built by hand (no `expertCarry`), so every
+ * cell counts as edited. On a fee-inclusive row the cells are deliverables:
+ * Search, OOH, ProgVideo and DigiVideo now save the typed deliverables and the
+ * budget that buys them at the fee (100 clicks at $2.50 and 10% save 277.78
+ * and 100, were 250 and 90). Radio and Cinema already grossed up.
+ *
  * Regenerate Search/OOH/ProgVideo via: npx tsx lib/mediaplan/__tests__/_dumpExpertGoldens.ts
  * Regenerate Radio/Cinema/DigiVideo via: npx tsx lib/mediaplan/__tests__/_dumpP1Goldens.ts
  */
@@ -158,18 +164,18 @@ const SEARCH_GOLDEN = [
     lineItem: 1,
     bursts: [
       {
-        budget: "250",
+        budget: "277.78",
         buyAmount: "$2.50",
         startDate: "2026-01-05",
         endDate: "2026-01-10",
-        calculatedValue: 90,
+        calculatedValue: 100,
       },
       {
-        budget: "125",
+        budget: "138.89",
         buyAmount: "$2.50",
         startDate: "2026-01-11",
         endDate: "2026-01-17",
-        calculatedValue: 45,
+        calculatedValue: 50,
       },
     ],
   },
@@ -327,11 +333,11 @@ const OOH_GOLDEN = [
     lineItem: 2,
     bursts: [
       {
-        budget: "40",
+        budget: "44.44",
         buyAmount: "$8.00",
         startDate: "2026-01-05",
         endDate: "2026-01-10",
-        calculatedValue: 4500,
+        calculatedValue: 5000,
       },
     ],
   },
@@ -406,18 +412,18 @@ const PROG_VIDEO_GOLDEN = [
     lineItem: 1,
     bursts: [
       {
-        budget: "900",
+        budget: "1022.73",
         buyAmount: "$0.045",
         startDate: "2026-01-05",
         endDate: "2026-01-10",
-        calculatedValue: 17600,
+        calculatedValue: 20000,
       },
       {
-        budget: "450",
+        budget: "511.36",
         buyAmount: "$0.045",
         startDate: "2026-01-11",
         endDate: "2026-01-17",
-        calculatedValue: 8800,
+        calculatedValue: 10000,
       },
     ],
   },
@@ -748,18 +754,18 @@ const DIGI_VIDEO_GOLDEN = [
     "lineItem": 1,
     "bursts": [
       {
-        "budget": "750",
+        "budget": "833.33",
         "buyAmount": "$0.05",
         "startDate": "2026-01-05",
         "endDate": "2026-01-10",
-        "calculatedValue": 13500
+        "calculatedValue": 15000
       },
       {
-        "budget": "250",
+        "budget": "277.78",
         "buyAmount": "$0.05",
         "startDate": "2026-01-11",
         "endDate": "2026-01-17",
-        "calculatedValue": 4500
+        "calculatedValue": 5000
       }
     ]
   },
@@ -892,7 +898,7 @@ test("golden: computeLoadedDeliverables matches mapped burst deliverables to the
       feePct: 0,
       expected: 4,
     },
-    // OOH O2 — CPM with fees (mapper budget "$40" / rate $8 → 4500)
+    // OOH O2 — CPM with fees (budget "$40" / rate $8 → 4500)
     {
       buyType: "cpm",
       burst: { budget: "40", buyAmount: "8" },
@@ -948,7 +954,7 @@ test("golden: computeLoadedDeliverables matches mapped burst deliverables to the
       feePct: 0,
       expected: 50,
     },
-    // DigiVideo DV1 — CPV with fees (mapper calculatedValue after fee strip)
+    // DigiVideo DV1 — CPV with fees (calculatedValue after fee strip)
     {
       buyType: "cpv",
       burst: { budget: "750", buyAmount: "0.05", calculatedValue: 13500 },

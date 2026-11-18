@@ -163,8 +163,6 @@ export type ImportBurstAsSpanParams = Readonly<{
   rowIndex: number
   mergeIdx: number
   buyType?: string
-  /** Card burst budget for this span (ingest / lump-sum round-trip). */
-  gross?: number
 }>
 
 /**
@@ -221,9 +219,6 @@ export function tryImportMultiWeekBurstAsMergedSpan(
       startYmd: toDateOnlyString(clampedStart),
       endYmd: toDateOnlyString(clampedEnd),
       ...(params.buyType ? { buyType: params.buyType } : {}),
-      ...(params.gross != null && Number.isFinite(params.gross)
-        ? { gross: params.gross }
-        : {}),
     },
     nextMergeIdx: mergeIdx + 1,
   }

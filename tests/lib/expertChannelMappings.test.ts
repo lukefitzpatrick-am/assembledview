@@ -68,7 +68,7 @@ test("OOH expert row produces one line item and one burst per filled week; budge
   assert.equal(line.bursts[0]!.calculatedValue, 2)
 })
 
-test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctOoh", () => {
+test("OOH CPM on a fee-inclusive line: the cell is the deliverables, the budget buys them at the fee (V66 B)", () => {
   const campaignStart = new Date(2025, 0, 5)
   const campaignEnd = new Date(2025, 0, 11)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
@@ -94,7 +94,7 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
         budgetIncludesFees: true,
         unitRate: 1,
         grossCost: 0,
-        weeklyValues: { [w0]: 10 },
+        weeklyValues: { [w0]: 10_000 },
         mergedWeekSpans: [],
       },
     ],
@@ -104,16 +104,17 @@ test("OOH CPM uses net budget for deliverables when budgetIncludesFees + feePctO
     { budgetIncludesFees: true, feePctOoh: 10 }
   )
 
-  const qty = 10
+  // 10,000 impressions at CPM $1 is $10 of media; at a 10% fee (a slice of
+  // gross) the budget is $10 / 0.9 = $11.11, and its net buys the 10,000.
+  const qty = 10_000
   const unitRate = 1
-  const gross = (qty / 1000) * unitRate
-  // Linear fee-on-gross (same as netFromGross / OOHContainer); not gross/(1+fee/100).
-  const net = gross * (1 - 10 / 100)
-  assert.equal(line.bursts[0]!.budget, String(gross))
+  const media = (qty / 1000) * unitRate
+  assert.equal(line.bursts[0]!.budget, "11.11")
   assert.equal(
     line.bursts[0]!.calculatedValue,
-    roundDeliverables("cpm", deliverablesFromBudget("cpm", net, unitRate))
+    roundDeliverables("cpm", deliverablesFromBudget("cpm", (media / 0.9) * (1 - 10 / 100), unitRate))
   )
+  assert.equal(line.bursts[0]!.calculatedValue, qty)
 })
 
 test("production buy type uses linear qty × rate (same branch as spots)", () => {
