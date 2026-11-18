@@ -12,6 +12,7 @@ import { sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
 import { auFyBoundsDateOnly } from "@/lib/dates/auFinancialYear"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import {
   buildOwedLedger,
   isOwedBucket,
@@ -99,12 +100,7 @@ export async function fetchOwedLedger(query: OwedQuery): Promise<OwedLedgerPaylo
   const monthFrom = query.from
   const monthTo = query.to
 
-  const [todayRow, ar, clients, aliases, links] = await Promise.all([
-    rowsOf<{ sydney_today: string }>(
-      await db.execute(
-        sql`SELECT (timezone('Australia/Sydney', now()))::date::text AS sydney_today`
-      )
-    ),
+  const [ar, clients, aliases, links] = await Promise.all([
     rowsOf<ArRow>(
       await db.execute(sql`
         SELECT
@@ -153,7 +149,8 @@ export async function fetchOwedLedger(query: OwedQuery): Promise<OwedLedgerPaylo
     loadContactLinks(),
   ])
 
-  const todayYmd = todayRow[0]?.sydney_today ?? new Date().toISOString().slice(0, 10)
+  // Ageing counts to the Melbourne day (C-277), from the app clock like every other "today".
+  const todayYmd = getMelbourneTodayISO()
 
   const clientRows: ClientRow[] = clients.map((c) => ({
     id: Number(c.id),
