@@ -437,10 +437,13 @@ describe.each(CHANNELS)("$name container golden (W5afix)", (channel) => {
     out.lineIdGap = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([1, 2, 4]))
     expect([...new Set(rec.billing!.map((b) => b.lineItemId))]).toEqual(ids([1, 2, 4]))
+    // C-340: Excel rows (and so the naming workbook) carry the stored ids too.
+    expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(ids([1, 2, 4]))
     act(() => buttons("Remove")[0].click())
     await settle()
     out.lineIdGapRemove = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([2, 4]))
+    expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(ids([2, 4]))
 
     const golden =resolve(
       process.cwd(),

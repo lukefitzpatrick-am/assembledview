@@ -863,10 +863,11 @@ export function useMediaChannelContainer(
           const mediaAmount = computedBurst
             ? computedBurst.mediaAmount
             : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0
-          const storedIds = config.excelLineIds === "stored"
-          const lineNumber = storedIds ? lineDisplayNumber(lineItem, lineItemIndex) : lineItemIndex + 1
+          // The line's stored id, as save and billing carry it: the naming
+          // workbook prints it as the last token of every trafficked name (C-340).
+          const lineNumber = lineDisplayNumber(lineItem, lineItemIndex)
           const lineItemId =
-            (storedIds && String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim()) ||
+            String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim() ||
             buildLineItemId(mbaNumber, mediaTypeIdCode, lineNumber)
           const keepsQuantity =
             config.excelPackageKeepsQuantity &&

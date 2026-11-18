@@ -3422,8 +3422,8 @@
         "deliverablesAmount": "$4,000.00",
         "grossMedia": "4000",
         "clientPaysForMedia": false,
-        "line_item_id": "tst001SM3",
-        "lineItemId": "tst001SM3",
+        "line_item_id": "tst001SM4",
+        "lineItemId": "tst001SM4",
         "line_item": 3,
         "buyAmount": "$10.00"
       }
@@ -3582,8 +3582,8 @@
         "deliverablesAmount": "$2,000.00",
         "grossMedia": "2000",
         "clientPaysForMedia": false,
-        "line_item_id": "tst001SM1",
-        "lineItemId": "tst001SM1",
+        "line_item_id": "tst001SM2",
+        "lineItemId": "tst001SM2",
         "line_item": 1,
         "buyAmount": "$10.00"
       },
@@ -3601,8 +3601,8 @@
         "deliverablesAmount": "$4,000.00",
         "grossMedia": "4000",
         "clientPaysForMedia": false,
-        "line_item_id": "tst001SM2",
-        "lineItemId": "tst001SM2",
+        "line_item_id": "tst001SM4",
+        "lineItemId": "tst001SM4",
         "line_item": 2,
         "buyAmount": "$10.00"
       }

@@ -575,10 +575,14 @@ describe.each(CHANNELS)("$name container golden (W5b)", (channel) => {
     await settle()
     out.lineIdGap = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([1, 2, 4]))
+    // C-340: Excel rows carry the stored ids (Influencers' rows carry none).
+    const excelIds = () => [...new Set(rec.excel!.map((r) => r.line_item_id))]
+    if (channel.name === "integration") expect(excelIds()).toEqual(ids([1, 2, 4]))
     act(() => buttons("Remove")[0].click())
     await settle()
     out.lineIdGapRemove = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([2, 4]))
+    if (channel.name === "integration") expect(excelIds()).toEqual(ids([2, 4]))
 
     const golden =resolve(
       process.cwd(),

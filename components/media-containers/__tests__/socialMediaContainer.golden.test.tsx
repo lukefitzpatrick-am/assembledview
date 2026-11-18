@@ -316,10 +316,13 @@ describe("SocialMediaContainer golden (W5a)", () => {
     await settle()
     out.lineIdGap = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(["tst001SM1", "tst001SM2", "tst001SM4"])
+    // C-340: Excel rows (and so the naming workbook) carry the stored ids too.
+    expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(["tst001SM1", "tst001SM2", "tst001SM4"])
     act(() => buttons(host, "Remove")[0].click())
     await settle()
     out.lineIdGapRemove = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(["tst001SM2", "tst001SM4"])
+    expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(["tst001SM2", "tst001SM4"])
 
     const text =`${JSON.stringify(out, null, 2)}\n`
     if (process.env.UPDATE_GOLDEN === "1") {

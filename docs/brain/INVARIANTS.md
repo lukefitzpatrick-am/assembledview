@@ -21,6 +21,7 @@ pct === 100 → fee = 0 (division guard)
 - "Save and download all" saves first unless a published plan is unchanged (`lib/mediaplan/saveAndDownloadAllMode.ts`).
 - Expected spend compared with delivered spend is media only (AV-D4). Plan and billing totals use all_in and say so.
 - Container `get*Bursts` helpers and `useMediaChannelContainer` pass `buyType` into `computeBurstAmounts` so UI rollups match finance for bonus / package_inclusions.
+- A channel's Excel rows carry each line's stored `line_item_id`, the same id save and billing carry, never one rebuilt from the line's position (only a line with no id gets one minted): the naming workbook writes it as the last token of every trafficked name.
 - Expert-grid Apply must not restore a bonus / package_inclusions card's previous cost: `attachBurstPreserve` passes the generated line's `buyType` into `preservePreviousBurstsIfApplyWouldZeroBudget`.
 - An explicit `"0"` on a non-production burst is **stated money**. `buildEditorLineItemInputs` and `buildSavePlanLineItemsFromSnapshots` back-fill `enteredAmount` from the line total only when every raw burst has `parseMoneyInput(budget) == null` (never entered). Production stays on the mapped-sum `<= 0` path because its budget often lives in `cost`×`amount` with a blank `budget` key.
 - `buyType` match is case-insensitive and trimmed (`"Bonus"` / `" bonus "` → zero).

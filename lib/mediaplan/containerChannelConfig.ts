@@ -307,11 +307,11 @@ export type ContainerChannelConfig = {
   bareHydratedBursts?: boolean
   /**
    * false: Excel rows carry no line ids and no buy amount (Influencers).
-   * "stored": the line's stored id and its display number (Digital Display,
-   * W5d), so a row keeps its id after a line above it is removed. Unset: the
-   * id and number rebuilt from the line's position.
+   * Unset: each row carries the line's stored id (as save and billing do)
+   * and its display number, so a row keeps its id after a line above it is
+   * removed; the naming workbook names lines by it (C-340).
    */
-  excelLineIds?: false | "stored"
+  excelLineIds?: false
   /** "after" puts a duplicated line straight after its source. Unset: at the end. */
   duplicatePlacement?: "after"
   /**
@@ -1262,7 +1262,6 @@ export const DIGITALDISPLAY_CONTAINER_CONFIG: ContainerChannelConfig = {
   // A saved burst with no date takes the campaign day, as the old container did.
   burstDateFallback: "campaignDay",
   sites: { noun: "Display", fetch: getDisplaySites, create: createDisplaySite, pickPublisher: true },
-  excelLineIds: "stored",
   // Load: platform and publisher both from the publisher first, targeting from
   // `targeting_attribute`, its own line ids, budgets as text and no saved fee.
   hydrateLine: (line, saved, { mbaNumber, index }) => {
