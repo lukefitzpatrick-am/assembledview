@@ -593,7 +593,8 @@ export function useMediaChannelContainer(
     const lineItemTotals = source.map((lineItem: any, index: number) => {
       let lineDeliverables = 0
       ;(lineItem.bursts || []).forEach((burst: any) => {
-        lineDeliverables += burst.calculatedValue || 0
+        // The bonus input writes a string; sum numbers, never concatenate.
+        lineDeliverables += Number.parseFloat(String(burst.calculatedValue ?? 0)) || 0
       })
       const row = money.lines[index]
 
@@ -630,7 +631,7 @@ export function useMediaChannelContainer(
 
       lineItems.forEach((lineItem: any) => {
         ;(lineItem.bursts || []).forEach((burst: any) => {
-          overallDeliverableCount += burst?.calculatedValue || 0
+          overallDeliverableCount += Number.parseFloat(String(burst?.calculatedValue ?? 0)) || 0
         })
       })
 
