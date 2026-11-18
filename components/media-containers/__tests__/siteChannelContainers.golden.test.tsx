@@ -27,6 +27,14 @@
  * change, a site pick, Add Site, a buy type change to Bonus, Remove line,
  * Duplicate and Add line, an edited expert grid Apply, and the create path.
  *
+ * W5d adds (review F2 to F5, and the Display and BVOD gaps): each channel's
+ * own site catalogue mock (a call to another channel's catalogue fails the
+ * test), the Add Site publisher pick where the dialog has one, the site list
+ * refreshed after Add, the card summary cells, the grid's site list, a
+ * cleared bonus input, a bonus line changed to Fixed Cost, a blank buy
+ * type, a blank site (BVOD falls back to station, then publisher), Display's
+ * numeric budget, BVOD's snake-case burst keys, and a line with no line id.
+ *
  * Regenerate only for an intended behaviour change:
  *   UPDATE_GOLDEN=1 npx vitest run components/media-containers/__tests__/siteChannelContainers.golden.test.tsx
  *
@@ -60,8 +68,26 @@ const SITES = [
   { id: 23, platform: "Pub B", site: "" },
   { id: 24, platform: " pub  b", site: "Site B3" },
 ]
-const created: { channel: string; data: unknown }[] = []
+const created: { channel: string; data: { platform: string; site: string } }[] = []
+/** The catalogue the channel under test reads and writes; any other is a failure (review F2). */
+let ownCatalogue = ""
+const wrongCatalogue: string[] = []
+const fetchSites = (channel: string) => async () => {
+  if (channel !== ownCatalogue) {
+    wrongCatalogue.push(`fetch ${channel}`)
+    throw new Error(`read the ${channel} catalogue`)
+  }
+  // Sites added in this test come back on the next read (the list refreshes after Add).
+  return [
+    ...SITES,
+    ...created.map((c, i) => ({ id: 99 + i, platform: c.data.platform, site: `${c.data.site} (catalogue)` })),
+  ]
+}
 const createSite = (channel: string) => async (data: { platform: string; site: string }) => {
+  if (channel !== ownCatalogue) {
+    wrongCatalogue.push(`create ${channel}`)
+    throw new Error(`wrote the ${channel} catalogue`)
+  }
   created.push({ channel, data })
   // The catalogue's own spelling, so a line takes the created site's name.
   return { id: 99, platform: data.platform, site: `${data.site} (catalogue)` }
@@ -73,10 +99,10 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   getPublishersForDigiDisplay: async () => PUBLISHERS,
   getPublishersForDigiAudio: async () => PUBLISHERS,
   getPublishersForBvod: async () => PUBLISHERS,
-  getVideoSites: async () => SITES,
-  getDisplaySites: async () => SITES,
-  getAudioSites: async () => SITES,
-  getBVODSites: async () => SITES,
+  getVideoSites: fetchSites("video"),
+  getDisplaySites: fetchSites("display"),
+  getAudioSites: fetchSites("audio"),
+  getBVODSites: fetchSites("bvod"),
   createVideoSite: createSite("video"),
   createDisplaySite: createSite("display"),
   createAudioSite: createSite("audio"),
@@ -197,6 +223,7 @@ function siteLines(code: string, own: LineSpec[], budget = "$5,000.00") {
 
 type Channel = {
   name: string
+  catalogue: string
   Component: ComponentType<any>
   feeProp: string
   cardLabel: string
@@ -206,6 +233,7 @@ type Channel = {
 const CHANNELS: Channel[] = [
   {
     name: "digitalVideo",
+    catalogue: "video",
     Component: DigitalVideoContainer,
     feeProp: "feedigivideo",
     cardLabel: "digi video",
@@ -227,6 +255,7 @@ const CHANNELS: Channel[] = [
   },
   {
     name: "digitalDisplay",
+    catalogue: "display",
     Component: DigitalDisplayContainer,
     feeProp: "feedigidisplay",
     cardLabel: "digital display",
@@ -251,12 +280,23 @@ const CHANNELS: Channel[] = [
             bursts: [burst("0", "0", "2026-02-02", "2026-02-22", { calculatedValue: 3 })],
           },
           { buy_type: "cpm", bursts: [] },
+          // W5d: a blank buy type, a blank site, a numeric budget and buy
+          // amount (Display's own parser), and a line with no line id.
+          { buy_type: "", bursts: [burst("$500.00", "$5.00", "2026-01-12", "2026-01-25")] },
+          { site: "", bursts: [burst("$700.00", "$7.00", "2026-01-12", "2026-01-25")] },
+          { bursts: [burst(5000, 10, "2026-01-12", "2026-02-08")] },
+          {
+            line_item_id: null,
+            line_item: null,
+            bursts: [burst("$900.00", "$9.00", "2026-02-02", "2026-02-15")],
+          },
         ],
         budget,
       ),
   },
   {
     name: "digitalAudio",
+    catalogue: "audio",
     Component: DigitalAudioContainer,
     feeProp: "feedigiaudio",
     cardLabel: "digital audio",
@@ -286,6 +326,7 @@ const CHANNELS: Channel[] = [
   },
   {
     name: "bvod",
+    catalogue: "bvod",
     Component: BVODContainer,
     feeProp: "feebvod",
     cardLabel: "bvod",
@@ -305,6 +346,27 @@ const CHANNELS: Channel[] = [
             bursts: [burst("$12,000.00", "$1,000.00", "2026-01-05", "2026-01-31", { calculatedValue: 8 })],
           },
           { buy_type: "cpm", client_pays_for_media: true, bursts: [] },
+          // W5d: a blank buy type; a blank site with a station, and one
+          // without (station, then publisher); snake-case burst keys; a line
+          // with no line id.
+          { buy_type: "", bursts: [burst("$500.00", "$5.00", "2026-01-12", "2026-01-25")] },
+          {
+            site: "",
+            station: "Station S",
+            bursts: [burst("$700.00", "$7.00", "2026-01-12", "2026-01-25")],
+          },
+          { site: "", bursts: [burst("$600.00", "$6.00", "2026-01-12", "2026-01-25")] },
+          {
+            bursts: [
+              { budget: "$1,500.00", rate: "$15.00", start_date: "2026-01-12", end_date: "2026-02-08" },
+              { budget: "$800.00", buy_amount: "$8.00", start_date: "2026-02-09", end_date: "2026-02-22" },
+            ],
+          },
+          {
+            line_item_id: null,
+            line_item: null,
+            bursts: [burst("$900.00", "$9.00", "2026-02-02", "2026-02-15")],
+          },
         ],
         budget,
       ),
@@ -402,6 +464,13 @@ function controlForLabel(text: string, nth: number): HTMLElement {
   return control
 }
 
+/** Each card's summary row: Publisher, Buy Type, Site and Bursts cells. */
+function summaryRows(): string[] {
+  return [...document.querySelectorAll("span.font-medium")]
+    .filter((s) => s.textContent?.trim() === "Publisher:")
+    .map((s) => (s.parentElement?.parentElement?.textContent ?? "").replace(/\s+/g, " ").trim())
+}
+
 function openOptions(): string[] {
   return [...document.querySelectorAll("[cmdk-item]")].map((o) => o.textContent?.trim() ?? "")
 }
@@ -494,6 +563,8 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     window.localStorage.clear()
     resetWeekStartsOnStore()
     created.length = 0
+    wrongCatalogue.length = 0
+    ownCatalogue = channel.catalogue
     rec = fresh()
     host = document.createElement("div")
     document.body.appendChild(host)
@@ -550,6 +621,30 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle()
     out.bonusTyped = snapshot(rec)
 
+    // 4c. W5d (review V2): clear the bonus quantity. The input writes "",
+    //     which billing and save carry as they find it.
+    act(() => setInput(bonus!, ""))
+    await settle()
+    out.bonusCleared = snapshot(rec)
+
+    // 4d. W5d: type "1" as the bonus quantity (a string), change the line to
+    //     Fixed Cost on its expanded card (the card field rewrites the string
+    //     as a number), collapse it, then tick fee-inclusive. A fixed cost
+    //     burst on a zero budget recalculates to 0 on a raw channel and to 1
+    //     on a rounded one. The string compare itself is pinned in
+    //     sharedChannelContainer.roundedCompare.test.tsx (review F5).
+    act(() => setInput(bonus!, "1"))
+    await settle()
+    act(() => controlForLabel("Buy Type", 1).click())
+    await settle(50)
+    pickOption("Fixed Cost")
+    await settle()
+    out.bonusToFixedCost = snapshot(rec)
+    act(() => byLabel(`Collapse details for ${channel.cardLabel} line item 5`)[0].click())
+    act(() => controlForLabel("Budget Includes Fees", 4).click())
+    await settle()
+    out.fixedCostFeeInclusive = snapshot(rec)
+
     // 5. The page passes the same lines again as a new array, line 1's first
     //    budget changed.
     mount(channel.lines("$9,999.00"))
@@ -590,13 +685,29 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
       (i) => !(i as HTMLInputElement).readOnly,
     ) as HTMLInputElement
     expect(nameInput, "site name input").toBeTruthy()
+    // W5d (review F3): where the dialog has a publisher pick, take Pub B.
+    const picker = dialog!.querySelector('[role="combobox"]') as HTMLElement | null
+    if (picker) {
+      act(() => picker.click())
+      await settle(50)
+      pickOption("Pub B")
+      await settle(50)
+    }
     act(() => setInput(nameInput, "Site New"))
     act(() => buttons("Add Site")[0].click())
     await settle()
-    out.addSiteCreated = canonical(created.map((c) => c.data))
+    out.addSiteCreated = canonical(created)
     out.addSite = snapshot(rec)
+    // W5d (review F4): the card summary cells, read here where every line's
+    // publisher and platform agree, and line 4's site list, refreshed after Add.
+    out.summary = summaryRows()
     // Focus goes back to the Add Site button a tick after the dialog closes
     // (W5d, review F1); let it land before the next popover opens.
+    await settle(50)
+    act(() => controlForLabel("Site", 1).click())
+    await settle(50)
+    out.siteOptionsAfterAdd = openOptions()
+    act(() => controlForLabel("Site", 1).click())
     await settle(50)
 
     // 8. Line 1 buy type changed to Bonus (bonus zeroes budget and buy amount).
@@ -634,6 +745,16 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle(100)
     const grid = document.querySelector('[role="dialog"]') as HTMLElement
     expect(grid, "expert dialog").toBeTruthy()
+    // W5d (review F4): the grid's site list for row 1 (Pub B).
+    const gridSite = [...grid.querySelectorAll('[role="combobox"]')].find(
+      (b) => b.textContent?.trim() === "Site B2",
+    ) as HTMLElement | undefined
+    expect(gridSite, "grid site cell").toBeTruthy()
+    act(() => gridSite!.click())
+    await settle(50)
+    out.gridSiteOptions = openOptions()
+    act(() => gridSite!.click())
+    await settle(50)
     const cell = [...grid.querySelectorAll("input")].find(
       (i) => (i as HTMLInputElement).value === "creative 2",
     ) as HTMLInputElement | undefined
@@ -661,6 +782,8 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     typeAndBlur('input[name$=".0.bursts.0.budget"]', "4321")
     await settle()
     out.create = snapshot(rec)
+
+    expect(wrongCatalogue, "another channel's site catalogue").toEqual([])
 
     const golden = resolve(
       process.cwd(),
