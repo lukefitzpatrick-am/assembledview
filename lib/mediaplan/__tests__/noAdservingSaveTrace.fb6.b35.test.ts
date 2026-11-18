@@ -97,10 +97,9 @@ test("the save reads snake (and OOH camel) only; a lower-case key alone is not r
 
 test("every container save transform spreads mapFormToApi of its own config", () => {
   const files: Array<[string, RegExp]> = [
-    ["components/media-containers/DigitalDisplayContainer.tsx", /\.\.\.mapFormToApi\(DIGITALDISPLAY_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
     ["components/media-containers/BVODContainer.tsx", /\.\.\.mapFormToApi\(BVOD_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
     ["components/media-containers/OOHContainer.tsx", /\.\.\.mapFormToApi\(OOH_CONTAINER_CONFIG\.fieldMap, lineItem\)/],
-    // Programmatic, Search, Social, Influencers, Integration, Digital Video and Digital Audio share the hook.
+    // Programmatic, Search, Social, Influencers, Integration, Digital Video, Digital Audio and Digital Display share the hook.
     ["lib/mediaplan/useMediaChannelContainer.ts", /\.\.\.mapFormToApi\(config\.fieldMap, lineItem\)/],
   ]
   for (const [file, re] of files) {

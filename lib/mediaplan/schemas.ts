@@ -544,7 +544,6 @@ export const digidisplayFormSchema = z.object({
   digidisplaylineItems: z.array(digidisplaylineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type DigiDisplayFormValues = z.infer<typeof digidisplayFormSchema>
 
 // --- Digital Audio -----------------------------------------------------------
 export const digiAudioFormSchema = z.object({

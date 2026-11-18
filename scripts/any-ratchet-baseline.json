@@ -24,7 +24,6 @@
   "components/dashboard/delivery/DeliveryDataProvider.tsx": 5,
   "components/media-containers/BVODContainer.tsx": 12,
   "components/media-containers/CinemaContainer.tsx": 11,
-  "components/media-containers/DigitalDisplayContainer.tsx": 11,
   "components/media-containers/MagazinesContainer.tsx": 9,
   "components/media-containers/NewspaperContainer.tsx": 11,
   "components/media-containers/OOHContainer.tsx": 15,

@@ -3,6 +3,7 @@ import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurst
 import type { BillingBurst } from "@/lib/billing/types"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import type { UseFormReturn } from "react-hook-form"
+import type { StandardDigiDisplayFormLineItem } from "@/lib/mediaplan/expertChannelMappings"
 
 type LegacyFormBurst = {
   budget?: unknown
@@ -133,3 +134,112 @@ export const getDigiAudioBursts = legacyBillingBursts({
   noAdserving: "lineLower",
   lineItemId: MEDIA_TYPE_ID_CODES.digitalAudio,
 })
+
+/** Digital Display's budget read (W5d, moved from its container): a number as it is, else the strip parser keeping a minus. */
+function parseBudgetSafe(val: unknown): number {
+  if (val == null) return 0
+  if (typeof val === "number" && Number.isFinite(val)) return val
+  return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0
+}
+
+type DigiDisplayFormLine = {
+  platform: string
+  site: string
+  buyType: string
+  publisher: string
+  bursts: StandardDigiDisplayFormLineItem["bursts"]
+  creativeTargeting?: string
+  creative?: string
+  buyingDemo?: string
+  market?: string
+  fixedCostMedia?: boolean
+  fixedCostFrom?: string
+  clientPaysForMedia?: boolean
+  budgetIncludesFees?: boolean
+  noadserving?: boolean
+  lineItemId?: string
+  line_item_id?: string
+  line_item?: number | string
+  lineItem?: number | string
+  placement?: string
+  size?: string
+  targetingAttribute?: string
+}
+
+/** Digital Display form lines in the shape its expert mappings and billing read (W5d, moved from its container). */
+export function asStandardDigiDisplayItems(
+  items: ReadonlyArray<DigiDisplayFormLine> | null | undefined,
+): StandardDigiDisplayFormLineItem[] {
+  return (items ?? []).map((li) => ({
+    platform: li.platform,
+    site: li.site,
+    buyType: li.buyType,
+    publisher: li.publisher,
+    creativeTargeting: li.creativeTargeting ?? "",
+    creative: li.creative ?? "",
+    buyingDemo: li.buyingDemo ?? "",
+    market: li.market ?? "",
+    fixedCostMedia: li.fixedCostMedia ?? false,
+    // B23: carried only when the card has one, so Apply keeps the date.
+    ...(li.fixedCostFrom !== undefined ? { fixedCostFrom: li.fixedCostFrom } : {}),
+    clientPaysForMedia: li.clientPaysForMedia ?? false,
+    budgetIncludesFees: li.budgetIncludesFees ?? false,
+    noadserving: li.noadserving ?? false,
+    bursts: li.bursts,
+    lineItemId: li.lineItemId,
+    line_item_id: li.line_item_id,
+    line_item: li.line_item,
+    lineItem: li.lineItem,
+    placement: li.placement,
+    size: li.size,
+    targetingAttribute: li.targetingAttribute,
+  }))
+}
+
+/**
+ * Digital Display billing (W5d, moved unchanged from its container): label
+ * "digi display" (the display ad serving rate, C-330), `parseBudgetSafe`,
+ * the line's id, its No Ad Serving box and the saved deliverables.
+ */
+export function getDigiDisplayBursts(
+  form: { getValues: (name: "lineItems") => unknown },
+  feedigidisplay: number,
+  mbaNumber?: string,
+): BillingBurst[] {
+  const lineItems = asStandardDigiDisplayItems(
+    form.getValues("lineItems") as Parameters<typeof asStandardDigiDisplayItems>[0],
+  )
+
+  return lineItems.flatMap((li, liIndex) =>
+    (li.bursts || []).map((burst) => {
+      const rawBudget = parseBudgetSafe(burst?.budget)
+
+      const pct = feedigidisplay || 0
+
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
+        rawBudget,
+        budgetIncludesFees: !!li.budgetIncludesFees,
+        clientPaysForMedia: !!li.clientPaysForMedia,
+        feePct: pct,
+        buyType: li.buyType,
+      })
+
+      return {
+        startDate: burst.startDate,
+        endDate: burst.endDate,
+        mediaAmount,
+        deliveryMediaAmount,
+        feeAmount,
+        totalAmount: mediaAmount + feeAmount,
+        mediaType: "digi display",
+        feePercentage: pct,
+        clientPaysForMedia: li.clientPaysForMedia,
+        budgetIncludesFees: li.budgetIncludesFees,
+        noAdserving: li.noadserving,
+        deliverables: burst.calculatedValue ?? 0,
+        buyType: li.buyType,
+        lineItemId: resolveBillingBurstLineItemId(li, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, liIndex),
+      }
+    }),
+  )
+}

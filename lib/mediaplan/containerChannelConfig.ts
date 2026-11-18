@@ -35,8 +35,10 @@ import {
   getPublishersForSocialMedia,
   getPublishersForTelevision,
   createAudioSite,
+  createDisplaySite,
   createVideoSite,
   getAudioSites,
+  getDisplaySites,
   getVideoSites,
 } from "@/lib/api"
 import {
@@ -71,6 +73,7 @@ import {
   createEmptyInfluencersExpertRow,
   createEmptyDigiVideoExpertRow,
   createEmptyDigitalAudioExpertRow,
+  createEmptyDigitalDisplayExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -90,6 +93,7 @@ import {
   mapStandardDigiVideoLineItemsToExpertRows,
   mapDigiVideoExpertRowsToStandardLineItems,
   mapDigitalAudioExpertRowsToStandardLineItems,
+  mapDigitalDisplayExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
@@ -118,6 +122,9 @@ import {
   mergeInfluencersStandardFromExpertWithPrevious,
   mergeDigiVideoStandardFromExpertWithPrevious,
   mergeDigiAudioStandardFromExpertWithPrevious,
+  mergeDigiDisplayStandardFromExpertWithPrevious,
+  serializeDigiDisplayExpertRowsBaseline,
+  serializeDigiDisplayStandardLineItemsBaseline,
   serializeDigiAudioExpertRowsBaseline,
   serializeDigiAudioStandardLineItemsBaseline,
   serializeDigiVideoExpertRowsBaseline,
@@ -143,7 +150,9 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
+  asStandardDigiDisplayItems,
   getDigiAudioBursts,
+  getDigiDisplayBursts,
   getDigiVideoBursts,
   getInfluencersBursts,
   getIntegrationBursts,
@@ -151,7 +160,8 @@ import {
 } from "@/lib/mediaplan/legacyBillingBursts"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
-import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import {
   bvodFormSchema,
   cinemaFormSchema,
@@ -217,8 +227,12 @@ type ContainerSites = {
   create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
 
+/** A form line or save row as a channel's transforms see it (W5d). */
+type ContainerLine = Record<string, unknown>
+type ContainerFormLine = ContainerLine & { bursts: ContainerLine[] }
+
 /** What a channel's line load and save transforms see (W5d). */
-export type ContainerLineContext = {
+type ContainerLineContext = {
   feePct: number
   mbaNumber: string
   campaignStartDate: Date
@@ -280,8 +294,13 @@ export type ContainerChannelConfig = {
    * one with no deliverables or fee (Influencers). Unset: the full shape.
    */
   bareHydratedBursts?: boolean
-  /** false: Excel rows carry no line ids and no buy amount (Influencers). Unset: they do. */
-  excelLineIds?: boolean
+  /**
+   * false: Excel rows carry no line ids and no buy amount (Influencers).
+   * "stored": the line's stored id and its display number (Digital Display,
+   * W5d), so a row keeps its id after a line above it is removed. Unset: the
+   * id and number rebuilt from the line's position.
+   */
+  excelLineIds?: false | "stored"
   /** "after" puts a duplicated line straight after its source. Unset: at the end. */
   duplicatePlacement?: "after"
   /**
@@ -304,13 +323,13 @@ export type ContainerChannelConfig = {
    * hook built and the saved line (after `prepareEditorLines`) and returns
    * the line the form holds. Unset: the hook's line as built.
    */
-  hydrateLine?: (line: any, saved: any, ctx: ContainerLineContext) => any
+  hydrateLine?: (line: ContainerFormLine, saved: ContainerLine, ctx: ContainerLineContext) => ContainerFormLine
   /**
    * The channel's own save transform (W5d, V62 A): takes the save row the
    * hook built and the form line (after `assignStableLineItemNumbers`) and
    * returns the row the plan page saves. Unset: the hook's row as built.
    */
-  saveLine?: (row: any, line: any, ctx: ContainerLineContext) => any
+  saveLine?: (row: ContainerLine, line: ContainerFormLine, ctx: ContainerLineContext) => ContainerLine
 }
 
 /**
@@ -1194,21 +1213,90 @@ export const PROGOOH_CONTAINER_CONFIG: ContainerChannelConfig = {
   ],
 }
 
+/** Digital Display's line id: the stored one, else minted from its line number. */
+function digiDisplayLineItemId(line: ContainerLine, lineNumber: number, mbaNumber: string): string {
+  const stored = String(line?.line_item_id ?? line?.lineItemId ?? "").trim()
+  return stored || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, lineNumber)
+}
+
 export const DIGITALDISPLAY_CONTAINER_CONFIG: ContainerChannelConfig = {
   mediaTypeString: "Digital Display",
   mediaTypeIdCode: MEDIA_TYPE_ID_CODES.digitalDisplay,
   schema: digidisplayFormSchema,
   fetchPublishers: getPublishersForDigiDisplay,
-  toExpert: mapStandardDigiDisplayLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "digital display",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  toExpert: (items, weekColumns, campaignStart, campaignEnd) =>
+    mapStandardDigiDisplayLineItemsToExpertRows(
+      asStandardDigiDisplayItems(items),
+      weekColumns,
+      campaignStart,
+      campaignEnd,
+    ),
+  fromExpert: mapDigitalDisplayExpertRowsToStandardLineItems,
+  mergeFromExpert: (standard, previous) =>
+    mergeDigiDisplayStandardFromExpertWithPrevious(standard, asStandardDigiDisplayItems(previous)),
+  serializeStandardBaseline: (items) =>
+    serializeDigiDisplayStandardLineItemsBaseline(asStandardDigiDisplayItems(items)),
+  serializeExpertBaseline: serializeDigiDisplayExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyDigitalDisplayExpertRow,
+  // "digi display" keys the display ad serving rate (C-330).
+  billingMediaTypeLabel: "digi display",
+  billingBursts: getDigiDisplayBursts,
+  // A saved burst with no date takes the campaign day, as the old container did.
+  burstDateFallback: "campaignDay",
+  sites: { noun: "Display", fetch: getDisplaySites, create: createDisplaySite, pickPublisher: true },
+  excelLineIds: "stored",
+  // Load: platform and publisher both from the publisher first, targeting from
+  // `targeting_attribute`, its own line ids, budgets as text and no saved fee.
+  hydrateLine: (line, saved, { mbaNumber, index }) => {
+    const lineNumber = pickLineItemNumber(saved, index + 1)
+    const lineItemId = digiDisplayLineItemId(saved, lineNumber, mbaNumber)
+    const savedBursts = resolveLineItemBursts(saved)
+    const text = (value: unknown) => (value != null ? String(value) : "")
+    return {
+      ...line,
+      platform: saved.publisher || saved.platform || "",
+      publisher: saved.publisher || saved.platform || "",
+      creativeTargeting: saved.creative_targeting || saved.targeting_attribute || "",
+      bursts: line.bursts.map(({ fee: _fee, ...burst }, i) => ({
+        ...burst,
+        budget: text(savedBursts[i]?.budget),
+        buyAmount: text(savedBursts[i]?.buyAmount),
+      })),
+      lineItemId,
+      line_item_id: lineItemId,
+      line_item: lineNumber,
+      lineItem: lineNumber,
+    }
+  },
+  // Save: platform and publisher aliases, `bid_strategy` as the buy type and
+  // its own line ids.
+  saveLine: (row, line, { mbaNumber, index }) => {
+    const lineNumber = pickLineItemNumber(line, index + 1)
+    return {
+      ...row,
+      platform: line.platform || line.publisher || "",
+      publisher: line.publisher || line.platform || "",
+      bid_strategy: line.buyType || "",
+      line_item_id: digiDisplayLineItemId(line, lineNumber, mbaNumber),
+      line_item: lineNumber,
+    }
+  },
+  expertFromFeeKey: "feePctDigiDisplay",
+  summaryDimensions: {
+    Publisher: "publisher",
+    Platform: "platform",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
+  shell: {
+    title: "Digital Display",
+    themeKey: "digidisplay",
+    timelineMediaTypeKey: "digitalDisplay",
+    loadLabel: "Digital Display",
+    exitConfirmYesAttr: "data-digitaldisplay-expert-exit-yes",
+    entryModeAriaLabel: "Digital Display entry mode",
+    expertDialogTitle: "Digital Display Expert Mode",
+  },
   gridConfig: DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,

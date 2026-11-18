@@ -863,7 +863,11 @@ export function useMediaChannelContainer(
           const mediaAmount = computedBurst
             ? computedBurst.mediaAmount
             : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0
-          const lineItemId = buildLineItemId(mbaNumber, mediaTypeIdCode, lineItemIndex + 1)
+          const storedIds = config.excelLineIds === "stored"
+          const lineNumber = storedIds ? lineDisplayNumber(lineItem, lineItemIndex) : lineItemIndex + 1
+          const lineItemId =
+            (storedIds && String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim()) ||
+            buildLineItemId(mbaNumber, mediaTypeIdCode, lineNumber)
           const keepsQuantity =
             config.excelPackageKeepsQuantity &&
             String(lineItem.buyType || "").toLowerCase() === "package"
@@ -902,7 +906,7 @@ export function useMediaChannelContainer(
               : {
                   line_item_id: lineItemId,
                   lineItemId,
-                  line_item: lineItemIndex + 1,
+                  line_item: lineNumber,
                   buyAmount: burst.buyAmount ?? burst.budget,
                 }),
           }

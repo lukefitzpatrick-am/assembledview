@@ -57,10 +57,6 @@ export const MP_BURST_READONLY_CELL = "space-y-1"
 export const MP_BURST_GRID_7 =
   "grid grid-cols-7 gap-3 items-center flex-grow min-w-0"
 
-/** Digital CPC/CPV/Fixed with ad-serving override column. */
-export const MP_BURST_GRID_8 =
-  "grid grid-cols-8 gap-3 items-center flex-grow min-w-0"
-
 /** Production: Cost, Quantity, Start+End, Production Total. */
 export const MP_BURST_GRID_5 =
   "grid grid-cols-5 gap-3 items-center flex-grow min-w-0"

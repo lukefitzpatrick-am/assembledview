@@ -2,14 +2,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 test("DigiDisplay burst builder attaches canonical line item id for KPI join", async () => {
-  const { getDigiDisplayBursts } = await import(
-    "@/components/media-containers/DigitalDisplayContainer"
-  )
+  const { getDigiDisplayBursts } = await import("@/lib/mediaplan/legacyBillingBursts")
 
   const bursts = getDigiDisplayBursts(
     {
-      getValues(name: "digidisplaylineItems") {
-        assert.equal(name, "digidisplaylineItems")
+      getValues(name: "lineItems") {
+        assert.equal(name, "lineItems")
         return [
           {
             platform: "DV360",
