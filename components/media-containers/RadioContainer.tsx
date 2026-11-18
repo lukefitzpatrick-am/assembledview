@@ -61,7 +61,6 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemI
 import {
   assignStableLineItemNumbers,
   keepLineIdsOnReorder,
-  lineDisplayNumber,
   prepareEditorLines,
   stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
@@ -719,7 +718,9 @@ export default function RadioContainer({
       const row = money.lines[index];
 
       return {
-        index: lineDisplayNumber(lineItem, index),
+        // The card's own number (its heading reads the same). Apply stamps
+        // `position`, and a Remove or Duplicate after it leaves the stamps stale (F5).
+        index: index + 1,
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -979,7 +980,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
+      const lineNumber = lineItemIndex + 1;
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
         lineItemId = createLineItemId(lineNumber);

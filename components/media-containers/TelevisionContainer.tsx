@@ -127,7 +127,6 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemI
 import {
   assignStableLineItemNumbers,
   keepLineIdsOnReorder,
-  lineDisplayNumber,
   prepareEditorLines,
   stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
@@ -757,7 +756,9 @@ export default function TelevisionContainer({
       const row = money.lines[index];
 
       return {
-        index: lineDisplayNumber(lineItem, index),
+        // The card's own number (its heading reads the same). Apply stamps
+        // `position`, and a Remove or Duplicate after it leaves the stamps stale (F5).
+        index: index + 1,
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -955,7 +956,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
         form.setValue(`televisionlineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`televisionlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
+      const lineNumber = lineItemIndex + 1;
 
       return {
         market: lineItem.market,                                // or fixed value
