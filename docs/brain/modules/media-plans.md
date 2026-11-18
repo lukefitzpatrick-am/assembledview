@@ -55,7 +55,9 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 - every new `initialLineItems` array hydrates. Integration sets `dedupeOnLoad`: repeated lines are dropped (`dedupeInitialLineItems`) and a reload whose ids, platforms, objectives, campaigns and buy types match the last load is skipped, so the form keeps its edits.
 - Excel rows carry line ids and buy amount. Influencers sets `excelLineIds: false`.
 - Excel rows give a package line budget ÷ rate (C-168 (b), open). Integration sets `excelPackageKeepsQuantity`: the saved quantity, as before.
-- hydrate keeps per-burst ad serving overrides; a buy type change to bonus or package inclusions zeroes budget and buy amount.
+- a buy type change to bonus or package inclusions zeroes budget and buy amount.
+
+Screen differences after each move (saved output unchanged): C-332 (Social), C-335 (Influencers, Integration).
 
 Mount goldens pin the saved output byte for byte (save payload, persisted bursts, billing input, Excel rows, investment, header totals, raw line count): `socialMediaContainer.golden.test.tsx` (Social's config paths), `influencersIntegrationContainers.golden.test.tsx` (Influencers' and Integration's config paths; keys sorted, as jsonb keeps no order) and `sharedChannelContainers.golden.test.tsx` (Search and Prog Display, the default paths, plus fee-inclusive on a collapsed card, burst edits, buy type change, Remove, an edited expert Apply).
 
@@ -71,7 +73,7 @@ Mount goldens pin the saved output byte for byte (save payload, persisted bursts
 | 4 | Digital Audio | 1,492 | Same site family. Rounded deliverables. | 268 | Site catalog; C-333 rule |
 | 5 | BVOD | 1,505 | Same site family. Rounded deliverables. Label `"BVOD"`. | 204 | Site catalog; C-333 rule |
 | 6 | Cinema | 1,360 | `cinema` variant, rounded deliverables, station adornment, `cinemalineItems` key, Excel network, station and duration. | 22 | Variant support; C-333 rule |
-| 7 | Radio | 1,499 | Stations catalog, `radio` variant, hydrate dedupe, create echoes its own publish back (`ownPublishRef`), `radiolineItems` key. | 6,031 | Stations catalog, own-publish echo |
+| 7 | Radio | 1,499 | Stations catalog, `radio` variant, hydrate dedupe (compare with `dedupeOnLoad` before reusing it), create echoes its own publish back (`ownPublishRef`), `radiolineItems` key. | 6,031 | Stations catalog, own-publish echo |
 | 8 | Newspaper | 1,633 | Titles and ad sizes catalogs, `newspaper` variant, label `"newspapers"`. Moves with Magazines. | 1,010 | Two catalogs |
 | 9 | Magazines | 1,650 | Shares 374 long lines with Newspaper and reads its catalogs. `magazine` variant. | 549 | Two catalogs |
 | 10 | OOH | 1,333 | Large-format summary gate (`shouldShowOohLargeFormatSummary`), `ooh` variant, rounded deliverables, `noAdserving` camel (C-36), create publish echo, package inclusion quantity rules. | 14,929 | Large-format gate, echo; C-333 rule |
