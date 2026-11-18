@@ -157,6 +157,12 @@ function influencersLines(budget?: string) {
     }),
     // Saved with no bursts: hydrate gives one empty burst.
     L(6, { buy_type: "fixed_cost", bursts: [] }),
+    // Fee-inclusive cpm: expert Apply nets its deliverables with the fee.
+    L(7, {
+      buy_type: "cpm",
+      budget_includes_fees: true,
+      bursts: [burst("$8,000.00", "$16.00", "2026-02-09", "2026-03-08")],
+    }),
   ]
 }
 
@@ -216,6 +222,12 @@ function integrationLines(budget?: string) {
     noId("Seven"),
     // Saved with no bursts: hydrate gives one empty burst.
     L(9, { buy_type: "cpm", bursts: [] }),
+    // Fee-inclusive cpm: expert Apply nets its deliverables with the fee.
+    L(10, {
+      buy_type: "cpm",
+      budget_includes_fees: true,
+      bursts: [burst("$8,000.00", "$16.00", "2026-02-09", "2026-03-08")],
+    }),
   ]
 }
 

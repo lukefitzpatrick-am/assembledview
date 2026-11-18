@@ -105,6 +105,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -212,6 +227,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -220,15 +250,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$7,469.39",
+        "amount": "$13,183.68",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$1,836.73",
+        "amount": "$4,122.44",
         "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -415,6 +445,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -492,11 +552,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      21500,
-      3071.43
+      28500,
+      4071.43
     ]
   },
   "hydrateDedupe": [],
@@ -606,6 +677,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -713,6 +799,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -721,15 +822,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$6,964.29",
+        "amount": "$12,678.58",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$1,607.14",
+        "amount": "$3,892.85",
         "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -916,6 +1017,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -993,11 +1124,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      20500,
-      2928.57
+      27500,
+      3928.57
     ]
   },
   "typed": {
@@ -1106,6 +1248,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -1213,6 +1370,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -1221,15 +1393,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$9,182.51",
+        "amount": "$14,896.80",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$4,166.62",
+        "amount": "$6,452.33",
         "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -1416,6 +1588,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -1493,11 +1695,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      24680.49,
-      3525.78
+      31680.49,
+      4525.78
     ]
   },
   "burstEdits": {
@@ -1621,6 +1834,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -1743,6 +1971,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -1751,15 +1994,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$5,571.43",
+        "amount": "$11,285.72",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$7,777.70",
+        "amount": "$10,063.41",
         "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -1954,6 +2197,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -2040,11 +2313,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      24680.49,
-      3525.78
+      31680.49,
+      4525.78
     ]
   },
   "reload": {
@@ -2153,6 +2437,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -2260,6 +2559,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -2268,15 +2582,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$9,917.88",
+        "amount": "$15,632.17",
         "monthYear": "February 2026"
       },
       {
-        "amount": "$1,836.73",
+        "amount": "$4,122.44",
         "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -2463,6 +2777,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -2540,11 +2884,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      26499,
-      3785.57
+      33499,
+      4785.57
     ]
   },
   "buyTypeToBonus": {
@@ -2653,6 +3008,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -2760,6 +3130,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -2768,11 +3153,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$3,428.57",
+        "amount": "$9,142.86",
         "monthYear": "February 2026"
+      },
+      {
+        "amount": "$2,285.71",
+        "monthYear": "March 2026"
       }
     ],
-    "lineCount": "6 line items",
+    "lineCount": "7 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -2959,6 +3348,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -3036,11 +3455,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      13500,
-      1928.57
+      20500,
+      2928.57
     ]
   },
   "removeLine": {
@@ -3134,6 +3564,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
       }
     ],
     "excel": [
@@ -3226,6 +3671,21 @@
         "platform": "Instagram",
         "startDate": "2026-01-05",
         "targeting": "placement 6"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
       }
     ],
     "investment": [
@@ -3234,11 +3694,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$2,285.71",
+        "amount": "$8,000.00",
         "monthYear": "February 2026"
+      },
+      {
+        "amount": "$2,285.71",
+        "monthYear": "March 2026"
       }
     ],
-    "lineCount": "5 line items",
+    "lineCount": "6 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -3395,6 +3859,36 @@
         "platform": "Instagram",
         "targeting_attribute": "targeting 6",
         "totalMedia": 0
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
       }
     ],
     "persistedBursts": [
@@ -3461,11 +3955,22 @@
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
         }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
       ]
     ],
     "totals": [
-      12500,
-      1785.71
+      19500,
+      2785.71
     ]
   },
   "duplicateAndAdd": {
@@ -3576,6 +4081,21 @@
         "totalAmount": 0
       },
       {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "mediaAmount": 7000,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
+      },
+      {
         "budgetIncludesFees": false,
         "buyType": "",
         "clientPaysForMedia": false,
@@ -3698,6 +4218,21 @@
         "targeting": "placement 6"
       },
       {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
+      },
+      {
         "bidStrategy": "",
         "buyType": "",
         "buyingDemo": "",
@@ -3719,11 +4254,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$2,285.71",
+        "amount": "$8,000.00",
         "monthYear": "February 2026"
+      },
+      {
+        "amount": "$2,285.71",
+        "monthYear": "March 2026"
       }
     ],
-    "lineCount": "7 line items",
+    "lineCount": "8 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -3811,8 +4350,8 @@
         "feePct": 12.5,
         "fixed_cost_from": "",
         "fixed_cost_media": true,
-        "line_item": 7,
-        "line_item_id": "tst001IN7",
+        "line_item": 8,
+        "line_item_id": "tst001IN8",
         "mba_number": "tst001",
         "media_plan_version": 0,
         "mp_client_name": "",
@@ -3890,7 +4429,6 @@
           {
             "budget": "",
             "buyAmount": "",
-            "calculatedValue": 1,
             "endDate": "2026-03-30T13:00:00.000Z",
             "startDate": "2026-01-04T13:00:00.000Z"
           }
@@ -3914,6 +4452,36 @@
         "totalMedia": 0
       },
       {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 7000
+      },
+      {
         "bid_strategy": "",
         "budget_includes_fees": false,
         "bursts": [
@@ -3932,8 +4500,8 @@
         "feePct": 12.5,
         "fixed_cost_from": "",
         "fixed_cost_media": false,
-        "line_item": 8,
-        "line_item_id": "tst001IN8",
+        "line_item": 9,
+        "line_item_id": "tst001IN9",
         "mba_number": "tst001",
         "media_plan_version": 0,
         "mp_client_name": "",
@@ -4014,11 +4582,22 @@
         {
           "budget": "",
           "buyAmount": "",
-          "calculatedValue": 1,
+          "calculatedValue": 0,
           "endDate": "2026-03-31",
           "feeAmount": "$0.00",
           "mediaAmount": "$0.00",
           "startDate": "2026-01-05"
+        }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
         }
       ],
       [
@@ -4034,8 +4613,8 @@
       ]
     ],
     "totals": [
-      23000,
-      3285.71
+      30000,
+      4285.71
     ]
   },
   "expertApply": {
@@ -4144,6 +4723,21 @@
         "noAdserving": false,
         "startDate": "2026-01-04T13:00:00.000Z",
         "totalAmount": 0
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 0,
+        "deliveryMediaAmount": 6125,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 875,
+        "feePercentage": 12.5,
+        "mediaAmount": 6125,
+        "mediaType": "influencers",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 7000
       },
       {
         "budgetIncludesFees": false,
@@ -4268,6 +4862,21 @@
         "targeting": "placement 6"
       },
       {
+        "bidStrategy": "manual_cpc",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 7",
+        "deliverables": 382812.5,
+        "deliverablesAmount": "7000",
+        "endDate": "2026-03-08",
+        "grossMedia": "6125",
+        "market": "National",
+        "platform": "Instagram",
+        "startDate": "2026-02-09",
+        "targeting": "placement 7"
+      },
+      {
         "bidStrategy": "",
         "buyType": "",
         "buyingDemo": "",
@@ -4289,11 +4898,15 @@
         "monthYear": "January 2026"
       },
       {
-        "amount": "$2,285.71",
+        "amount": "$7,285.71",
         "monthYear": "February 2026"
+      },
+      {
+        "amount": "$2,000.00",
+        "monthYear": "March 2026"
       }
     ],
-    "lineCount": "7 line items",
+    "lineCount": "8 line items",
     "media": [
       {
         "bid_strategy": "manual_cpc",
@@ -4380,8 +4993,8 @@
         "feePct": 12.5,
         "fixed_cost_from": "",
         "fixed_cost_media": true,
-        "line_item": 7,
-        "line_item_id": "tst001IN7",
+        "line_item": 8,
+        "line_item_id": "tst001IN8",
         "mba_number": "tst001",
         "media_plan_version": 0,
         "mp_client_name": "",
@@ -4483,6 +5096,36 @@
         "totalMedia": 0
       },
       {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "7000",
+            "buyAmount": "$16.00",
+            "calculatedValue": 382812.5,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "campaign": "campaign 7",
+        "client_pays_for_media": false,
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 7,
+        "line_item_id": "tst001IN7",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "objective": "objective 7",
+        "platform": "Instagram",
+        "targeting_attribute": "targeting 7",
+        "totalMedia": 6125
+      },
+      {
         "bid_strategy": "",
         "budget_includes_fees": false,
         "bursts": [
@@ -4500,8 +5143,8 @@
         "feePct": 12.5,
         "fixed_cost_from": "",
         "fixed_cost_media": false,
-        "line_item": 8,
-        "line_item_id": "tst001IN8",
+        "line_item": 9,
+        "line_item_id": "tst001IN9",
         "mba_number": "tst001",
         "media_plan_version": 0,
         "mp_client_name": "",
@@ -4591,6 +5234,17 @@
       ],
       [
         {
+          "budget": "7000",
+          "buyAmount": "$16.00",
+          "calculatedValue": 382812.5,
+          "endDate": "2026-03-08",
+          "feeAmount": "$875.00",
+          "mediaAmount": "$6,125.00",
+          "startDate": "2026-02-09"
+        }
+      ],
+      [
+        {
           "budget": "",
           "buyAmount": "",
           "calculatedValue": 0,
@@ -4602,8 +5256,8 @@
       ]
     ],
     "totals": [
-      23000,
-      3285.71
+      29125,
+      4160.71
     ]
   },
   "create": {
