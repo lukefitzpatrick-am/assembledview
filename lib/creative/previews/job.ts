@@ -49,7 +49,6 @@ WHERE a.preview_image_url IS NOT NULL
    OR (a.preview_kind = 'video' AND a.view_url IS NOT NULL)
 `
 
-
 export function assetsFromWarehouse(rows: Record<string, unknown>[]): PreviewAsset[] {
   const out: PreviewAsset[] = []
   for (const row of rows) {
