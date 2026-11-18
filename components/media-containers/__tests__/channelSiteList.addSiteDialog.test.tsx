@@ -22,6 +22,7 @@ import { act, type ComponentType } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { Announcer } from "@/components/ui/announcer"
 import { resetWeekStartsOnStore } from "@/lib/mediaplan/useWeekStartsOn"
 
 vi.mock("@/contexts/MediaPlanContext", () => ({
@@ -288,6 +289,40 @@ describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel
     expect(dialogFor(), "Cancel closes").toBeUndefined()
     expect(document.activeElement, "focus back on Add Site after Cancel").toBe(button)
     expect(created.length).toBe(1)
+  }, 30_000)
+
+  it("a blank site name shows on the field, takes focus, is said once and adds nothing (B58)", async () => {
+    const announcerHost = document.createElement("div")
+    document.body.appendChild(announcerHost)
+    const announcerRoot = createRoot(announcerHost)
+    act(() => announcerRoot.render(<Announcer />))
+    try {
+      await mount()
+      const [button] = addButton(1)
+      await open(button)
+      const d = dialogFor()!
+      const name = labelled(d, "Site name") as HTMLInputElement
+      act(() => name.form!.requestSubmit())
+      await settle(50)
+      expect(created).toEqual([])
+      expect(dialogFor(), "stays open").toBeTruthy()
+      expect(name.getAttribute("aria-invalid")).toBe("true")
+      const described = document.getElementById(name.getAttribute("aria-describedby") ?? "")
+      expect(described?.textContent).toBe("Site name is required")
+      expect(document.activeElement).toBe(name)
+      const said = announcerHost.querySelector('[data-announcer="assertive"]')!
+      expect(said.children).toHaveLength(1)
+      expect(said.textContent).toBe("Fix 1 field: Site name: Site name is required")
+      // Typing clears it; Add then adds as before.
+      act(() => setInput(name, "Site New"))
+      expect(name.getAttribute("aria-invalid")).toBeNull()
+      act(() => name.form!.requestSubmit())
+      await settle()
+      expect(created).toEqual([{ site: "Site New", platform: "Pub A" }])
+    } finally {
+      act(() => announcerRoot.unmount())
+      announcerHost.remove()
+    }
   }, 30_000)
 
   it("asks for a publisher first on a line with none, and opens no dialog", async () => {

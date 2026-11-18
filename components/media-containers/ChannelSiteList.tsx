@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useId, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useState, type FormEvent } from "react"
 import type { UseFormReturn } from "react-hook-form"
 import { PlusCircle } from "lucide-react"
 
@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { useToast } from "@/components/ui/use-toast"
 import type { ContainerChannelConfig, ContainerSite } from "@/lib/mediaplan/containerChannelConfig"
+import { useFieldErrors } from "@/hooks/use-field-errors"
 
 type Toast = ReturnType<typeof useToast>["toast"]
 type Sites = NonNullable<ContainerChannelConfig["sites"]>
@@ -28,6 +29,14 @@ type Sites = NonNullable<ContainerChannelConfig["sites"]>
 function addSiteLabel(noun: string, lineNumber: number): string {
   const word = /^[A-Z]+$/.test(noun) ? noun : noun.toLowerCase()
   return `Add ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} site for line ${lineNumber}`
+}
+
+/** The Add Site rule: both a site name and a publisher (B58: shown on the fields, not a toast). */
+function missingSiteFields(name: string, platform: string): { platform?: string; name?: string } {
+  return {
+    ...(platform.trim() ? {} : { platform: "Publisher is required" }),
+    ...(name.trim() ? {} : { name: "Site name is required" }),
+  }
 }
 
 /**
@@ -132,14 +141,8 @@ export function useChannelSiteList(
 
   const add = async () => {
     if (!sites) return
-    if (!name.trim() || !platform.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please provide both site name and platform.",
-        variant: "destructive",
-      })
-      return
-    }
+    // The dialog shows a missing field on the field before it calls add.
+    if (Object.keys(missingSiteFields(name, platform)).length > 0) return
     try {
       setSaving(true)
       const created = await sites.create({ site: name, platform })
@@ -191,68 +194,89 @@ export function AddSiteDialog({
   dialog: ReturnType<typeof useChannelSiteList>["dialog"]
   publishers: { publisher_name: string }[]
 }) {
-  const id = useId()
   if (!dialog.noun) return null
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    void dialog.add()
-  }
   return (
     <Dialog open={dialog.open} onOpenChange={(open) => (open ? undefined : dialog.close())}>
       <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={onSubmit}>
-          <DialogHeader>
-            <DialogTitle>Add New {dialog.noun} Site</DialogTitle>
-            <DialogDescription>Enter the details for the new {dialog.noun} Site.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor={`${id}-publisher`} className="text-right">
-                Publisher
-              </Label>
-              {dialog.pickPublisher ? (
-                <Combobox
-                  id={`${id}-publisher`}
-                  value={dialog.platform}
-                  onValueChange={dialog.setPlatform}
-                  placeholder="Select Publisher"
-                  searchPlaceholder="Search publishers..."
-                  buttonClassName="col-span-3 h-9"
-                  className="col-span-3"
-                  options={publishers.map((p) => ({ value: p.publisher_name, label: p.publisher_name }))}
-                />
-              ) : (
-                <Input
-                  id={`${id}-publisher`}
-                  value={dialog.platform}
-                  readOnly
-                  className="col-span-3 bg-muted focus:ring-0"
-                />
-              )}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor={`${id}-site`} className="text-right">
-                Site name
-              </Label>
-              <Input
-                id={`${id}-site`}
-                value={dialog.name}
-                onChange={(e) => dialog.setName(e.target.value)}
-                className="col-span-3"
-                autoComplete="off"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={dialog.close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={dialog.saving} aria-busy={dialog.saving}>
-              {dialog.saving ? "Adding..." : "Add Site"}
-            </Button>
-          </DialogFooter>
-        </form>
+        {/* Inside the content, so its field errors go when the dialog closes. */}
+        <AddSiteForm dialog={dialog} publishers={publishers} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+const SITE_FIELD_LABELS = { platform: "Publisher", name: "Site name" } as const
+
+function AddSiteForm({
+  dialog,
+  publishers,
+}: {
+  dialog: ReturnType<typeof useChannelSiteList>["dialog"]
+  publishers: { publisher_name: string }[]
+}) {
+  const errors = useFieldErrors(SITE_FIELD_LABELS)
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!errors.check(missingSiteFields(dialog.name, dialog.platform))) return
+    void dialog.add()
+  }
+  const publisher = errors.control("platform")
+  const site = errors.control("name")
+  return (
+    <form onSubmit={onSubmit}>
+      <DialogHeader>
+        <DialogTitle>Add New {dialog.noun} Site</DialogTitle>
+        <DialogDescription>Enter the details for the new {dialog.noun} Site.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor={publisher.id} className="text-right">
+            Publisher
+          </Label>
+          {dialog.pickPublisher ? (
+            <Combobox
+              {...publisher}
+              value={dialog.platform}
+              onValueChange={(value) => {
+                errors.clear("platform")
+                dialog.setPlatform(value)
+              }}
+              placeholder="Select Publisher"
+              searchPlaceholder="Search publishers..."
+              buttonClassName="col-span-3 h-9"
+              className="col-span-3"
+              options={publishers.map((p) => ({ value: p.publisher_name, label: p.publisher_name }))}
+            />
+          ) : (
+            <Input {...publisher} value={dialog.platform} readOnly className="col-span-3 bg-muted focus:ring-0" />
+          )}
+          {errors.message("platform") ? <div className="col-span-3 col-start-2">{errors.message("platform")}</div> : null}
+        </div>
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor={site.id} className="text-right">
+            Site name
+          </Label>
+          <Input
+            {...site}
+            value={dialog.name}
+            onChange={(e) => {
+              errors.clear("name")
+              dialog.setName(e.target.value)
+            }}
+            className="col-span-3"
+            autoComplete="off"
+          />
+          {errors.message("name") ? <div className="col-span-3 col-start-2">{errors.message("name")}</div> : null}
+        </div>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={dialog.close}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={dialog.saving} aria-busy={dialog.saving}>
+          {dialog.saving ? "Adding..." : "Add Site"}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }

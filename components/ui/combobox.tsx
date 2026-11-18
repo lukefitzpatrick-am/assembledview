@@ -47,6 +47,9 @@ export interface ComboboxProps {
   onTriggerFocus?: () => void
   /** Keep caller order (e.g. MBA numbers descending). Default sorts by label. */
   preserveOrder?: boolean
+  /** Field error wiring for the trigger (B58 `useFieldErrors`). */
+  "aria-invalid"?: boolean
+  "aria-describedby"?: string
 }
 
 export function Combobox({
@@ -65,6 +68,8 @@ export function Combobox({
   onOpenChange,
   onTriggerFocus,
   preserveOrder = false,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const modal = React.useContext(ComboboxModalContext)
@@ -106,6 +111,8 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn("w-full justify-between", buttonClassName)}
           disabled={disabled}
           onFocus={() => onTriggerFocus?.()}
