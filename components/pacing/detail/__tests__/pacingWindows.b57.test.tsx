@@ -132,6 +132,8 @@ describe("campaign detail window (B57)", () => {
     const opener = await openDetail()
     const close = [...dialogs()[0]!.querySelectorAll("button")].filter((el) => el.textContent === "Close")
     expect(close).toHaveLength(1)
+    // B57fix (review R3): the shared X is a 24 px target, as the old 40 px button was over 24.
+    expect(close[0]!.className).toContain("h-[24px] w-[24px]")
     act(() => close[0]!.click())
     await settle()
     expect(dialogs()).toHaveLength(0)

@@ -21,6 +21,14 @@ const DialogPortal = DialogPrimitive.Portal
 
 const DialogClose = DialogPrimitive.Close
 
+/**
+ * The X in `DialogContent` and `SheetContent`: a 24 by 24 CSS px target (WCAG
+ * 2.2 AA, B57fix). Set in px, not rem: `html` is 80% (87.5% on wide screens), so
+ * `h-6` would be 19.2 px. Centred where the old bare icon sat.
+ */
+export const closeTargetClass =
+  "absolute right-2.5 top-2.5 inline-flex h-[24px] w-[24px] items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+
 const layerZClass = (layer: DialogStackingLayer) =>
   layer === "nested" ? "z-nested" : "z-modal"
 
@@ -67,7 +75,7 @@ const DialogContent = React.forwardRef<
       onCloseAutoFocus={useReturnFocus(onCloseAutoFocus)}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      <DialogPrimitive.Close className={cn(closeTargetClass, "data-[state=open]:bg-accent data-[state=open]:text-muted-foreground")}>
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>

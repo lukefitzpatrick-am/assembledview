@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { closeTargetClass } from "@/components/ui/dialog"
 import { OpenerScope, useReturnFocus } from "@/components/ui/return-focus"
 
 /** Root that remembers the opener, so focus returns to it on close (B57). */
@@ -74,7 +75,7 @@ const SheetContent = React.forwardRef<
       onCloseAutoFocus={useReturnFocus(onCloseAutoFocus)}
     >
       {children}
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+      <SheetPrimitive.Close className={cn(closeTargetClass, "data-[state=open]:bg-secondary")}>
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>
