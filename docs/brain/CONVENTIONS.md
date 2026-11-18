@@ -48,6 +48,7 @@ New and migrated tables use `DataTable` (`components/ui/data-table.tsx`). `Table
 - A form whose invalid field can be hidden or far down also renders `<FormErrorSummary labels={labels} />` by its Save button: the same text, shown after a failed submit, not a live region.
 - Words for screen readers go through `announce(text, "polite" | "assertive")` (`components/ui/announcer.tsx`), never a new `aria-live` region. Assertive is for an error the user must act on.
 - Toasts are for the result of an action (saved, sent, failed to save). A toast announces itself; do not also `announce()` it.
+- No lint rule enforces "no toast for a field error" (a form-file `no-restricted-syntax` selector would be a sixth layer over the hex, C-200 and prerender blocks). A reviewer checks any `toast(` in a submit handler that runs before the request.
 
 ## Directory law
 
