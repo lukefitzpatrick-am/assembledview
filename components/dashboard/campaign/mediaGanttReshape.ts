@@ -22,6 +22,7 @@ import {
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
+import { parseDateOnlyString } from "@/lib/dates/civil"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type MediaGanttGranularity = "weekly" | "monthly"
@@ -376,7 +377,8 @@ export function reshapeLineItemsToMediaGantt(
     if (day >= start && day <= end) todayDay = differenceInCalendarDays(day, start)
   }
 
-  const today = startOfDay(new Date())
+  // The Melbourne day as a local midnight, the same day as `todayDay` (C-277).
+  const today = parseDateOnlyString(todayISO)
   let todayWeek: number | null = null
   if (today >= start && today <= end) {
     if (isMonthly) {
