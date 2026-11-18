@@ -1,5 +1,6 @@
 "use client"
 
+import { AddSiteDialog, useChannelSiteList } from "@/components/media-containers/ChannelSiteList"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -134,6 +135,7 @@ export default function MediaChannelContainer({
     fieldKey,
     weekStartsOn,
     setWeekStartsOn,
+    toast,
   } = useMediaChannelContainer(config, {
     clientId,
     feePct,
@@ -151,6 +153,7 @@ export default function MediaChannelContainer({
     onRawLineItemsChange,
   })
 
+  const siteList = useChannelSiteList(config.sites, form, fieldKey, toast)
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
@@ -305,15 +308,20 @@ export default function MediaChannelContainer({
                         }}
                         onComboboxValueChange={(key, li, value) => {
                           if (key === "buyType") handleBuyTypeChange(li, value)
+                          siteList.onComboboxValueChange(key, li, value)
                         }}
+                        {...siteList.cardProps(lineItemIndex)}
                         summaryRow={
                           <div className="border-b px-6 py-2">
                             <div className="grid grid-cols-4 gap-4 text-sm">
                               <div>
-                                <span className="font-medium">Platform:</span>{" "}
-                                {form.watch(
-                                  `${fieldKey}.${lineItemIndex}.platform`,
-                                ) || "Not selected"}
+                                <span className="font-medium">
+                                  {config.sites ? "Publisher:" : "Platform:"}
+                                </span>{" "}
+                                {(config.sites
+                                  ? siteList.publisherOf(lineItemIndex)
+                                  : form.watch(`${fieldKey}.${lineItemIndex}.platform`)) ||
+                                  "Not selected"}
                               </div>
                               <div>
                                 <span className="font-medium">Buy Type:</span>{" "}
@@ -325,10 +333,10 @@ export default function MediaChannelContainer({
                               </div>
                               <div>
                                 <span className="font-medium">
-                                  Bid strategy:
+                                  {config.sites ? "Site:" : "Bid strategy:"}
                                 </span>{" "}
                                 {form.watch(
-                                  `${fieldKey}.${lineItemIndex}.bidStrategy`,
+                                  `${fieldKey}.${lineItemIndex}.${config.sites ? "site" : "bidStrategy"}`,
                                 ) || "Not selected"}
                               </div>
                               <div>
@@ -408,6 +416,7 @@ export default function MediaChannelContainer({
                 rows={expertRows}
                 onRowsChange={handleExpertRowsChange}
                 publishers={publishers}
+                sites={siteList.list}
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {
@@ -481,6 +490,8 @@ export default function MediaChannelContainer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AddSiteDialog dialog={siteList.dialog} />
     </div>
   )
 }

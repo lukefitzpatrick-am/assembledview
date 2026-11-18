@@ -863,6 +863,7 @@ export function useMediaChannelContainer(
           return {
             market: lineItem.market,
             platform: lineItem.platform,
+            ...(config.sites ? { site: lineItem.site } : {}),
             bidStrategy: lineItem.bidStrategy,
             targeting: lineItem.creativeTargeting,
             creative: lineItem.creative,

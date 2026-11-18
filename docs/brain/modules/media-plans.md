@@ -56,6 +56,7 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 - Excel rows carry line ids and buy amount. Influencers sets `excelLineIds: false`.
 - Excel rows give a package line budget ÷ rate (C-168 (b), open). Integration sets `excelPackageKeepsQuantity`: the saved quantity, as before.
 - a buy type change to bonus or package inclusions zeroes budget and buy amount.
+- no site catalogue. A site channel sets `sites` (`components/media-containers/ChannelSiteList.tsx`): the card's Site field lists the line publisher's sites (publisher, else platform, matched trimmed and case-blind), a publisher pick sets the line's platform and clears its site, Add Site (shared Radix dialog, labelled fields, Enter adds, Escape and Cancel close) creates the site and writes publisher, platform and site to the line, the schedule grid gets the list, the card summary shows Publisher and Site, and Excel rows carry `site`.
 
 Screen differences after each move (saved output unchanged): C-332 (Social), C-335 (Influencers, Integration).
 

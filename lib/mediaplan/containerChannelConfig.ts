@@ -34,6 +34,8 @@ import {
   getPublishersForSearch,
   getPublishersForSocialMedia,
   getPublishersForTelevision,
+  createVideoSite,
+  getVideoSites,
 } from "@/lib/api"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
@@ -65,6 +67,7 @@ import {
   createEmptySocialMediaExpertRow,
   createEmptyIntegrationExpertRow,
   createEmptyInfluencersExpertRow,
+  createEmptyDigiVideoExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -82,6 +85,7 @@ import {
   mapStandardDigiAudioLineItemsToExpertRows,
   mapStandardDigiDisplayLineItemsToExpertRows,
   mapStandardDigiVideoLineItemsToExpertRows,
+  mapDigiVideoExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
@@ -108,6 +112,9 @@ import {
   mergeSocialMediaStandardFromExpertWithPrevious,
   mergeIntegrationStandardFromExpertWithPrevious,
   mergeInfluencersStandardFromExpertWithPrevious,
+  mergeDigiVideoStandardFromExpertWithPrevious,
+  serializeDigiVideoExpertRowsBaseline,
+  serializeDigiVideoStandardLineItemsBaseline,
   serializeInfluencersExpertRowsBaseline,
   serializeInfluencersStandardLineItemsBaseline,
   serializeIntegrationExpertRowsBaseline,
@@ -129,6 +136,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
+  getDigiVideoBursts,
   getInfluencersBursts,
   getIntegrationBursts,
   getSocialMediaBursts,
@@ -182,6 +190,21 @@ type CalculatedVariant =
 type ContainerPublisher = {
   id: number
   publisher_name: string
+}
+
+/** One row of a channel's site catalogue (`video_site` and the like). */
+export type ContainerSite = {
+  id: number
+  platform: string
+  site: string
+}
+
+/** A channel's site catalogue: read it, add to it, and the noun its dialog uses. */
+type ContainerSites = {
+  /** "Video" gives "Add New Video Site". */
+  noun: string
+  fetch: () => Promise<ContainerSite[]>
+  create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
 
 /** UI chrome for MediaChannelContainer (titles, theme, timeline key, exit attr). */
@@ -248,6 +271,14 @@ export type ContainerChannelConfig = {
   dedupeOnLoad?: boolean
   /** Excel rows keep a package line's saved quantity (Integration, C-168). Unset: budget ÷ rate. */
   excelPackageKeepsQuantity?: boolean
+  /**
+   * The channel's site catalogue (Digital Video, W5c). The card's Site field
+   * lists the line publisher's sites; a publisher change sets the line's
+   * platform and clears its site; Add Site creates a site and writes it to
+   * the line; the grid gets the list; the card summary shows Publisher and
+   * Site; Excel rows carry `site`. Unset: none of these.
+   */
+  sites?: ContainerSites
 }
 
 /**
@@ -1304,15 +1335,33 @@ export const DIGITALVIDEO_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: digivideoFormSchema,
   fetchPublishers: getPublishersForDigiVideo,
   toExpert: mapStandardDigiVideoLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "digital video",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  fromExpert: mapDigiVideoExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeDigiVideoStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeDigiVideoStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeDigiVideoExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyDigiVideoExpertRow,
+  // "Digi Video" keys the video ad serving rate (C-330).
+  billingMediaTypeLabel: "Digi Video",
+  billingBursts: getDigiVideoBursts,
+  burstDateFallback: "now",
+  sites: { noun: "Video", fetch: getVideoSites, create: createVideoSite },
+  expertFromFeeKey: "feePctDigiVideo",
+  summaryDimensions: {
+    Publisher: "publisher",
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
+  shell: {
+    title: "Digi Video Media",
+    themeKey: "digivideo",
+    timelineMediaTypeKey: "digitalVideo",
+    loadLabel: "Digital Video",
+    exitConfirmYesAttr: "data-digivideo-expert-exit-yes",
+    entryModeAriaLabel: "Digi Video entry mode",
+    expertDialogTitle: "Digi Video Expert Mode",
+  },
   gridConfig: DIGIVIDEO_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,
