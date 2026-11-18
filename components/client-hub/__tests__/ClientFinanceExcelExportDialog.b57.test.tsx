@@ -84,9 +84,15 @@ function untick(id: string) {
 
 const notice = () => document.querySelector('[role="alertdialog"]')
 
+/** Clicks Download and waits for the message: the export loads exceljs with a dynamic import. */
 async function download() {
   act(() => button("Download Excel").click())
-  await settle()
+  for (let i = 0; i < 200 && !notice(); i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+  }
+  expect(notice()).toBeTruthy()
 }
 
 describe("ClientFinanceExcelExportDialog messages (B57)", () => {
