@@ -20,7 +20,7 @@ function messagesIn(error: unknown): string[] {
 }
 
 /** "Label: message" for each invalid field, in the order of the errors. */
-export function invalidFieldList(
+function invalidFieldList(
   errors: Partial<Record<string, unknown>>,
   labels: Readonly<Record<string, string>> = {},
 ): string[] {

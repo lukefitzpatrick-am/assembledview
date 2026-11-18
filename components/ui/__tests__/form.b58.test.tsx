@@ -24,7 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { invalidFieldList, invalidFieldSummary } from "@/lib/ui/invalidFields"
+import { invalidFieldSummary } from "@/lib/ui/invalidFields"
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -174,7 +174,7 @@ describe("shared form errors", () => {
   })
 })
 
-describe("invalidFieldList", () => {
+describe("invalidFieldSummary", () => {
   it("names each field once, reads rows and nested errors, never the ref", () => {
     // A ref React rendered carries React's own circular state.
     act(() => root.render(<Sample onValid={vi.fn()} />))
@@ -184,11 +184,9 @@ describe("invalidFieldList", () => {
       date: { message: "Date is required", ref, type: "required" },
       odd: { ref, type: "custom" },
     }
-    expect(invalidFieldList(errors, { date: "Scope date" })).toEqual([
-      "cost: Cost must be a number",
-      "Scope date: Date is required",
-      "odd: Invalid value",
-    ])
+    expect(invalidFieldSummary(errors, { date: "Scope date" })).toBe(
+      "Fix 3 fields: cost: Cost must be a number; Scope date: Date is required; odd: Invalid value",
+    )
     expect(invalidFieldSummary({})).toBe("")
     expect(invalidFieldSummary({ a: { message: "x" } })).toBe("Fix 1 field: a: x")
   })

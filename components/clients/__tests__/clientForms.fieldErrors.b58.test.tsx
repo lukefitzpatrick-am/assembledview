@@ -156,6 +156,26 @@ describe("Edit client: errors on the field (B58)", () => {
     expect(container.querySelector("[data-form-error-summary]")?.textContent).toBe(summary)
   })
 
+  it("B58fix R7: two bad fields: the summary reads them in page order and focus is on the one it names first", async () => {
+    act(() =>
+      root.render(
+        <>
+          <Announcer />
+          <EditClientForm client={{ ...VALID_CLIENT, mp_client_name: "", mbaidentifier: "" } as never} onSuccess={vi.fn()} />
+        </>,
+      ),
+    )
+    await settle()
+    await save("Save Changes")
+
+    const invalid = [...container.querySelectorAll<HTMLInputElement>('input[aria-invalid="true"]')].map((el) => el.name)
+    expect(invalid).toEqual(["clientname_input", "mbaidentifier"])
+    expect(assertive().textContent).toBe(
+      "Fix 2 fields: Client Name: Client name is required; MBA Identifier: MBA Identifier is required",
+    )
+    expect(document.activeElement).toBe(field("clientname_input"))
+  })
+
   it("a valid save is unchanged: it saves and announces nothing", async () => {
     const onSuccess = vi.fn()
     act(() =>
