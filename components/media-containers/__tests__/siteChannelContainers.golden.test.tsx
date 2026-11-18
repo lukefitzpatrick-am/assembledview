@@ -793,6 +793,24 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle()
     out.create = snapshot(rec)
 
+    // 13. W5e (review F3): a plan with a gap in its line ids (1, 2, 4), read
+    //     back with `line_item` as the saved position, as Postgres gives it.
+    //     The saved and billing ids stay 1, 2, 4. Then Remove line 1.
+    act(() => root.unmount())
+    root = createRoot(host)
+    rec = fresh()
+    const all = channel.lines()
+    const ids = (nums: number[]) => nums.map((k) => all[0].line_item_id.replace(/1$/, String(k)))
+    mount([0, 1, 3].map((i, position) => ({ ...all[i], line_item: position })))
+    await settle()
+    out.lineIdGap = snapshot(rec)
+    expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([1, 2, 4]))
+    expect([...new Set(rec.billing!.map((b) => b.lineItemId))]).toEqual(ids([1, 2, 4]))
+    act(() => buttons("Remove")[0].click())
+    await settle()
+    out.lineIdGapRemove = snapshot(rec)
+    expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([2, 4]))
+
     expect(wrongCatalogue, "another channel's site catalogue").toEqual([])
 
     const golden = resolve(

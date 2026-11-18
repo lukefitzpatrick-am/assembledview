@@ -14678,5 +14678,533 @@
       4321,
       617.29
     ]
+  },
+  "lineIdGap": {
+    "adServingRates": [
+      [
+        "digi audio",
+        2.2
+      ]
+    ],
+    "billing": [
+      {
+        "budgetIncludesFees": false,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 400000,
+        "deliveryMediaAmount": 5000,
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "feeAmount": 714.2857142857143,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA1",
+        "mediaAmount": 5000,
+        "mediaType": "digi audio",
+        "noAdserving": false,
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "totalAmount": 5714.285714285715
+      },
+      {
+        "budgetIncludesFees": false,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 200000,
+        "deliveryMediaAmount": 3000,
+        "endDate": "2026-03-14T13:00:00.000Z",
+        "feeAmount": 428.57142857142856,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA1",
+        "mediaAmount": 3000,
+        "mediaType": "digi audio",
+        "noAdserving": false,
+        "startDate": "2026-02-15T13:00:00.000Z",
+        "totalAmount": 3428.5714285714284
+      },
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 437500,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA2",
+        "mediaAmount": 7000,
+        "mediaType": "digi audio",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
+      },
+      {
+        "budgetIncludesFees": false,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 1000000,
+        "deliveryMediaAmount": 2000,
+        "endDate": "2026-02-10T03:04:05.678Z",
+        "feeAmount": 285.7142857142857,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA4",
+        "mediaAmount": 2000,
+        "mediaType": "digi audio",
+        "noAdserving": true,
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "totalAmount": 2285.714285714286
+      }
+    ],
+    "excel": [
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "$12.50",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 1",
+        "deliverables": 400000,
+        "deliverablesAmount": "$5,000.00",
+        "endDate": "2026-02-15",
+        "grossMedia": "5000",
+        "lineItemId": "tst001DA1",
+        "line_item": 1,
+        "line_item_id": "tst001DA1",
+        "market": "National",
+        "platform": "Pub A",
+        "site": "Site A2",
+        "startDate": "2026-01-12",
+        "targeting": "placement 1"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "15",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 1",
+        "deliverables": 200000,
+        "deliverablesAmount": "3000",
+        "endDate": "2026-03-15",
+        "grossMedia": "3000",
+        "lineItemId": "tst001DA1",
+        "line_item": 1,
+        "line_item_id": "tst001DA1",
+        "market": "National",
+        "platform": "Pub A",
+        "site": "Site A2",
+        "startDate": "2026-02-16",
+        "targeting": "placement 1"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "$16.00",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 2",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "lineItemId": "tst001DA2",
+        "line_item": 2,
+        "line_item_id": "tst001DA2",
+        "market": "National",
+        "platform": "",
+        "site": "Site A1",
+        "startDate": "2026-02-09",
+        "targeting": "placement 2"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "$2.00",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 4",
+        "deliverables": 1000000,
+        "deliverablesAmount": "$2,000.00",
+        "endDate": "2026-02-10",
+        "grossMedia": "2000",
+        "lineItemId": "tst001DA3",
+        "line_item": 3,
+        "line_item_id": "tst001DA3",
+        "market": "National",
+        "platform": "Legacy platform",
+        "site": "Site A1",
+        "startDate": "2026-02-02",
+        "targeting": "placement 4"
+      }
+    ],
+    "investment": [
+      {
+        "amount": "$3,265.31",
+        "monthYear": "January 2026"
+      },
+      {
+        "amount": "$12,040.82",
+        "monthYear": "February 2026"
+      },
+      {
+        "amount": "$4,122.44",
+        "monthYear": "March 2026"
+      }
+    ],
+    "lineCount": "3 line items",
+    "media": [
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "bursts": [
+          {
+            "adServingImpressions": 1000,
+            "adServingRatePct": 0.5,
+            "budget": "$5,000.00",
+            "buyAmount": "$12.50",
+            "calculatedValue": 400000,
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "fee": 625,
+            "startDate": "2026-01-11T13:00:00.000Z"
+          },
+          {
+            "budget": "3000",
+            "buyAmount": "15",
+            "calculatedValue": 200000,
+            "endDate": "2026-03-14T13:00:00.000Z",
+            "fee": 0,
+            "startDate": "2026-02-15T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "placement 1",
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 1,
+        "line_item_id": "tst001DA1",
+        "market": "National",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "platform": "Pub A",
+        "publisher": "Pub A",
+        "site": "Site A2",
+        "totalMedia": 8000
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "fee": 0,
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "placement 2",
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 2,
+        "line_item_id": "tst001DA2",
+        "market": "National",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "platform": "",
+        "publisher": "Pub A",
+        "site": "Site A1",
+        "totalMedia": 7000
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "calculatedValue": 1000000,
+            "endDate": "2026-02-10T03:04:05.678Z",
+            "fee": 0,
+            "startDate": "2026-02-01T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "placement 4",
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 4,
+        "line_item_id": "tst001DA4",
+        "market": "National",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": true,
+        "platform": "Legacy platform",
+        "publisher": "Pub A",
+        "site": "Site A1",
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "adServingImpressions": 1000,
+          "adServingRatePct": 0.5,
+          "budget": "$5,000.00",
+          "buyAmount": "$12.50",
+          "calculatedValue": 400000,
+          "endDate": "2026-02-15",
+          "feeAmount": "$714.29",
+          "mediaAmount": "$5,000.00",
+          "startDate": "2026-01-12"
+        },
+        {
+          "budget": "3000",
+          "buyAmount": "15",
+          "calculatedValue": 200000,
+          "endDate": "2026-03-15",
+          "feeAmount": "$428.57",
+          "mediaAmount": "$3,000.00",
+          "startDate": "2026-02-16"
+        }
+      ],
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "calculatedValue": 1000000,
+          "endDate": "2026-02-10",
+          "feeAmount": "$285.71",
+          "mediaAmount": "$2,000.00",
+          "startDate": "2026-02-02"
+        }
+      ]
+    ],
+    "totals": [
+      17000,
+      2428.57
+    ]
+  },
+  "lineIdGapRemove": {
+    "adServingRates": [
+      [
+        "digi audio",
+        2.2
+      ]
+    ],
+    "billing": [
+      {
+        "budgetIncludesFees": true,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 437500,
+        "deliveryMediaAmount": 7000,
+        "endDate": "2026-03-07T13:00:00.000Z",
+        "feeAmount": 1000,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA2",
+        "mediaAmount": 7000,
+        "mediaType": "digi audio",
+        "noAdserving": false,
+        "startDate": "2026-02-08T13:00:00.000Z",
+        "totalAmount": 8000
+      },
+      {
+        "budgetIncludesFees": false,
+        "buyType": "cpm",
+        "clientPaysForMedia": false,
+        "deliverables": 1000000,
+        "deliveryMediaAmount": 2000,
+        "endDate": "2026-02-10T03:04:05.678Z",
+        "feeAmount": 285.7142857142857,
+        "feePercentage": 12.5,
+        "lineItemId": "tst001DA4",
+        "mediaAmount": 2000,
+        "mediaType": "digi audio",
+        "noAdserving": true,
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "totalAmount": 2285.714285714286
+      }
+    ],
+    "excel": [
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "$16.00",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 2",
+        "deliverables": 437500,
+        "deliverablesAmount": "$8,000.00",
+        "endDate": "2026-03-08",
+        "grossMedia": "7000",
+        "lineItemId": "tst001DA1",
+        "line_item": 1,
+        "line_item_id": "tst001DA1",
+        "market": "National",
+        "platform": "",
+        "site": "Site A1",
+        "startDate": "2026-02-09",
+        "targeting": "placement 2"
+      },
+      {
+        "bidStrategy": "manual_cpc",
+        "buyAmount": "$2.00",
+        "buyType": "cpm",
+        "buyingDemo": "P18+",
+        "clientPaysForMedia": false,
+        "creative": "creative 4",
+        "deliverables": 1000000,
+        "deliverablesAmount": "$2,000.00",
+        "endDate": "2026-02-10",
+        "grossMedia": "2000",
+        "lineItemId": "tst001DA2",
+        "line_item": 2,
+        "line_item_id": "tst001DA2",
+        "market": "National",
+        "platform": "Legacy platform",
+        "site": "Site A1",
+        "startDate": "2026-02-02",
+        "targeting": "placement 4"
+      }
+    ],
+    "investment": [
+      {
+        "amount": "$8,000.00",
+        "monthYear": "February 2026"
+      },
+      {
+        "amount": "$2,285.71",
+        "monthYear": "March 2026"
+      }
+    ],
+    "lineCount": "2 line items",
+    "media": [
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "bursts": [
+          {
+            "budget": "$8,000.00",
+            "buyAmount": "$16.00",
+            "calculatedValue": 437500,
+            "endDate": "2026-03-07T13:00:00.000Z",
+            "fee": 0,
+            "startDate": "2026-02-08T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "placement 2",
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 2,
+        "line_item_id": "tst001DA2",
+        "market": "National",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": false,
+        "platform": "",
+        "publisher": "Pub A",
+        "site": "Site A1",
+        "totalMedia": 7000
+      },
+      {
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "calculatedValue": 1000000,
+            "endDate": "2026-02-10T03:04:05.678Z",
+            "fee": 0,
+            "startDate": "2026-02-01T13:00:00.000Z"
+          }
+        ],
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "placement 4",
+        "feePct": 12.5,
+        "fixed_cost_from": "",
+        "fixed_cost_media": false,
+        "line_item": 4,
+        "line_item_id": "tst001DA4",
+        "market": "National",
+        "mba_number": "tst001",
+        "media_plan_version": 0,
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "no_adserving": true,
+        "platform": "Legacy platform",
+        "publisher": "Pub A",
+        "site": "Site A1",
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$8,000.00",
+          "buyAmount": "$16.00",
+          "calculatedValue": 437500,
+          "endDate": "2026-03-08",
+          "feeAmount": "$1,000.00",
+          "mediaAmount": "$7,000.00",
+          "startDate": "2026-02-09"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "calculatedValue": 1000000,
+          "endDate": "2026-02-10",
+          "feeAmount": "$285.71",
+          "mediaAmount": "$2,000.00",
+          "startDate": "2026-02-02"
+        }
+      ]
+    ],
+    "totals": [
+      9000,
+      1285.71
+    ]
   }
 }

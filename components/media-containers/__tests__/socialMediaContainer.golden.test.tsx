@@ -301,7 +301,27 @@ describe("SocialMediaContainer golden (W5a)", () => {
     await settle()
     out.create = snapshot(rec)
 
-    const text = `${JSON.stringify(out, null, 2)}\n`
+    // 6. W5e (review F3): a plan with a gap in its line ids (1, 2, 4), read
+    //    back with `line_item` as the saved position, as Postgres gives it.
+    //    The saved ids stay 1, 2, 4. Then Remove line 1.
+    act(() => root.unmount())
+    root = createRoot(host)
+    rec = { media: null, excel: null, billing: null, investment: null, totals: null, rawCount: null }
+    mount(
+      [1, 2, 4].map((n, position) => ({
+        ...apiLine(n, { bursts: [burst(`$${n},000.00`, "$10.00", "2026-01-12", "2026-02-08")] }),
+        line_item: position,
+      })),
+    )
+    await settle()
+    out.lineIdGap = snapshot(rec)
+    expect(rec.media!.map((l) => l.line_item_id)).toEqual(["tst001SM1", "tst001SM2", "tst001SM4"])
+    act(() => buttons(host, "Remove")[0].click())
+    await settle()
+    out.lineIdGapRemove = snapshot(rec)
+    expect(rec.media!.map((l) => l.line_item_id)).toEqual(["tst001SM2", "tst001SM4"])
+
+    const text =`${JSON.stringify(out, null, 2)}\n`
     if (process.env.UPDATE_GOLDEN === "1") {
       writeFileSync(GOLDEN, text)
     }
