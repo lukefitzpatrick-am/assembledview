@@ -1,9 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { openAvaChat, setAssistantContext } from "@/lib/assistantBridge"
@@ -248,22 +248,27 @@ export function CampaignDetailModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={row ? `${row.campaignName} detail` : "Campaign detail"}
-      className="fixed inset-0 z-modal flex items-start justify-center overflow-y-auto bg-background/80 p-4 pt-10"
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
     >
-      <div className="flex w-full min-w-0 max-w-6xl flex-col rounded-frame border border-border bg-card shadow-e2">
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+      <DialogContent
+        aria-describedby={undefined}
+        // Only Escape and the X close it: a stray click outside must not lose a typed note.
+        onInteractOutside={(event) => event.preventDefault()}
+        className="flex max-h-[90vh] w-[calc(100%-2rem)] min-w-0 max-w-6xl flex-col gap-0 overflow-y-auto rounded-frame bg-card p-0 sm:rounded-frame"
+      >
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border py-4 pl-5 pr-12">
           <div className="min-w-0 space-y-1">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               {row?.clientName ?? "…"}
             </p>
-            <h2 className="text-lg font-semibold text-foreground">
+            <DialogTitle className="text-lg leading-normal tracking-normal text-foreground">
               {row?.campaignName ?? mba}{" "}
               <span className="text-sm font-normal tabular-nums text-muted-foreground">{mba}</span>
-            </h2>
+            </DialogTitle>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {row ? (
                 <Badge variant={displayBandBadgeVariant(band)} size="sm" dot>
@@ -313,9 +318,6 @@ export function CampaignDetailModal({
             </Button>
             <Button type="button" variant="secondary" size="sm" asChild>
               <a href={dashboardHref}>Open client dashboard →</a>
-            </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
-              <X className="h-4 w-4" />
             </Button>
           </div>
         </header>
@@ -669,9 +671,9 @@ export function CampaignDetailModal({
             </div>
           ) : null}
         </div>
-      </div>
-      {containedWrites ? null : <CampaignAskHelpDialog mba={mba} open={helpOpen} onOpenChange={setHelpOpen} />}
-    </div>
+        {containedWrites ? null : <CampaignAskHelpDialog mba={mba} open={helpOpen} onOpenChange={setHelpOpen} />}
+      </DialogContent>
+    </Dialog>
   )
 }
 

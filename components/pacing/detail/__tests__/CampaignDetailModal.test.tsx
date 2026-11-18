@@ -76,7 +76,7 @@ describe("CampaignDetailModal", () => {
         </Harness>,
       )
     })
-    const open = [...container.querySelectorAll("button")].find((el) =>
+    const open = [...document.body.querySelectorAll("button")].find((el) =>
       el.textContent?.includes("Open campaign"),
     )
     expect(open).toBeTruthy()
@@ -84,15 +84,17 @@ describe("CampaignDetailModal", () => {
       open!.click()
     })
     await settle()
-    expect(container.querySelector('[role="dialog"]')).toBeTruthy()
-    expect(container.textContent).toContain("Overview")
+    expect(document.body.querySelector('[role="dialog"]')).toBeTruthy()
+    expect(document.body.textContent).toContain("Overview")
     expect(window.location.search).toContain("campaign=BICAU002")
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      ;(document.activeElement ?? document.body).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      )
     })
     await settle()
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     expect(window.location.search).not.toContain("campaign=")
   })
 
@@ -104,14 +106,14 @@ describe("CampaignDetailModal", () => {
         </Harness>,
       )
     })
-    const view = [...container.querySelectorAll("button")].find((el) => el.textContent === "View")
+    const view = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "View")
     expect(view).toBeTruthy()
     act(() => {
       view!.click()
     })
     await settle()
-    expect(container.querySelector('[role="dialog"]')).toBeTruthy()
-    expect(container.textContent).toContain("BICAU002")
+    expect(document.body.querySelector('[role="dialog"]')).toBeTruthy()
+    expect(document.body.textContent).toContain("BICAU002")
   })
 
   it("reopens from ?campaign=", async () => {
@@ -124,8 +126,8 @@ describe("CampaignDetailModal", () => {
       )
     })
     await settle()
-    expect(container.querySelector('[role="dialog"]')).toBeTruthy()
-    expect(container.textContent).toContain("Open client dashboard")
+    expect(document.body.querySelector('[role="dialog"]')).toBeTruthy()
+    expect(document.body.textContent).toContain("Open client dashboard")
   })
 
   it("hides all-empty columns on the Lines tab", () => {
@@ -142,11 +144,11 @@ describe("CampaignDetailModal", () => {
         />,
       )
     })
-    const linesTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Lines")
+    const linesTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Lines")
     act(() => {
       linesTab!.click()
     })
-    const headers = [...container.querySelectorAll("th")].map((el) => el.textContent)
+    const headers = [...document.body.querySelectorAll("th")].map((el) => el.textContent)
     expect(headers).toContain("Line")
     expect(headers).toContain("Clicks")
     expect(headers).not.toContain("CPM")
@@ -168,14 +170,14 @@ describe("CampaignDetailModal", () => {
         />,
       )
     })
-    const linesTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Lines")
+    const linesTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Lines")
     act(() => {
       linesTab!.click()
     })
-    const table = container.querySelector("table")
+    const table = document.body.querySelector("table")
     expect(table?.parentElement?.className).toMatch(/overflow-x-auto/)
-    const firstTh = container.querySelector("thead th")
-    const firstTd = container.querySelector("tbody td")
+    const firstTh = document.body.querySelector("thead th")
+    const firstTd = document.body.querySelector("tbody td")
     expect(firstTh?.className).toMatch(/sticky/)
     expect(firstTd?.className).toMatch(/sticky/)
     expect(firstTd?.querySelector(".font-mono")?.textContent).toBe(payload.lines[0]?.lineItemId)
@@ -221,13 +223,13 @@ describe("CampaignDetailModal", () => {
         />,
       )
     })
-    const kpisTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "KPIs")
+    const kpisTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "KPIs")
     act(() => {
       kpisTab!.click()
     })
-    const grid = container.querySelector('[class*="min-[800px]:grid-cols-2"]')
+    const grid = document.body.querySelector('[class*="min-[800px]:grid-cols-2"]')
     expect(grid).toBeTruthy()
-    const sections = [...container.querySelectorAll("[data-kpi-line]")]
+    const sections = [...document.body.querySelectorAll("[data-kpi-line]")]
     expect(sections).toHaveLength(2)
     expect(sections[0]?.getAttribute("data-kpi-line")).toBe("bicau002se1")
     expect(sections[0]?.textContent).toContain("Brand search")
@@ -274,12 +276,12 @@ describe("CampaignDetailModal", () => {
         />,
       )
     })
-    const burstsTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Bursts")
+    const burstsTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Bursts")
     act(() => {
       burstsTab!.click()
     })
-    expect(container.textContent).toContain("no bursts booked")
-    expect(container.querySelectorAll("[data-burst-lane]")).toHaveLength(1)
+    expect(document.body.textContent).toContain("no bursts booked")
+    expect(document.body.querySelectorAll("[data-burst-lane]")).toHaveLength(1)
   })
 
   it("shows an explicit empty Daily state instead of a blank chart", () => {
@@ -296,10 +298,10 @@ describe("CampaignDetailModal", () => {
         />,
       )
     })
-    const dailyTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Daily")
+    const dailyTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Daily")
     act(() => {
       dailyTab!.click()
     })
-    expect(container.textContent).toContain("No daily rows for this campaign")
+    expect(document.body.textContent).toContain("No daily rows for this campaign")
   })
 })

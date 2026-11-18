@@ -66,16 +66,16 @@ describe("Campaign detail Ask for help (B44, C-200)", () => {
         />,
       )
     })
-    const notesTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Notes & actions")
+    const notesTab = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Notes & actions")
     act(() => notesTab!.click())
   }
 
   it("switch off: the Ask for help button opens the in-page dialog, as before", async () => {
     setClientFeatureSnapshot({ codex_contained_writes: false })
     renderNotesTab()
-    const button = [...container.querySelectorAll("button")].find((el) => el.textContent === "Ask for help")
+    const button = [...document.body.querySelectorAll("button")].find((el) => el.textContent === "Ask for help")
     expect(button).toBeTruthy()
-    expect(container.textContent).not.toContain("Ask for help in Tasks")
+    expect(document.body.textContent).not.toContain("Ask for help in Tasks")
     act(() => button!.click())
     await act(async () => {
       await Promise.resolve()
@@ -88,8 +88,8 @@ describe("Campaign detail Ask for help (B44, C-200)", () => {
   it("switch on: a link opens Tasks with Ask for help filled in from the campaign; no dialog, no Codex call", () => {
     setClientFeatureSnapshot({ codex_contained_writes: true })
     renderNotesTab()
-    expect([...container.querySelectorAll("button")].some((el) => el.textContent === "Ask for help")).toBe(false)
-    const link = [...container.querySelectorAll("a")].find((el) => el.textContent === "Ask for help in Tasks")
+    expect([...document.body.querySelectorAll("button")].some((el) => el.textContent === "Ask for help")).toBe(false)
+    const link = [...document.body.querySelectorAll("a")].find((el) => el.textContent === "Ask for help in Tasks")
     expect(link).toBeTruthy()
     const href = link!.getAttribute("href")!
     expect(href.startsWith("/tasks?compose=help&")).toBe(true)

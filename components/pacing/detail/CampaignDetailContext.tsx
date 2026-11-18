@@ -131,15 +131,6 @@ export function CampaignDetailProvider({
     }
   }, [mba, asOf, refresh])
 
-  useEffect(() => {
-    if (!mba) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [mba, close])
-
   const value = useMemo(() => ({ open, close, mba }), [open, close, mba])
 
   return (

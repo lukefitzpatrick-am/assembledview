@@ -9,8 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { openAvaChat, setAssistantContext } from "@/lib/assistantBridge"
 import type { CampaignDetailPayload } from "@/lib/pacing/detail/types"
@@ -134,33 +133,26 @@ export function ScenarioPlannerProvider({ children }: { children: ReactNode }) {
     void load(mba)
   }, [mba, load])
 
-  useEffect(() => {
-    if (!mba) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [mba, close])
-
   const value = useMemo(() => ({ open, close, mba }), [open, close, mba])
 
   return (
     <ScenarioPlannerContext.Provider value={value}>
       {children}
       {mba ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Scenario planner"
-          className="fixed inset-0 z-nested flex items-start justify-center overflow-y-auto bg-background/80 p-4 pt-10"
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next) close()
+          }}
         >
-          <div className="relative w-full max-w-6xl rounded-frame border border-border bg-card p-5 shadow-e2">
-            <div className="absolute right-3 top-3">
-              <Button type="button" variant="ghost" size="icon" onClick={close} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+          <DialogContent
+            layer="nested"
+            aria-describedby={undefined}
+            // Only Escape and the X close it: a stray click outside must not lose the levers set.
+            onInteractOutside={(event) => event.preventDefault()}
+            className="block max-h-[90vh] w-[calc(100%-2rem)] max-w-6xl overflow-y-auto rounded-frame bg-card p-5 sm:rounded-frame"
+          >
+            <DialogTitle className="sr-only">Scenario planner</DialogTitle>
             {loading && !payload ? (
               <div className="space-y-3">
                 <Skeleton className="h-8 w-48" />
@@ -235,8 +227,8 @@ export function ScenarioPlannerProvider({ children }: { children: ReactNode }) {
                 }}
               />
             ) : null}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </ScenarioPlannerContext.Provider>
   )
