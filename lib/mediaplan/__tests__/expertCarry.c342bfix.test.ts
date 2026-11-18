@@ -8,10 +8,15 @@ import "@/lib/testing/bothZones"
  *   no-edit Apply keeps its saved budget.
  * - L2: a carried burst takes its own buy type from the saved burst, never
  *   from the burst the mapper wrote in the same place.
+ * - L6: what counts as an edit (span dates, span buy type, a rate edit of a
+ *   few cents), the grid's money for a group the grid does not show or a
+ *   fully carried fixed cost row, Television's TARPs text, and bursts that
+ *   arrive as `bursts_json` text.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import * as M from "@/lib/mediaplan/expertChannelMappings"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowBudget } from "@/lib/mediaplan/expertRowCost"
@@ -130,4 +135,140 @@ test("L2: a bonus burst first in a group keeps its label; the paid burst after i
     [600_000, 4, "", "2026-03-01", "2026-03-07"],
     [0, 3, "bonus", "2026-03-01", "2026-03-14"],
   ])
+})
+
+// --- L6: what counts as an edit ------------------------------------------
+
+const span = (rows: any[]) => rows[0].mergedWeekSpans.find((sp: any) => sp.startYmd === "2026-03-08")
+
+test("a span's dates moved inside its weeks are an edit: Apply writes the new dates", () => {
+  const saved = [oohLine([{ budget: "$7,777.77", buyAmount: "$1,450.00", calculatedValue: 5.364, startDate: "2026-03-08", endDate: "2026-03-21" }])]
+  const rows = ooh.open(saved)
+  span(rows).endYmd = "2026-03-20"
+  const [line] = ooh.apply(rows, saved)
+  assert.deepEqual(read(line).map((b) => [b[3], b[4]]), [["2026-03-08", "2026-03-20"]])
+})
+
+test("a span turned bonus is an edit: Apply writes a $0 bonus burst", () => {
+  // Week 1 keeps the line above $0 (a line Apply would zero keeps its saved bursts).
+  const saved = [
+    oohLine([
+      { budget: "$6,000.00", buyAmount: "$1,500.00", calculatedValue: 4, startDate: "2026-03-01", endDate: "2026-03-07" },
+      { budget: "$12,000.00", buyAmount: "$1,500.00", calculatedValue: 8, startDate: "2026-03-08", endDate: "2026-03-21" },
+    ]),
+  ]
+  const rows = ooh.open(saved)
+  span(rows).buyType = "bonus"
+  assert.deepEqual(read(ooh.apply(rows, saved)[0]), [
+    [600_000, 4, "", "2026-03-01", "2026-03-07"],
+    [0, 8, "bonus", "2026-03-08", "2026-03-21"],
+  ])
+})
+
+test("a rate edit of a few cents reprices the row", () => {
+  const burst = { budget: "$7,777.77", buyAmount: "$15.00" }
+  const saved = [
+    {
+      buyType: "cpm",
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      fixedCostMedia: false,
+      noadserving: false,
+      line_item_id: "fixSearch1",
+      lineItemId: "fixSearch1",
+      line_item: 1,
+      lineItem: 1,
+      platform: "Google",
+      bursts: [{ ...burst, calculatedValue: computeLoadedDeliverables("cpm", burst, false, FEE), startDate: "2026-03-01", endDate: "2026-03-07" }],
+    },
+  ]
+  const rows = M.mapStandardSearchLineItemsToExpertRows(saved as any, COLS, START, END) as any[]
+  rows[0].unitRate = 15.03
+  const [line] = S.mergeSearchStandardFromExpertWithPrevious(
+    M.mapSearchExpertRowsToStandardLineItems(rows, COLS, START, END, { feePctSearch: FEE }),
+    saved as any
+  ) as any[]
+  // 518,518 impressions at CPM $15.03.
+  assert.deepEqual([cents(line.bursts[0].budget), cents(line.bursts[0].buyAmount)], [Math.round(518.518 * 15.03 * 100), 1_503])
+})
+
+// --- L6: the grid's money ---------------------------------------------------
+
+test("a bonus burst the grid shows with no quantity is priced from the grid: $0 in the grid's money and on Apply", () => {
+  // Saved with a budget (a bonus burst is $0 to the card whatever it holds).
+  const saved = [
+    oohLine([
+      { budget: "$6,000.00", buyAmount: "$1,500.00", calculatedValue: 4, startDate: "2026-03-01", endDate: "2026-03-07" },
+      { budget: "$500.00", buyAmount: "0", calculatedValue: 0, buyType: "bonus", startDate: "2026-03-15", endDate: "2026-03-21" },
+    ]),
+  ]
+  const rows = ooh.open(saved)
+  assert.equal(Math.round(expertRowBudget(rows[0], WEEK_KEYS, FEE) * 100), 600_000)
+  assert.deepEqual(read(ooh.map(rows)[0]), [
+    [600_000, 4, "", "2026-03-01", "2026-03-07"],
+    [0, 0, "bonus", "2026-03-15", "2026-03-21"],
+  ])
+})
+
+test("a fully carried fixed cost row's money is its saved budget, not that plus its rate", () => {
+  const saved = [
+    oohLine(
+      [
+        { budget: "$7,777.77", buyAmount: "$7,777.77", calculatedValue: 1, startDate: "2026-03-01", endDate: "2026-03-07" },
+        { budget: "$7,777.77", buyAmount: "$7,777.77", calculatedValue: 1, startDate: "2026-03-08", endDate: "2026-03-21" },
+      ],
+      false,
+      "fixed_cost"
+    ),
+  ]
+  const rows = ooh.open(saved)
+  assert.equal(Math.round(expertRowBudget(rows[0], WEEK_KEYS, FEE) * 100), 2 * 777_777)
+})
+
+// --- L6: Television TARPs, bursts_json ----------------------------------------
+
+test("Television: each carried burst's TARPs text is its own saved deliverables", () => {
+  // Two bursts on the same week: the grid shows one as a span, the mapper writes one burst for both.
+  const saved = [
+    {
+      market: "Melbourne",
+      network: "Seven",
+      station: "7",
+      daypart: "Prime",
+      placement: "",
+      buyType: "cpt",
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      fixedCostMedia: false,
+      noadserving: false,
+      line_item_id: "fixTv1",
+      lineItemId: "fixTv1",
+      line_item: 1,
+      lineItem: 1,
+      bursts: [
+        { budget: "$3,000.00", buyAmount: "$40.00", calculatedValue: 75, startDate: "2026-03-01", endDate: "2026-03-07" },
+        { budget: "$4,000.00", buyAmount: "$40.00", calculatedValue: 100, startDate: "2026-03-01", endDate: "2026-03-07" },
+      ],
+    },
+  ]
+  const rows = M.mapStandardTvLineItemsToExpertRows(saved as any, COLS, START, END) as any[]
+  const [line] = S.mergeTelevisionStandardFromExpertWithPrevious(
+    M.mapTvExpertRowsToStandardLineItems(rows, COLS, START, END, { feePctTelevision: FEE, budgetIncludesFees: false }),
+    saved as any
+  ) as any[]
+  assert.deepEqual(
+    line.bursts.map((b: any) => [cents(b.budget), b.calculatedValue, b.tarps]),
+    [
+      [300_000, 75, "75"],
+      [400_000, 100, "100"],
+    ]
+  )
+})
+
+test("bursts that arrive as bursts_json text are carried like bursts", () => {
+  const bursts = [{ budget: "$7,777.77", buyAmount: "$1,450.00", calculatedValue: 5.364, startDate: "2026-03-08", endDate: "2026-03-21" }]
+  const { bursts: _drop, ...rest } = oohLine(bursts)
+  const saved = [{ ...rest, bursts_json: JSON.stringify(bursts) }]
+  const [line] = ooh.map(ooh.open(saved))
+  assert.deepEqual(read(line), [[777_777, 5.364, "", "2026-03-08", "2026-03-21"]])
 })
