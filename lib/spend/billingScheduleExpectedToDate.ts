@@ -1,4 +1,3 @@
-import { parseDateOnlyString } from "@/lib/dates/civil"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseMoney } from "@/lib/money"
@@ -71,21 +70,24 @@ export function sumBillingEntryAmount(entry: unknown): number {
 
 /**
  * Expected spend to date from billing schedule rows (same model as
- * `GET /api/mediaplans/mba/[mba_number]` → `metrics.expectedSpendToDate`).
+ * `GET /api/mediaplans/mba/[mba_number]` → `metrics.expectedSpendToDate`),
+ * counted to `asOfISO` inclusive (the caller's count-to or window end), or to
+ * the Melbourne day when none is passed.
  */
 export function calculateExpectedSpendToDateFromBillingSchedule(
   billingSchedule: unknown,
   startDate: string | null | undefined,
   endDate: string | null | undefined,
+  asOfISO?: string | null,
 ): number {
   if (!billingSchedule || !Array.isArray(billingSchedule)) return 0
   if (!startDate || !endDate) return 0
 
   const start = safeParseDate(startDate)
   const end = safeParseDate(endDate)
-  if (!start || !end) return 0
-  // Local midnight of the Melbourne day, like the other local Dates here (C-277).
-  const today = parseDateOnlyString(getMelbourneTodayISO())
+  // Local midnight of the as-of day, like the other local Dates here (C-277).
+  const today = safeParseDate(asOfISO || getMelbourneTodayISO())
+  if (!start || !end || !today) return 0
 
   const campaignStart = startOfDay(start)
   const campaignEnd = endOfDay(end)

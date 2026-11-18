@@ -44,7 +44,7 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
   return resolveExpectedWithSource(input).value
 }
 
-/** Which branch produced the figure. Only the first two honour `monthlyOpts.asOfISO`. */
+/** Which branch produced the figure. All but the API metric and the legacy parser honour `monthlyOpts.asOfISO`. */
 type ExpectedSource = "delivery_monthly" | "monthly" | "metric" | "legacy_delivery" | "billing" | "none"
 
 function resolveExpectedWithSource(input: ResolveCampaignSpendInput): {
@@ -97,7 +97,12 @@ function resolveExpectedWithSource(input: ResolveCampaignSpendInput): {
   )
   if (fromDelivery > 0) return { value: fromDelivery, source: "legacy_delivery" }
 
-  const fromBilling = calculateExpectedSpendToDateFromBillingSchedule(billingSchedule, start ?? null, end ?? null)
+  const fromBilling = calculateExpectedSpendToDateFromBillingSchedule(
+    billingSchedule,
+    start ?? null,
+    end ?? null,
+    monthlyOpts?.asOfISO,
+  )
   if (fromBilling > 0) return { value: fromBilling, source: "billing" }
 
   return { value: 0, source: "none" }
@@ -123,8 +128,8 @@ export type ExpectedSpendWindow = {
  * Expected media for a pacing window (`resolvePacingWindow`), not "to today".
  * To date: the figure as at `window.endISO`. A window that starts after the
  * campaign start is the figure at its end less the figure the day before it
- * starts. Fallback sources that cannot be dated (API metric, legacy parser,
- * billing) return their to-date figure unchanged.
+ * starts. Fallback sources that cannot be dated (API metric, legacy parser)
+ * return their to-date figure unchanged.
  */
 export function resolveCampaignExpectedSpendForWindow(
   input: ResolveCampaignSpendInput & { window: ExpectedSpendWindow },
@@ -135,7 +140,7 @@ export function resolveCampaignExpectedSpendForWindow(
     ...rest,
     monthlyOpts: { ...rest.monthlyOpts, asOfISO: window.endISO },
   })
-  const dated = atEnd.source === "delivery_monthly" || atEnd.source === "monthly"
+  const dated = atEnd.source === "delivery_monthly" || atEnd.source === "monthly" || atEnd.source === "billing"
   const campaignStart = rest.campaignStartISO ?? rest.monthlyOpts?.campaignStartISO ?? null
   if (!dated || !campaignStart || window.startISO <= campaignStart) return atEnd.value
   const before = resolveExpectedWithSource({
