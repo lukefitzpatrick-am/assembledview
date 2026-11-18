@@ -66,7 +66,7 @@ function buildRows(n: number): SocialMediaExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`socialmedia-v-${i}`))
 }
 
-/** Mirrors SocialMediaExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors ExpertGrid containerTotals for the Social grid over the FULL logical array. */
 function computeSocialMediaWeeklyTotals(
   rows: readonly SocialMediaExpertScheduleRow[],
   feePct: number
