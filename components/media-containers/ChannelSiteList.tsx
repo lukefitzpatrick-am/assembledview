@@ -24,9 +24,10 @@ type Toast = ReturnType<typeof useToast>["toast"]
 type Sites = NonNullable<ContainerChannelConfig["sites"]>
 
 /** "Add a video site", "Add an audio site", "Add a BVOD site": an acronym keeps its case. */
-function addSiteLabel(noun: string): string {
+/** "Add a video site for line 2": each card's button names its line (W5e, review F6). */
+function addSiteLabel(noun: string, lineNumber: number): string {
   const word = /^[A-Z]+$/.test(noun) ? noun : noun.toLowerCase()
-  return `Add ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} site`
+  return `Add ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} site for line ${lineNumber}`
 }
 
 /**
@@ -109,7 +110,7 @@ export function useChannelSiteList(
             variant="ghost"
             size="sm"
             className="h-auto p-1"
-            aria-label={addSiteLabel(sites.noun)}
+            aria-label={addSiteLabel(sites.noun, li + 1)}
             onClick={(e) => openFor(li, publisher, e.currentTarget)}
           >
             <PlusCircle className="h-5 w-5 text-primary" aria-hidden />

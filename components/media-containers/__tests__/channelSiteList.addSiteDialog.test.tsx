@@ -6,8 +6,13 @@
  *
  * W5d (review F1, F3, F4, F7): focus goes back to the Add Site button after
  * Add, Escape and Cancel; the button reads with the right article; a line
- * with no publisher gets a prompt, not the dialog; Digital Audio's dialog
- * picks another publisher on a labelled combobox, and Add writes it.
+ * with no publisher gets a prompt, not the dialog; the channels with a
+ * publisher pick take another publisher on a labelled combobox, and Add
+ * writes it.
+ *
+ * W5e (review F4, F6): all four site channels; each card's button names its
+ * line ("Add a BVOD site for line 2"), so a screen reader's button list can
+ * tell them apart.
  *
  * @vitest-environment jsdom
  */
@@ -32,23 +37,79 @@ const create = async (data: { platform: string; site: string }) => {
   created.push(data)
   return { id: 99, ...data }
 }
+const sites = async () => [{ id: 11, platform: "Pub A", site: "Site A1" }]
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   getPublishersForDigiVideo: async () => PUBLISHERS,
   getPublishersForDigiAudio: async () => PUBLISHERS,
-  getVideoSites: async () => [{ id: 11, platform: "Pub A", site: "Site A1" }],
-  getAudioSites: async () => [{ id: 11, platform: "Pub A", site: "Site A1" }],
+  getPublishersForDigiDisplay: async () => PUBLISHERS,
+  getPublishersForBvod: async () => PUBLISHERS,
+  getVideoSites: sites,
+  getAudioSites: sites,
+  getDisplaySites: sites,
+  getBVODSites: sites,
   createVideoSite: create,
   createAudioSite: create,
+  createDisplaySite: create,
+  createBVODSite: create,
 }))
 
-const { default: DigitalVideoContainer } = await import(
-  "@/components/media-containers/DigitalVideoContainer"
-)
-const { default: DigitalAudioContainer } = await import(
-  "@/components/media-containers/DigitalAudioContainer"
-)
+type Channel = {
+  name: string
+  Component: ComponentType<any>
+  feeProp: string
+  code: string
+  cardLabel: string
+  noun: string
+  /** The button's name without its line. */
+  button: string
+  /** The dialog picks another publisher (else a read-only publisher box). */
+  pickPublisher: boolean
+}
+
+const CHANNELS: Channel[] = [
+  {
+    name: "digitalVideo",
+    Component: (await import("@/components/media-containers/DigitalVideoContainer")).default,
+    feeProp: "feedigivideo",
+    code: "DV",
+    cardLabel: "digi video",
+    noun: "Video",
+    button: "Add a video site",
+    pickPublisher: false,
+  },
+  {
+    name: "digitalAudio",
+    Component: (await import("@/components/media-containers/DigitalAudioContainer")).default,
+    feeProp: "feedigiaudio",
+    code: "DA",
+    cardLabel: "digital audio",
+    noun: "Audio",
+    button: "Add an audio site",
+    pickPublisher: true,
+  },
+  {
+    name: "digitalDisplay",
+    Component: (await import("@/components/media-containers/DigitalDisplayContainer")).default,
+    feeProp: "feedigidisplay",
+    code: "DD",
+    cardLabel: "digital display",
+    noun: "Display",
+    button: "Add a display site",
+    pickPublisher: true,
+  },
+  {
+    name: "bvod",
+    Component: (await import("@/components/media-containers/BVODContainer")).default,
+    feeProp: "feebvod",
+    code: "BV",
+    cardLabel: "bvod",
+    noun: "BVOD",
+    button: "Add a BVOD site",
+    pickPublisher: true,
+  },
+]
 
 const noop = () => {}
 
@@ -71,7 +132,7 @@ function labelled(dialog: HTMLElement, text: string): HTMLElement | null {
   return id ? dialog.ownerDocument.getElementById(id) : null
 }
 
-describe("Add Site dialog access (W5c, W5d)", () => {
+describe.each(CHANNELS)("$name Add Site dialog access (W5c, W5d, W5e)", (channel) => {
   let host: HTMLDivElement
   let root: Root
 
@@ -120,16 +181,14 @@ describe("Add Site dialog access (W5c, W5d)", () => {
     },
   ]
 
-  async function mount(channel: "video" | "audio") {
-    const Component: ComponentType<any> =
-      channel === "video" ? DigitalVideoContainer : DigitalAudioContainer
-    const fee = channel === "video" ? { feedigivideo: 10 } : { feedigiaudio: 10 }
+  async function mount() {
     const media: unknown[][] = []
+    const { Component } = channel
     act(() => {
       root.render(
         <Component
           clientId="client-1"
-          {...fee}
+          {...{ [channel.feeProp]: 10 }}
           onTotalMediaChange={noop}
           onBurstsChange={noop}
           onInvestmentChange={noop}
@@ -140,15 +199,14 @@ describe("Add Site dialog access (W5c, W5d)", () => {
           campaignBudget={0}
           campaignId=""
           mediaTypes={[]}
-          initialLineItems={lines(channel === "video" ? "DV" : "DA")}
+          initialLineItems={lines(channel.code)}
         />,
       )
     })
     await settle()
-    const cardLabel = channel === "video" ? "digi video" : "digital audio"
     for (const n of [1, 2]) {
       const toggle = host.querySelector(
-        `button[aria-label="Expand details for ${cardLabel} line item ${n}"]`,
+        `button[aria-label="Expand details for ${channel.cardLabel} line item ${n}"]`,
       ) as HTMLButtonElement
       expect(toggle, `expand ${n}`).toBeTruthy()
       act(() => toggle.click())
@@ -156,12 +214,11 @@ describe("Add Site dialog access (W5c, W5d)", () => {
     return media
   }
 
-  const noun = { video: "Video", audio: "Audio" } as const
-  const addButtons = (label: string) =>
-    [...document.querySelectorAll(`button[aria-label="${label}"]`)] as HTMLButtonElement[]
-  const dialogFor = (channel: "video" | "audio") =>
+  const addButton = (line: number) =>
+    [...document.querySelectorAll(`button[aria-label="${channel.button} for line ${line}"]`)] as HTMLButtonElement[]
+  const dialogFor = () =>
     [...document.querySelectorAll('[role="dialog"]')].find((d) =>
-      d.textContent?.includes(`Add New ${noun[channel]} Site`),
+      d.textContent?.includes(`Add New ${channel.noun} Site`),
     ) as HTMLElement | undefined
 
   async function open(button: HTMLButtonElement) {
@@ -172,21 +229,32 @@ describe("Add Site dialog access (W5c, W5d)", () => {
     await settle(50)
   }
 
-  it("opens by a named button, labels its fields, adds on submit and closes on Escape", async () => {
-    await mount("video")
-    const [button] = addButtons("Add a video site")
-    expect(button, "named Add Site button").toBeTruthy()
+  it("names each line's button, labels its fields, adds on submit and gives focus back", async () => {
+    await mount()
+    // One button per line, each named for its line (review F6).
+    expect(addButton(1).length, "line 1 button").toBe(1)
+    expect(addButton(2).length, "line 2 button").toBe(1)
+    expect(
+      [...document.querySelectorAll(`button[aria-label^="${channel.button}"]`)].length,
+      "no button without its line",
+    ).toBe(2)
+    const [button] = addButton(1)
 
     // A line with a publisher and no platform can add a site (C-336).
     await open(button)
-    const d = dialogFor("video")
+    const d = dialogFor()
     expect(d, "dialog").toBeTruthy()
     expect(d!.getAttribute("aria-labelledby")).toBeTruthy()
     expect(d!.contains(document.activeElement), "focus moves into the dialog").toBe(true)
-    const publisher = labelled(d!, "Publisher") as HTMLInputElement
+    const publisher = labelled(d!, "Publisher") as HTMLElement
     const name = labelled(d!, "Site name") as HTMLInputElement
-    expect(publisher?.value).toBe("Pub A")
-    expect(publisher?.readOnly).toBe(true)
+    if (channel.pickPublisher) {
+      expect(publisher?.getAttribute("role"), "labelled publisher combobox").toBe("combobox")
+      expect(publisher.textContent).toContain("Pub A")
+    } else {
+      expect((publisher as HTMLInputElement)?.value).toBe("Pub A")
+      expect((publisher as HTMLInputElement)?.readOnly).toBe(true)
+    }
     expect(name, "labelled site name").toBeTruthy()
     expect(name.form, "name field is in a form").toBeTruthy()
 
@@ -194,50 +262,48 @@ describe("Add Site dialog access (W5c, W5d)", () => {
     act(() => name.form!.requestSubmit())
     await settle()
     expect(created).toEqual([{ site: "Site New", platform: "Pub A" }])
-    expect(dialogFor("video"), "closes after adding").toBeUndefined()
+    expect(dialogFor(), "closes after adding").toBeUndefined()
     await settle(50)
     expect(document.activeElement, "focus back on Add Site after Add").toBe(button)
 
     // Escape closes it without adding, and focus comes back.
     await open(button)
-    expect(dialogFor("video")).toBeTruthy()
+    expect(dialogFor()).toBeTruthy()
     act(() => {
       document.activeElement?.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
       )
     })
     await settle(50)
-    expect(dialogFor("video"), "Escape closes").toBeUndefined()
+    expect(dialogFor(), "Escape closes").toBeUndefined()
     expect(document.activeElement, "focus back on Add Site after Escape").toBe(button)
 
     // Cancel closes it without adding, and focus comes back.
     await open(button)
-    const cancel = [...dialogFor("video")!.querySelectorAll("button")].find(
+    const cancel = [...dialogFor()!.querySelectorAll("button")].find(
       (b) => b.textContent?.trim() === "Cancel",
     ) as HTMLButtonElement
     act(() => cancel.click())
     await settle(50)
-    expect(dialogFor("video"), "Cancel closes").toBeUndefined()
+    expect(dialogFor(), "Cancel closes").toBeUndefined()
     expect(document.activeElement, "focus back on Add Site after Cancel").toBe(button)
     expect(created.length).toBe(1)
   }, 30_000)
 
   it("asks for a publisher first on a line with none, and opens no dialog", async () => {
-    await mount("video")
-    const second = addButtons("Add a video site")[1]
+    await mount()
+    const [second] = addButton(2)
     expect(second, "line 2 Add Site button").toBeTruthy()
     await open(second)
-    expect(dialogFor("video"), "no dialog without a publisher").toBeUndefined()
+    expect(dialogFor(), "no dialog without a publisher").toBeUndefined()
     expect(created).toEqual([])
   }, 30_000)
 
-  it("reads 'Add an audio site' and picks another publisher on Digital Audio", async () => {
-    const media = await mount("audio")
-    expect(addButtons("Add a audio site")).toEqual([])
-    const [button] = addButtons("Add an audio site")
-    expect(button, "named Add Site button").toBeTruthy()
+  it.runIf(channel.pickPublisher)("picks another publisher on a labelled combobox, and Add writes it", async () => {
+    const media = await mount()
+    const [button] = addButton(1)
     await open(button)
-    const d = dialogFor("audio")!
+    const d = dialogFor()!
     expect(d, "dialog").toBeTruthy()
     const picker = labelled(d, "Publisher") as HTMLButtonElement
     expect(picker?.getAttribute("role"), "labelled publisher combobox").toBe("combobox")

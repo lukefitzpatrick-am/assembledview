@@ -290,13 +290,6 @@ type SearchWeekMergeSelectionNormalized = WeekMergeSelectionNormalized
 
 const DEBUG_SEARCH_MERGE = false
 
-function normalizeSearchKey(input: unknown): string {
-  return String(input ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-}
-
 /**
  * F-28 Phase 2 — row virtualization (shared helper from OOH). Fixed row height
  * matches {@link EXPERT_GRID_BODY_ROW_HEIGHT_PX}; no measureElement.
