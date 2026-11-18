@@ -595,6 +595,9 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     await settle()
     out.addSiteCreated = canonical(created.map((c) => c.data))
     out.addSite = snapshot(rec)
+    // Focus goes back to the Add Site button a tick after the dialog closes
+    // (W5d, review F1); let it land before the next popover opens.
+    await settle(50)
 
     // 8. Line 1 buy type changed to Bonus (bonus zeroes budget and buy amount).
     ensureExpanded(1)

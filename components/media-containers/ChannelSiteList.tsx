@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useId, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react"
 import type { UseFormReturn } from "react-hook-form"
 import { PlusCircle } from "lucide-react"
 
@@ -28,6 +28,12 @@ const siteKey = (input: unknown) =>
     .toLowerCase()
     .replace(/\s+/g, " ")
 
+/** "Add a video site", "Add an audio site", "Add a BVOD site": an acronym keeps its case. */
+function addSiteLabel(noun: string): string {
+  const word = /^[A-Z]+$/.test(noun) ? noun : noun.toLowerCase()
+  return `Add ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} site`
+}
+
 /**
  * The site catalogue for a channel whose config has `sites` (W5c, moved from
  * the Digital Video container). Unset `sites`: an empty list, no card props,
@@ -44,6 +50,8 @@ export function useChannelSiteList(
   const [platform, setPlatform] = useState("")
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
+  // The button that opened Add Site: focus goes back to it when the dialog closes.
+  const opener = useRef<HTMLElement | null>(null)
 
   const load = useCallback(
     async (errorTitle: string) => {
@@ -65,7 +73,7 @@ export function useChannelSiteList(
   const publisherOf = (li: number): string =>
     form.watch(`${fieldKey}.${li}.publisher`) || form.watch(`${fieldKey}.${li}.platform`) || ""
 
-  const openFor = (li: number, publisher: string) => {
+  const openFor = (li: number, publisher: string, button: HTMLElement) => {
     if (!publisher) {
       toast({
         title: "Select a Publisher First",
@@ -74,6 +82,7 @@ export function useChannelSiteList(
       })
       return
     }
+    opener.current = button
     setLineIndex(li)
     setName("")
     setPlatform(publisher)
@@ -105,8 +114,8 @@ export function useChannelSiteList(
             variant="ghost"
             size="sm"
             className="h-auto p-1"
-            aria-label={`Add a ${sites.noun.toLowerCase()} site`}
-            onClick={() => openFor(li, publisher)}
+            aria-label={addSiteLabel(sites.noun)}
+            onClick={(e) => openFor(li, publisher, e.currentTarget)}
           >
             <PlusCircle className="h-5 w-5 text-primary" aria-hidden />
           </Button>
@@ -172,13 +181,14 @@ export function useChannelSiteList(
       saving,
       close,
       add,
+      opener,
     },
   }
 }
 
 /**
  * Add Site, on the shared dialog: focus moves in and is held there, Escape
- * and Cancel close it, Enter in the name field adds the site, and both
+ * and Cancel close it, focus goes back to the Add Site button on close, Enter in the name field adds the site, and both
  * fields have labels. The publisher is the line's: read-only, or a publisher
  * pick when the config sets `pickPublisher`.
  */
@@ -197,7 +207,14 @@ export function AddSiteDialog({
   }
   return (
     <Dialog open={dialog.open} onOpenChange={(open) => (open ? undefined : dialog.close())}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent
+        className="sm:max-w-[425px]"
+        onCloseAutoFocus={(e) => {
+          // No trigger: Radix would drop focus on the page body (W5c review F1).
+          e.preventDefault()
+          dialog.opener.current?.focus()
+        }}
+      >
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>Add New {dialog.noun} Site</DialogTitle>
