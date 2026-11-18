@@ -169,4 +169,26 @@ describe("campaign detail window (B57)", () => {
     expect(titleOf(dialogs()[0]!)).toContain(payload.row.campaignName)
     expect(document.activeElement).toBe(plan)
   })
+
+  it("B57fix (review R2): a click outside the planner does not close it and keeps the levers set", async () => {
+    await openDetail()
+    act(() => button((t) => t === "Plan a scenario", dialogs()[0]).click())
+    await settle()
+    const planner = () => dialogs().find((el) => titleOf(el) === "Scenario planner")
+    const move = planner()!.querySelector<HTMLInputElement>('input[name="move-amount"]')!
+    act(() => {
+      move.value = "8000"
+      move.dispatchEvent(new Event("input", { bubbles: true }))
+      move.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    const slider = () => planner()!.querySelector<HTMLInputElement>('input[aria-label="Move amount"]')!
+    expect(slider().value).toBe("8000")
+
+    act(() => {
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }))
+    })
+    await settle()
+    expect(dialogs()).toHaveLength(2)
+    expect(slider().value).toBe("8000")
+  })
 })
