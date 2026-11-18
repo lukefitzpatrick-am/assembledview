@@ -1,0 +1,4157 @@
+{
+  "hydrate": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "$5,000.00",
+            "buyAmount": "$1.25",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 4000,
+            "fee": 0
+          },
+          {
+            "budget": "3000",
+            "buyAmount": "2.1",
+            "startDate": "2026-02-15T13:00:00.000Z",
+            "endDate": "2026-03-14T13:00:00.000Z",
+            "calculatedValue": 1429,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 8000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": true,
+        "creative": "creative 3",
+        "creative_targeting": "targeting 3",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE3",
+        "bursts": [
+          {
+            "budget": "$1,000.00",
+            "buyAmount": "$20.00",
+            "startDate": "2026-01-04T22:15:00.000Z",
+            "endDate": "2026-03-31T04:30:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 3,
+        "totalMedia": 1000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$5,000.00",
+          "buyAmount": "$1.25",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 4000,
+          "mediaAmount": "$5,000.00",
+          "feeAmount": "$714.29"
+        },
+        {
+          "budget": "3000",
+          "buyAmount": "2.1",
+          "startDate": "2026-02-16",
+          "endDate": "2026-03-15",
+          "calculatedValue": 1429,
+          "mediaAmount": "$3,000.00",
+          "feeAmount": "$428.57"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$1,000.00",
+          "buyAmount": "$20.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$1,000.00",
+          "feeAmount": "$142.86"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 5000,
+        "deliveryMediaAmount": 5000,
+        "feeAmount": 714.2857142857143,
+        "totalAmount": 5714.285714285715,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 4000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-02-15T13:00:00.000Z",
+        "endDate": "2026-03-14T13:00:00.000Z",
+        "mediaAmount": 3000,
+        "deliveryMediaAmount": 3000,
+        "feeAmount": 428.57142857142856,
+        "totalAmount": 3428.5714285714284,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1429,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-01-04T22:15:00.000Z",
+        "endDate": "2026-03-31T04:30:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 1000,
+        "feeAmount": 142.85714285714286,
+        "totalAmount": 142.85714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": true,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE3"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 4000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$5,000.00",
+        "grossMedia": "5000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$1.25"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-02-16",
+        "endDate": "2026-03-15",
+        "deliverables": 1428.5714285714284,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "3000",
+        "grossMedia": "3000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "2.1"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 3",
+        "creative": "creative 3",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": "$1,000.00",
+        "grossMedia": "0",
+        "clientPaysForMedia": true,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": "$20.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$15,624.12"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$6,698.62"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$5,105.83"
+      }
+    ],
+    "totals": [
+      24000,
+      3428.57
+    ],
+    "rawCount": null
+  },
+  "feeInclusiveCollapsed": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "$5,000.00",
+            "buyAmount": "$1.25",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "3000",
+            "buyAmount": "2.1",
+            "startDate": "2026-02-15T13:00:00.000Z",
+            "endDate": "2026-03-14T13:00:00.000Z",
+            "calculatedValue": 1250,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 7000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": true,
+        "creative": "creative 3",
+        "creative_targeting": "targeting 3",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE3",
+        "bursts": [
+          {
+            "budget": "$1,000.00",
+            "buyAmount": "$20.00",
+            "startDate": "2026-01-04T22:15:00.000Z",
+            "endDate": "2026-03-31T04:30:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 3,
+        "totalMedia": 1000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$5,000.00",
+          "buyAmount": "$1.25",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$4,375.00",
+          "feeAmount": "$625.00"
+        },
+        {
+          "budget": "3000",
+          "buyAmount": "2.1",
+          "startDate": "2026-02-16",
+          "endDate": "2026-03-15",
+          "calculatedValue": 1250,
+          "mediaAmount": "$2,625.00",
+          "feeAmount": "$375.00"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$1,000.00",
+          "buyAmount": "$20.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$1,000.00",
+          "feeAmount": "$142.86"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 4375,
+        "deliveryMediaAmount": 4375,
+        "feeAmount": 625,
+        "totalAmount": 5000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-02-15T13:00:00.000Z",
+        "endDate": "2026-03-14T13:00:00.000Z",
+        "mediaAmount": 2625,
+        "deliveryMediaAmount": 2625,
+        "feeAmount": 375,
+        "totalAmount": 3000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 1250,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-01-04T22:15:00.000Z",
+        "endDate": "2026-03-31T04:30:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 1000,
+        "feeAmount": 142.85714285714286,
+        "totalAmount": 142.85714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": true,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE3"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$5,000.00",
+        "grossMedia": "4375",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$1.25"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-02-16",
+        "endDate": "2026-03-15",
+        "deliverables": 1250,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "3000",
+        "grossMedia": "2625",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "2.1"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 3",
+        "creative": "creative 3",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": "$1,000.00",
+        "grossMedia": "0",
+        "clientPaysForMedia": true,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": "$20.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$15,215.95"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$6,193.52"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$4,876.24"
+      }
+    ],
+    "totals": [
+      23000,
+      3285.71
+    ],
+    "rawCount": null
+  },
+  "typed": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "$5,000.00",
+            "buyAmount": "$1.25",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "$7,777.70",
+            "buyAmount": "$3.30",
+            "startDate": "2026-02-15T13:00:00.000Z",
+            "endDate": "2026-03-14T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 11180.4875
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": true,
+        "creative": "creative 3",
+        "creative_targeting": "targeting 3",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE3",
+        "bursts": [
+          {
+            "budget": "$1,000.00",
+            "buyAmount": "$20.00",
+            "startDate": "2026-01-04T22:15:00.000Z",
+            "endDate": "2026-03-31T04:30:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 3,
+        "totalMedia": 1000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$5,000.00",
+          "buyAmount": "$1.25",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$4,375.00",
+          "feeAmount": "$625.00"
+        },
+        {
+          "budget": "$7,777.70",
+          "buyAmount": "$3.30",
+          "startDate": "2026-02-16",
+          "endDate": "2026-03-15",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$6,805.49",
+          "feeAmount": "$972.21"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$1,000.00",
+          "buyAmount": "$20.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$1,000.00",
+          "feeAmount": "$142.86"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 4375,
+        "deliveryMediaAmount": 4375,
+        "feeAmount": 625,
+        "totalAmount": 5000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-02-15T13:00:00.000Z",
+        "endDate": "2026-03-14T13:00:00.000Z",
+        "mediaAmount": 6805.4875,
+        "deliveryMediaAmount": 6805.4875,
+        "feeAmount": 972.2125,
+        "totalAmount": 7777.7,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-01-04T22:15:00.000Z",
+        "endDate": "2026-03-31T04:30:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 1000,
+        "feeAmount": 142.85714285714286,
+        "totalAmount": 142.85714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": true,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE3"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$5,000.00",
+        "grossMedia": "4375",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$1.25"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-02-16",
+        "endDate": "2026-03-15",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$7,777.70",
+        "grossMedia": "6805.4875",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$3.30"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 3",
+        "creative": "creative 3",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": "$1,000.00",
+        "grossMedia": "0",
+        "clientPaysForMedia": true,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": "$20.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$15,215.95"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$8,411.74"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$7,435.72"
+      }
+    ],
+    "totals": [
+      27180.49,
+      3882.92
+    ],
+    "rawCount": null
+  },
+  "burstEdits": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "$5,000.00",
+            "buyAmount": "$1.25",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "$7,777.70",
+            "buyAmount": "$3.30",
+            "startDate": "2026-03-15T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395,
+            "fee": 0
+          },
+          {
+            "budget": "",
+            "buyAmount": "",
+            "startDate": "2026-03-31T13:00:00.000Z",
+            "endDate": "2026-04-29T14:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 11180.4875
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": true,
+        "creative": "creative 3",
+        "creative_targeting": "targeting 3",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE3",
+        "bursts": [
+          {
+            "budget": "$1,000.00",
+            "buyAmount": "$20.00",
+            "startDate": "2026-01-04T22:15:00.000Z",
+            "endDate": "2026-03-31T04:30:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 3,
+        "totalMedia": 1000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$5,000.00",
+          "buyAmount": "$1.25",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$4,375.00",
+          "feeAmount": "$625.00"
+        },
+        {
+          "budget": "$7,777.70",
+          "buyAmount": "$3.30",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-31",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$6,805.49",
+          "feeAmount": "$972.21"
+        },
+        {
+          "budget": "",
+          "buyAmount": "",
+          "startDate": "2026-04-01",
+          "endDate": "2026-04-30",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$1,000.00",
+          "buyAmount": "$20.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$1,000.00",
+          "feeAmount": "$142.86"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 4375,
+        "deliveryMediaAmount": 4375,
+        "feeAmount": 625,
+        "totalAmount": 5000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-15T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 6805.4875,
+        "deliveryMediaAmount": 6805.4875,
+        "feeAmount": 972.2125,
+        "totalAmount": 7777.7,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-31T13:00:00.000Z",
+        "endDate": "2026-04-29T14:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 0,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-01-04T22:15:00.000Z",
+        "endDate": "2026-03-31T04:30:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 1000,
+        "feeAmount": 142.85714285714286,
+        "totalAmount": 142.85714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": true,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE3"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$5,000.00",
+        "grossMedia": "4375",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$1.25"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-03-16",
+        "endDate": "2026-03-31",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$7,777.70",
+        "grossMedia": "6805.4875",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "$3.30"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-30",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": ""
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 3",
+        "creative": "creative 3",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": "$1,000.00",
+        "grossMedia": "0",
+        "clientPaysForMedia": true,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": "$20.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$15,215.95"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$4,800.66"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$11,046.80"
+      }
+    ],
+    "totals": [
+      27180.49,
+      3882.92
+    ],
+    "rawCount": null
+  },
+  "buyTypeToBonus": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "bonus",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-15T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-31T13:00:00.000Z",
+            "endDate": "2026-04-29T14:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 0
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": true,
+        "creative": "creative 3",
+        "creative_targeting": "targeting 3",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE3",
+        "bursts": [
+          {
+            "budget": "$1,000.00",
+            "buyAmount": "$20.00",
+            "startDate": "2026-01-04T22:15:00.000Z",
+            "endDate": "2026-03-31T04:30:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 3,
+        "totalMedia": 1000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-31",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-04-01",
+          "endDate": "2026-04-30",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$1,000.00",
+          "buyAmount": "$20.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$1,000.00",
+          "feeAmount": "$142.86"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-15T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-31T13:00:00.000Z",
+        "endDate": "2026-04-29T14:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 0,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-01-04T22:15:00.000Z",
+        "endDate": "2026-03-31T04:30:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 1000,
+        "feeAmount": 142.85714285714286,
+        "totalAmount": 142.85714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": true,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE3"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-03-16",
+        "endDate": "2026-03-31",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-30",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 3",
+        "creative": "creative 3",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": "$1,000.00",
+        "grossMedia": "0",
+        "clientPaysForMedia": true,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": "$20.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$12,358.81"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$2,657.80"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$3,269.10"
+      }
+    ],
+    "totals": [
+      16000,
+      2285.71
+    ],
+    "rawCount": null
+  },
+  "removeLine": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "bonus",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-15T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-31T13:00:00.000Z",
+            "endDate": "2026-04-29T14:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 0
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-31",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-04-01",
+          "endDate": "2026-04-30",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-15T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-31T13:00:00.000Z",
+        "endDate": "2026-04-29T14:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 0,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-03-16",
+        "endDate": "2026-03-31",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-30",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": "$2.00"
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$12,000.00"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$2,285.71"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$2,857.14"
+      }
+    ],
+    "totals": [
+      15000,
+      2142.85
+    ],
+    "rawCount": null
+  },
+  "duplicateAndAdd": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "bonus",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-15T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395,
+            "fee": 0
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-31T13:00:00.000Z",
+            "endDate": "2026-04-29T14:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 0
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "$2,000.00",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE6",
+        "bursts": [
+          {
+            "budget": "$12,000.00",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 700000,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 6,
+        "totalMedia": 10500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "",
+        "client_pays_for_media": false,
+        "creative": "",
+        "creative_targeting": "",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "",
+        "no_adserving": false,
+        "platform": "",
+        "line_item_id": "tst001SE7",
+        "bursts": [
+          {
+            "budget": "",
+            "buyAmount": "",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 7,
+        "totalMedia": 0
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-31",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-04-01",
+          "endDate": "2026-04-30",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "$2,000.00",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ],
+      [
+        {
+          "budget": "$12,000.00",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 700000,
+          "mediaAmount": "$10,500.00",
+          "feeAmount": "$1,500.00"
+        }
+      ],
+      [
+        {
+          "budget": "",
+          "buyAmount": "",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-15T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-31T13:00:00.000Z",
+        "endDate": "2026-04-29T14:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 0,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 10500,
+        "deliveryMediaAmount": 10500,
+        "feeAmount": 1500,
+        "totalAmount": 12000,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 700000,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE6"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE7"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-03-16",
+        "endDate": "2026-03-31",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-30",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "$2,000.00",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": "$2.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 700000,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "$12,000.00",
+        "grossMedia": "10500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "",
+        "platform": "",
+        "bidStrategy": "",
+        "targeting": "",
+        "creative": "",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "",
+        "buyType": "",
+        "deliverablesAmount": "",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE6",
+        "lineItemId": "tst001SE6",
+        "line_item": 6,
+        "buyAmount": ""
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$24,000.00"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$2,285.71"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$2,857.14"
+      }
+    ],
+    "totals": [
+      25500,
+      3642.85
+    ],
+    "rawCount": null
+  },
+  "expertApply": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "bonus",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 1",
+        "creative_targeting": "targeting 1",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-01-11T13:00:00.000Z",
+            "endDate": "2026-02-14T13:00:00.000Z",
+            "calculatedValue": 3500
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-15T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 2062.2689393939395
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 0
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2 edited",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE2",
+        "bursts": [
+          {
+            "budget": "10500",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 612500
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 2,
+        "totalMedia": 9187.5
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 4",
+        "creative_targeting": "targeting 4",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE4",
+        "bursts": [
+          {
+            "budget": 2500,
+            "buyAmount": 10,
+            "startDate": "2026-03-01T13:00:00.000Z",
+            "endDate": "2026-03-28T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 4,
+        "totalMedia": 2500
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": false,
+        "buy_type": "cpc",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 5",
+        "creative_targeting": "targeting 5",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE5",
+        "bursts": [
+          {
+            "budget": "2000",
+            "buyAmount": "$2.00",
+            "startDate": "2026-02-01T13:00:00.000Z",
+            "endDate": "2026-02-21T13:00:00.000Z",
+            "calculatedValue": 1000
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 5,
+        "totalMedia": 2000
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "manual_cpc",
+        "budget_includes_fees": true,
+        "buy_type": "cpm",
+        "buying_demo": "P18+",
+        "client_pays_for_media": false,
+        "creative": "creative 2",
+        "creative_targeting": "targeting 2",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "National",
+        "no_adserving": false,
+        "platform": "Google",
+        "line_item_id": "tst001SE6",
+        "bursts": [
+          {
+            "budget": "10500",
+            "buyAmount": "$15.00",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-01-30T13:00:00.000Z",
+            "calculatedValue": 612500
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 6,
+        "totalMedia": 9187.5
+      },
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "",
+        "client_pays_for_media": false,
+        "creative": "",
+        "creative_targeting": "",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "",
+        "no_adserving": false,
+        "platform": "",
+        "line_item_id": "tst001SE7",
+        "bursts": [
+          {
+            "budget": "",
+            "buyAmount": "",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 7,
+        "totalMedia": 0
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-01-12",
+          "endDate": "2026-02-15",
+          "calculatedValue": 3500,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-03-16",
+          "endDate": "2026-03-31",
+          "calculatedValue": 2062.2689393939395,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ],
+      [
+        {
+          "budget": "10500",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 612500,
+          "mediaAmount": "$9,187.50",
+          "feeAmount": "$1,312.50"
+        }
+      ],
+      [
+        {
+          "budget": "$2,500.00",
+          "buyAmount": "$10.00",
+          "startDate": "2026-03-02",
+          "endDate": "2026-03-29",
+          "calculatedValue": 0,
+          "mediaAmount": "$2,500.00",
+          "feeAmount": "$357.14"
+        }
+      ],
+      [
+        {
+          "budget": "2000",
+          "buyAmount": "$2.00",
+          "startDate": "2026-02-02",
+          "endDate": "2026-02-22",
+          "calculatedValue": 1000,
+          "mediaAmount": "$2,000.00",
+          "feeAmount": "$285.71"
+        }
+      ],
+      [
+        {
+          "budget": "10500",
+          "buyAmount": "$15.00",
+          "startDate": "2026-01-05",
+          "endDate": "2026-01-31",
+          "calculatedValue": 612500,
+          "mediaAmount": "$9,187.50",
+          "feeAmount": "$1,312.50"
+        }
+      ],
+      [
+        {
+          "budget": "",
+          "buyAmount": "",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-11T13:00:00.000Z",
+        "endDate": "2026-02-14T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 3500,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-03-15T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 2062.2689393939395,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 9187.5,
+        "deliveryMediaAmount": 9187.5,
+        "feeAmount": 1312.5,
+        "totalAmount": 10500,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 612500,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE2"
+      },
+      {
+        "startDate": "2026-03-01T13:00:00.000Z",
+        "endDate": "2026-03-28T13:00:00.000Z",
+        "mediaAmount": 2500,
+        "deliveryMediaAmount": 2500,
+        "feeAmount": 357.14285714285717,
+        "totalAmount": 2857.1428571428573,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE4"
+      },
+      {
+        "startDate": "2026-02-01T13:00:00.000Z",
+        "endDate": "2026-02-21T13:00:00.000Z",
+        "mediaAmount": 2000,
+        "deliveryMediaAmount": 2000,
+        "feeAmount": 285.7142857142857,
+        "totalAmount": 2285.714285714286,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 1000,
+        "buyType": "cpc",
+        "noAdserving": false,
+        "lineItemId": "tst001SE5"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-01-30T13:00:00.000Z",
+        "mediaAmount": 9187.5,
+        "deliveryMediaAmount": 9187.5,
+        "feeAmount": 1312.5,
+        "totalAmount": 10500,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 612500,
+        "buyType": "cpm",
+        "noAdserving": false,
+        "lineItemId": "tst001SE6"
+      },
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE7"
+      }
+    ],
+    "excel": [
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-01-12",
+        "endDate": "2026-02-15",
+        "deliverables": 3500,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-03-16",
+        "endDate": "2026-03-31",
+        "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2 edited",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 612500,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "10500",
+        "grossMedia": "9187.5",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE2",
+        "lineItemId": "tst001SE2",
+        "line_item": 2,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 4",
+        "creative": "creative 4",
+        "startDate": "2026-03-02",
+        "endDate": "2026-03-29",
+        "deliverables": 0,
+        "buyingDemo": "P18+",
+        "buyType": "",
+        "deliverablesAmount": 2500,
+        "grossMedia": "2500",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE3",
+        "lineItemId": "tst001SE3",
+        "line_item": 3,
+        "buyAmount": 10
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 5",
+        "creative": "creative 5",
+        "startDate": "2026-02-02",
+        "endDate": "2026-02-22",
+        "deliverables": 1000,
+        "buyingDemo": "P18+",
+        "buyType": "cpc",
+        "deliverablesAmount": "2000",
+        "grossMedia": "2000",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE4",
+        "lineItemId": "tst001SE4",
+        "line_item": 4,
+        "buyAmount": "$2.00"
+      },
+      {
+        "market": "National",
+        "platform": "Google",
+        "bidStrategy": "manual_cpc",
+        "targeting": "targeting 2",
+        "creative": "creative 2",
+        "startDate": "2026-01-05",
+        "endDate": "2026-01-31",
+        "deliverables": 612500,
+        "buyingDemo": "P18+",
+        "buyType": "cpm",
+        "deliverablesAmount": "10500",
+        "grossMedia": "9187.5",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE5",
+        "lineItemId": "tst001SE5",
+        "line_item": 5,
+        "buyAmount": "$15.00"
+      },
+      {
+        "market": "",
+        "platform": "",
+        "bidStrategy": "",
+        "targeting": "",
+        "creative": "",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "",
+        "buyType": "",
+        "deliverablesAmount": "",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE6",
+        "lineItemId": "tst001SE6",
+        "line_item": 6,
+        "buyAmount": ""
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$21,000.00"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$2,285.71"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$2,857.14"
+      }
+    ],
+    "totals": [
+      22875,
+      3267.85
+    ],
+    "rawCount": null
+  },
+  "create": {
+    "media": [
+      {
+        "media_plan_version": 0,
+        "mba_number": "tst001",
+        "mp_client_name": "",
+        "mp_plannumber": "",
+        "bid_strategy": "",
+        "budget_includes_fees": false,
+        "buy_type": "",
+        "buying_demo": "",
+        "client_pays_for_media": false,
+        "creative": "",
+        "creative_targeting": "",
+        "fixed_cost_media": false,
+        "fixed_cost_from": "",
+        "market": "",
+        "no_adserving": false,
+        "platform": "",
+        "line_item_id": "tst001SE1",
+        "bursts": [
+          {
+            "budget": "$4,321.00",
+            "buyAmount": "",
+            "startDate": "2026-01-04T13:00:00.000Z",
+            "endDate": "2026-03-30T13:00:00.000Z",
+            "calculatedValue": 0,
+            "fee": 0
+          }
+        ],
+        "feePct": 12.5,
+        "line_item": 1,
+        "totalMedia": 4321
+      }
+    ],
+    "persistedBursts": [
+      [
+        {
+          "budget": "$4,321.00",
+          "buyAmount": "",
+          "startDate": "2026-01-05",
+          "endDate": "2026-03-31",
+          "calculatedValue": 0,
+          "mediaAmount": "$4,321.00",
+          "feeAmount": "$617.29"
+        }
+      ]
+    ],
+    "billing": [
+      {
+        "startDate": "2026-01-04T13:00:00.000Z",
+        "endDate": "2026-03-30T13:00:00.000Z",
+        "mediaAmount": 4321,
+        "deliveryMediaAmount": 4321,
+        "feeAmount": 617.2857142857143,
+        "totalAmount": 4938.285714285715,
+        "mediaType": "search",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": false,
+        "deliverables": 0,
+        "buyType": "",
+        "noAdserving": false,
+        "lineItemId": "tst001SE1"
+      }
+    ],
+    "excel": [
+      {
+        "market": "",
+        "platform": "",
+        "bidStrategy": "",
+        "targeting": "",
+        "creative": "",
+        "startDate": "2026-01-05",
+        "endDate": "2026-03-31",
+        "deliverables": 0,
+        "buyingDemo": "",
+        "buyType": "",
+        "deliverablesAmount": "$4,321.00",
+        "grossMedia": "4321",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001SE1",
+        "lineItemId": "tst001SE1",
+        "line_item": 1,
+        "buyAmount": ""
+      }
+    ],
+    "investment": [
+      {
+        "monthYear": "January 2026",
+        "amount": "$1,550.39"
+      },
+      {
+        "monthYear": "February 2026",
+        "amount": "$1,607.82"
+      },
+      {
+        "monthYear": "March 2026",
+        "amount": "$1,780.08"
+      }
+    ],
+    "totals": [
+      4321,
+      617.29
+    ],
+    "rawCount": null
+  }
+}
