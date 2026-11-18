@@ -11361,11 +11361,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
         }
         tipVersionLabel={publishedTipLabel}
-        saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
+        saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError || datesOutOfOrder}
         saveDisabledReason={
           saveBlockedByClientsError
             ? clientsError ?? "Client list unavailable — try again"
-            : "Duplicate line-item rows detected — fix them before saving."
+            : saveBlockedByDuplicates
+              ? "Duplicate line-item rows detected — fix them before saving."
+              : END_BEFORE_START_MESSAGE
         }
       />
 

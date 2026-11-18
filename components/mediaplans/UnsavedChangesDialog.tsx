@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
@@ -9,7 +10,7 @@ interface UnsavedChangesDialogProps {
   onSave: () => void | Promise<void>
   onLeave: () => void
   isSaving: boolean
-  /** When true, Save is disabled with a reason (e.g. duplicate rows block save). */
+  /** When true, Save is disabled and the reason shows under the message (e.g. duplicate rows, dates out of order). */
   saveDisabled?: boolean
   saveDisabledReason?: string
   /**
@@ -32,6 +33,8 @@ export function UnsavedChangesDialog({
   tipVersionLabel = null,
 }: UnsavedChangesDialogProps) {
   const saveBlocked = isSaving || saveDisabled
+  const reasonId = useId()
+  const showReason = saveDisabled && Boolean(saveDisabledReason)
   const saveTitle = saveDisabled
     ? saveDisabledReason
     : isSaving
@@ -80,6 +83,11 @@ export function UnsavedChangesDialog({
               <p className="mt-3 text-sm text-muted-foreground">
                 Leaving now will discard any unsaved edits to this media plan.
               </p>
+              {showReason ? (
+                <p id={reasonId} className="mt-3 text-sm font-medium text-muted-foreground">
+                  {saveDisabledReason}
+                </p>
+              ) : null}
               <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
                 <Button variant="outline" className="w-full sm:w-auto" onClick={onStay}>
                   No, stay on page
@@ -89,6 +97,7 @@ export function UnsavedChangesDialog({
                   className="w-full sm:w-auto"
                   disabled={saveBlocked}
                   title={saveTitle}
+                  aria-describedby={showReason ? reasonId : undefined}
                   onClick={async () => {
                     onStay()
                     await onSave()

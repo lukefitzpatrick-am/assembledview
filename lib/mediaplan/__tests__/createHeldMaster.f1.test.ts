@@ -181,7 +181,7 @@ test("B7 review 1 (create): Save refuses while an MBA number request is in fligh
   }
   // The bar and the unsaved-changes dialog show it too.
   assert.match(create, /isWizardSaving \|\| saveBlockedByClientsError \|\| datesOutOfOrder \|\| mbaNumberLoading/)
-  assert.match(create, /saveDisabled=\{saveBlockedByClientsError \|\| mbaNumberLoading\}/)
+  assert.match(create, /saveDisabled=\{saveBlockedByClientsError \|\| datesOutOfOrder \|\| mbaNumberLoading\}/)
 })
 
 test("B7 review 1 (create): the pending flag is set per request and cleared only by the latest one", () => {

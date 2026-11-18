@@ -8281,13 +8281,15 @@ const handleSaveAll = async (opts?: {
           (Boolean(planDraft.activeDraft) ||
             Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
         }
-        saveDisabled={saveBlockedByClientsError || mbaNumberLoading}
+        saveDisabled={saveBlockedByClientsError || datesOutOfOrder || mbaNumberLoading}
         saveDisabledReason={
           saveBlockedByClientsError
             ? clientsError ?? "Client list unavailable — try again"
-            : mbaNumberLoading
-              ? MBA_NUMBER_LOADING_MESSAGE
-              : undefined
+            : datesOutOfOrder
+              ? END_BEFORE_START_MESSAGE
+              : mbaNumberLoading
+                ? MBA_NUMBER_LOADING_MESSAGE
+                : undefined
         }
       />
     </>

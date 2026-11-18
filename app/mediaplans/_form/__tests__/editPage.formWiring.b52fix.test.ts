@@ -233,3 +233,10 @@ test("B57: over budget asks through useConfirm only when over budget, and the pa
   assert.match(page, /\{confirmDialog\}\n\s+<\/>/)
   assert.doesNotMatch(page, /window\.confirm|\balert\(/)
 })
+
+test("B58fix R2: Publish and leave in the unsaved changes window is disabled while dates are out of order, with that reason", () => {
+  const start = page.indexOf("<UnsavedChangesDialog")
+  const dialog = page.slice(start, page.indexOf("/>", start))
+  assert.match(dialog, /saveDisabled=\{saveBlockedByDuplicates \|\| saveBlockedByClientsError \|\| datesOutOfOrder\}/)
+  assert.match(dialog, /: END_BEFORE_START_MESSAGE\n\s+\}/)
+})
