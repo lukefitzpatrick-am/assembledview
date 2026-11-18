@@ -278,11 +278,6 @@ export function ExportDeckButton({
           splitTablePng: split?.dataUrl ?? null,
           splitTablePngWidth: split?.width ?? null,
           splitTablePngHeight: split?.height ?? null,
-          generatedAtLabel: new Date().toLocaleDateString("en-AU", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
         }),
       })
 

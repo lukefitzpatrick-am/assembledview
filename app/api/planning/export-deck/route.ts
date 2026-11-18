@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { formatDateShort } from "@/lib/format/date"
 import {
   buildPlannerDeck,
   type PlannerDeckInput,
@@ -153,7 +155,8 @@ function parseBody(raw: unknown): PlannerDeckInput {
     splitTablePng,
     splitTablePngWidth: asNumber(body.splitTablePngWidth) ?? null,
     splitTablePngHeight: asNumber(body.splitTablePngHeight) ?? null,
-    generatedAtLabel: asString(body.generatedAtLabel, 40) || new Date().toLocaleDateString("en-AU"),
+    // The Melbourne day, from the server clock (C-277).
+    generatedAtLabel: formatDateShort(getMelbourneTodayISO()),
   }
 }
 
@@ -164,13 +167,6 @@ function clientSlug(name: string | undefined) {
     .replace(/^-|-$/g, "")
     .slice(0, 40)
   return s || "client"
-}
-
-function yyyymmdd(d = new Date()) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}${m}${day}`
 }
 
 export async function POST(request: NextRequest) {
@@ -206,7 +202,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const buf = await buildPlannerDeck(input)
-    const filename = `demand-flow-plan-${clientSlug(input.brief.clientName)}-${yyyymmdd()}.pptx`
+    const filename = `demand-flow-plan-${clientSlug(input.brief.clientName)}-${getMelbourneTodayISO().replaceAll("-", "")}.pptx`
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
