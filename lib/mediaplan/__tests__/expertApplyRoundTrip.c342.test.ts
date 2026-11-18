@@ -356,20 +356,38 @@ const day = (d: unknown) =>
   d instanceof Date ? format(d, "yyyy-MM-dd") : formatBurstDateLocal(String(d ?? ""))
 const byStart = (bursts: any[]) => [...bursts].sort((a, b) => day(a.startDate).localeCompare(day(b.startDate)))
 
-type Burst = { budget: string; budgetType: string; cents: number; deliverables: number; dates: string }
+type Burst = { budget: string; budgetType: string; cents: number; deliverables: number; buyAmountCents: number; dates: string }
+
+/**
+ * A line's fee basis and billing flags (C342fix review F2): Client Pays,
+ * Budget Includes Fees, No Ad Serving (OOH spells it `noAdserving`) and
+ * Fixed Cost Media. An Apply that changes any of them changes how the line
+ * bills, even with every budget kept.
+ */
+const lineFlags = (l: any) =>
+  [
+    `buyType=${String(l.buyType ?? "")}`,
+    `clientPays=${Boolean(l.clientPaysForMedia)}`,
+    `includesFees=${Boolean(l.budgetIncludesFees)}`,
+    `noAdServing=${Boolean(l.noadserving ?? l.noAdserving)}`,
+    `fixedCostMedia=${Boolean(l.fixedCostMedia)}`,
+  ].join(" ")
 
 /** Each line's bursts in date order (Apply may reorder them; order carries no money). */
-function readLines(lines: any[]): Map<string, { label: string; buyType: string; bursts: Burst[] }> {
-  const out = new Map<string, { label: string; buyType: string; bursts: Burst[] }>()
+function readLines(lines: any[]): Map<string, { label: string; buyType: string; flags: string; bursts: Burst[] }> {
+  const out = new Map<string, { label: string; buyType: string; flags: string; bursts: Burst[] }>()
   for (const l of lines) {
     out.set(String(l.line_item_id ?? l.lineItemId), {
       label: l._label ?? "",
       buyType: String(l.buyType ?? ""),
+      flags: lineFlags(l),
       bursts: byStart(l.bursts ?? []).map((b) => ({
         budget: String(b.budget),
         budgetType: typeof b.budget,
         cents: toCents(parseBurstMoney(b.budget)),
         deliverables: Number(b.calculatedValue),
+        // The rate, by value: "$1,500.00" and "1500" are the same buy amount.
+        buyAmountCents: toCents(parseBurstMoney(b.buyAmount)),
         dates: `${day(b.startDate)}..${day(b.endDate)}`,
       })),
     })
@@ -391,6 +409,10 @@ function movesBetween(saved: any[], applied: any[], skipId?: string): Moves {
   for (const [id, line] of was) {
     if (id === skipId) continue
     const after = now.get(id)
+    if (after && after.flags !== line.flags) {
+      m.other += 1
+      m.sample.push(`${line.label}: flags ${line.flags} -> ${after.flags}`)
+    }
     if (!after || after.bursts.length !== line.bursts.length) {
       m.other += 1
       m.sample.push(`${line.label}: ${line.bursts.length} bursts -> ${after?.bursts.length ?? 0}`)
@@ -406,6 +428,10 @@ function movesBetween(saved: any[], applied: any[], skipId?: string): Moves {
       if (line.buyType !== "package" && !(Math.abs(a.deliverables - b.deliverables) < 1e-6)) {
         m.deliverables += 1
         if (m.sample.length < 4) m.sample.push(`${line.label} ${b.dates}: deliverables ${b.deliverables} -> ${a.deliverables}`)
+      }
+      if (a.buyAmountCents !== b.buyAmountCents) {
+        m.other += 1
+        m.sample.push(`${line.label} ${b.dates}: buy amount ${b.buyAmountCents}c -> ${a.buyAmountCents}c`)
       }
       if (a.dates !== b.dates) {
         m.other += 1
