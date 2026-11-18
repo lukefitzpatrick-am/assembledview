@@ -405,8 +405,8 @@ import {
   useManualBillingSpreadsheetCallbacks,
 } from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
 import {
+  billingScheduleFileStem,
   buildBillingScheduleExcelBlob,
-  sanitizeFilenamePart,
 } from "@/lib/billing/exportBillingScheduleExcel"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import {
@@ -4234,7 +4234,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         campaignStartLabel: start ? format(start, "dd/MM/yyyy") : "",
         campaignEndLabel: end ? format(end, "dd/MM/yyyy") : "",
       })
-      const stem = `BillingSchedule_${sanitizeFilenamePart(fv.mp_clientname)}_${sanitizeFilenamePart(fv.mbanumber || mbaNumber)}_${format(new Date(), "yyyyMMdd")}`
+      const stem = billingScheduleFileStem(fv.mp_clientname, fv.mbanumber || mbaNumber)
       saveAs(blob, `${stem}.xlsx`)
       toast({ title: "Downloaded", description: "Billing schedule Excel export is ready." })
     } catch (e: any) {

@@ -125,8 +125,8 @@ import {
 } from "@/components/ui/table"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import {
+  billingScheduleFileStem,
   buildBillingScheduleExcelBlob,
-  sanitizeFilenamePart,
 } from "@/lib/billing/exportBillingScheduleExcel"
 import {
   billingLinesById,
@@ -4630,7 +4630,7 @@ function CreateMediaPlan() {
         campaignStartLabel: start ? format(start, "dd/MM/yyyy") : "",
         campaignEndLabel: end ? format(end, "dd/MM/yyyy") : "",
       })
-      const stem = `BillingSchedule_${sanitizeFilenamePart(fv.mp_client_name)}_${sanitizeFilenamePart(fv.mba_number || "Draft")}_${format(new Date(), "yyyyMMdd")}`
+      const stem = billingScheduleFileStem(fv.mp_client_name, fv.mba_number || "Draft")
       saveAs(blob, `${stem}.xlsx`)
       toast({ title: "Downloaded", description: "Billing schedule Excel export is ready." })
     } catch (e: any) {

@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs"
 import { BRAND, hexToArgb } from "@/lib/brand"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { parseCurrency } from "@/lib/mediaplan/partialMba"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -134,12 +135,21 @@ function collectMediaKeysWithLineItems(months: BillingMonth[]): string[] {
   return MEDIA_SECTION_ORDER.filter((k) => keys.has(k))
 }
 
-export function sanitizeFilenamePart(s: string): string {
+function sanitizeFilenamePart(s: string): string {
   return String(s || "Plan")
     .replace(/[<>:"/\\|?*]+/g, "-")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80) || "Plan"
+}
+
+/**
+ * `BillingSchedule_<client>_<mba>_<yyyymmdd>` for the plan form's billing
+ * download (create and edit), stamped with the Melbourne day, not the
+ * viewer's (C-277).
+ */
+export function billingScheduleFileStem(client: string, mbaNumber: string): string {
+  return `BillingSchedule_${sanitizeFilenamePart(client)}_${sanitizeFilenamePart(mbaNumber)}_${getMelbourneTodayISO().replaceAll("-", "")}`
 }
 
 export async function buildBillingScheduleExcelBlob(
