@@ -69,7 +69,6 @@
   "exports:components/kpis/KPISection.tsx MEDIA_TYPE_COLORS",
   "exports:components/kpis/KPISection.tsx MEDIA_TYPE_LABELS",
   "exports:components/kpis/kpiHost.ts MEDIA_PLAN_KPI_DEFERRED_SAVE_NOTE",
-  "exports:components/media-containers/BVODExpertGrid.tsx BVOD_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/CanonicalBurstMoney.tsx ClientPaidNote",
   "exports:components/media-containers/CinemaExpertGrid.tsx CINEMA_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/DebouncedWeekQtyInput.tsx DebouncedWeekQtyInput",

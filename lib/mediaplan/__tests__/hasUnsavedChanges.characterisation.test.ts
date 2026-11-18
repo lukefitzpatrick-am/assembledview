@@ -96,7 +96,6 @@ test("CHARACTERISATION bridge: no-op when window is undefined (SSR / Node)", () 
 // ─── Mechanism B: container Apply → pending badge ───────────────────────────
 
 const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
-  "BVODContainer.tsx",
   "CinemaContainer.tsx",
   "MagazinesContainer.tsx",
   "NewspaperContainer.tsx",
@@ -105,7 +104,7 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "TelevisionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 7 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
+test("CHARACTERISATION: 6 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
   for (const file of [
     ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
     "OOHContainer.tsx",
@@ -146,7 +145,7 @@ test("CHARACTERISATION: MediaChannelContainer consumes hook pending flag (does n
   assert.doesNotMatch(shell, /subscribeMediaPlanPageSaved/)
 })
 
-test("CHARACTERISATION: Prog*/Search/Social/Integration/Influencers/Digital Video/Digital Audio/Digital Display thin containers have no local expertApplyPending state", () => {
+test("CHARACTERISATION: Prog*/Search/Social/Integration/Influencers/Digital Video/Digital Audio/Digital Display/BVOD thin containers have no local expertApplyPending state", () => {
   for (const file of [
     "ProgAudioContainer.tsx",
     "ProgBVODContainer.tsx",
@@ -160,6 +159,7 @@ test("CHARACTERISATION: Prog*/Search/Social/Integration/Influencers/Digital Vide
     "DigitalVideoContainer.tsx",
     "DigitalAudioContainer.tsx",
     "DigitalDisplayContainer.tsx",
+    "BVODContainer.tsx",
   ]) {
     const src = read(`components/media-containers/${file}`)
     assert.doesNotMatch(

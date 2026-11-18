@@ -135,6 +135,14 @@ export const getDigiAudioBursts = legacyBillingBursts({
   lineItemId: MEDIA_TYPE_ID_CODES.digitalAudio,
 })
 
+/** BVOD: Digital Video's shape, label "BVOD" (the video ad serving rate, C-330). */
+export const getBvodBursts = legacyBillingBursts({
+  mediaType: "BVOD",
+  deliverables: "saved",
+  noAdserving: "lineLower",
+  lineItemId: MEDIA_TYPE_ID_CODES.bvod,
+})
+
 /** Digital Display's budget read (W5d, moved from its container): a number as it is, else the strip parser keeping a minus. */
 function parseBudgetSafe(val: unknown): number {
   if (val == null) return 0

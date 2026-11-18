@@ -107,10 +107,6 @@ test("the hook passes the form lines through and does not gross up again", () =>
   assert.doesNotMatch(fn, /100 - pct/)
 })
 
-const DIGITAL_CHARTS = [
-  ["BVODContainer.tsx", "bvodlineItems", "feebvod"],
-] as const
-
 const OFFLINE_CHARTS = [
   ["CinemaContainer.tsx", "cinemalineItems", "feecinema"],
   ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
@@ -141,15 +137,6 @@ function assertChartDelegates(
   assert.doesNotMatch(fn, /100 - feePct/, file)
 }
 
-test("digital container charts equal the shared helper", () => {
-  for (const [file, fieldKey, feeName] of DIGITAL_CHARTS) {
-    assertChartDelegates(file, fieldKey, feeName)
-  }
-  const items = [line({ budgetIncludesFees: true })]
-  const chart = channelInvestmentByMonth(items, 15)
-  assert.deepEqual(monthCents(chart), monthCents(channelInvestmentByMonth(items, 15)))
-  assert.equal(sumCents(chart), 100_000)
-})
 
 test("offline container charts equal the shared helper", () => {
   for (const [file, fieldKey, feeName] of OFFLINE_CHARTS) {

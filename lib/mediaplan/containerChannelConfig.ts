@@ -35,9 +35,11 @@ import {
   getPublishersForSocialMedia,
   getPublishersForTelevision,
   createAudioSite,
+  createBVODSite,
   createDisplaySite,
   createVideoSite,
   getAudioSites,
+  getBVODSites,
   getDisplaySites,
   getVideoSites,
 } from "@/lib/api"
@@ -74,6 +76,7 @@ import {
   createEmptyDigiVideoExpertRow,
   createEmptyDigitalAudioExpertRow,
   createEmptyDigitalDisplayExpertRow,
+  createEmptyBvodExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -94,6 +97,7 @@ import {
   mapDigiVideoExpertRowsToStandardLineItems,
   mapDigitalAudioExpertRowsToStandardLineItems,
   mapDigitalDisplayExpertRowsToStandardLineItems,
+  mapBvodExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
@@ -123,6 +127,9 @@ import {
   mergeDigiVideoStandardFromExpertWithPrevious,
   mergeDigiAudioStandardFromExpertWithPrevious,
   mergeDigiDisplayStandardFromExpertWithPrevious,
+  mergeBvodStandardFromExpertWithPrevious,
+  serializeBvodExpertRowsBaseline,
+  serializeBvodStandardLineItemsBaseline,
   serializeDigiDisplayExpertRowsBaseline,
   serializeDigiDisplayStandardLineItemsBaseline,
   serializeDigiAudioExpertRowsBaseline,
@@ -151,6 +158,7 @@ import {
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   asStandardDigiDisplayItems,
+  getBvodBursts,
   getDigiAudioBursts,
   getDigiDisplayBursts,
   getDigiVideoBursts,
@@ -162,6 +170,9 @@ import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
+import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
+import { defaultMediaBurstEndDate, defaultMediaBurstStartDate } from "@/lib/date-picker-anchor"
 import {
   bvodFormSchema,
   cinemaFormSchema,
@@ -1806,15 +1817,77 @@ export const BVOD_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: bvodFormSchema,
   fetchPublishers: getPublishersForBvod,
   toExpert: mapStandardBvodLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "bvod",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  fromExpert: mapBvodExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeBvodStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeBvodStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeBvodExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyBvodExpertRow,
+  // "BVOD" keys the video ad serving rate (C-330).
+  billingMediaTypeLabel: "BVOD",
+  billingBursts: getBvodBursts,
+  expertApplyKeepsExpanded: true,
+  sites: { noun: "BVOD", fetch: getBVODSites, create: createBVODSite, pickPublisher: true },
+  // Load: platform first then publisher, a blank site falls back to the
+  // station, then the publisher; targeting from `targeting`; burst keys in
+  // camel or snake case (`rate`, `buy_amount`, `start_date`, `end_date`);
+  // Budget Includes Fees from the snake key, as the old container read it.
+  hydrateLine: (line, saved, { feePct, campaignStartDate, campaignEndDate }) => {
+    const savedBursts = resolveLineItemBursts(saved)
+    const platform = saved.platform || saved.publisher || ""
+    return {
+      ...line,
+      platform,
+      publisher: saved.publisher || platform,
+      site: saved.site || saved.station || saved.publisher || platform,
+      creativeTargeting: saved.creative_targeting || saved.targeting || "",
+      bursts:
+        savedBursts.length > 0
+          ? savedBursts.map((burst) => ({
+              budget: burst.budget || "",
+              buyAmount: burst.buyAmount || burst.rate || burst.buy_amount || "",
+              startDate:
+                coerceBurstDateLocal(burst.startDate ?? burst.start_date) ??
+                defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate:
+                coerceBurstDateLocal(burst.endDate ?? burst.end_date) ??
+                defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: computeLoadedDeliverables(
+                String(saved.buy_type || saved.buyType || ""),
+                burst,
+                !!saved.budget_includes_fees,
+                feePct || 0,
+              ),
+              fee: burst.fee ?? 0,
+              adServingRatePct: burst.adServingRatePct,
+              adServingImpressions: burst.adServingImpressions,
+            }))
+          : line.bursts,
+    }
+  },
+  // Save: the platform alias and `targeting` from the card's targeting.
+  saveLine: (row, line) => ({
+    ...row,
+    platform: line.platform || line.publisher || "",
+    publisher: line.publisher || "",
+    targeting: line.creativeTargeting || "",
+  }),
+  expertFromFeeKey: "feePctBvod",
+  summaryDimensions: {
+    Publisher: "publisher",
+    Platform: "platform",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "rounded" as const,
+  shell: {
+    title: "BVOD Media",
+    themeKey: "bvod",
+    timelineMediaTypeKey: "bvod",
+    loadLabel: "BVOD",
+    exitConfirmYesAttr: "data-bvod-expert-exit-yes",
+    entryModeAriaLabel: "BVOD entry mode",
+    expertDialogTitle: "BVOD Expert Mode",
+  },
   gridConfig: BVOD_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
   hasBursts: true,
