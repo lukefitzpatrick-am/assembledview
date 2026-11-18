@@ -56,23 +56,6 @@ function parseAmountSafe(value: any) {
   return 0
 }
 
-function deriveSpendToDate(deliverySchedule: any[]) {
-  if (!Array.isArray(deliverySchedule)) return 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return deliverySchedule.reduce((sum, entry) => {
-    const dateValue = entry?.date || entry?.DATE || entry?.startDate || entry?.start_date
-    const entryDate = dateValue ? new Date(dateValue) : null
-    if (entryDate && !Number.isNaN(entryDate.getTime())) {
-      entryDate.setHours(0, 0, 0, 0)
-      if (entryDate <= today) {
-        return sum + parseAmountSafe(entry?.spend ?? entry?.amount ?? entry?.budget ?? entry?.value ?? entry?.media_investment)
-      }
-    }
-    return sum
-  }, 0)
-}
-
 function toISODateOnlySafe(value: unknown): string | null {
   return normalizeDateToMelbourneISO(value)
 }
@@ -651,7 +634,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
   const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(feeVersionIds)
 
-  const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   // Strip money follows the pacing window: campaign start (or filter start) to
   // Melbourne yesterday (or filter end), capped at the campaign end. Delivered
   // and expected use the same window, so assumed spend never counts today.

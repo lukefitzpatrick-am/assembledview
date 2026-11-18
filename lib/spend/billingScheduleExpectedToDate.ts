@@ -1,3 +1,5 @@
+import { parseDateOnlyString } from "@/lib/dates/civil"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseMoney } from "@/lib/money"
 import { roundMoney4 } from "@/lib/format/money"
@@ -82,7 +84,8 @@ export function calculateExpectedSpendToDateFromBillingSchedule(
   const start = safeParseDate(startDate)
   const end = safeParseDate(endDate)
   if (!start || !end) return 0
-  const today = new Date()
+  // Local midnight of the Melbourne day, like the other local Dates here (C-277).
+  const today = parseDateOnlyString(getMelbourneTodayISO())
 
   const campaignStart = startOfDay(start)
   const campaignEnd = endOfDay(end)
