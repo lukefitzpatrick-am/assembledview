@@ -340,6 +340,14 @@ export function PlanDraftLocalOnlyBanner(props: {
   )
 }
 
+/** The three read-only draft windows (B57): shared Dialog, Escape and the X close them. */
+const DRAFT_WINDOW = "max-w-lg gap-0 p-4"
+const DRAFT_SCROLL = "max-h-[80vh] overflow-y-auto"
+const DRAFT_TITLE = "text-base leading-normal tracking-normal text-foreground"
+const closeOnDismiss = (onClose: () => void) => (open: boolean) => {
+  if (!open) onClose()
+}
+
 export function PlanStaleBaseDialog(props: {
   compare: {
     sections: { base: string; yours: string; current: string }
@@ -347,14 +355,14 @@ export function PlanStaleBaseDialog(props: {
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-      <div className="max-w-lg rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">
+    <Dialog open onOpenChange={closeOnDismiss(props.onClose)}>
+      <DialogContent className={DRAFT_WINDOW}>
+        <DialogTitle className={DRAFT_TITLE}>
           Someone published this plan while you were editing
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        </DialogTitle>
+        <DialogDescription className="mt-1">
           Your draft is kept. Compare the two, then re-apply what you need.
-        </p>
+        </DialogDescription>
         <ul className="mt-3 space-y-2 text-sm">
           <li>
             <span className="font-medium">Base:</span> {props.compare.sections.base}
@@ -366,11 +374,11 @@ export function PlanStaleBaseDialog(props: {
             <span className="font-medium">Current:</span> {props.compare.sections.current}
           </li>
         </ul>
-        <Button type="button" className="mt-4" onClick={props.onClose}>
+        <Button type="button" className="mt-4 w-fit" onClick={props.onClose}>
           Close
         </Button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -386,13 +394,13 @@ export function PlanDraftTipCompareDialog(props: {
   const deltaLabel =
     delta >= 0 ? `+$${Math.round(delta)}` : `-$${Math.round(Math.abs(delta))}`
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-      <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">Your draft vs the published plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <Dialog open onOpenChange={closeOnDismiss(props.onClose)}>
+      <DialogContent className={cn(DRAFT_WINDOW, DRAFT_SCROLL)}>
+        <DialogTitle className={DRAFT_TITLE}>Your draft vs the published plan</DialogTitle>
+        <DialogDescription className="mt-1">
           {props.added.length + props.removed.length} lines changed · budget {deltaLabel} ·{" "}
           {props.keptCount} unchanged
-        </p>
+        </DialogDescription>
         <div className="mt-3 space-y-3 text-sm">
           <div>
             <p className="font-medium text-foreground">Added ({props.added.length})</p>
@@ -407,11 +415,11 @@ export function PlanDraftTipCompareDialog(props: {
             </p>
           </div>
         </div>
-        <Button type="button" className="mt-4" onClick={props.onClose}>
+        <Button type="button" className="mt-4 w-fit" onClick={props.onClose}>
           Close
         </Button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -428,14 +436,14 @@ export function PlanDraftFieldDiffDialog(props: {
       ? "the published plan"
       : `v${props.tipVersionNumber}`
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-      <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">
+    <Dialog open onOpenChange={closeOnDismiss(props.onClose)}>
+      <DialogContent className={cn(DRAFT_WINDOW, DRAFT_SCROLL)}>
+        <DialogTitle className={DRAFT_TITLE}>
           Your draft vs {tipLabel}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        </DialogTitle>
+        <DialogDescription className="mt-1">
           {changeCount === 1 ? "1 change" : `${changeCount} changes`} · Close leaves the form as it is
-        </p>
+        </DialogDescription>
         <div className="mt-3 space-y-4 text-sm">
           {grouped.campaign.length > 0 ? (
             <div>
@@ -509,11 +517,11 @@ export function PlanDraftFieldDiffDialog(props: {
             <p className="text-muted-foreground">No remaining differences</p>
           ) : null}
         </div>
-        <Button type="button" className="mt-4" onClick={props.onClose}>
+        <Button type="button" className="mt-4 w-fit" onClick={props.onClose}>
           Close
         </Button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
