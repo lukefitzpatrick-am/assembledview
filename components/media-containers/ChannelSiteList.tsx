@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import type { UseFormReturn } from "react-hook-form"
 import { PlusCircle } from "lucide-react"
 
+import { normalizeKey } from "@/components/media-containers/ExpertGrid"
 import { Button } from "@/components/ui/button"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
@@ -21,12 +22,6 @@ import type { ContainerChannelConfig, ContainerSite } from "@/lib/mediaplan/cont
 
 type Toast = ReturnType<typeof useToast>["toast"]
 type Sites = NonNullable<ContainerChannelConfig["sites"]>
-
-const siteKey = (input: unknown) =>
-  String(input ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
 
 /** "Add a video site", "Add an audio site", "Add a BVOD site": an acronym keeps its case. */
 function addSiteLabel(noun: string): string {
@@ -92,9 +87,9 @@ export function useChannelSiteList(
   const cardProps = (li: number) => {
     if (!sites) return {}
     const publisher = publisherOf(li)
-    const key = siteKey(publisher)
+    const key = normalizeKey(publisher)
     const options: ComboboxOption[] = list
-      .filter((s) => !publisher || siteKey(s.platform) === key)
+      .filter((s) => !publisher || normalizeKey(s.platform) === key)
       .map((s) => ({ value: s.site || `site-${s.id}`, label: s.site || "(Unnamed site)" }))
     return {
       dynamicOptionsByKey: { site: options },

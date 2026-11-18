@@ -354,7 +354,8 @@ function normalizeSearchPlatformPaste(
   return fz?.matched ?? v
 }
 
-function normalizeKey(input: unknown): string {
+/** Site and title match key: trimmed, lower case, spaces collapsed (also the card site list). */
+export function normalizeKey(input: unknown): string {
   return String(input ?? "")
     .trim()
     .toLowerCase()
