@@ -404,17 +404,3 @@ export const EDIT_CLIENT_FIELD_LABELS: Record<string, string> = {
   is_test_client: "Test or internal client",
   brand_colour: "Brand Colour",
 }
-
-/** "Label: message" for each invalid field, in form order. */
-export function describeInvalidFields(
-  errors: Partial<Record<string, { message?: unknown } | undefined>>
-): string[] {
-  const out: string[] = []
-  for (const [field, error] of Object.entries(errors)) {
-    if (!error) continue
-    const label = EDIT_CLIENT_FIELD_LABELS[field] ?? field
-    const message = typeof error.message === "string" && error.message ? error.message : "Invalid value"
-    out.push(`${label}: ${message}`)
-  }
-  return out
-}

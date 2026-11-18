@@ -6,8 +6,9 @@ import {
   buildEditClientDefaults,
   buildEditClientPayload,
   clientEditSchema,
-  describeInvalidFields,
+  EDIT_CLIENT_FIELD_LABELS,
 } from "../editClientFormSchema"
+import { invalidFieldList } from "@/lib/ui/invalidFields"
 
 /** Hema (clients.id 15) as the API returns it: numeric strings coerced, 15 null id* columns. */
 function hemaRow(): Record<string, unknown> & { id: number } {
@@ -184,7 +185,7 @@ test("required fields stay required and invalid fields are named", () => {
   assert.equal(parsed.success, false)
   const errors: Record<string, { message?: string }> = {}
   for (const issue of parsed.error?.issues ?? []) errors[String(issue.path[0])] = { message: issue.message }
-  const problems = describeInvalidFields(errors)
+  const problems = invalidFieldList(errors, EDIT_CLIENT_FIELD_LABELS)
   assert.ok(problems.some((p) => p.startsWith("MBA Identifier: ")), problems.join(" | "))
   assert.ok(problems.some((p) => p.startsWith("ABN: ")), problems.join(" | "))
 })

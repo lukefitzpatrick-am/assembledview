@@ -291,8 +291,10 @@ describe("EditClientForm fee boxes keep what is typed (B22fix R1)", () => {
       await new Promise((r) => setTimeout(r, 0))
     })
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(toastMock).toHaveBeenCalledTimes(1)
-    expect(JSON.stringify(toastMock.mock.calls[0])).toContain("Social Media")
+    // B58: the error shows on the field and is named by Save, not in a toast.
+    expect(toastMock).not.toHaveBeenCalled()
+    expect(input.getAttribute("aria-invalid")).toBe("true")
+    expect(container.querySelector("[data-form-error-summary]")?.textContent).toContain("Social Media")
   })
   it("money boxes: retainer, organic social and ad serving keep what is typed", async () => {
     render()

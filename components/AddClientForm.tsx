@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { announceInvalid, Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
@@ -20,7 +20,11 @@ import {
   type ClientAddFormInput,
   type ClientAddFormValues,
 } from "@/lib/clients/addClientFormSchema"
-import { LEGACY_FEE_FORM_FIELDS, channelFeeInheritPlaceholder } from "@/lib/clients/editClientFormSchema"
+import {
+  EDIT_CLIENT_FIELD_LABELS,
+  LEGACY_FEE_FORM_FIELDS,
+  channelFeeInheritPlaceholder,
+} from "@/lib/clients/editClientFormSchema"
 import { formatHexColour, typedHexColour } from "@/lib/clients/brandColour"
 import { useIsAdmin } from "@/contexts/AuthContext"
 import { clientFeatureOn } from "@/lib/features/client"
@@ -128,7 +132,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   return (
     <>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={form.handleSubmit(onSubmit, announceInvalid(EDIT_CLIENT_FIELD_LABELS))} className="space-y-8">
           <FormField
             control={form.control}
             name="clientname_input"

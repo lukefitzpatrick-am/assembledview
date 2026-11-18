@@ -8,7 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import {
+  announceInvalid,
+  Form,
+  FormControl,
+  FormErrorSummary,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
@@ -20,7 +29,6 @@ import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { TypedNumberInput } from "@/components/clients/TypedNumberInput"
-import { useToast } from "@/components/ui/use-toast"
 import { useConfirm } from "@/hooks/use-confirm"
 import { clientFeeFormRows } from "@/lib/finance/clientFeeChannels"
 import { clientFeatureOn } from "@/lib/features/client"
@@ -30,7 +38,7 @@ import {
   buildEditClientPayload,
   channelFeeInheritPlaceholder,
   clientEditSchema,
-  describeInvalidFields,
+  EDIT_CLIENT_FIELD_LABELS,
   TEST_CLIENT_HELP,
   TEST_CLIENT_LABEL,
   type ClientEditFormValues,
@@ -66,7 +74,6 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
   // B22: the 12 channel fees (0113) show to admins with the switch on only.
   const channelFeesOn = clientFeatureOn("channel_client_fees")
 
-  const { toast } = useToast()
   const { notice, confirmDialog } = useConfirm()
 
   const formData = buildEditClientDefaults(client as Record<string, unknown> & { id: number })
@@ -77,20 +84,6 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     resolver: zodResolver(clientEditSchema),
     defaultValues: formData,
   })
-
-  /** A field can fail with no visible message (or far down the form): always say which. */
-  function onInvalid(errors: Parameters<typeof describeInvalidFields>[0]) {
-    const problems = describeInvalidFields(errors)
-    console.warn("Edit client form invalid:", problems)
-    toast({
-      title: "Can't save client yet",
-      description:
-        problems.length > 0
-          ? `Fix ${problems.length === 1 ? "this field" : "these fields"}: ${problems.slice(0, 6).join("; ")}${problems.length > 6 ? "; …" : ""}`
-          : "Some fields are invalid.",
-      variant: "destructive",
-    })
-  }
 
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
@@ -154,7 +147,7 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     <>
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+        onSubmit={form.handleSubmit(onSubmit, announceInvalid(EDIT_CLIENT_FIELD_LABELS))}
         className={cn("w-full min-w-0 space-y-8", isPanel && "pb-16")}
       >
           <div className={grid2}>
@@ -818,6 +811,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                 "sticky bottom-0 z-10 -mx-1 border-t border-border/70 bg-background/95 py-4 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85"
             )}
           >
+            {/* A field can fail with no visible message (hidden, or far down the form): name them by Save. */}
+            <FormErrorSummary labels={EDIT_CLIENT_FIELD_LABELS} className="mr-auto self-center" />
             <Button type="submit" disabled={isSaving} className={isPanel ? "min-w-[8.5rem]" : undefined}>
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>
