@@ -14,9 +14,10 @@ import * as React from "react"
  *
  * Action results (saved, sent) stay as toasts, which the toast viewport reads.
  *
- * shortcut: the regions render after the first effect, so a window open on the
- * very first render would hide them; mount before any window opens (the app
- * root does), render them on the server if a page ever opens a window on load.
+ * The empty regions render on the first render (and on the server), so a
+ * window open on the first render cannot hide them (B58fix R4). Which
+ * Announcer owns them is settled in an effect; until then they stay empty, so
+ * a second Announcer never repeats a message before it drops its regions.
  */
 type Politeness = "polite" | "assertive"
 type Message = { id: number; text: string }
@@ -44,28 +45,32 @@ function subscribe(listener: () => void) {
   }
 }
 
-/** The app's one pair of live regions. A second mount renders nothing. */
+/** The app's one pair of live regions. A second mount renders nothing once its effect has run. */
 export function Announcer() {
   const current = React.useSyncExternalStore(subscribe, () => messages, () => EMPTY)
   const [token] = React.useState(() => Symbol("announcer"))
-  const [isOwner, setIsOwner] = React.useState(false)
+  const [role, setRole] = React.useState<"pending" | "owner" | "other">("pending")
   React.useEffect(() => {
     // shortcut: a second Announcer stays silent even after the first unmounts, take over on unmount if a page ever mounts its own
-    if (owner) return
+    if (owner) {
+      setRole("other")
+      return
+    }
     owner = token
-    setIsOwner(true)
+    setRole("owner")
     return () => {
       if (owner === token) owner = null
     }
   }, [token])
-  if (!isOwner) return null
+  if (role === "other") return null
+  const shown = role === "owner" ? current : EMPTY
   return (
     <>
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-announcer="polite">
-        {current.polite ? <span key={current.polite.id}>{current.polite.text}</span> : null}
+        {shown.polite ? <span key={shown.polite.id}>{shown.polite.text}</span> : null}
       </div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true" data-announcer="assertive">
-        {current.assertive ? <span key={current.assertive.id}>{current.assertive.text}</span> : null}
+        {shown.assertive ? <span key={shown.assertive.id}>{shown.assertive.text}</span> : null}
       </div>
     </>
   )

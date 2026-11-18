@@ -1,12 +1,14 @@
 /**
  * B58: one announcer. Each `announce()` puts one message in one region, the
  * same words said again are read again, a second Announcer adds no regions,
- * and the regions stay readable while a modal window hides the page.
+ * and the regions stay readable while a modal window hides the page, even one
+ * open on the first render (B58fix R4).
  *
  * @vitest-environment jsdom
  */
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { Announcer, announce } from "@/components/ui/announcer"
@@ -87,6 +89,54 @@ describe("announce", () => {
     expect(regions("polite")).toHaveLength(1)
     expect(regions("assertive")).toHaveLength(1)
     expect(document.body.textContent?.split("Once")).toHaveLength(2)
+  })
+
+  it("B58fix R4: a window open on the very first render does not hide the regions", () => {
+    act(() =>
+      root.render(
+        <>
+          <Announcer />
+          <p id="page">page</p>
+          <Dialog open>
+            <DialogContent>
+              <DialogTitle>Add site</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        </>,
+      ),
+    )
+    act(() => announce("Site name is required", "assertive"))
+    expect(document.getElementById("page")?.closest('[aria-hidden="true"]')).toBeTruthy()
+    expect(region("assertive").closest('[aria-hidden="true"]')).toBeNull()
+    expect(region("polite").closest('[aria-hidden="true"]')).toBeNull()
+    expect(region("assertive").textContent).toBe("Site name is required")
+  })
+
+  it("B58fix R4: the regions are in the first render's output, empty, before any effect", () => {
+    act(() => announce("Said before mount", "assertive"))
+    const html = renderToString(<Announcer />)
+    expect(html).toContain('data-announcer="polite"')
+    expect(html).toContain('data-announcer="assertive"')
+    expect(html).not.toContain("Said before mount")
+  })
+
+  it("B58fix R4: a second Announcer mounted later never puts the last message in its regions, even for one commit", async () => {
+    act(() => root.render(<Announcer />))
+    act(() => announce("Said earlier", "assertive"))
+    const other = document.createElement("div")
+    document.body.appendChild(other)
+    const added: Node[] = []
+    const watch = new MutationObserver((records) => records.forEach((r) => added.push(...r.addedNodes)))
+    watch.observe(other, { childList: true, subtree: true })
+    const otherRoot = createRoot(other)
+    act(() => otherRoot.render(<Announcer />))
+    await Promise.resolve()
+    watch.disconnect()
+    expect(added.length).toBeGreaterThan(0)
+    expect(added.map((node) => node.textContent ?? "").join("|")).not.toContain("Said earlier")
+    expect(other.querySelector("[data-announcer]")).toBeNull()
+    act(() => otherRoot.unmount())
+    other.remove()
   })
 
   it("stays readable while a modal window hides the page", () => {
