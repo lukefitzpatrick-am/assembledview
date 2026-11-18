@@ -32,8 +32,10 @@
  *
  * Only bursts that reached the grid are carried: a saved budget, a quantity
  * above 0 (or a bonus, package inclusions or fixed cost burst, which the
- * import places whatever their quantity), dates inside the campaign's weeks,
- * and a cell in the group that is not blank. Anything else is left to the
+ * import places whatever their quantity, or a panels burst with a rate, which
+ * OOH's import reads as the panel count), dates inside the campaign's weeks,
+ * and a cell in the group that is not blank. A carried burst keeps its own
+ * buy type (or none) as saved. Anything else is left to the
  * mapper, as before (for example a package burst with quantity 0, which
  * `keepZeroQuantityPackageBurstsOnApply` keeps).
  */
@@ -52,6 +54,10 @@ type CarriedBurst = {
   calculatedValue: unknown
   cost?: unknown
   amount?: unknown
+  /** The burst's own buy type, when it was saved with one (OOH writes `bonus` on a bonus burst). */
+  buyType?: unknown
+  /** A bonus, package inclusions or fixed cost burst: saved without a quantity, it takes the grid's. */
+  takesGridQty: boolean
   startYmd: string
   endYmd: string
 }
@@ -174,17 +180,23 @@ function rawBursts(item: { bursts?: unknown; bursts_json?: unknown }): Record<st
   return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
 }
 
+const takesGridQty = (bt: string) => bt === "bonus" || bt === "package_inclusions" || bt === "fixed_cost"
+
 /**
  * A saved burst the carry can give back: it has a budget (a Production burst
  * saved as cost and amount only, or a blank budget, is priced by the mapper as
  * before), and a quantity, or is a bonus, package inclusions or fixed cost
- * burst (the import places those whatever their quantity).
+ * burst (the import places those whatever their quantity), or is a panels
+ * burst with a rate: OOH's import reads the rate as the panel count when the
+ * deliverables are 0 or blank (`panelsBurstQtyForExpert`), so it reached the
+ * grid and its saved budget must come back (C342Bfix L1).
  */
 function reachesGrid(b: Record<string, unknown>, lineBuyType: string): boolean {
   if (!present(b.budget)) return false
   const bt = lower(b.buyType) || lineBuyType
-  if (bt === "bonus" || bt === "package_inclusions" || bt === "fixed_cost") return true
-  return storedQty(b.calculatedValue ?? b.calculated_value) > 0
+  if (takesGridQty(bt)) return true
+  if (storedQty(b.calculatedValue ?? b.calculated_value) > 0) return true
+  return bt === "panels" && parseBurstMoney(b.buyAmount ?? b.buy_amount) > 0
 }
 
 /**
@@ -235,6 +247,8 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
           calculatedValue: b.calculatedValue ?? b.calculated_value,
           ...("cost" in b ? { cost: b.cost } : {}),
           ...("amount" in b ? { amount: b.amount } : {}),
+          ...(present(b.buyType) ? { buyType: b.buyType } : {}),
+          takesGridQty: takesGridQty(lower(b.buyType) || lineBuyType),
           startYmd,
           endYmd,
         },
@@ -328,8 +342,14 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
   }
   if ("calculatedValue" in template) {
     const qty = storedQty(saved.calculatedValue)
-    if (qty > 0) out.calculatedValue = qty
+    if (qty > 0 || !saved.takesGridQty) out.calculatedValue = qty
   }
+  // The burst's own buy type is the saved burst's, never the generated burst's
+  // in the same place: spans come out before weeks, so a paid burst can sit
+  // where the mapper wrote a bonus one (C342Bfix L2; `lineTotals` counts a
+  // bonus burst as $0).
+  if (present(saved.buyType)) out.buyType = saved.buyType
+  else delete out.buyType
   // Television writes TARPs as the deliverable's text.
   if ("tarps" in template) out.tarps = String(out.calculatedValue)
   for (const key of ["cost", "amount"] as const) {
