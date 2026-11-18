@@ -6,8 +6,14 @@ import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { DialogStackingLayer } from "@/lib/ui/stackingLayers"
+import { OpenerScope, useReturnFocus } from "@/components/ui/return-focus"
 
-const Dialog = DialogPrimitive.Root
+/** Root that remembers the opener, so focus returns to it on close (B57). */
+const Dialog = ({ open, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) => (
+  <OpenerScope open={open}>
+    <DialogPrimitive.Root open={open} {...props} />
+  </OpenerScope>
+)
 
 const DialogTrigger = DialogPrimitive.Trigger
 
@@ -47,7 +53,7 @@ const DialogContent = React.forwardRef<
     /** Optional overlay classes (non-z styling). Do not pass raw z-[N]. */
     overlayClassName?: string
   }
->(({ className, children, layer = "modal", overlayClassName, ...props }, ref) => (
+>(({ className, children, layer = "modal", overlayClassName, onCloseAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay layer={layer} className={overlayClassName} />
     <DialogPrimitive.Content
@@ -58,6 +64,7 @@ const DialogContent = React.forwardRef<
         className
       )}
       {...props}
+      onCloseAutoFocus={useReturnFocus(onCloseAutoFocus)}
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">

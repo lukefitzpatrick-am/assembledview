@@ -6,8 +6,14 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import type { DialogStackingLayer } from "@/lib/ui/stackingLayers"
+import { OpenerScope, useReturnFocus } from "@/components/ui/return-focus"
 
-const AlertDialog = AlertDialogPrimitive.Root
+/** Root that remembers the opener, so focus returns to it on close (B57). */
+const AlertDialog = ({ open, ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) => (
+  <OpenerScope open={open}>
+    <AlertDialogPrimitive.Root open={open} {...props} />
+  </OpenerScope>
+)
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
@@ -43,7 +49,7 @@ const AlertDialogContent = React.forwardRef<
      */
     layer?: DialogStackingLayer
   }
->(({ className, layer = "nested", ...props }, ref) => (
+>(({ className, layer = "nested", onCloseAutoFocus, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay layer={layer} />
     <AlertDialogPrimitive.Content
@@ -54,6 +60,7 @@ const AlertDialogContent = React.forwardRef<
         className
       )}
       {...props}
+      onCloseAutoFocus={useReturnFocus(onCloseAutoFocus)}
     />
   </AlertDialogPortal>
 ))

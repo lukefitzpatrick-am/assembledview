@@ -6,8 +6,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { OpenerScope, useReturnFocus } from "@/components/ui/return-focus"
 
-const Sheet = SheetPrimitive.Root
+/** Root that remembers the opener, so focus returns to it on close (B57). */
+const Sheet = ({ open, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) => (
+  <OpenerScope open={open}>
+    <SheetPrimitive.Root open={open} {...props} />
+  </OpenerScope>
+)
 
 const SheetTrigger = SheetPrimitive.Trigger
 
@@ -58,13 +64,14 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, overlayClassName, ...props }, ref) => (
+>(({ side = "right", className, children, overlayClassName, onCloseAutoFocus, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay className={overlayClassName} />
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
       {...props}
+      onCloseAutoFocus={useReturnFocus(onCloseAutoFocus)}
     >
       {children}
       <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
