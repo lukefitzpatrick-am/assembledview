@@ -23,7 +23,7 @@
  * Serving (FB-6), and lines with a publisher but no platform (most live
  * lines). Then it drives: fee-inclusive ticked on a collapsed card, card
  * typing on an expanded card (C-333: Digital Audio and BVOD round), Add /
- * Duplicate / Remove burst, a reload with a changed budget, a publisher
+ * Duplicate / Remove burst, a typed bonus quantity, a reload with a changed budget, a publisher
  * change, a site pick, Add Site, a buy type change to Bonus, Remove line,
  * Duplicate and Add line, an edited expert grid Apply, and the create path.
  *
@@ -534,6 +534,17 @@ describe.each(CHANNELS)("$name container golden (W5c)", (channel) => {
     act(() => byLabel("Remove burst")[1].click())
     await settle()
     out.burstEdits = snapshot(rec)
+
+    // 4b. Expand line 5 (bonus) and type a quantity: the input writes a
+    //     string, which billing and save carry as they find it.
+    expand(5)
+    const bonus = [...document.querySelectorAll('input[type="number"]')].find(
+      (i) => (i as HTMLInputElement).value === "500",
+    ) as HTMLInputElement | undefined
+    expect(bonus, "bonus input").toBeTruthy()
+    act(() => setInput(bonus!, "250"))
+    await settle()
+    out.bonusTyped = snapshot(rec)
 
     // 5. The page passes the same lines again as a new array, line 1's first
     //    budget changed.
