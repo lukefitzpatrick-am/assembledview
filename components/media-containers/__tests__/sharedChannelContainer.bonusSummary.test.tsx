@@ -3,7 +3,8 @@
  *
  * The bonus input writes a string into `calculatedValue`. The summary used to
  * add it with `+`, so bursts of 100 and 200 with 500 typed in the first read
- * "0500200 deliverables". Display only: the save path is pinned by the goldens.
+ * "0500200 deliverables". A cleared input counts as 0, not NaN (W5c F4).
+ * Display only: the save path is pinned by the goldens.
  *
  * @vitest-environment jsdom
  */
@@ -137,5 +138,11 @@ describe.each(CHANNELS)("$name summary bonus deliverables (W5afix F2)", (channel
 
     expect(host.textContent).toContain("700 deliverables")
     expect(host.textContent).not.toContain("0500200")
+
+    // W5c F4: a cleared bonus input writes "" and counts as 0, never NaN.
+    act(() => setInput(bonusInputs[0], ""))
+    await settle()
+    expect(host.textContent).toContain("200 deliverables")
+    expect(host.textContent).not.toContain("NaN")
   }, 30_000)
 })

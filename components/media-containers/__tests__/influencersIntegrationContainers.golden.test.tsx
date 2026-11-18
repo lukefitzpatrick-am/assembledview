@@ -94,8 +94,13 @@ function burst(
   return { ...b, ...extra }
 }
 
+// Saved rows carry their table `id` (mapLineItemFromPostgres); Integration's
+// reload skip keys on it (W5c F1).
+let idBase = 7000
+
 function apiLine(code: string, platform: string, n: number, extra: Record<string, unknown>) {
   return {
+    id: idBase + n,
     line_item_id: `tst001${code}${n}`,
     line_item: n,
     platform,
@@ -182,6 +187,7 @@ function integrationLines(budget?: string) {
       buy_type: "cpm",
       bursts: [burst("$700.00", "$7.00", "2026-01-12", "2026-01-25")],
     })
+    delete line.id
     delete line.line_item_id
     delete line.line_item
     return line
@@ -484,6 +490,14 @@ describe.each(CHANNELS)("$name container golden (W5b)", (channel) => {
     mount(channel.lines("$9,999.00"))
     await settle()
     out.reload = snapshot(rec)
+
+    // 5b. The same lines again with new table ids (a new saved version):
+    //     Integration's load key changes, so it hydrates (W5c F1).
+    idBase = 8000
+    mount(channel.lines("$9,999.00"))
+    idBase = 7000
+    await settle()
+    out.reloadNewIds = snapshot(rec)
 
     // 6. Line 1 buy type changed to Bonus (bonus zeroes budget and buy amount).
     ensureExpanded(1)
