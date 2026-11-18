@@ -382,7 +382,7 @@ import {
   type HeldMasterIdentity,
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
-import { planSavePreflight } from "@/app/mediaplans/_form/savePreflight"
+import { planSavePreflight, showSaveStop } from "@/app/mediaplans/_form/savePreflight"
 import { buildPlanBuilderIssues } from "@/app/mediaplans/_form/builderIssues"
 import {
   NO_PUBLISH_CHECK,
@@ -5725,7 +5725,7 @@ const handleSaveAll = async (opts?: {
         : null,
   })
   if (saveStop) {
-    if (saveStop.toast) toast(saveStop.toast)
+    showSaveStop(saveStop, toast)
     if (saveStop.refetchMbaNumber) {
       void generateMBANumber(String(form.getValues("mbaidentifier") ?? ""))
     }

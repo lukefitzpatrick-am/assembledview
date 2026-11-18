@@ -40,7 +40,7 @@ test("save: handleSaveAll runs the preflight with the page's state, then stops o
   const prompt = save.indexOf(OVER_BUDGET)
   assert.ok(call > 0 && stop > call && prompt > stop, "preflight, then its stop, then the prompts")
   assert.ok(save.indexOf("setAaPublishPrompt(") > stop && save.indexOf("await postPlansSave(") > stop)
-  assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+if \(saveStop\.toast\) toast\(saveStop\.toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
+  assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+showSaveStop\(saveStop, toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
 })
 
 test("B20: ghost pairs come from the working schedule with the switch and the alias identity", () => {

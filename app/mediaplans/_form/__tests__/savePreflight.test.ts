@@ -140,11 +140,10 @@ test("edit: each refusal's toast", () => {
     variant: "destructive",
   })
   assert.equal(planSavePreflight({ ...editOk, clientsBlocked: true, clientsError: "x" })?.toast?.description, "x")
-  assert.deepEqual(planSavePreflight({ ...editOk, datesOutOfOrder: true })?.toast, {
-    title: "Publish disabled",
-    description: END_BEFORE_START_MESSAGE,
-    variant: "destructive",
-  })
+  // B58: the end date error shows on the field; the stop says it and toasts nothing.
+  const dates = planSavePreflight({ ...editOk, datesOutOfOrder: true })
+  assert.equal(dates?.toast, null)
+  assert.equal(dates?.fieldMessage, END_BEFORE_START_MESSAGE)
   assert.equal(planSavePreflight({ ...editOk, linesStillLoading: true })?.toast?.title, "Line items still loading — please wait")
   assert.equal(
     planSavePreflight({ ...editOk, channelLoadFailed: true, channelLoadFailedReason: null })?.toast?.description,

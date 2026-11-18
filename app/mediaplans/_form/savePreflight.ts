@@ -3,7 +3,9 @@
  * at the top of `handleSaveAll`, before any prompt or request, in one place.
  * S1 (publish refuses the hard list) builds here.
  *
- * Pure. The page shows the stop's toast (none for `silent`) and returns.
+ * `planSavePreflight` is pure. The page passes its stop to `showSaveStop`
+ * and returns: a field stop (B58) is said once and focus moves to the field,
+ * any other stop toasts (none for a second click while a save runs).
  * Prompts that ask the planner (over budget, AA publish warnings) stay in the
  * page: they are questions, not refusals. The over budget wording is
  * `overBudgetQuestion` (B57).
@@ -22,6 +24,7 @@ import {
 } from "@/lib/finance/billingOverridesSaveIntent"
 import { END_BEFORE_START_MESSAGE } from "@/lib/mediaplan/dateOrder"
 import { MBA_NUMBER_LOADING_MESSAGE } from "@/lib/mediaplan/createHeldMaster"
+import { announce } from "@/components/ui/announcer"
 
 type SaveStopCode =
   | "clients-unavailable"
@@ -37,8 +40,10 @@ type SaveStopCode =
 
 type SaveStop = {
   code: SaveStopCode
-  /** Null: refuse without a toast (a second click while a save runs). */
+  /** Null: refuse without a toast (a second click while a save runs, or a field stop). */
   toast: { title: string; description?: string; variant?: "destructive" } | null
+  /** A field's own error (shown under the field already): said, never toasted (B58). */
+  fieldMessage?: string
   /** Create: ask for a fresh MBA number (blank, or another client's). */
   refetchMbaNumber?: boolean
 }
@@ -88,7 +93,8 @@ export function planSavePreflight(checks: CreateSaveChecks | EditSaveChecks): Sa
   if (checks.datesOutOfOrder) {
     return {
       code: "dates-out-of-order",
-      toast: { title: "Publish disabled", description: END_BEFORE_START_MESSAGE, variant: "destructive" },
+      toast: null,
+      fieldMessage: END_BEFORE_START_MESSAGE,
     }
   }
   return checks.mode === "create" ? createStop(checks) : editStop(checks)
@@ -161,6 +167,24 @@ function editStop(checks: EditSaveChecks): SaveStop | null {
     }
   }
   return null
+}
+
+/**
+ * Shows a stop. A field stop is said once (assertive) and focus moves to the
+ * first field marked invalid, else to the first end date message (a burst
+ * row). Any other stop toasts.
+ */
+export function showSaveStop(stop: SaveStop, toast: (message: NonNullable<SaveStop["toast"]>) => void): void {
+  if (stop.fieldMessage) {
+    announce(stop.fieldMessage, "assertive")
+    const target =
+      document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+      document.querySelector<HTMLElement>("[data-date-order-error]")
+    target?.scrollIntoView?.({ block: "center" })
+    target?.focus()
+    return
+  }
+  if (stop.toast) toast(stop.toast)
 }
 
 /**

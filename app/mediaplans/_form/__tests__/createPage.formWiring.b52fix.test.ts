@@ -26,7 +26,7 @@ test("save: handleSaveAll runs the preflight with the page's state, then stops o
   const stop = save.indexOf("if (saveStop) {", call)
   const prompt = save.indexOf("setAaPublishPrompt(")
   assert.ok(call > 0 && stop > call && prompt > stop && save.indexOf(OVER_BUDGET) > stop)
-  assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+if \(saveStop\.toast\) toast\(saveStop\.toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
+  assert.match(save.slice(stop, prompt), /^if \(saveStop\) \{\n\s+showSaveStop\(saveStop, toast\)\n[\s\S]*\n\s+return\n\s+\}\n/)
 })
 
 test("C-165: a running save refuses a second one; the flag is set after every refusal and prompt, and cleared in finally", () => {

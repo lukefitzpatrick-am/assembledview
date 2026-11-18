@@ -524,6 +524,7 @@ import {
   billingAliasGhostPairsWhenOn,
   keepCurrentBillingRows,
   planSavePreflight,
+  showSaveStop,
 } from "@/app/mediaplans/_form/savePreflight"
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
@@ -6525,7 +6526,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       pendingBillingOverrideCount: pendingBillingOverrideRows.length,
     })
     if (saveStop) {
-      if (saveStop.toast) toast(saveStop.toast)
+      showSaveStop(saveStop, toast)
       if (saveStop.code === "billing-overrides-not-loaded") {
         console.warn("[save] blocked — billing overrides load unavailable with pending", {
           code: BILLING_OVERRIDES_LOAD_BLOCK_CODE,
