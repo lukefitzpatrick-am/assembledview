@@ -25,7 +25,10 @@
  * with a changed budget, a buy type change to Bonus, Remove line, Duplicate
  * and Add line, a non-whole burst typed on an expanded card then an edited
  * expert grid Apply (C-333: Cinema collapses its cards on Apply), the create
- * path, and a plan with a gap in its line ids.
+ * path, and a plan with a gap in its line ids. W5f adds the card's own
+ * deliverable rule (a package budget typed; a spots budget typed before any
+ * cost per spot) and an expert Apply followed by a Remove (line numbers from
+ * the cards).
  *
  * Not covered: a numeric burst budget. The old container's save and billing
  * call `budget.replace` and throw on one (live 0).
@@ -278,6 +281,14 @@ function addStationButton(nth: number): HTMLButtonElement {
   return button!
 }
 
+/** The input a dialog label names (`for` points at it). */
+function fieldByLabel(scope: HTMLElement, text: RegExp): HTMLInputElement {
+  const label = [...scope.querySelectorAll("label")].find((l) => text.test(l.textContent?.trim() ?? ""))
+  const input = label ? (document.getElementById(label.htmlFor) as HTMLInputElement | null) : null
+  expect(input, `field ${text}`).toBeTruthy()
+  return input!
+}
+
 const stationDialog = () =>
   [...document.querySelectorAll('[role="dialog"]')].find((d) =>
     (d.textContent ?? "").includes("Add New Cinema Station"),
@@ -429,8 +440,7 @@ describe("Cinema container golden (W5e)", () => {
     await settle(50)
     const dialog = stationDialog()
     expect(dialog, "add station dialog").toBeTruthy()
-    const name = dialog!.querySelector("#newStationName") as HTMLInputElement
-    expect(name, "station name input").toBeTruthy()
+    const name = fieldByLabel(dialog!, /^station name$/i)
     act(() => setInput(name, "Station New"))
     act(() => buttons("Add Station")[0].click())
     await settle()
@@ -534,6 +544,49 @@ describe("Cinema container golden (W5e)", () => {
     out.lineIdGapRemove = snapshot(rec)
     expect(rec.media!.map((l) => l.line_item_id)).toEqual(ids([2, 4]))
     expect([...new Set(rec.excel!.map((r) => r.line_item_id))]).toEqual(ids([2, 4]))
+
+    // 15. The card's own package rule (W5f, C-341 item 3): Cinema works a
+    //     package line's deliverables out from budget and rate on the card.
+    act(() => root.unmount())
+    root = createRoot(host)
+    rec = fresh()
+    mount(cinemaLines())
+    await settle()
+    expand(8)
+    typeAndBlur('input[name$=".7.bursts.0.budget"]', "$6,000.00")
+    await settle()
+    out.cardPackage = snapshot(rec)
+
+    // 16. Expert Apply with no edit, then Remove line 1: the summary and the
+    //     Excel rows number lines from the cards, not the `position` Apply
+    //     stamps (C-362; kills W5e's CN18).
+    act(() => buttons("Schedule grid")[0].click())
+    await settle(100)
+    act(() => buttons("Apply to plan (not saved yet)")[0].click())
+    await settle()
+    act(() => buttons("Remove")[0].click())
+    await settle()
+    out.applyThenRemove = snapshot(rec)
+    expect([...new Set(rec.excel!.map((r) => r.line_item))]).toEqual(
+      Array.from({ length: n - 1 }, (_, i) => i + 1),
+    )
+
+    // 17. Create a spots line and type a budget before any cost per spot:
+    //     Cinema reads the blank buy amount as 0 (W5f, C-341 item 3).
+    act(() => root.unmount())
+    root = createRoot(host)
+    rec = fresh()
+    mount([])
+    await settle()
+    act(() => buttons("Add line item")[0].click())
+    await settle()
+    act(() => controlForLabel("Buy Type", 0).click())
+    await settle(50)
+    pickOption("Spots")
+    await settle()
+    typeAndBlur('input[name$=".0.bursts.0.budget"]', "4321")
+    await settle()
+    out.createSpotsBlankRate = snapshot(rec)
 
     const text = `${JSON.stringify(out, null, 2)}\n`
     if (process.env.UPDATE_GOLDEN === "1") {
