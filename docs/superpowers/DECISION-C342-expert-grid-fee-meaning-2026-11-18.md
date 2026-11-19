@@ -1,6 +1,6 @@
 # Decision: what the schedule grid's quantity and cost mean on a fee-inclusive line (C-342, V66)
 
-Status: **B built, awaiting confirmation (V66).** Batch C342B built option B on a held branch: apply it only after Luke confirms V66 B. Until then the release head is as this paper first described.
+Status: **B confirmed by Luke 20 Nov 2026, shipped in C342B and C342Bfix.** Batch C342B built option B and C342Bfix closed its review items; both are on the release head.
 Written 18 Nov 2026, batch C342fix, from release head `9d708bf7`. Supabase SELECT only (counts and MBA numbers). Updated 19 Nov 2026 in C342B (sections 3 and 4, and section 7: what was built).
 
 ## 1. Why this is a decision and not a fix
@@ -177,7 +177,7 @@ order by mba_number, version_number, channel, excel_number;
 
 ## 7. What C342B built (option B)
 
-Held branch `c342b`; apply only after Luke confirms V66 B.
+Confirmed by Luke 20 Nov 2026 (V66 B). Shipped in C342B and C342Bfix.
 
 - **Cells:** real deliverables on every channel, as before.
 - **Untouched cells:** on open each row carries its saved bursts (`lib/mediaplan/expertCarry.ts`). On Apply a group of cells the planner has not touched gives its saved bursts back: budget, deliverables, rate, cost and amount (Production), dates. Untouched is read from the values (spans, week cells, day cells, and the row's rate, buy type and Budget Includes Fees), so every edit path in the grid drops the carry for what it changed. Typing a cell's own number back counts as untouched.
