@@ -271,3 +271,46 @@ test("Search: a lump sum the card put in the first week is not given back twice 
     assert.equal(sumCents(applied), 700)
   }
 })
+
+// --- Pins added after mutation testing ---------------------------------------------
+
+test("Search: a burst before the campaign opens in the first week and comes back as saved (C-370, outsideToEdgeWeek)", () => {
+  const search = CHANNELS.find((c) => c.name === "Search")!
+  const saved = lineOf("cpc", false, [paid("cpc", false, 0, "$1,000.00", "2026-02-01", "2026-02-20"), paid("cpc", false, 0, "$2,000.00", "2026-03-15", "2026-03-28")])
+  for (const wso of [0, 1] as const) assert.deepEqual(read(run(search, saved, 0, wso).applied), read(saved))
+})
+
+test("Radio: a fixed cost line whose only burst is after the campaign shows its saved budget, not that plus its rate (C-370)", () => {
+  const radio = CHANNELS.find((c) => c.name === "Radio")!
+  const saved = lineOf("fixed_cost", false, [{ budget: "$5,000.00", buyAmount: "$5,000.00", calculatedValue: 1, startDate: "2026-04-05", endDate: "2026-04-30" }])
+  for (const wso of [0, 1] as const) {
+    const { grid, applied } = run(radio, saved, 0, wso)
+    assert.equal(cents(grid), 500_000)
+    assert.deepEqual(read(applied), read(saved))
+  }
+})
+
+test("Radio: a burst the grid cannot place keeps its own blank rate, not another burst's (C-370)", () => {
+  const radio = CHANNELS.find((c) => c.name === "Radio")!
+  const saved = lineOf("spots", false, [
+    { budget: "$1,197.00", buyAmount: "$57.00", calculatedValue: 21, startDate: "2026-03-01", endDate: "2026-03-14" },
+    { budget: "$684.00", buyAmount: "", calculatedValue: 0, startDate: "2026-03-15", endDate: "2026-03-21" },
+  ])
+  const zero = run(radio, saved, 0, 0).applied.bursts.find((b: any) => toCents(parseBurstMoney(b.budget)) === 68_400)
+  assert.equal(zero.buyAmount, "")
+})
+
+test("Search: a package inclusions burst saved with 0 that shares a week opens as 1 and is priced from the grid once edited, never also given back (C-370)", () => {
+  // The week-cell grids open package inclusions 0 as 1, so it is not a burst
+  // the grid cannot place: an edited group writes only what the grid shows.
+  const search = CHANNELS.find((c) => c.name === "Search")!
+  const saved = lineOf("package_inclusions", false, [
+    { budget: "0", buyAmount: "0", calculatedValue: 2, startDate: "2026-03-01", endDate: "2026-03-14" },
+    { budget: "0", buyAmount: "0", calculatedValue: 0, startDate: "2026-03-08", endDate: "2026-03-14" },
+  ])
+  const edited = run(search, saved, 0, 0, (row, keys) => doubleWeek(row, keys, "2026-03-01"))
+  const gridQty = Object.values(edited.row.weeklyValues).reduce((q: number, v: any) => q + Number(v || 0), 0)
+  assert.equal(qtyOfLine(edited.applied), gridQty)
+  assert.ok(!edited.applied.bursts.some((b: any) => Number(b.calculatedValue) === 0))
+})
+const qtyOfLine = (line: any) => (line.bursts ?? []).reduce((t: number, b: any) => t + Number(b.calculatedValue || 0), 0)

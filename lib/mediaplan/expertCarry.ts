@@ -70,8 +70,8 @@ type CarriedBurst = {
   takesGridQty: boolean
   startYmd: string
   endYmd: string
-  /** C-370: a burst the grid cannot place keeps its other saved fields too (size, fee), not the mapper's. */
-  rest?: Record<string, unknown>
+  /** C-370: a burst the grid cannot place; no value the mapper wrote elsewhere stands in for one it was saved without. */
+  unplaced?: true
 }
 
 type ExpertCarryGroup = {
@@ -213,12 +213,6 @@ function opensNoQuantity(b: Record<string, unknown>, bt: string, lineBuyType: st
   return !(rate > 0 && (bt === "panels" || parseBurstMoney(b.budget) > 0))
 }
 
-/** The fields {@link carriedBurst} writes itself; the rest of a burst the grid cannot place comes back as saved. */
-const OWN_KEYS = new Set([
-  "budget", "buyAmount", "buy_amount", "calculatedValue", "calculated_value", "cost", "amount",
-  "buyType", "buy_type", "startDate", "start_date", "endDate", "end_date",
-])
-
 /**
  * A saved burst the carry can give back: it has a budget (a Production burst
  * saved as cost and amount only, or a blank budget, is priced by the mapper as
@@ -311,8 +305,7 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
     const unplaced: CarriedBurst[] = []
     for (const { b, keys, saved, noCell } of seen) {
       if (noCell && !opened) {
-        const rest = Object.fromEntries(Object.entries(b).filter(([k]) => !OWN_KEYS.has(k)))
-        unplaced.push({ ...saved, takesGridQty: false, rest })
+        unplaced.push({ ...saved, takesGridQty: false, unplaced: true })
         continue
       }
       if (!reachesGrid(b, lineBuyType) || keys.length === 0) continue
@@ -412,7 +405,7 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
     out.buyAmount = carriedBuyAmount(template.buyAmount, saved.buyAmount)
   }
   // C-370: a burst the grid cannot place has no mapper value of its own: a blank rate stays blank.
-  if ("buyAmount" in template && !present(saved.buyAmount) && saved.rest) out.buyAmount = saved.buyAmount ?? ""
+  if ("buyAmount" in template && !present(saved.buyAmount) && saved.unplaced) out.buyAmount = saved.buyAmount ?? ""
   if ("calculatedValue" in template) {
     const qty = storedQty(saved.calculatedValue)
     if (qty > 0 || !saved.takesGridQty) out.calculatedValue = qty
@@ -433,7 +426,6 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
   }
   if (ymd(template.startDate) !== saved.startYmd) out.startDate = parseBurstDateLocal(saved.startYmd)
   if (ymd(template.endDate) !== saved.endYmd) out.endDate = parseBurstDateLocal(saved.endYmd)
-  for (const [k, v] of Object.entries(saved.rest ?? {})) if (k in template) out[k] = v
   return out as B
 }
 
