@@ -12,6 +12,10 @@ import "@/lib/testing/bothZones"
  *   the earlier burst's share sits under the new span.
  * - C-368: a burst spread into a week that holds day cells: the grid shows
  *   the week cell, Apply writes the day cells.
+ *
+ * C361fix (review F3 to F6): Radio's Apply skips a cell under a span's last
+ * week; a fixed cost burst's 1 goes to the first week left; a 0-quantity span
+ * counts as a span; a burst starting on a week's Saturday touches that week.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -190,7 +194,54 @@ for (const [name, toExpert, buyType] of SIX) {
     )
     assert.deepEqual(cellsOf(row), ["", 7, "", ""])
   })
+
+  test(`${name} (F4): a fixed cost burst around a one-week span puts its 1 in the first of the two weeks left`, () => {
+    // Fixed cost 1 in week 2 (a span); fixed cost over Mar 1 to 21: weeks 1 and 3 are left, 1 in week 1.
+    const [row] = (toExpert as (...a: any[]) => any[])(
+      [sixLine("fixed_cost", [[1, "2026-03-08", "2026-03-14"], [1, "2026-03-01", "2026-03-21"]])],
+      COLS,
+      START,
+      END,
+      { feePct: 0 }
+    )
+    assert.deepEqual(cellsOf(row), [1, "", "", ""])
+    assert.deepEqual(row.mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey]), [["2026-03-08", "2026-03-08"]])
+  })
+
+  test(`${name} (F6): a burst that starts on the Saturday that ends a week touches that week`, () => {
+    // Sat Mar 7 to Fri Mar 13: weeks 1 and 2, one span from Mar 7.
+    const [row] = (toExpert as (...a: any[]) => any[])(
+      [sixLine(buyType, [[7, "2026-03-07", "2026-03-13"]])],
+      COLS,
+      START,
+      END,
+      { feePct: 0 }
+    )
+    assert.deepEqual(
+      row.mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey, sp.startYmd, sp.endYmd, sp.totalQty]),
+      [["2026-03-01", "2026-03-08", "2026-03-07", "2026-03-13", 7]]
+    )
+  })
 }
+
+test("OOH (F5): a bonus span saved with 0 panels counts as a span; a paid burst over it opens either side", () => {
+  // Bonus 0 in week 2 (a span of 0); 7 paid panels over Mar 1 to 21: 4 in
+  // week 1, 3 in week 3, nothing under the bonus span.
+  const line = sixLine("panels", [[7, "2026-03-01", "2026-03-21"]])
+  line.bursts.unshift({ buyType: "bonus", budget: "$0.00", buyAmount: "$0.00", calculatedValue: 0, startDate: "2026-03-08", endDate: "2026-03-14" } as any)
+  const [row] = M.mapStandardOohLineItemsToExpertRows([line] as any[], COLS, START, END) as any[]
+  assert.deepEqual(row.mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey, sp.totalQty, sp.buyType]), [["2026-03-08", "2026-03-08", 0, "bonus"]])
+  assert.deepEqual(cellsOf(row), [4, "", 3, ""])
+  // One panel added in week 3: Apply writes the bonus span as $0 and 8 paid
+  // panels at $600.00 ($4,800.00), all of what the grid shows.
+  row.weeklyValues["2026-03-15"] = 4
+  const out = S.mergeOohStandardFromExpertWithPrevious(
+    M.mapOohExpertRowsToStandardLineItems([row], COLS, START, END, { feePctOoh: 0 }),
+    [line] as any[]
+  ) as any[]
+  assert.equal(out[0].bursts.reduce((c: number, b: any) => c + cents(parseBurstMoney(b.budget)), 0), 480_000)
+  assert.equal(out[0].bursts.reduce((q: number, b: any) => q + Number(b.calculatedValue || 0), 0), 8)
+})
 
 test("C-361 remains: a two-week burst entirely under a span keeps the old spread over both weeks", () => {
   // 20 over Mar 1 to 28 (a span over all four weeks); 7 over Mar 8 to 21 sit
@@ -203,6 +254,27 @@ test("C-361 remains: a two-week burst entirely under a span keeps the old spread
     { feePct: 0 }
   ) as any[]
   assert.deepEqual(cellsOf(row), ["", 4, 3, ""])
+})
+
+test("C-361 remains (F3): a cell under a span's last week is not written by Radio's Apply", () => {
+  // 10 spots Mar 1 to 14 (a span over weeks 1 and 2); 4 spots Mar 8 to 14 sit
+  // under the span's last week as a week cell (no week is left outside it).
+  const saved = radioLine([
+    ["$7,777.00", "2026-03-01", "2026-03-14"],
+    ["$2,600.00", "2026-03-08", "2026-03-14"],
+  ])
+  const rows = untouchedIsExact(saved)
+  assert.equal(rows[0].weeklyValues["2026-03-08"], 4)
+  assert.deepEqual(rows[0].mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey]), [["2026-03-01", "2026-03-08"]])
+  // One spot added to the span: Apply writes the span's 11 spots only
+  // ($7,150.00 / 0.875 = $8,171.43), Mar 1 to 14; the 4 under week 2 are
+  // skipped, as under any other week of a span.
+  rows[0].mergedWeekSpans[0].totalQty += 1
+  const [line] = apply(rows, saved)
+  assert.deepEqual(
+    line.bursts.map((b: any) => [cents(parseBurstMoney(b.budget)), Number(b.calculatedValue)]),
+    [[817_143, 11]]
+  )
 })
 
 test("an edited day-cell group beside a carried span: the grid's money is what Apply saves", () => {
