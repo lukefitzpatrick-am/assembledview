@@ -51,6 +51,7 @@ import {
   TV_BUY_TYPE_OPTIONS,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import { budgetCellDisplay, qtyFromBudgetInput } from "@/lib/mediaplan/expertGridDayEntry"
+import { attachExpertCarry } from "@/lib/mediaplan/expertCarry"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowCostSplit, expertRowQuantitySum } from "@/lib/mediaplan/expertRowCost"
 import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
@@ -661,6 +662,120 @@ for (const name of SPREAD_CHANNELS) {
         assert.ok(Math.abs(qty - expertRowQuantitySum(row, weekKeys)) < 1e-6, `${l._label}: deliverables ${qty}`)
       }
     })
+  }
+}
+
+/**
+ * C-361 case 2 and C-368 (C361b: V93 A and V94 A). Two live shapes on the six
+ * spread channels, every buy type and fee case:
+ *
+ * - Monday to Sunday weekly bursts on a Sunday grid: each touches two weeks,
+ *   so each shares a week with the one before. The first opens as a span; a
+ *   later burst whose weeks already hold a cell spreads instead of opening as
+ *   a span over it.
+ * - A day-detailed week (Mar 9 to 11) inside a three-week burst (Mar 1 to
+ *   21): the burst cannot be a span over the days, and it spreads only into
+ *   weeks 1 and 3; week 4 has a span of its own (a group the edit leaves
+ *   carried).
+ *
+ * No cell the grid hides (under a span, or a week cell in a day-detailed
+ * week) holds a quantity; no edit is exact; an edited group saves what the
+ * grid's money shows (a cent per burst); and the carry's groups are the ones
+ * the saved dates give, whatever the import put in the cells.
+ */
+const CASE2_SHAPES = [
+  {
+    shape: "Monday to Sunday weekly bursts",
+    flights: [
+      { startDate: "2026-03-02", endDate: "2026-03-08" },
+      { startDate: "2026-03-09", endDate: "2026-03-15" },
+      { startDate: "2026-03-16", endDate: "2026-03-22" },
+    ],
+    editWeek: 2,
+    groups: [weekKeys],
+  },
+  {
+    shape: "a day-detailed week inside a three-week burst",
+    flights: [
+      { startDate: "2026-03-09", endDate: "2026-03-11" },
+      { startDate: "2026-03-01", endDate: "2026-03-21" },
+      { startDate: "2026-03-22", endDate: "2026-03-28" },
+    ],
+    editWeek: 0,
+    groups: [weekKeys.slice(0, 3), weekKeys.slice(3)],
+  },
+] as const
+
+/** Quantity the grid hides: under a span, or a week cell in a week that holds day cells (Apply writes the days). */
+const hiddenOrDropped = (row: any) => {
+  const weekOf = (d: string) => [...weekKeys].reverse().find((k) => k <= d)!
+  const dayWeeks = new Set(
+    Object.entries(row.dailyValues ?? {})
+      .filter(([, v]) => v !== "" && v !== undefined)
+      .map(([d]) => weekOf(d))
+  )
+  const under = spanned(row)
+  return hiddenQty(row) + weekKeys.filter((k) => dayWeeks.has(k) && !under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0)
+}
+
+/** The carry's groups: week keys and the saved dates of their bursts. */
+const carryGroups = (row: any) =>
+  (row.expertCarry?.groups ?? []).map((g: any) => ({ weeks: g.weekKeys, dates: g.bursts.map((b: any) => `${b.startYmd}..${b.endYmd}`) }))
+
+for (const { shape, flights, editWeek, groups } of CASE2_SHAPES) {
+  for (const name of SPREAD_CHANNELS) {
+    const ch = chan(name)
+    for (const v of VARIANTS) {
+      const key = `${name} | ${variantName(v)} | ${shape}`
+      const saved = savedPlan(ch, v).map((l) => ({ ...l, bursts: flights.map((f) => savedBurst(l.buyType, l._label.endsWith("awkward") ? "awkward" : "round", v, f)) }))
+      const open = (lines: any[]) => ch.toExpert(lines, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
+
+      test(`${key}: nothing hidden, and no edit returns every line as saved (C361b)`, () => {
+        const rows = open(saved)
+        for (const l of saved) {
+          assert.equal(hiddenOrDropped(rowOf(rows, l.line_item_id)), 0, `${l._label}: the grid hides a quantity`)
+        }
+        const moves = movesBetween(saved, applyNoEdit(ch, v, saved))
+        assert.equal(summary(moves), NO_MOVES, moves.sample.join("; "))
+      })
+
+      test(`${key}: the carry's groups come from the saved dates, not from the cells (C361b)`, () => {
+        const rows = open(saved)
+        for (const l of saved) {
+          const row = rowOf(rows, l.line_item_id)
+          const got = carryGroups(row)
+          assert.deepEqual(got.map((g: any) => g.weeks), groups.map((g) => [...g]), `${l._label}: groups`)
+          // The same line with every cell laid out differently (no span, no
+          // day cell, 1 in every week) gives the same groups and bursts.
+          const flat = { ...row, expertCarry: undefined, mergedWeekSpans: [], dailyValues: {}, weeklyValues: Object.fromEntries(weekKeys.map((k) => [k, 1])) }
+          attachExpertCarry([flat], [l], COLS, START, END)
+          assert.deepEqual(carryGroups(flat), got, `${l._label}: the groups moved with the layout`)
+        }
+      })
+
+      test(`${key}: an edited group saves what the grid's money shows (C361b)`, () => {
+        const fee = v.fee
+        const opts: Record<string, unknown> = ch.feeOnly ? { [ch.feeKey]: fee } : { [ch.feeKey]: fee, budgetIncludesFees: v.incl }
+        const rated = saved.filter((l) => RATE_PRICED.has(l.buyType))
+        const rows = open(rated)
+        const k = weekKeys[editWeek]!
+        for (const l of rated) {
+          const row = rowOf(rows, l.line_item_id)
+          assert.ok(Number(row.weeklyValues[k]) > 0, `${l._label}: week ${editWeek + 1} holds a week cell`)
+          row.weeklyValues[k] = Number(row.weeklyValues[k]) + 1
+        }
+        const applied = readLines(ch.merge(ch.fromExpert(rows, COLS, START, END, opts), rated))
+        for (const l of rated) {
+          const row = rowOf(rows, l.line_item_id)
+          const line = applied.get(l.line_item_id)!
+          const saves = line.bursts.reduce((c, b) => c + b.cents, 0)
+          const shows = cents(expertRowCostSplit(row, weekKeys, fee).raw)
+          assert.ok(Math.abs(saves - shows) <= line.bursts.length, `${l._label}: Apply saves ${saves}c, the grid shows ${shows}c`)
+          const qty = line.bursts.reduce((q, b) => q + b.deliverables, 0)
+          assert.ok(Math.abs(qty - expertRowQuantitySum(row, weekKeys)) < 1e-6, `${l._label}: deliverables ${qty}`)
+        }
+      })
+    }
   }
 }
 

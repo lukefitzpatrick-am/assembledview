@@ -793,7 +793,12 @@ export function deriveExpertRowScheduleYmdFromRow(
   return { startDate, endDate }
 }
 
-function buildWeekBlockedPredicate(
+/**
+ * A week a span edge cannot move into: under another span (any quantity),
+ * a non-zero week cell, or any non-blank day value. The import uses the same
+ * rule to decide whether a burst can open as a span (C-361 case 2, V93 A).
+ */
+export function buildWeekBlockedPredicate(
   row: ExpertRowScheduleFields,
   weekKeys: readonly string[],
   dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,

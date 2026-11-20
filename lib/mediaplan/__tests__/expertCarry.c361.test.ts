@@ -8,10 +8,12 @@ import "@/lib/testing/bothZones"
  * - A burst entirely under a span (week cell or day cells): no week is left
  *   outside the span, so the import keeps the old spread and the share sits
  *   under the span.
- * - A span the import makes later over a week that already holds a burst:
- *   the earlier burst's share sits under the new span.
- * - C-368: a burst spread into a week that holds day cells: the grid shows
- *   the week cell, Apply writes the day cells.
+ * - C-368 with no other week left: a burst spread into a week that holds
+ *   day cells: the grid shows the week cell, Apply writes the day cells.
+ *
+ * C361b (V93 A): a burst whose weeks already hold a cell no longer opens as
+ * a span over them; it spreads into the weeks no span covers. That case is
+ * pinned here as fixed.
  *
  * C361fix (review F3 to F6): Radio's Apply skips a cell under a span's last
  * week; a fixed cost burst's 1 goes to the first week left; a 0-quantity span
@@ -93,10 +95,10 @@ for (const [shape, second] of [
   })
 }
 
-test("C-361 remains: a span the import makes later covers a week an earlier burst holds", () => {
+test("C-361 case 2 fixed (V93 A): a burst whose weeks already hold a cell does not open as a span over them", () => {
   // 10 spots Mar 1 to 14 (span, weeks 1 and 2); 7 spots Mar 8 to 21 overlap it
-  // and open in week 3; 7 spots Mar 15 to 28 conflict with no span, so they
-  // open as a span over weeks 3 and 4, on top of the 7 in week 3.
+  // and open in week 3; 7 spots Mar 15 to 28 touch week 3, which holds a cell,
+  // so they spread over weeks 3 and 4 (4 and 3) instead of opening as a span.
   const saved = radioLine([
     ["$7,777.00", "2026-03-01", "2026-03-14"],
     ["$5,200.00", "2026-03-08", "2026-03-21"],
@@ -104,13 +106,18 @@ test("C-361 remains: a span the import makes later covers a week an earlier burs
   ])
   const rows = untouchedIsExact(saved)
   assert.deepEqual(
-    [rows[0].weeklyValues["2026-03-15"], rows[0].mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey])],
-    [7, [["2026-03-01", "2026-03-08"], ["2026-03-15", "2026-03-22"]]]
+    [KEYS.map((k) => rows[0].weeklyValues[k]), rows[0].mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey])],
+    [["", "", 11, 3], [["2026-03-01", "2026-03-08"]]]
   )
-  // One spot added to the second span: the grid counts 10 + 7 + 8 = 25 spots
-  // ($16,250.00 / 0.875 = $18,571.43); Apply writes 10 + 8 = 18 ($13,371.43).
-  rows[0].mergedWeekSpans[1].totalQty += 1
-  assert.deepEqual([grid(rows[0]), savedCents(apply(rows, saved)[0])], [1_857_143, 1_337_143])
+  // One spot added in week 4: the grid counts 10 + 11 + 4 = 25 spots
+  // ($16,250.00 / 0.875 = $18,571.43); Apply writes the same 25 (before
+  // C361b: 10 + 8 = 18, $13,371.43, as 7 sat under the second span).
+  rows[0].weeklyValues["2026-03-22"] = 4
+  const [line] = apply(rows, saved)
+  assert.equal(grid(rows[0]), 1_857_143)
+  // Apply: $7,428.57 (span, 10) + $8,171.43 (week 3, 11) + $2,971.43 (week 4, 4).
+  assert.equal(savedCents(line), 1_857_143)
+  assert.equal(line.bursts.reduce((q: number, b: any) => q + Number(b.calculatedValue), 0), 25)
 })
 
 test("C-368: a burst spread into a week with day cells: the grid counts the week cell, Apply writes the days", () => {

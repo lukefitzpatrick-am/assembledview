@@ -31,6 +31,7 @@ import {
   burstDatesForExpertSpan,
   burstWindowForWeekColumn,
   burstYmdOverridesForImport,
+  buildWeekBlockedPredicate,
   deriveExpertRowScheduleYmdFromRow,
   tryImportMultiWeekBurstAsMergedSpan,
   type ExpertSpanDateOverrides,
@@ -447,8 +448,9 @@ type DistributableBurstImportCtx = {
  * Radio-family import: a full-week burst (7 days, including a single
  * Sunday-aligned week) is a merged span (`mergedWeekSpans[].totalQty`), not
  * a weekly cell. True sub-week interiors expand to day-detail. Multi-week
- * uses a merged span with exact dates when there is no occupancy conflict,
- * else distribute into cells.
+ * uses a merged span with exact dates when none of its weeks is taken (a
+ * span, a week cell or day cells: C-361, V93 A), else distribute into the
+ * weeks no span covers and no day cells hold (C-361 V87 A, C-368 V94 A).
  */
 function accumulateDistributableBurstForExpertImport(
   ctx: DistributableBurstImportCtx,
@@ -506,7 +508,26 @@ function accumulateDistributableBurstForExpertImport(
     }
   }
 
-  if (overlapKeys.length >= 1) {
+  // C-361 case 2 (V93 A): a week that already holds a cell is taken, as in
+  // the grid's own span rule (`buildWeekBlockedPredicate`: a span, a non-zero
+  // week cell, or any non-blank day value), so a new span never covers it.
+  const dayKeysByWeekKey: Record<string, readonly string[]> = {}
+  for (const col of weekColumns) {
+    if (overlapKeys.includes(col.weekKey)) {
+      dayKeysByWeekKey[col.weekKey] = weekDayKeys(col, campaignStartDate, campaignEndDate)
+    }
+  }
+  const weekTaken = buildWeekBlockedPredicate(
+    {
+      weeklyValues: ctx.weeklyValues,
+      dailyValues: ctx.dailyValues,
+      mergedWeekSpans: ctx.mergedWeekSpans,
+    },
+    weekColumns.map((c) => c.weekKey),
+    dayKeysByWeekKey
+  )
+
+  if (overlapKeys.length >= 1 && !overlapKeys.some(weekTaken)) {
     const imported = tryImportMultiWeekBurstAsMergedSpan({
       burstStart: sd,
       burstEnd: ed,
@@ -527,10 +548,10 @@ function accumulateDistributableBurstForExpertImport(
     }
   }
 
-  // C-361 (V87 A): a burst that overlaps a span already on the row spreads only
-  // over the weeks no span covers, so the grid shows all of it (Apply skips the
-  // weeks under a span). Same spread rule, fewer weeks. A burst that lies
-  // entirely under spans keeps the old spread (no week is left to show it).
+  // C-361 (V87 A): a burst that cannot be a span spreads only over the weeks
+  // no span covers, so the grid shows all of it (Apply skips the weeks under a
+  // span). Same spread rule, fewer weeks. A burst that lies entirely under
+  // spans keeps the old spread (no week is left to show it).
   const spanned = new Set(
     ctx.mergedWeekSpans.flatMap((sp) =>
       weekKeysInSpanInclusive(
@@ -541,7 +562,16 @@ function accumulateDistributableBurstForExpertImport(
     )
   )
   const shown = overlapKeys.filter((k) => !spanned.has(k))
-  distribute(totalDeliverables, shown.length > 0 ? shown : overlapKeys)
+  // C-368 (V94 A): a day-detailed week is taken for the spread too (Apply
+  // writes such a week from its day cells only). With no week left, the
+  // spread above.
+  const open = shown.filter(
+    (k) => !weekHasDailyValues(ctx.dailyValues, [...(dayKeysByWeekKey[k] ?? [])])
+  )
+  distribute(
+    totalDeliverables,
+    open.length > 0 ? open : shown.length > 0 ? shown : overlapKeys
+  )
 }
 
 /** Resolve export burst dates: day override > span overrides > week window. */
