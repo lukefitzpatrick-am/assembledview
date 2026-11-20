@@ -30,14 +30,24 @@
  *   the grid whole once any cell in it is edited (the burst count can then
  *   change, as it always has).
  *
- * Only bursts that reached the grid are carried: a saved budget, a quantity
- * above 0 (or a bonus, package inclusions or fixed cost burst, which the
- * import places whatever their quantity, or a panels burst with a rate, which
- * OOH's import reads as the panel count), dates inside the campaign's weeks,
- * and a cell in the group that is not blank. A carried burst keeps its own
- * buy type (or none) as saved. Anything else is left to the
- * mapper, as before (for example a package burst with quantity 0, which
- * `keepZeroQuantityPackageBurstsOnApply` keeps).
+ * Only bursts that reached the grid are carried in groups: a saved budget
+ * (a bonus or package inclusions burst may be saved with a blank one), a
+ * quantity above 0 (or a bonus, package inclusions or fixed cost burst, which
+ * the import places whatever their quantity, or a panels burst with a rate,
+ * which OOH's import reads as the panel count), dates inside the campaign's
+ * weeks, and a cell in the group that is not blank. A carried burst keeps its
+ * own buy type (or none) as saved.
+ *
+ * C-370 (V99 A): a saved burst the grid cannot place (no campaign week, or no
+ * quantity the import can open: 0 deliverables with a $0.00 rate or a $0.00
+ * budget) has no cell the planner could edit, so Apply gives it back exactly
+ * as saved, outside every group, whatever else changed. The grid's money
+ * counts its budget. The cells the import makes for such a burst with 0 (a 0
+ * span, a 0 week cell, the empty line's campaign burst) carry no quantity or
+ * money and are not written beside it.
+ *
+ * Anything else is left to the mapper, as before (for example a package
+ * burst with quantity 0, which `keepZeroQuantityPackageBurstsOnApply` keeps).
  */
 import { toDateOnlyString } from "@/lib/dates/civil"
 import { formatRate } from "@/lib/format/money"
@@ -60,6 +70,8 @@ type CarriedBurst = {
   takesGridQty: boolean
   startYmd: string
   endYmd: string
+  /** C-370: a burst the grid cannot place keeps its other saved fields too (size, fee), not the mapper's. */
+  rest?: Record<string, unknown>
 }
 
 type ExpertCarryGroup = {
@@ -73,6 +85,8 @@ export type ExpertCarry = {
   buyType: string
   budgetIncludesFees: boolean
   groups: ExpertCarryGroup[]
+  /** C-370 (V99 A): saved bursts the grid cannot place, given back as saved on every Apply. */
+  unplaced: CarriedBurst[]
 }
 
 /** The row fields the carry reads. Every expert schedule row has them. */
@@ -180,7 +194,30 @@ function rawBursts(item: { bursts?: unknown; bursts_json?: unknown }): Record<st
   return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
 }
 
-const takesGridQty = (bt: string) => bt === "bonus" || bt === "package_inclusions" || bt === "fixed_cost"
+const isInclusion = (bt: string) => bt === "bonus" || bt === "package_inclusions"
+const takesGridQty = (bt: string) => isInclusion(bt) || bt === "fixed_cost"
+
+/**
+ * C-370 (V99 A): no import can open a quantity for this burst: 0 deliverables
+ * and no rate or no budget to work one out from (Radio's import works out
+ * deliverables from budget and rate; OOH reads a panels rate as the count).
+ * Fixed cost always opens as 1, and package inclusions opens as 1 on the
+ * fourteen non-spread grids, so neither is ever counted here. Production
+ * opens its amount.
+ */
+function opensNoQuantity(b: Record<string, unknown>, bt: string, lineBuyType: string): boolean {
+  if (bt === "fixed_cost" || bt === "package_inclusions") return false
+  if (lineBuyType === "fixed_cost" || lineBuyType === "package_inclusions") return false
+  if (storedQty(b.calculatedValue ?? b.calculated_value) > 0 || storedQty(b.amount) > 0) return false
+  const rate = parseBurstMoney(b.buyAmount ?? b.buy_amount)
+  return !(rate > 0 && (bt === "panels" || parseBurstMoney(b.budget) > 0))
+}
+
+/** The fields {@link carriedBurst} writes itself; the rest of a burst the grid cannot place comes back as saved. */
+const OWN_KEYS = new Set([
+  "budget", "buyAmount", "buy_amount", "calculatedValue", "calculated_value", "cost", "amount",
+  "buyType", "buy_type", "startDate", "start_date", "endDate", "end_date",
+])
 
 /**
  * A saved burst the carry can give back: it has a budget (a Production burst
@@ -192,8 +229,9 @@ const takesGridQty = (bt: string) => bt === "bonus" || bt === "package_inclusion
  * grid and its saved budget must come back (C342Bfix L1).
  */
 function reachesGrid(b: Record<string, unknown>, lineBuyType: string): boolean {
-  if (!present(b.budget)) return false
   const bt = lower(b.buyType) || lineBuyType
+  // C-370 (V99 A): a bonus or package inclusions burst saved with a blank budget is $0 all the same.
+  if (!present(b.budget) && !isInclusion(bt)) return false
   if (takesGridQty(bt)) return true
   if (storedQty(b.calculatedValue ?? b.calculated_value) > 0) return true
   return bt === "panels" && parseBurstMoney(b.buyAmount ?? b.buy_amount) > 0
@@ -210,7 +248,14 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
   lineItems: ReadonlyArray<{ bursts?: unknown; bursts_json?: unknown; buyType?: unknown; buy_type?: unknown }>,
   weekColumns: readonly WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
-  campaignEndDate: Date
+  campaignEndDate: Date,
+  /**
+   * The import puts a burst dated outside the campaign in the first or last
+   * week (`weekColumnForDate`: the 13 week-cell grids). There such a burst
+   * has a cell and is carried in that week's group; elsewhere it has no cell
+   * (C-370).
+   */
+  outsideToEdgeWeek = false
 ): R[] {
   const weekKeys = weekColumns.map((c) => c.weekKey)
   const windows = weekColumns.map((c) => {
@@ -231,30 +276,49 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
       for (const k of keys) if (!parent.has(k)) parent.set(k, k)
       for (const k of keys.slice(1)) parent.set(find(k), find(keys[0]!))
     }
-    const placed: { burst: CarriedBurst; key: string }[] = []
+    const seen: { b: Record<string, unknown>; keys: string[]; saved: CarriedBurst; noCell: boolean }[] = []
     for (const b of rawBursts(item)) {
       const startYmd = ymd(b.startDate ?? b.start_date)
       const endYmd = ymd(b.endDate ?? b.end_date) || startYmd
-      if (!startYmd || !reachesGrid(b, lineBuyType)) continue
-      const keys = windows.filter((w) => startYmd <= w.end && endYmd >= w.start).map((w) => w.key)
-      if (keys.length === 0) continue
-      join(keys)
-      placed.push({
-        key: keys[0]!,
-        burst: {
-          budget: b.budget,
-          buyAmount: b.buyAmount ?? b.buy_amount,
-          calculatedValue: b.calculatedValue ?? b.calculated_value,
-          ...("cost" in b ? { cost: b.cost } : {}),
-          ...("amount" in b ? { amount: b.amount } : {}),
-          ...(present(b.buyType) ? { buyType: b.buyType } : {}),
-          takesGridQty: takesGridQty(lower(b.buyType) || lineBuyType),
-          startYmd,
-          endYmd,
-        },
-      })
+      if (!startYmd) continue
+      const bt = lower(b.buyType) || lineBuyType
+      const inside = windows.filter((w) => startYmd <= w.end && endYmd >= w.start).map((w) => w.key)
+      const edge = startYmd > (windows[windows.length - 1]?.end ?? "") ? weekKeys.slice(-1) : weekKeys.slice(0, 1)
+      const keys = inside.length === 0 && outsideToEdgeWeek ? edge : inside
+      const saved: CarriedBurst = {
+        budget: b.budget,
+        buyAmount: b.buyAmount ?? b.buy_amount,
+        calculatedValue: b.calculatedValue ?? b.calculated_value,
+        ...("cost" in b ? { cost: b.cost } : {}),
+        ...("amount" in b ? { amount: b.amount } : {}),
+        ...(present(b.buyType) ? { buyType: b.buyType } : {}),
+        takesGridQty: takesGridQty(bt),
+        startYmd,
+        endYmd,
+      }
+      const noCell =
+        (keys.length === 0 || opensNoQuantity(b, bt, lineBuyType)) && (present(b.budget) || isInclusion(bt))
+      seen.push({ b, keys, saved, noCell })
     }
-    if (placed.length === 0) return
+    // Backstop: every week no other burst touches must be blank. If one holds a
+    // quantity, something opened one for these bursts after all (an import
+    // rule, or the card's lump sum put in the first week when no dated burst
+    // was placed: `projectLumpSumCardBudgetsOntoExpertRows`), so they are
+    // treated as before.
+    const otherKeys = new Set(seen.filter((x) => !x.noCell).flatMap((x) => x.keys))
+    const opened = weekKeys.some((k) => !otherKeys.has(k) && holdsQuantity(row, [k], weekKeys))
+    const placed: { burst: CarriedBurst; key: string }[] = []
+    const unplaced: CarriedBurst[] = []
+    for (const { b, keys, saved, noCell } of seen) {
+      if (noCell && !opened) {
+        const rest = Object.fromEntries(Object.entries(b).filter(([k]) => !OWN_KEYS.has(k)))
+        unplaced.push({ ...saved, takesGridQty: false, rest })
+        continue
+      }
+      if (!reachesGrid(b, lineBuyType) || keys.length === 0) continue
+      join(keys)
+      placed.push({ key: keys[0]!, burst: saved })
+    }
     for (const sp of row.mergedWeekSpans ?? []) {
       join(weekKeys.filter((k) => sp.startWeekKey <= k && k <= sp.endWeekKey))
     }
@@ -270,12 +334,13 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
         groups.push({ weekKeys: keys, print: groupPrint(row, keys, weekKeys), bursts })
       }
     }
-    if (groups.length === 0) return
+    if (groups.length === 0 && unplaced.length === 0) return
     row.expertCarry = {
       unitRate: rateOf(row.unitRate),
       buyType: lower(row.buyType),
       budgetIncludesFees: Boolean(row.budgetIncludesFees),
       groups,
+      unplaced,
     }
   })
   return rows
@@ -295,9 +360,12 @@ function intactCarryGroups(row: ExpertCarryRow, weekKeys: readonly string[]): Ex
   return c.groups.filter((g) => groupPrint(row, g.weekKeys, weekKeys) === g.print)
 }
 
+const savedBudget = (bursts: readonly CarriedBurst[]) => bursts.reduce((t, b) => t + parseBurstMoney(b.budget), 0)
+
 /**
- * The week columns an untouched group covers, and the saved budget it carries.
- * The grid's money reads this so its totals are what Apply will save.
+ * The week columns an untouched group covers, and the saved budget Apply
+ * gives back: the untouched groups' and every burst the grid cannot place
+ * (C-370). The grid's money reads this so its totals are what Apply will save.
  */
 export function carriedMoney(
   row: ExpertCarryRow,
@@ -306,7 +374,10 @@ export function carriedMoney(
   const groups = intactCarryGroups(row, weekKeys)
   return {
     weekKeys: new Set(groups.flatMap((g) => g.weekKeys)),
-    budget: groups.reduce((s, g) => s + g.bursts.reduce((t, b) => t + parseBurstMoney(b.budget), 0), 0),
+    budget:
+      groups.reduce((s, g) => s + savedBudget(g.bursts), 0) +
+      // A bonus or package inclusions burst is $0 to the card whatever budget it was saved with.
+      savedBudget((row.expertCarry?.unplaced ?? []).filter((b) => !isInclusion(lower(b.buyType) || row.expertCarry!.buyType))),
   }
 }
 
@@ -340,6 +411,8 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
   if ("buyAmount" in template && present(saved.buyAmount)) {
     out.buyAmount = carriedBuyAmount(template.buyAmount, saved.buyAmount)
   }
+  // C-370: a burst the grid cannot place has no mapper value of its own: a blank rate stays blank.
+  if ("buyAmount" in template && !present(saved.buyAmount) && saved.rest) out.buyAmount = saved.buyAmount ?? ""
   if ("calculatedValue" in template) {
     const qty = storedQty(saved.calculatedValue)
     if (qty > 0 || !saved.takesGridQty) out.calculatedValue = qty
@@ -360,6 +433,7 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
   }
   if (ymd(template.startDate) !== saved.startYmd) out.startDate = parseBurstDateLocal(saved.startYmd)
   if (ymd(template.endDate) !== saved.endYmd) out.endDate = parseBurstDateLocal(saved.endYmd)
+  for (const [k, v] of Object.entries(saved.rest ?? {})) if (k in template) out[k] = v
   return out as B
 }
 
@@ -369,8 +443,10 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
  */
 function applyExpertCarry<L>(row: ExpertCarryRow, line: L, weekKeys: readonly string[]): L {
   const groups = intactCarryGroups(row, weekKeys)
+  const unplaced = row.expertCarry?.unplaced ?? []
   const bursts = (line as { bursts?: unknown }).bursts
-  if (groups.length === 0 || !Array.isArray(bursts) || bursts.length === 0) return line
+  if (!Array.isArray(bursts) || bursts.length === 0) return line
+  if (groups.length === 0 && unplaced.length === 0) return line
   const groupOfWeek = new Map<string, number>()
   groups.forEach((g, i) => g.weekKeys.forEach((k) => groupOfWeek.set(k, i)))
   const groupOf = (b: Record<string, unknown>) => {
@@ -382,18 +458,30 @@ function applyExpertCarry<L>(row: ExpertCarryRow, line: L, weekKeys: readonly st
     const g = groupOf(b)
     if (g !== undefined) generated.set(g, [...(generated.get(g) ?? []), b])
   }
-  const out: unknown[] = []
+  // C-370: beside bursts the grid cannot place, a burst with no quantity and
+  // no money outside the untouched groups is not written: it is a cell the
+  // import made for such a burst with 0 (a 0 span or week cell) or the empty
+  // line's campaign burst.
+  const echoes = (b: Record<string, unknown>) =>
+    unplaced.length > 0 && storedQty(b.calculatedValue) === 0 && parseBurstMoney(b.budget) === 0
+  const out: Record<string, unknown>[] = []
   const done = new Set<number>()
   for (const b of bursts as Record<string, unknown>[]) {
     const g = groupOf(b)
     if (g === undefined) {
-      out.push(b)
+      if (!echoes(b)) out.push(b)
       continue
     }
     if (done.has(g)) continue
     done.add(g)
     const mine = generated.get(g)!
     groups[g]!.bursts.forEach((saved, n) => out.push(carriedBurst(mine[n] ?? mine[0]!, saved)))
+  }
+  // Each unplaced burst goes back in date order, after any burst that starts the same day.
+  const template = (bursts as Record<string, unknown>[])[0]!
+  for (const saved of unplaced) {
+    const at = out.findIndex((b) => ymd(b.startDate) > saved.startYmd)
+    out.splice(at < 0 ? out.length : at, 0, carriedBurst(template, saved))
   }
   return { ...line, bursts: out }
 }

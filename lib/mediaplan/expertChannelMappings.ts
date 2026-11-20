@@ -3931,7 +3931,8 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -4375,7 +4376,8 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -5244,7 +5246,8 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -5670,7 +5673,8 @@ export function mapStandardSearchLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -6115,7 +6119,8 @@ export function mapStandardInfluencersLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -6560,7 +6565,8 @@ export function mapStandardIntegrationLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -6930,7 +6936,8 @@ export function mapStandardNewspaperLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -7295,7 +7302,8 @@ export function mapStandardMagazineLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -7781,7 +7789,8 @@ export function mapStandardProgAudioLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -7982,7 +7991,8 @@ export function mapStandardProgBvodLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -8195,7 +8205,8 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -8402,7 +8413,8 @@ export function mapStandardProgVideoLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }
 
@@ -8606,6 +8618,7 @@ export function mapStandardProgOohLineItemsToExpertRows(
     lineItems,
     weekColumns,
     campaignStartDate,
-    campaignEndDate
+    campaignEndDate,
+    /* outsideToEdgeWeek */ true
   )
 }

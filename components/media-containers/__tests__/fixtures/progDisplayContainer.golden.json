@@ -4858,6 +4858,13 @@
             "startDate": "2026-03-15T13:00:00.000Z",
             "endDate": "2026-03-30T13:00:00.000Z",
             "calculatedValue": 2062.2689393939395
+          },
+          {
+            "budget": "0",
+            "buyAmount": "0",
+            "startDate": "2026-03-31T13:00:00.000Z",
+            "endDate": "2026-04-29T14:00:00.000Z",
+            "calculatedValue": 0
           }
         ],
         "feePct": 12.5,
@@ -5130,6 +5137,15 @@
           "calculatedValue": 2062.2689393939395,
           "mediaAmount": "$0.00",
           "feeAmount": "$0.00"
+        },
+        {
+          "budget": "0",
+          "buyAmount": "0",
+          "startDate": "2026-04-01",
+          "endDate": "2026-04-30",
+          "calculatedValue": 0,
+          "mediaAmount": "$0.00",
+          "feeAmount": "$0.00"
         }
       ],
       [
@@ -5239,6 +5255,22 @@
         "clientPaysForMedia": false,
         "budgetIncludesFees": true,
         "deliverables": 2062.2689393939395,
+        "buyType": "bonus",
+        "noAdserving": false,
+        "lineItemId": "tst001PD1"
+      },
+      {
+        "startDate": "2026-03-31T13:00:00.000Z",
+        "endDate": "2026-04-29T14:00:00.000Z",
+        "mediaAmount": 0,
+        "deliveryMediaAmount": 0,
+        "feeAmount": 0,
+        "totalAmount": 0,
+        "mediaType": "prog display",
+        "feePercentage": 12.5,
+        "clientPaysForMedia": false,
+        "budgetIncludesFees": true,
+        "deliverables": 0,
         "buyType": "bonus",
         "noAdserving": false,
         "lineItemId": "tst001PD1"
@@ -5385,6 +5417,25 @@
         "startDate": "2026-03-16",
         "endDate": "2026-03-31",
         "deliverables": 2062.2689393939395,
+        "buyingDemo": "P18+",
+        "buyType": "bonus",
+        "deliverablesAmount": "0",
+        "grossMedia": "0",
+        "clientPaysForMedia": false,
+        "line_item_id": "tst001PD1",
+        "lineItemId": "tst001PD1",
+        "line_item": 1,
+        "buyAmount": "0"
+      },
+      {
+        "market": "National",
+        "platform": "DV360",
+        "bidStrategy": "reach",
+        "targeting": "targeting 1",
+        "creative": "creative 1",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-30",
+        "deliverables": 0,
         "buyingDemo": "P18+",
         "buyType": "bonus",
         "deliverablesAmount": "0",

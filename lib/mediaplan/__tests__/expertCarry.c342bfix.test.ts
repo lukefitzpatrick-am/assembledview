@@ -194,8 +194,10 @@ test("a rate edit of a few cents reprices the row", () => {
 
 // --- L6: the grid's money ---------------------------------------------------
 
-test("a bonus burst the grid shows with no quantity is priced from the grid: $0 in the grid's money and on Apply", () => {
+test("a bonus burst saved with no quantity comes back as saved (C-370), and is $0 in the grid's money", () => {
   // Saved with a budget (a bonus burst is $0 to the card whatever it holds).
+  // C370 (V99 A): no quantity, no rate: the grid cannot place it, so Apply
+  // gives it back as saved (before C370 it was written $0 from a 0 span).
   const saved = [
     oohLine([
       { budget: "$6,000.00", buyAmount: "$1,500.00", calculatedValue: 4, startDate: "2026-03-01", endDate: "2026-03-07" },
@@ -206,7 +208,7 @@ test("a bonus burst the grid shows with no quantity is priced from the grid: $0 
   assert.equal(Math.round(expertRowBudget(rows[0], WEEK_KEYS, FEE) * 100), 600_000)
   assert.deepEqual(read(ooh.map(rows)[0]), [
     [600_000, 4, "", "2026-03-01", "2026-03-07"],
-    [0, 0, "bonus", "2026-03-15", "2026-03-21"],
+    [50_000, 0, "bonus", "2026-03-15", "2026-03-21"],
   ])
 })
 

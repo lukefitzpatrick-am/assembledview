@@ -93,7 +93,8 @@ export function expertRowBudget(
     carried.weekKeys.size > 0
       ? quantityOutside(row, weekKeys, carried.weekKeys)
       : expertRowQuantitySum(row, weekKeys)
-  if (carried.weekKeys.size > 0 && qty === 0) return carried.budget
+  // C-370: a row whose only money is bursts the grid cannot place shows just that.
+  if ((carried.weekKeys.size > 0 || (row.expertCarry?.unplaced.length ?? 0) > 0) && qty === 0) return carried.budget
   return (
     carried.budget +
     expertCellBudget(row.buyType, rate, qty, !!row.budgetIncludesFees, feePct)
