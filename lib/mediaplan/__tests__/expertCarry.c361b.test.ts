@@ -10,6 +10,10 @@ import "@/lib/testing/bothZones"
  *   covers and no day cells hold; with no such week, the spread before
  *   (weeks no span covers, else every week it touches).
  *
+ * C370 (V97 A): the reverse order of C-368 (a sub-week burst's days in a
+ * week that holds a week cell) splits the week cell into days first; pinned
+ * below, every channel in `expertCarry.c370days.test.ts`.
+ *
  * The round trip (`expertApplyRoundTrip.c342.test.ts`) proves untouched lines
  * exact and edited groups priced as the grid shows on every buy type and fee
  * case; this file pins where each burst opens.
@@ -175,12 +179,12 @@ function radioLine(flights: ReadonlyArray<readonly [budget: string, startDate: s
   ]
 }
 
-test("what remains: a sub-week burst whose days land in a week that already holds a week cell", () => {
+test("C-368 reverse fixed (C370, V97 A): a sub-week burst whose days land in a week that holds a week cell splits that cell into days first", () => {
   // The live remainder after C361b (10 OOH lines). 10 spots Mar 1 to 14 (a
-  // span); 7 spots Mar 8 to 21 open in week 3; then 4 spots Mar 16 to 18 open
-  // as day cells in week 3, beside the week cell. The import's day path does
-  // not look at week cells. Untouched exact; edited, the grid counts the week
-  // cell and Apply writes the days (C-368, the reverse order).
+  // span); 7 spots Mar 8 to 21 open in week 3; then 4 spots Mar 16 to 18:
+  // week 3's 7 split over its 7 days first (as the grid's `updateDailyCell`),
+  // then the 4 are added. Untouched exact; edited, grid = Apply (before C370:
+  // grid $16,342.86, Apply $11,142.85).
   const saved = radioLine([
     ["$7,777.00", "2026-03-01", "2026-03-14"],
     ["$5,200.00", "2026-03-08", "2026-03-21"],
@@ -193,9 +197,13 @@ test("what remains: a sub-week burst whose days land in a week that already hold
       saved
     ) as any[]
   const total = (l: any) => l.bursts.reduce((c: number, b: any) => c + cents(parseBurstMoney(b.budget)), 0)
-  assert.deepEqual([rows[0].weeklyValues["2026-03-15"], Object.keys(daysOf(rows[0])).length], [7, 3])
+  assert.equal(rows[0].weeklyValues["2026-03-15"], "")
+  assert.deepEqual(daysOf(rows[0]), { "2026-03-15": 1, "2026-03-16": 3, "2026-03-17": 2, "2026-03-18": 2, "2026-03-19": 1, "2026-03-20": 1, "2026-03-21": 1 })
   assert.equal(total(apply()[0]), 1_557_700)
   rows[0].dailyValues["2026-03-16"] += 1
-  // Grid 10 + 7 + 5 = 22 spots ($16,342.86); Apply 10 + 5 = 15 ($11,142.85).
-  assert.deepEqual([cents(expertRowBudget(rows[0], KEYS, 12.5)), total(apply()[0])], [1_634_286, 1_114_285])
+  // Grid 10 + 12 = 22 spots ($16,342.86); Apply the span and the day runs, a cent per burst.
+  const [line] = apply()
+  assert.equal(cents(expertRowBudget(rows[0], KEYS, 12.5)), 1_634_286)
+  assert.ok(Math.abs(total(line) - 1_634_286) <= line.bursts.length, `Apply ${total(line)}`)
+  assert.equal(line.bursts.reduce((q: number, b: any) => q + Number(b.calculatedValue), 0), 22)
 })

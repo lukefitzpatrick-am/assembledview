@@ -512,6 +512,17 @@ function accumulateDistributableBurstForExpertImport(
         cover.totalQty += dayKeys.reduce((t, k) => t + Number(split[k] || 0), 0)
         return
       }
+      // C-368 reverse (V97 A): a week that holds a week cell and no day
+      // values is split into day cells first, as the grid does when a
+      // planner types a day value there (`updateDailyCell`), so Apply writes
+      // the week cell's share from its days too.
+      const weekCell = ctx.weeklyValues[week.weekKey]
+      const allDays = weekDayKeys(week, campaignStartDate, campaignEndDate)
+      if (typeof weekCell === "number" && weekCell !== 0 && !weekHasDailyValues(ctx.dailyValues, allDays)) {
+        const held = expandWeekToDaily(weekCell, allDays)
+        for (const k of allDays) ctx.dailyValues[k] = held[k] ?? 0
+        ctx.weeklyValues[week.weekKey] = ""
+      }
       for (const k of dayKeys) {
         const prev = ctx.dailyValues[k]
         const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
