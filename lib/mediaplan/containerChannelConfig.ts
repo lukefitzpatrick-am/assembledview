@@ -77,6 +77,7 @@ import {
   createEmptyDigitalAudioExpertRow,
   createEmptyDigitalDisplayExpertRow,
   createEmptyBvodExpertRow,
+  createEmptyCinemaExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -98,6 +99,7 @@ import {
   mapDigitalAudioExpertRowsToStandardLineItems,
   mapDigitalDisplayExpertRowsToStandardLineItems,
   mapBvodExpertRowsToStandardLineItems,
+  mapCinemaExpertRowsToStandardLineItems,
   mapStandardInfluencersLineItemsToExpertRows,
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
@@ -128,8 +130,11 @@ import {
   mergeDigiAudioStandardFromExpertWithPrevious,
   mergeDigiDisplayStandardFromExpertWithPrevious,
   mergeBvodStandardFromExpertWithPrevious,
+  mergeCinemaStandardFromExpertWithPrevious,
   serializeBvodExpertRowsBaseline,
   serializeBvodStandardLineItemsBaseline,
+  serializeCinemaExpertRowsBaseline,
+  serializeCinemaStandardLineItemsBaseline,
   serializeDigiDisplayExpertRowsBaseline,
   serializeDigiDisplayStandardLineItemsBaseline,
   serializeDigiAudioExpertRowsBaseline,
@@ -159,6 +164,7 @@ import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   asStandardDigiDisplayItems,
   getBvodBursts,
+  getCinemaBursts,
   getDigiAudioBursts,
   getDigiDisplayBursts,
   getDigiVideoBursts,
@@ -173,6 +179,7 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import { defaultMediaBurstEndDate, defaultMediaBurstStartDate } from "@/lib/date-picker-anchor"
+import { cinemaCardDeliverables, cinemaExcelRow } from "@/lib/mediaplan/cinemaLine"
 import {
   bvodFormSchema,
   cinemaFormSchema,
@@ -3196,14 +3203,59 @@ export const CINEMA_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: cinemaFormSchema,
   fetchPublishers: getPublishersForCinema,
   toExpert: mapStandardCinemaLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapCinemaExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeCinemaStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeCinemaStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeCinemaExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyCinemaExpertRow,
+  // "cinema", no line id, the line's No Ad Serving box (FB-6), saved deliverables.
   billingMediaTypeLabel: "cinema",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getCinemaBursts,
+  expertFromFeeKey: "feePctCinema",
+  burstDateFallback: "now",
+  bareHydratedBursts: true,
+  // Load: its own line number and id fallback (index + 1), each burst's saved
+  // `fee ?? 0`, and a line saved with no bursts gets one at the card's rule
+  // (fixed cost gives 1).
+  hydrateLine: (line, saved, { feePct, mbaNumber, index }) => {
+    const savedBursts = resolveLineItemBursts(saved)
+    const lineNumber = Number(saved.line_item ?? saved.lineItem ?? index + 1) || index + 1
+    const lineItemId =
+      saved.line_item_id || saved.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.cinema, lineNumber)
+    return {
+      ...line,
+      lineItemId,
+      line_item_id: lineItemId,
+      line_item: saved.line_item ?? saved.lineItem ?? index + 1,
+      lineItem: saved.lineItem ?? saved.line_item ?? index + 1,
+      bursts:
+        savedBursts.length > 0
+          ? line.bursts.map((burst, i) => ({ ...burst, fee: savedBursts[i]?.fee ?? 0 }))
+          : [
+              {
+                ...line.bursts[0],
+                calculatedValue: cinemaCardDeliverables({}, String(saved.buy_type || saved.buyType || ""), false, feePct),
+                fee: 0,
+              },
+            ],
+    }
+  },
+  excelRow: cinemaExcelRow,
+  cardDeliverables: cinemaCardDeliverables,
+  addStation: true,
+  shell: {
+    title: "Cinema",
+    themeKey: "cinema",
+    timelineMediaTypeKey: "cinema",
+    loadLabel: "Cinema",
+    exitConfirmYesAttr: "data-cinemaexpert-exit-yes",
+  },
+  summaryDimensions: {
+    Network: "network",
+    Station: "station",
+    Placement: "placement",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "rounded" as const,
   gridConfig: CINEMA_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cinema",

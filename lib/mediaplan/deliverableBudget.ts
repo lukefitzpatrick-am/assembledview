@@ -211,7 +211,8 @@ export function computeDeliverableFromMedia({
   return deliverablesFromBudget(buyType, netMedia, buyAmount);
 }
 
-function parseLoadedDeliverableValue(value: unknown): number {
+/** A saved deliverable or amount as a number: digits and dots only, 0 when none (also Cinema's card rule). */
+export function parseLoadedDeliverableValue(value: unknown): number {
   return Number.parseFloat(String(value).replace(/[^0-9.]/g, "")) || 0;
 }
 

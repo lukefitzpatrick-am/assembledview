@@ -596,7 +596,6 @@ export const cinemaFormSchema = z.object({
   cinemalineItems: z.array(cinemaLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type CinemaFormValues = z.infer<typeof cinemaFormSchema>
 
 // --- Search ------------------------------------------------------------------
 export const searchFormSchema = z.object({

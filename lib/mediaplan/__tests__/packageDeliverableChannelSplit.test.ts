@@ -7,6 +7,7 @@ import test from "node:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { cinemaCardDeliverables } from "@/lib/mediaplan/cinemaLine"
 import {
   computeDeliverableFromMedia,
   deliverablesFromBudget,
@@ -63,25 +64,17 @@ test("Cinema falls through to derived package deliverables (hotfix removed)", ()
   )
 })
 
-test("source: OOH HOTFIX and Cinema early-return no longer special-case package", () => {
-  const root = process.cwd()
+test("source: OOH HOTFIX no longer special-cases package", () => {
   const ooh = readFileSync(
-    join(root, "components/media-containers/OOHContainer.tsx"),
-    "utf8"
-  )
-  const cinema = readFileSync(
-    join(root, "components/media-containers/CinemaContainer.tsx"),
+    join(process.cwd(), "components/media-containers/OOHContainer.tsx"),
     "utf8"
   )
   assert.doesNotMatch(ooh, /HOTFIX:[\s\S]*buyTypeLower === "package"/)
-  // cinemaBurstDeliverables must not early-return package before computeDeliverableFromMedia
-  const cinemaFn = cinema.slice(
-    cinema.indexOf("cinemaBurstDeliverables"),
-    cinema.indexOf("[feecinema]")
+})
+
+test("Cinema's card works package deliverables out from budget and rate (W5f, on the shared container)", () => {
+  assert.equal(
+    cinemaCardDeliverables({ budget: "$5,000.00", buyAmount: "$250.00", calculatedValue: 8 }, "package", false, 0),
+    DERIVED_QTY
   )
-  assert.doesNotMatch(
-    cinemaFn,
-    /buyTypeLower === "package"[\s\S]*calculatedValue/
-  )
-  assert.match(cinemaFn, /computeDeliverableFromMedia/)
 })

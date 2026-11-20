@@ -108,7 +108,6 @@ test("the hook passes the form lines through and does not gross up again", () =>
 })
 
 const OFFLINE_CHARTS = [
-  ["CinemaContainer.tsx", "cinemalineItems", "feecinema"],
   ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
   ["NewspaperContainer.tsx", "newspaperlineItems", "feenewspapers"],
   ["OOHContainer.tsx", "lineItems", "feeooh"],

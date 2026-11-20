@@ -96,7 +96,6 @@ test("CHARACTERISATION bridge: no-op when window is undefined (SSR / Node)", () 
 // ─── Mechanism B: container Apply → pending badge ───────────────────────────
 
 const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
-  "CinemaContainer.tsx",
   "MagazinesContainer.tsx",
   "NewspaperContainer.tsx",
   "ProductionContainer.tsx",
@@ -104,7 +103,7 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "TelevisionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 6 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
+test("CHARACTERISATION: 5 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
   for (const file of [
     ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
     "OOHContainer.tsx",

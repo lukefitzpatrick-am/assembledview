@@ -143,8 +143,18 @@ export const getBvodBursts = legacyBillingBursts({
   lineItemId: MEDIA_TYPE_ID_CODES.bvod,
 })
 
-/** Digital Display's budget read (W5d, moved from its container): a number as it is, else the strip parser keeping a minus. */
-function parseBudgetSafe(val: unknown): number {
+/**
+ * Cinema: label "cinema", no line id, the line's No Ad Serving box (FB-6) and
+ * the saved deliverables (W5f, moved from its container).
+ */
+export const getCinemaBursts = legacyBillingBursts({
+  mediaType: "cinema",
+  deliverables: "saved",
+  noAdserving: "lineLower",
+})
+
+/** Digital Display's budget read (W5d, moved from its container): a number as it is, else the strip parser keeping a minus. Cinema's Excel rows read budget and rate with it. */
+export function parseBudgetSafe(val: unknown): number {
   if (val == null) return 0
   if (typeof val === "number" && Number.isFinite(val)) return val
   return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0

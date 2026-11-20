@@ -22,7 +22,6 @@ const root = process.cwd()
 const WEEK_START_OWNERS = [
   "components/media-containers/TelevisionContainer.tsx",
   "components/media-containers/RadioContainer.tsx",
-  "components/media-containers/CinemaContainer.tsx",
   "components/media-containers/NewspaperContainer.tsx",
   "components/media-containers/MagazinesContainer.tsx",
   "components/media-containers/OOHContainer.tsx",
@@ -179,8 +178,8 @@ test("invalid stored value → Sunday", () => {
   }
 })
 
-test("all 8 owners use useWeekStartsOn with no local WeekStartsOn state", () => {
-  assert.equal(WEEK_START_OWNERS.length, 8)
+test("all 7 owners use useWeekStartsOn with no local WeekStartsOn state", () => {
+  assert.equal(WEEK_START_OWNERS.length, 7)
   for (const rel of WEEK_START_OWNERS) {
     const src = read(rel)
     assert.match(
