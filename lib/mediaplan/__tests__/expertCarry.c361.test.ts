@@ -63,11 +63,8 @@ const grid = (row: any) => cents(expertRowBudget(row, KEYS, FEE))
 function untouchedIsExact(saved: any[]) {
   const rows = open(saved)
   const [line] = apply(rows, saved)
-  assert.deepEqual(
-    line.bursts.map((b: any) => cents(parseBurstMoney(b.budget))),
-    saved[0].bursts.map((b: any) => cents(parseBurstMoney(b.budget))),
-    "untouched: every burst as saved"
-  )
+  const each = (l: any) => l.bursts.map((b: any) => cents(parseBurstMoney(b.budget))).sort((x: number, y: number) => x - y)
+  assert.deepEqual(each(line), each(saved[0]), "untouched: every burst as saved")
   assert.equal(grid(rows[0]), savedCents(saved[0]), "untouched: the grid shows the saved budget")
   return rows
 }
@@ -128,4 +125,98 @@ test("C-368: a burst spread into a week with day cells: the grid counts the week
   // over three bursts, each rounded).
   rows[0].dailyValues["2026-03-16"] += 1
   assert.deepEqual([grid(rows[0]), savedCents(apply(rows, saved)[0])], [1_634_286, 1_114_285])
+})
+
+/**
+ * Where an overlapping burst opens, on each of the six channels (fee on top,
+ * no fee). Spots or panels at $600.00, $4,200.00 = 7.
+ */
+const SIX = [
+  ["OOH", M.mapStandardOohLineItemsToExpertRows, "panels"],
+  ["Radio", M.mapStandardRadioLineItemsToExpertRows, "spots"],
+  ["Cinema", M.mapStandardCinemaLineItemsToExpertRows, "spots"],
+  ["Television", M.mapStandardTvLineItemsToExpertRows, "spots"],
+  ["BVOD", M.mapStandardBvodLineItemsToExpertRows, "spots"],
+  ["Digital Audio", M.mapStandardDigiAudioLineItemsToExpertRows, "spots"],
+] as const
+
+function sixLine(buyType: string, flights: ReadonlyArray<readonly [qty: number, startDate: string, endDate: string]>) {
+  return {
+    buyType,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    fixedCostMedia: false,
+    noadserving: false,
+    line_item_id: "x",
+    lineItemId: "x",
+    line_item: 1,
+    lineItem: 1,
+    bursts: flights.map(([qty, startDate, endDate]) => ({
+      budget: `$${(qty * 600).toFixed(2)}`,
+      buyAmount: "$600.00",
+      calculatedValue: qty,
+      startDate,
+      endDate,
+    })),
+  }
+}
+const cellsOf = (row: any) => KEYS.map((k) => row.weeklyValues[k])
+
+for (const [name, toExpert, buyType] of SIX) {
+  for (const qty of [7, 7.4]) {
+    test(`${name}: a burst of ${qty} around a one-week span opens in the weeks either side, rounded, the earliest taking the remainder`, () => {
+      // 5 in week 2 (a span); 7 (7.4 rounds to 7) over Mar 1 to 21: weeks 1 and 3, 4 then 3.
+      const [row] = (toExpert as (...a: any[]) => any[])(
+        [sixLine(buyType, [[5, "2026-03-08", "2026-03-14"], [qty, "2026-03-01", "2026-03-21"]])],
+        COLS,
+        START,
+        END,
+        { feePct: 0 }
+      )
+      assert.deepEqual(cellsOf(row), [4, "", 3, ""])
+      assert.deepEqual(row.mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey, sp.totalQty]), [["2026-03-08", "2026-03-08", 5]])
+    })
+  }
+
+  test(`${name}: a burst that meets the second of two spans at its first week opens before it`, () => {
+    // 5 in week 1 (a span), 5 over weeks 3 and 4 (a span); 7 over Mar 8 to 21
+    // touches week 2 and the second span's first week: all 7 in week 2.
+    const [row] = (toExpert as (...a: any[]) => any[])(
+      [sixLine(buyType, [[5, "2026-03-01", "2026-03-07"], [5, "2026-03-15", "2026-03-28"], [7, "2026-03-08", "2026-03-21"]])],
+      COLS,
+      START,
+      END,
+      { feePct: 0 }
+    )
+    assert.deepEqual(cellsOf(row), ["", 7, "", ""])
+  })
+}
+
+test("C-361 remains: a two-week burst entirely under a span keeps the old spread over both weeks", () => {
+  // 20 over Mar 1 to 28 (a span over all four weeks); 7 over Mar 8 to 21 sit
+  // under it as 4 and 3, as before C361.
+  const [row] = M.mapStandardRadioLineItemsToExpertRows(
+    [sixLine("spots", [[20, "2026-03-01", "2026-03-28"], [7, "2026-03-08", "2026-03-21"]])] as any[],
+    COLS,
+    START,
+    END,
+    { feePct: 0 }
+  ) as any[]
+  assert.deepEqual(cellsOf(row), ["", 4, 3, ""])
+})
+
+test("an edited day-cell group beside a carried span: the grid's money is what Apply saves", () => {
+  // 4 spots Mar 2 to 4 (day cells, week 1) and 10 Mar 22 to 28 (a span, its
+  // own group). One spot added on Mar 2: the span stays carried at
+  // $7,777.00; the days are 5 spots, $3,250.00 / 0.875 = $3,714.29, which
+  // Apply writes as two bursts each rounded to the cent ($2,228.57 + $1,485.71).
+  const saved = radioLine([
+    ["$2,600.00", "2026-03-02", "2026-03-04"],
+    ["$7,777.00", "2026-03-22", "2026-03-28"],
+  ])
+  const rows = untouchedIsExact(saved)
+  rows[0].dailyValues["2026-03-02"] += 1
+  const [line] = apply(rows, saved)
+  assert.equal(grid(rows[0]), 1_149_129)
+  assert.ok(Math.abs(savedCents(line) - grid(rows[0])) <= line.bursts.length, `Apply ${savedCents(line)}`)
 })

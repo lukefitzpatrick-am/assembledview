@@ -593,15 +593,17 @@ for (const incl of [false, true]) {
  * be a span (OOH, Radio, Cinema, Television, BVOD, Digital Audio), a burst
  * that overlaps a span already on the row goes only into the weeks no span
  * covers, so the grid shows all of it. Line: a two-week burst (Mar 1 to 14,
- * a span over weeks 1 and 2) and a burst that overlaps it (Mar 8 to 21, week
- * 3 only). Every buy type and fee case: no cell under the span holds a
- * quantity, no edit is exact, and once week 3 is edited the grid's money is
- * what Apply saves.
+ * a span over weeks 1 and 2), a burst that overlaps it (Mar 8 to 21, week 3
+ * only) and a week 4 burst of its own (a span, a group the edit leaves
+ * carried). Every buy type and fee case: no cell under a span holds a
+ * quantity, no edit is exact, and once week 3 is edited the grid's money
+ * (the carried week 4 plus the edited group) is what Apply saves.
  */
 const SPREAD_CHANNELS = ["OOH", "Radio", "Cinema", "Television", "BVOD", "Digital Audio"]
 const OVERLAP_FLIGHTS = [
   { startDate: "2026-03-01", endDate: "2026-03-14" },
   { startDate: "2026-03-08", endDate: "2026-03-21" },
+  { startDate: "2026-03-22", endDate: "2026-03-28" },
 ]
 /** Week keys some span on the row covers. */
 const spanned = (row: any) =>
