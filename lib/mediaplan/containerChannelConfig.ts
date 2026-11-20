@@ -348,6 +348,37 @@ export type ContainerChannelConfig = {
    * returns the row the plan page saves. Unset: the hook's row as built.
    */
   saveLine?: (row: ContainerLine, line: ContainerFormLine, ctx: ContainerLineContext) => ContainerLine
+  /**
+   * The channel's own Excel row (W5f, Cinema): takes the row the hook built
+   * for one burst (dates, gross media, line id and number), the form line and
+   * the burst, and returns the row the plan page gets. Unset: the hook's row.
+   */
+  excelRow?: (
+    row: ContainerLine,
+    line: ContainerFormLine,
+    burst: ContainerLine,
+    ctx: ContainerLineContext,
+  ) => ContainerLine
+  /**
+   * The card's deliverables for one burst (W5f, Cinema), used when a budget,
+   * rate or Budget Includes Fees changes and for the summary's per-line
+   * deliverables. Unset: the hook's rule (skips bonus, package inclusions and
+   * package, reads a blank rate as 1, rounds by `deliverableRoundingPolicy`,
+   * leaves the burst on a NaN; the summary adds the saved deliverables).
+   */
+  cardDeliverables?: (
+    burst: ContainerLine,
+    buyType: string,
+    budgetIncludesFees: boolean,
+    feePct: number,
+  ) => number
+  /**
+   * Add Station beside the card's Station field (W5f, Cinema; station stub
+   * option A): it needs the line's network, and its dialog writes the network and
+   * the typed station to the line. Nothing is stored or listed (no station
+   * catalogue). The card summary shows Network. Unset: none of these.
+   */
+  addStation?: true
 }
 
 /**

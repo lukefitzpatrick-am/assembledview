@@ -1,6 +1,10 @@
 "use client"
 
-import { AddSiteDialog, useChannelSiteList } from "@/components/media-containers/ChannelSiteList"
+import {
+  AddSiteDialog,
+  useChannelSiteList,
+  useChannelStationAdd,
+} from "@/components/media-containers/ChannelSiteList"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -154,6 +158,7 @@ export default function MediaChannelContainer({
   })
 
   const siteList = useChannelSiteList(config.sites, form, fieldKey, toast)
+  const stationAdd = useChannelStationAdd(config.addStation ? shell.title : undefined, form, fieldKey, toast)
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
@@ -311,17 +316,19 @@ export default function MediaChannelContainer({
                           siteList.onComboboxValueChange(key, li, value)
                         }}
                         {...siteList.cardProps(lineItemIndex)}
+                        {...stationAdd.cardProps(lineItemIndex)}
                         summaryRow={
                           <div className="border-b px-6 py-2">
                             <div className="grid grid-cols-4 gap-4 text-sm">
                               <div>
                                 <span className="font-medium">
-                                  {config.sites ? "Publisher:" : "Platform:"}
+                                  {config.addStation ? "Network:" : config.sites ? "Publisher:" : "Platform:"}
                                 </span>{" "}
                                 {(config.sites
                                   ? siteList.publisherOf(lineItemIndex)
-                                  : form.watch(`${fieldKey}.${lineItemIndex}.platform`)) ||
-                                  "Not selected"}
+                                  : form.watch(
+                                      `${fieldKey}.${lineItemIndex}.${config.addStation ? "network" : "platform"}`,
+                                    )) || "Not selected"}
                               </div>
                               <div>
                                 <span className="font-medium">Buy Type:</span>{" "}
@@ -492,6 +499,7 @@ export default function MediaChannelContainer({
       </Dialog>
 
       <AddSiteDialog dialog={siteList.dialog} publishers={publishers} />
+      <AddSiteDialog dialog={stationAdd.dialog} publishers={publishers} />
     </div>
   )
 }

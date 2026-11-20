@@ -31,11 +31,21 @@ function addSiteLabel(noun: string, lineNumber: number): string {
   return `Add ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} site for line ${lineNumber}`
 }
 
-/** The Add Site rule: both a site name and a publisher (B58: shown on the fields, not a toast). */
-function missingSiteFields(name: string, platform: string): { platform?: string; name?: string } {
+/** What the dialog adds: a site to the catalogue, or a station to the line (W5f, Cinema). */
+type AddKind = "Site" | "Station"
+
+/** The dialog's field labels: the line's owner (publisher or network) and the name. */
+const FIELD_LABELS = {
+  Site: { platform: "Publisher", name: "Site name" },
+  Station: { platform: "Network", name: "Station name" },
+} as const
+
+/** The Add Site and Add Station rule: both a name and an owner (B58: shown on the fields, not a toast). */
+function missingSiteFields(kind: AddKind, name: string, platform: string): { platform?: string; name?: string } {
+  const labels = FIELD_LABELS[kind]
   return {
-    ...(platform.trim() ? {} : { platform: "Publisher is required" }),
-    ...(name.trim() ? {} : { name: "Site name is required" }),
+    ...(platform.trim() ? {} : { platform: `${labels.platform} is required` }),
+    ...(name.trim() ? {} : { name: `${labels.name} is required` }),
   }
 }
 
@@ -142,7 +152,7 @@ export function useChannelSiteList(
   const add = async () => {
     if (!sites) return
     // The dialog shows a missing field on the field before it calls add.
-    if (Object.keys(missingSiteFields(name, platform)).length > 0) return
+    if (Object.keys(missingSiteFields("Site", name, platform)).length > 0) return
     try {
       setSaving(true)
       const created = await sites.create({ site: name, platform })
@@ -167,6 +177,7 @@ export function useChannelSiteList(
     cardProps,
     onComboboxValueChange,
     dialog: {
+      kind: "Site" as AddKind,
       noun: sites?.noun,
       pickPublisher: sites?.pickPublisher === true,
       open: lineIndex !== null,
@@ -181,8 +192,101 @@ export function useChannelSiteList(
   }
 }
 
+/** "Add a cinema station for line 2": each card's button names its line (W5f, C-341). */
+function addStationLabel(noun: string, lineNumber: number): string {
+  return `Add ${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun.toLowerCase()} station for line ${lineNumber}`
+}
+
 /**
- * Add Site, on the shared dialog: focus moves in and is held there, Escape
+ * Add Station for a channel whose config sets `addStation` (W5f, moved from
+ * the Cinema container; station stub option A). The button beside the
+ * card's Station field needs the line's network; the dialog takes it (the
+ * planner can pick another) and a station name, and Add writes both to the
+ * line. Nothing is stored or listed: there is no station catalogue.
+ * `noun` unset: no card props and no dialog.
+ */
+export function useChannelStationAdd(
+  noun: string | undefined,
+  form: UseFormReturn,
+  fieldKey: string,
+  toast: Toast,
+) {
+  const [lineIndex, setLineIndex] = useState<number | null>(null)
+  const [network, setNetwork] = useState("")
+  const [name, setName] = useState("")
+
+  const openFor = (li: number) => {
+    const lineNetwork = form.getValues(`${fieldKey}.${li}.network`)
+    if (!lineNetwork) {
+      toast({
+        title: "Select a Network First",
+        description: "Please select a network before adding a station.",
+        variant: "default",
+      })
+      return
+    }
+    setLineIndex(li)
+    setName("")
+    setNetwork(lineNetwork)
+  }
+
+  /** ExpertCard props for line `li`: the Add Station button. */
+  const cardProps = (li: number) => {
+    if (!noun) return {}
+    return {
+      fieldAdornments: {
+        station: (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-1"
+            aria-label={addStationLabel(noun, li + 1)}
+            onClick={() => openFor(li)}
+          >
+            <PlusCircle className="h-5 w-5 text-primary" aria-hidden />
+          </Button>
+        ),
+      },
+    }
+  }
+
+  const close = () => {
+    setLineIndex(null)
+    setName("")
+    setNetwork("")
+  }
+
+  const add = async () => {
+    if (Object.keys(missingSiteFields("Station", name, network)).length > 0) return
+    toast({ title: "Station Added", description: `${name} has been successfully added.` })
+    if (lineIndex !== null) {
+      form.setValue(`${fieldKey}.${lineIndex}.network`, network)
+      form.setValue(`${fieldKey}.${lineIndex}.station`, name)
+    }
+    close()
+  }
+
+  return {
+    cardProps,
+    dialog: {
+      kind: "Station" as AddKind,
+      noun,
+      pickPublisher: true,
+      open: lineIndex !== null,
+      platform: network,
+      setPlatform: setNetwork,
+      name,
+      setName,
+      saving: false,
+      close,
+      add,
+    },
+  }
+}
+
+/**
+ * Add Site (and Add Station), on the shared dialog: focus moves in and is held there, Escape
  * and Cancel close it, focus goes back to the Add Site button on close, Enter in the name field adds the site, and both
  * fields have labels. The publisher is the line's: read-only, or a publisher
  * pick when the config sets `pickPublisher`.
@@ -205,8 +309,6 @@ export function AddSiteDialog({
   )
 }
 
-const SITE_FIELD_LABELS = { platform: "Publisher", name: "Site name" } as const
-
 function AddSiteForm({
   dialog,
   publishers,
@@ -214,10 +316,11 @@ function AddSiteForm({
   dialog: ReturnType<typeof useChannelSiteList>["dialog"]
   publishers: { publisher_name: string }[]
 }) {
-  const errors = useFieldErrors(SITE_FIELD_LABELS)
+  const labels = FIELD_LABELS[dialog.kind]
+  const errors = useFieldErrors(labels)
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!errors.check(missingSiteFields(dialog.name, dialog.platform))) return
+    if (!errors.check(missingSiteFields(dialog.kind, dialog.name, dialog.platform))) return
     void dialog.add()
   }
   const publisher = errors.control("platform")
@@ -225,13 +328,17 @@ function AddSiteForm({
   return (
     <form onSubmit={onSubmit}>
       <DialogHeader>
-        <DialogTitle>Add New {dialog.noun} Site</DialogTitle>
-        <DialogDescription>Enter the details for the new {dialog.noun} Site.</DialogDescription>
+        <DialogTitle>
+          Add New {dialog.noun} {dialog.kind}
+        </DialogTitle>
+        <DialogDescription>
+          Enter the details for the new {dialog.noun} {dialog.kind}.
+        </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-4">
         <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor={publisher.id} className="text-right">
-            Publisher
+            {labels.platform}
           </Label>
           {dialog.pickPublisher ? (
             <Combobox
@@ -241,8 +348,8 @@ function AddSiteForm({
                 errors.clear("platform")
                 dialog.setPlatform(value)
               }}
-              placeholder="Select Publisher"
-              searchPlaceholder="Search publishers..."
+              placeholder={`Select ${labels.platform}`}
+              searchPlaceholder={`Search ${labels.platform.toLowerCase()}s...`}
               buttonClassName="col-span-3 h-9"
               className="col-span-3"
               options={publishers.map((p) => ({ value: p.publisher_name, label: p.publisher_name }))}
@@ -254,7 +361,7 @@ function AddSiteForm({
         </div>
         <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor={site.id} className="text-right">
-            Site name
+            {labels.name}
           </Label>
           <Input
             {...site}
@@ -274,7 +381,7 @@ function AddSiteForm({
           Cancel
         </Button>
         <Button type="submit" disabled={dialog.saving} aria-busy={dialog.saving}>
-          {dialog.saving ? "Adding..." : "Add Site"}
+          {dialog.saving ? "Adding..." : `Add ${dialog.kind}`}
         </Button>
       </DialogFooter>
     </form>

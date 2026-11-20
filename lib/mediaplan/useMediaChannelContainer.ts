@@ -634,7 +634,9 @@ export function useMediaChannelContainer(
       let lineDeliverables = 0
       ;(lineItem.bursts || []).forEach((burst: any) => {
         // The bonus input writes a string; sum numbers, never concatenate.
-        lineDeliverables += Number.parseFloat(String(burst.calculatedValue ?? 0)) || 0
+        lineDeliverables += config.cardDeliverables
+          ? config.cardDeliverables(burst, lineItem.buyType, Boolean(lineItem.budgetIncludesFees), feePct || 0)
+          : Number.parseFloat(String(burst.calculatedValue ?? 0)) || 0
       })
       const row = money.lines[index]
 
@@ -663,7 +665,7 @@ export function useMediaChannelContainer(
       overallFee: money.overallFee,
       overallCost: money.overallCost,
     }
-  }, [watchedLineItems, feePct, config.summaryDimensions])
+  }, [watchedLineItems, feePct, config])
 
   const handleLineItemValueChange = useCallback(
     (_lineItemIndex: number) => {
@@ -701,6 +703,20 @@ export function useMediaChannelContainer(
     (lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
       const burst = form.getValues(`${fieldKey}.${lineItemIndex}.bursts.${burstIndex}`)
       const lineItem = form.getValues(`${fieldKey}.${lineItemIndex}`)
+      const valuePath = `${fieldKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`
+      if (config.cardDeliverables) {
+        const next = config.cardDeliverables(
+          burst,
+          form.getValues(`${fieldKey}.${lineItemIndex}.buyType`),
+          budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees),
+          feePct || 0,
+        )
+        if (Math.abs((Number(form.getValues(valuePath)) || 0) - next) > 1e-6) {
+          form.setValue(valuePath, next, { shouldValidate: false, shouldDirty: false })
+          handleLineItemValueChange(lineItemIndex)
+        }
+        return
+      }
       const rawBudget = parseMoney(burst?.budget) ?? 0
       const budgetIncludesFees =
         budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees)
@@ -888,7 +904,7 @@ export function useMediaChannelContainer(
             ? (burst.calculatedValue ?? 0)
             : recomputedDeliverable
 
-          return {
+          const row = {
             market: lineItem.market,
             platform: lineItem.platform,
             ...(config.sites ? { site: lineItem.site } : {}),
@@ -912,6 +928,14 @@ export function useMediaChannelContainer(
                   buyAmount: burst.buyAmount ?? burst.budget,
                 }),
           }
+          if (!config.excelRow) return row
+          return config.excelRow(row, lineItem, burst, {
+            feePct: feePct || 0,
+            mbaNumber,
+            campaignStartDate,
+            campaignEndDate,
+            index: lineItemIndex,
+          }) as unknown as LineItem
         }),
     )
 
@@ -927,6 +951,8 @@ export function useMediaChannelContainer(
     fieldKey,
     mediaTypeIdCode,
     config,
+    campaignStartDate,
+    campaignEndDate,
   ])
 
   useEffect(() => {
