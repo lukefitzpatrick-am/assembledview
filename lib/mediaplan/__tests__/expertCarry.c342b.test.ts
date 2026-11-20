@@ -7,8 +7,9 @@ import "@/lib/testing/bothZones"
  *   edit; the Budget Includes Fees box, the buy type, a span's extent, a day
  *   cell are.
  * - A duplicated row keeps the saved money of the row it copies.
- * - A burst the import spreads over several weeks is one group with the
- *   bursts it shares weeks with: carried whole, priced from the grid whole.
+ * - A burst that overlaps a span opens in the weeks outside it (C-361) and
+ *   is one group with the bursts it shares weeks with: carried whole, priced
+ *   from the grid whole, and the grid's money is what Apply saves.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -16,6 +17,7 @@ import test from "node:test"
 import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import * as M from "@/lib/mediaplan/expertChannelMappings"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
+import { expertRowBudget } from "@/lib/mediaplan/expertRowCost"
 import { duplicateExpertRow } from "@/lib/mediaplan/expertRowLifecycle"
 import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -123,7 +125,7 @@ test("a duplicated row keeps the saved money of the row it copies", () => {
   assert.deepEqual(lines.map(budgets), [[777_777], [777_777]])
 })
 
-test("Radio: a burst spread over weeks beside a span is one group, carried whole and priced whole", () => {
+test("Radio: a burst overlapping a span opens outside it; the grid's money is what Apply saves (C-361)", () => {
   const radioLine = (bursts: Array<{ budget: string; startDate: string; endDate: string }>) => ({
     ...cpmLine("r", []),
     buyType: "spots",
@@ -133,7 +135,8 @@ test("Radio: a burst spread over weeks beside a span is one group, carried whole
       return { ...burst, calculatedValue: computeLoadedDeliverables("spots", burst, true, FEE), startDate: b.startDate, endDate: b.endDate }
     }),
   })
-  // The second burst overlaps the first's span, so the import spreads it over week cells.
+  // 10 spots over weeks 1 and 2 (a span); 7 spots Mar 8 to 21 overlap the
+  // span's week 2, so the import puts all 7 in week 3, the week no span covers.
   const saved = [
     radioLine([
       { budget: "$7,777.00", startDate: "2026-03-01", endDate: "2026-03-14" },
@@ -146,22 +149,23 @@ test("Radio: a burst spread over weeks beside a span is one group, carried whole
       M.mapRadioExpertRowsToStandardLineItems(rows, COLS, START, END, { feePctRadio: FEE, budgetIncludesFees: true }),
       saved as any
     ) as any[]
-  assert.deepEqual(budgets(apply(open())[0]), [777_700, 520_000], "untouched: both bursts as saved")
+  const keys = COLS.map((c) => c.weekKey)
+  const gridCents = (row: any) => Math.round(expertRowBudget(row, keys, FEE) * 100)
 
+  const untouched = open()
+  assert.deepEqual(
+    [untouched[0].weeklyValues[weekKey("2026-03-08")], untouched[0].weeklyValues[weekKey("2026-03-15")]],
+    ["", 7],
+    "nothing under the span; the 7 spots in week 3"
+  )
+  assert.deepEqual(budgets(apply(untouched)[0]), [777_700, 520_000], "untouched: both bursts as saved")
+  assert.equal(gridCents(untouched[0]), 1_297_700)
+
+  // One spot added in week 3: 10 + 8 = 18 spots x $650.00 = $11,700.00, grossed up at 12.5% = $13,371.43.
   const rows = open()
-  const k = weekKey("2026-03-15")
-  assert.notEqual(rows[0].weeklyValues[k], "", "week 3 holds part of the spread burst")
-  rows[0].weeklyValues[k] = Number(rows[0].weeklyValues[k]) + 1
+  rows[0].weeklyValues[weekKey("2026-03-15")] = 8
   const [line] = apply(rows)
-  const spots = line.bursts.reduce((q: number, b: any) => q + b.calculatedValue, 0)
-  // Priced from what the grid shows: the span and the week cells outside it.
-  // The spread burst's share in the span's week sits under the span and is
-  // not written (C-361, as before this batch).
-  const spanned = new Set(rows[0].mergedWeekSpans.flatMap((sp: any) => COLS.map((c) => c.weekKey).filter((w) => sp.startWeekKey <= w && w <= sp.endWeekKey)))
-  const shown =
-    rows[0].mergedWeekSpans.reduce((q: number, sp: any) => q + sp.totalQty, 0) +
-    COLS.filter((c) => !spanned.has(c.weekKey)).reduce((q, c) => q + Number(rows[0].weeklyValues[c.weekKey] || 0), 0)
-  assert.equal(spots, shown)
-  const total = budgets(line).reduce((a: number, b: number) => a + b, 0) / 100
-  assert.ok(Math.abs(total - (spots * 650) / (1 - FEE / 100)) <= 0.01 * line.bursts.length, `group priced whole: ${total}`)
+  assert.equal(line.bursts.reduce((q: number, b: any) => q + b.calculatedValue, 0), 18)
+  assert.equal(budgets(line).reduce((a: number, b: number) => a + b, 0), 1_337_143)
+  assert.equal(gridCents(rows[0]), 1_337_143)
 })

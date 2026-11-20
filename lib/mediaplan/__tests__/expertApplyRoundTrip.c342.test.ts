@@ -588,6 +588,80 @@ for (const incl of [false, true]) {
   })
 }
 
+/**
+ * C-361 (V87 A): on the six channels whose import spreads a burst that cannot
+ * be a span (OOH, Radio, Cinema, Television, BVOD, Digital Audio), a burst
+ * that overlaps a span already on the row goes only into the weeks no span
+ * covers, so the grid shows all of it. Line: a two-week burst (Mar 1 to 14,
+ * a span over weeks 1 and 2) and a burst that overlaps it (Mar 8 to 21, week
+ * 3 only). Every buy type and fee case: no cell under the span holds a
+ * quantity, no edit is exact, and once week 3 is edited the grid's money is
+ * what Apply saves.
+ */
+const SPREAD_CHANNELS = ["OOH", "Radio", "Cinema", "Television", "BVOD", "Digital Audio"]
+const OVERLAP_FLIGHTS = [
+  { startDate: "2026-03-01", endDate: "2026-03-14" },
+  { startDate: "2026-03-08", endDate: "2026-03-21" },
+]
+/** Week keys some span on the row covers. */
+const spanned = (row: any) =>
+  new Set<string>(
+    (row.mergedWeekSpans ?? []).flatMap((sp: any) => weekKeys.filter((k) => sp.startWeekKey <= k && k <= sp.endWeekKey))
+  )
+/** Quantity in a cell the grid hides: a week or day cell under a span. */
+const hiddenQty = (row: any) => {
+  const under = spanned(row)
+  const weekOf = (d: string) => [...weekKeys].reverse().find((k) => k <= d)!
+  return (
+    weekKeys.filter((k) => under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0) +
+    Object.entries(row.dailyValues ?? {}).reduce((q, [d, v]) => q + (under.has(weekOf(d)) ? Number(v || 0) : 0), 0)
+  )
+}
+
+for (const name of SPREAD_CHANNELS) {
+  const ch = chan(name)
+  for (const v of VARIANTS) {
+    const key = `${name} | ${variantName(v)}`
+    const saved = savedPlan(ch, v).map((l) => ({ ...l, bursts: OVERLAP_FLIGHTS.map((f) => savedBurst(l.buyType, l._label.endsWith("awkward") ? "awkward" : "round", v, f)) }))
+
+    test(`${key}: a burst overlapping a span opens outside it, and no edit returns every line as saved (C-361)`, () => {
+      const rows = ch.toExpert(saved, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
+      for (const l of saved) {
+        const row = rowOf(rows, l.line_item_id)
+        assert.equal(hiddenQty(row), 0, `${l._label}: a cell under the span holds a quantity`)
+        assert.ok(spanned(row).size > 0, `${l._label}: the two-week burst opens as a span`)
+      }
+      const moves = movesBetween(saved, applyNoEdit(ch, v, saved))
+      assert.equal(summary(moves), NO_MOVES, moves.sample.join("; "))
+    })
+
+    test(`${key}: an edited overlap group saves what the grid's money shows (C-361)`, () => {
+      const fee = v.fee
+      const opts: Record<string, unknown> = ch.feeOnly ? { [ch.feeKey]: fee } : { [ch.feeKey]: fee, budgetIncludesFees: v.incl }
+      const rated = saved.filter((l) => RATE_PRICED.has(l.buyType))
+      const rows = ch.toExpert(rated, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: fee }] : []))
+      for (const l of rated) {
+        const row = rowOf(rows, l.line_item_id)
+        const k = weekKeys[2]!
+        assert.ok(Number(row.weeklyValues[k]) > 0, `${l._label}: week 3 holds the overlapping burst`)
+        row.weeklyValues[k] = Number(row.weeklyValues[k]) + 1
+      }
+      const applied = readLines(ch.merge(ch.fromExpert(rows, COLS, START, END, opts), rated))
+      for (const l of rated) {
+        const row = rowOf(rows, l.line_item_id)
+        const line = applied.get(l.line_item_id)!
+        const saves = line.bursts.reduce((c, b) => c + b.cents, 0)
+        assert.ok(
+          Math.abs(saves - cents(expertRowCostSplit(row, weekKeys, fee).raw)) <= line.bursts.length,
+          `${l._label}: Apply saves ${saves}c, the grid shows ${expertRowCostSplit(row, weekKeys, fee).raw}`
+        )
+        const qty = line.bursts.reduce((q, b) => q + b.deliverables, 0)
+        assert.ok(Math.abs(qty - expertRowQuantitySum(row, weekKeys)) < 1e-6, `${l._label}: deliverables ${qty}`)
+      }
+    })
+  }
+}
+
 if (DUMP_FILE) {
   test("dump", async () => {
     const fs = await import("node:fs")

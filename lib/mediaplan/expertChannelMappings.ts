@@ -527,7 +527,21 @@ function accumulateDistributableBurstForExpertImport(
     }
   }
 
-  distribute(totalDeliverables, overlapKeys)
+  // C-361 (V87 A): a burst that overlaps a span already on the row spreads only
+  // over the weeks no span covers, so the grid shows all of it (Apply skips the
+  // weeks under a span). Same spread rule, fewer weeks. A burst that lies
+  // entirely under spans keeps the old spread (no week is left to show it).
+  const spanned = new Set(
+    ctx.mergedWeekSpans.flatMap((sp) =>
+      weekKeysInSpanInclusive(
+        weekColumns.map((c) => c.weekKey),
+        sp.startWeekKey,
+        sp.endWeekKey
+      )
+    )
+  )
+  const shown = overlapKeys.filter((k) => !spanned.has(k))
+  distribute(totalDeliverables, shown.length > 0 ? shown : overlapKeys)
 }
 
 /** Resolve export burst dates: day override > span overrides > week window. */
