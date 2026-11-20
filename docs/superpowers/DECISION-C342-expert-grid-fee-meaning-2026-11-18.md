@@ -186,5 +186,22 @@ Confirmed by Luke 20 Nov 2026 (V66 B). Shipped in C342B and C342Bfix.
 - **Mixed rates (C-345):** an untouched burst keeps its own rate; an edited cell prices at the row's rate (the first burst's).
 - **OOH (C-344):** the span `gross` stamp is gone; OOH uses the shared carry, so span and rate edits reach the line.
 - **Grid money:** Net Media, the footer and OOH's totals show the line's budget (carried budgets plus the gross of the rest); $ cells show and take the gross (the recommended sub-choice); the fee label reads "x% of gross".
-- **Known limit (C-361):** a burst the import spreads into week cells under a span keeps that share only while untouched.
+- **Known limit (C-361):** a burst the import spreads into week cells under a span keeps that share only while untouched. Partly fixed in C361 (section 8).
 - **Proof:** `expertApplyRoundTrip.c342.test.ts` (all 152 cases and Production exact; edits follow the card's rule; mixed rates, several bursts in one week, OOH spans; both zones), `expertCarry.c342b.test.ts`, `sharedChannelContainer.gridMoney.c342b.test.tsx` (mounted), every container golden (only expert Apply steps move, each back to the saved line).
+
+## 8. C-361: a burst that overlaps a span (V87, built as option A in C361)
+
+V87 was not answered; C361 built the recommended option A under Luke's standing rule. Option B (refuse an edit to a group with a hidden cell) is not built.
+
+- **The rule.** On the six channels that share `accumulateDistributableBurstForExpertImport` (OOH, Radio, Cinema, Television, BVOD, Digital Audio), a multi-week burst that overlaps a span already on the row opens only in the weeks no span covers. The spread is the import's own: round the total, split it evenly over those weeks, the earliest weeks take the remainder one each, a fixed cost burst puts 1 in the first. A burst that lies entirely under spans keeps the old spread.
+- **Why it is safe.** The weeks it now uses are a subset of the weeks it touched before, so the carry's groups (weeks a saved burst touches, joined by spans) are the same and untouched lines stay byte-identical. No container golden moved (none has an overlapping burst).
+- **The L4 probe (Radio, fee-inclusive 12.5%, spots at $650.00).** Burst 1 $7,777.00 Mar 1 to 14 (10 spots, a span over weeks 1 and 2). Burst 2 $5,200.00 Mar 8 to 21 (7 spots).
+  - Before: week 2 held 4 (under the span), week 3 held 3. One spot added in week 3: the grid counted 10 + 4 + 4 = 18 spots, $11,700.00 / 0.875 = $13,371.43; Apply wrote 10 + 4 = 14 spots, $9,100.00 / 0.875 = $10,400.00.
+  - After: week 2 is blank, week 3 holds 7. One spot added in week 3: 10 + 8 = 18 spots, $13,371.43 in the grid and $13,371.43 saved ($7,428.57 + $5,942.86).
+  - Untouched, before and after: $12,977.00 both.
+- **What remains (C-361 Open, C-368).** Pinned in `lib/mediaplan/__tests__/expertCarry.c361.test.ts`. Untouched lines are exact in every case; the loss is on an edited group only.
+  1. A burst entirely under spans (no week left): unchanged.
+  2. A burst the import makes a span later, over a week an earlier burst already holds. The import checks a new span against spans only. This is the live majority: Monday to Sunday weekly bursts on a Sunday-start grid, where every other burst opens as a span over the week the one before it holds.
+  3. C-368: a burst spread into a week that holds day cells. The grid shows and counts the week cell; Apply writes the day cells.
+- **Live (latest versions, Melbourne dates, Sunday weeks, SELECT only).** 87 lines share a week between bursts (Radio 44, OOH 42, Digital Audio 1; 15 MBAs). A share was hidden on 78 lines in 14 MBAs before C361 and on 67 lines in 11 MBAs after; 11 lines fully fixed, 45 hide less, none more. Of the 67: case 2 on 58, case 1 on 7, case 3 on 9 (some lines have two).
+- **Open question for Luke (case 2).** Option A (recommended): when the import decides whether a burst can be a span, a week that already holds a week or day cell counts as taken, as it does in the grid's own span rule (`buildWeekBlockedPredicate` in `lib/mediaplan/expertSpanDates.ts`); the burst then spreads on the same rule. A probe of this on the live lines leaves 17 lines (case 3 on 13, case 1 on 4). Option B: refuse an edit to a group with a hidden cell, with a message (V87 B). Option C: leave it.
