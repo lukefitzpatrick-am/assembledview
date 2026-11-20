@@ -199,6 +199,10 @@ V87 was not answered; C361 built the recommended option A under Luke's standing 
   - Before: week 2 held 4 (under the span), week 3 held 3. One spot added in week 3: the grid counted 10 + 4 + 4 = 18 spots, $11,700.00 / 0.875 = $13,371.43; Apply wrote 10 + 4 = 14 spots, $9,100.00 / 0.875 = $10,400.00.
   - After: week 2 is blank, week 3 holds 7. One spot added in week 3: 10 + 8 = 18 spots, $13,371.43 in the grid and $13,371.43 saved ($7,428.57 + $5,942.86).
   - Untouched, before and after: $12,977.00 both.
+- **Two exceptions to "grid = Apply on an edited group" (C361 review F1, F2).**
+  1. Fixed cost (C-369, held for Luke as V96). The grid prices a fixed cost line once; Apply writes each priced cell as a burst at the rate. Two $5,000.00 bursts, rate changed to $6,000.00: grid $6,000.00, Apply $12,000.00. Older than C361; C361 makes it reachable on an overlap line (live 0 such lines; 17 fixed cost lines with two or more bursts in 14 MBAs on Digital Display, Social and Digital Audio).
+  2. Rounding. Apply rounds each burst to the cent; the grid rounds the total. They can differ by up to a cent per burst (review sweep: 101 of 820 edited Radio cases 1 cent above the grid, never more; the day-cell pin is 1 cent below).
+- **Pinned in C361fix.** Radio's Apply skips a cell under a span's last week; a fixed cost burst's 1 goes to the first week left on the shared spread (two weeks left, six channels); a 0-quantity span (an OOH bonus burst saved with 0) counts as a span; a burst that starts on the Saturday that ends a week touches that week.
 - **What remains (C-361 Open, C-368).** Pinned in `lib/mediaplan/__tests__/expertCarry.c361.test.ts`. Untouched lines are exact in every case; the loss is on an edited group only.
   1. A burst entirely under spans (no week left): unchanged.
   2. A burst the import makes a span later, over a week an earlier burst already holds. The import checks a new span against spans only. This is the live majority: Monday to Sunday weekly bursts on a Sunday-start grid, where every other burst opens as a span over the week the one before it holds.
