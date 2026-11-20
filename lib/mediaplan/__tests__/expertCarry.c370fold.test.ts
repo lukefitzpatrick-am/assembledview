@@ -138,7 +138,9 @@ for (const ch of SPREAD) {
         const keys = buildWeeklyGanttColumnsFromCampaign(START, END, wso).map((c) => c.weekKey)
         assert.equal(hiddenQty(untouched.row, keys), 0)
         if (wso === 1) {
-          assert.equal(untouched.row.mergedWeekSpans.length, 2)
+          // Each span takes the share in its own week, not all of it.
+          const [q1, q2] = saved.bursts.map((b: any) => Number(b.calculatedValue))
+          assert.deepEqual(untouched.row.mergedWeekSpans.map((sp: any) => sp.totalQty > (sp === untouched.row.mergedWeekSpans[0] ? q1 : q2)), [true, true])
           assert.equal(spanTotal(untouched.row), qtyOf(saved))
         }
         assert.deepEqual(read(untouched.applied), read(saved))
@@ -216,4 +218,20 @@ test("Radio: monthly bursts under a campaign-long span fold into it (V95 A, BOSS
     assert.equal(qtyOf(line), 37)
     assert.ok(Math.abs(cents(expertRowCostSplit(rows[0], keys, 0).raw) - sumCents(line)) <= line.bursts.length)
   }
+})
+
+test("OOH, Monday grid: a paid burst under a paid span and a bonus span does not fold at all (V95 A)", () => {
+  // Spans: 3 paid Mar 2 to 8, 4 bonus Mar 9 to 22; 2 paid over Mar 2 to 15
+  // lie under both. One span takes another buy type, so none of it folds.
+  const ooh = CHANNELS.find((c) => c.name === "OOH")!
+  const saved = lineOf("panels", false, [
+    paid("panels", false, 0, "$4,350.00", "2026-03-02", "2026-03-08"),
+    { buyType: "bonus", budget: "0", buyAmount: "0", calculatedValue: 4, startDate: "2026-03-09", endDate: "2026-03-22" },
+    paid("panels", false, 0, "$2,900.00", "2026-03-02", "2026-03-15"),
+  ])
+  const keys = buildWeeklyGanttColumnsFromCampaign(START, END, 1).map((c) => c.weekKey)
+  const { row, applied } = run(ooh, saved, 0, 1)
+  assert.deepEqual(row.mergedWeekSpans.map((sp: any) => [sp.totalQty, sp.buyType ?? ""]), [[3, ""], [4, "bonus"]])
+  assert.equal(hiddenQty(row, keys), 2)
+  assert.deepEqual(read(applied), read(saved))
 })
