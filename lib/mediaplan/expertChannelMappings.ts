@@ -485,6 +485,13 @@ function accumulateDistributableBurstForExpertImport(
     sd,
     ed
   )
+  const allWeekKeys = weekColumns.map((c) => c.weekKey)
+  // C-361 case 1 (V95 A): the span over a week, if any, and whether this
+  // burst may fold into it (the span it would open as carries the same buy
+  // type: a bonus share never joins a paid span, nor the reverse).
+  const spanOver = (k: string) =>
+    ctx.mergedWeekSpans.find((sp) => weekKeysInSpanInclusive(allWeekKeys, sp.startWeekKey, sp.endWeekKey).includes(k))
+  const foldsInto = (sp: OohExpertMergedWeekSpan) => (sp.buyType ?? "") === (spanBuyType ?? "")
 
   const burstDayCount =
     differenceInCalendarDays(startOfDay(ed), startOfDay(sd)) + 1
@@ -498,6 +505,13 @@ function accumulateDistributableBurstForExpertImport(
       : null
     if (week && dayKeys && dayKeys.length > 0) {
       const split = expandWeekToDaily(totalDeliverables, dayKeys)
+      // V95 A: days under a span fold into it, as the grid's merge sums the
+      // day values under a span into its total (`handleMergeSelectedWeeks`).
+      const cover = spanOver(week.weekKey)
+      if (cover && foldsInto(cover)) {
+        cover.totalQty += dayKeys.reduce((t, k) => t + Number(split[k] || 0), 0)
+        return
+      }
       for (const k of dayKeys) {
         const prev = ctx.dailyValues[k]
         const prevNum = prev === "" || prev === undefined ? 0 : Number(prev)
@@ -568,6 +582,20 @@ function accumulateDistributableBurstForExpertImport(
   const open = shown.filter(
     (k) => !weekHasDailyValues(ctx.dailyValues, [...(dayKeysByWeekKey[k] ?? [])])
   )
+  // C-361 case 1 (V95 A): a burst that lies entirely under spans spreads as
+  // before, then each week's share folds into the span over it (the grid's
+  // merge sums the week values under a span into its total). Only this
+  // burst's share moves, and only when every span over it takes its buy
+  // type; otherwise it stays as before (hidden under the span).
+  if (shown.length === 0 && overlapKeys.every((k) => foldsInto(spanOver(k)!))) {
+    const before = Object.fromEntries(overlapKeys.map((k) => [k, ctx.weeklyValues[k] ?? ""]))
+    distribute(totalDeliverables, overlapKeys)
+    for (const k of overlapKeys) {
+      spanOver(k)!.totalQty += Number(ctx.weeklyValues[k] || 0) - Number(before[k] || 0)
+      ctx.weeklyValues[k] = before[k]!
+    }
+    return
+  }
   distribute(
     totalDeliverables,
     open.length > 0 ? open : shown.length > 0 ? shown : overlapKeys

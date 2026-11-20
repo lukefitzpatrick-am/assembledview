@@ -5,9 +5,9 @@ import "@/lib/testing/bothZones"
  * saved and the grid's money is the saved budget. The pins are today's
  * behaviour once the group is edited; each flips when its case is fixed.
  *
- * - A burst entirely under a span (week cell or day cells): no week is left
- *   outside the span, so the import keeps the old spread and the share sits
- *   under the span.
+ * - A burst entirely under a span (week cell or day cells): C370 (V95 A)
+ *   folds its share into the span, so nothing sits under it (pinned here as
+ *   fixed; buy types and every channel in `expertCarry.c370.test.ts`).
  * - C-368 with no other week left: a burst spread into a week that holds
  *   day cells: the grid shows the week cell, Apply writes the day cells.
  *
@@ -79,19 +79,21 @@ for (const [shape, second] of [
   ["a week cell", ["$2,600.00", "2026-03-08", "2026-03-14"]],
   ["day cells", ["$2,600.00", "2026-03-09", "2026-03-11"]],
 ] as const) {
-  test(`C-361 remains: a burst entirely under a span keeps the old spread (${shape})`, () => {
-    // 16 spots Mar 1 to 21 (a span over weeks 1 to 3); 4 spots inside week 2.
+  test(`C-361 case 1 fixed (V95 A): a burst entirely under a span folds into it (${shape})`, () => {
+    // 16 spots Mar 1 to 21 (a span over weeks 1 to 3); 4 spots inside week 2
+    // fold into the span: 20, nothing under it.
     const saved = radioLine([["$12,000.00", "2026-03-01", "2026-03-21"], second])
     const rows = untouchedIsExact(saved)
     const hidden =
       Number(rows[0].weeklyValues["2026-03-08"] || 0) +
       Object.values<unknown>(rows[0].dailyValues ?? {}).reduce<number>((q, v) => q + Number(v || 0), 0)
-    assert.equal(hidden, 4, "the 4 spots sit under the span")
-    // One spot added to the span: the grid counts 16 + 1 + 4 = 21 spots
-    // ($13,650.00 / 0.875 = $15,600.00); Apply writes the span's 17
-    // ($11,050.00 / 0.875 = $12,628.57).
+    assert.equal(hidden, 0, "nothing sits under the span")
+    assert.equal(rows[0].mergedWeekSpans[0].totalQty, 20)
+    // One spot added to the span: the grid counts 21 spots ($13,650.00 /
+    // 0.875 = $15,600.00), and Apply writes the span's 21 (before C370:
+    // the 17 shown, $12,628.57).
     rows[0].mergedWeekSpans[0].totalQty += 1
-    assert.deepEqual([grid(rows[0]), savedCents(apply(rows, saved)[0])], [1_560_000, 1_262_857])
+    assert.deepEqual([grid(rows[0]), savedCents(apply(rows, saved)[0])], [1_560_000, 1_560_000])
   })
 }
 
@@ -250,9 +252,9 @@ test("OOH (F5): a bonus span saved with 0 panels counts as a span; a paid burst 
   assert.equal(out[0].bursts.reduce((q: number, b: any) => q + Number(b.calculatedValue || 0), 0), 8)
 })
 
-test("C-361 remains: a two-week burst entirely under a span keeps the old spread over both weeks", () => {
-  // 20 over Mar 1 to 28 (a span over all four weeks); 7 over Mar 8 to 21 sit
-  // under it as 4 and 3, as before C361.
+test("C-361 case 1 fixed (V95 A): a two-week burst entirely under a span folds both weeks' shares into it", () => {
+  // 20 over Mar 1 to 28 (a span over all four weeks); 7 over Mar 8 to 21
+  // spread as 4 and 3 (Radio's own spread), both under the span: 27.
   const [row] = M.mapStandardRadioLineItemsToExpertRows(
     [sixLine("spots", [[20, "2026-03-01", "2026-03-28"], [7, "2026-03-08", "2026-03-21"]])] as any[],
     COLS,
@@ -260,19 +262,22 @@ test("C-361 remains: a two-week burst entirely under a span keeps the old spread
     END,
     { feePct: 0 }
   ) as any[]
-  assert.deepEqual(cellsOf(row), ["", 4, 3, ""])
+  assert.deepEqual(cellsOf(row), ["", "", "", ""])
+  assert.deepEqual(row.mergedWeekSpans.map((sp: any) => sp.totalQty), [27])
 })
 
-test("C-361 remains (F3): a cell under a span's last week is not written by Radio's Apply", () => {
-  // 10 spots Mar 1 to 14 (a span over weeks 1 and 2); 4 spots Mar 8 to 14 sit
-  // under the span's last week as a week cell (no week is left outside it).
+test("(F3) a cell under a span's last week is not written by Radio's Apply", () => {
+  // 10 spots Mar 1 to 14 (a span over weeks 1 and 2); 4 spots Mar 8 to 14
+  // fold into it (V95 A: 14). A week cell left under the span's last week
+  // (put there by hand: the import no longer leaves one) is skipped.
   const saved = radioLine([
     ["$7,777.00", "2026-03-01", "2026-03-14"],
     ["$2,600.00", "2026-03-08", "2026-03-14"],
   ])
   const rows = untouchedIsExact(saved)
-  assert.equal(rows[0].weeklyValues["2026-03-08"], 4)
-  assert.deepEqual(rows[0].mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey]), [["2026-03-01", "2026-03-08"]])
+  assert.deepEqual(rows[0].mergedWeekSpans.map((sp: any) => [sp.startWeekKey, sp.endWeekKey, sp.totalQty]), [["2026-03-01", "2026-03-08", 14]])
+  rows[0].mergedWeekSpans[0].totalQty = 10
+  rows[0].weeklyValues["2026-03-08"] = 4
   // One spot added to the span: Apply writes the span's 11 spots only
   // ($7,150.00 / 0.875 = $8,171.43), Mar 1 to 14; the 4 under week 2 are
   // skipped, as under any other week of a span.
