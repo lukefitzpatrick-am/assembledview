@@ -515,10 +515,11 @@ function accumulateDistributableBurstForExpertImport(
       // C-368 reverse (V97 A): a week that holds a week cell and no day
       // values is split into day cells first, as the grid does when a
       // planner types a day value there (`updateDailyCell`), so Apply writes
-      // the week cell's share from its days too.
+      // the week cell's share from its days too. Not on a fixed cost line
+      // until V96 (C-369): the split adds a priced cell there.
       const weekCell = ctx.weeklyValues[week.weekKey]
       const allDays = weekDayKeys(week, campaignStartDate, campaignEndDate)
-      if (typeof weekCell === "number" && weekCell !== 0 && !weekHasDailyValues(ctx.dailyValues, allDays)) {
+      if (params.bt !== "fixed_cost" && typeof weekCell === "number" && weekCell !== 0 && !weekHasDailyValues(ctx.dailyValues, allDays)) {
         const held = expandWeekToDaily(weekCell, allDays)
         for (const k of allDays) ctx.dailyValues[k] = held[k] ?? 0
         ctx.weeklyValues[week.weekKey] = ""
