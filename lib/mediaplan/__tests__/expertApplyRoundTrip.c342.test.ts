@@ -167,13 +167,13 @@ function savedPlan(ch: Channel, v: Variant) {
   return lines
 }
 
-function applyNoEdit(ch: Channel, v: Variant, saved: any[], edit?: (rows: any[]) => void) {
-  const rows = ch.toExpert(saved, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
+function applyNoEdit(ch: Channel, v: Variant, saved: any[], edit?: (rows: any[]) => void, cols = COLS) {
+  const rows = ch.toExpert(saved, cols, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
   edit?.(rows)
   const opts: Record<string, unknown> = ch.feeOnly
     ? { [ch.feeKey]: v.fee }
     : { [ch.feeKey]: v.fee, budgetIncludesFees: Boolean(saved[0]?.budgetIncludesFees) }
-  const generated = ch.fromExpert(rows, COLS, START, END, opts)
+  const generated = ch.fromExpert(rows, cols, START, END, opts)
   return ch.merge(generated, saved) as any[]
 }
 
@@ -607,16 +607,16 @@ const OVERLAP_FLIGHTS = [
   { startDate: "2026-03-22", endDate: "2026-03-28" },
 ]
 /** Week keys some span on the row covers. */
-const spanned = (row: any) =>
+const spanned = (row: any, keys: readonly string[] = weekKeys) =>
   new Set<string>(
-    (row.mergedWeekSpans ?? []).flatMap((sp: any) => weekKeys.filter((k) => sp.startWeekKey <= k && k <= sp.endWeekKey))
+    (row.mergedWeekSpans ?? []).flatMap((sp: any) => keys.filter((k) => sp.startWeekKey <= k && k <= sp.endWeekKey))
   )
 /** Quantity in a cell the grid hides: a week or day cell under a span. */
-const hiddenQty = (row: any) => {
-  const under = spanned(row)
-  const weekOf = (d: string) => [...weekKeys].reverse().find((k) => k <= d)!
+const hiddenQty = (row: any, keys: readonly string[] = weekKeys) => {
+  const under = spanned(row, keys)
+  const weekOf = (d: string) => [...keys].reverse().find((k) => k <= d)!
   return (
-    weekKeys.filter((k) => under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0) +
+    keys.filter((k) => under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0) +
     Object.entries(row.dailyValues ?? {}).reduce((q, [d, v]) => q + (under.has(weekOf(d)) ? Number(v || 0) : 0), 0)
   )
 }
@@ -682,6 +682,13 @@ for (const name of SPREAD_CHANNELS) {
  * week) holds a quantity; no edit is exact; an edited group saves what the
  * grid's money shows (a cent per burst); and the carry's groups are the ones
  * the saved dates give, whatever the import put in the cells.
+ *
+ * Week start is a per-browser setting (`useWeekStartsOn`, default Sunday), so
+ * the same shapes run on a Monday grid too (C361bfix, review F5): weeks Feb 23
+ * (clamped to Mar 1), Mar 2, 9, 16 and 23. There the weekly bursts fit one
+ * week each (three one-week spans, three groups) and the three-week burst
+ * joins every week into one group. Edit targets are found, not fixed: the
+ * first week cell outside spans and day-detailed weeks, else the first span.
  */
 const CASE2_SHAPES = [
   {
@@ -692,7 +699,8 @@ const CASE2_SHAPES = [
       { startDate: "2026-03-16", endDate: "2026-03-22" },
     ],
     editWeek: 2,
-    groups: [weekKeys],
+    /** The carry's groups as week indexes, per week start. */
+    groups: { 0: [[0, 1, 2, 3]], 1: [[1], [2], [3]] },
   },
   {
     shape: "a day-detailed week inside a three-week burst",
@@ -702,79 +710,109 @@ const CASE2_SHAPES = [
       { startDate: "2026-03-22", endDate: "2026-03-28" },
     ],
     editWeek: 0,
-    groups: [weekKeys.slice(0, 3), weekKeys.slice(3)],
+    groups: { 0: [[0, 1, 2], [3]], 1: [[0, 1, 2, 3, 4]] },
   },
 ] as const
 
-/** Quantity the grid hides: under a span, or a week cell in a week that holds day cells (Apply writes the days). */
-const hiddenOrDropped = (row: any) => {
-  const weekOf = (d: string) => [...weekKeys].reverse().find((k) => k <= d)!
-  const dayWeeks = new Set(
+/** Weeks that hold day cells. */
+const dayWeeksOf = (row: any, keys: readonly string[]) => {
+  const weekOf = (d: string) => [...keys].reverse().find((k) => k <= d)!
+  return new Set(
     Object.entries(row.dailyValues ?? {})
       .filter(([, v]) => v !== "" && v !== undefined)
       .map(([d]) => weekOf(d))
   )
-  const under = spanned(row)
-  return hiddenQty(row) + weekKeys.filter((k) => dayWeeks.has(k) && !under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0)
+}
+
+/** Quantity the grid hides: under a span, or a week cell in a week that holds day cells (Apply writes the days). */
+const hiddenOrDropped = (row: any, keys: readonly string[] = weekKeys) => {
+  const dayWeeks = dayWeeksOf(row, keys)
+  const under = spanned(row, keys)
+  return hiddenQty(row, keys) + keys.filter((k) => dayWeeks.has(k) && !under.has(k)).reduce((q, k) => q + Number(row.weeklyValues[k] || 0), 0)
+}
+
+/**
+ * Add one to the first cell a planner would edit: a week cell outside spans
+ * and day-detailed weeks, else the first span. Returns the week it edited.
+ */
+const editFirstCell = (row: any, keys: readonly string[]) => {
+  const under = spanned(row, keys)
+  const dayWeeks = dayWeeksOf(row, keys)
+  const k = keys.find((w) => !under.has(w) && !dayWeeks.has(w) && Number(row.weeklyValues[w]) > 0)
+  if (k) {
+    row.weeklyValues[k] = Number(row.weeklyValues[k]) + 1
+    return k
+  }
+  const sp = (row.mergedWeekSpans ?? []).find((x: any) => Number(x.totalQty) > 0)
+  assert.ok(sp, "the row holds a week cell or a span to edit")
+  sp.totalQty = Number(sp.totalQty) + 1
+  return sp.startWeekKey as string
 }
 
 /** The carry's groups: week keys and the saved dates of their bursts. */
 const carryGroups = (row: any) =>
   (row.expertCarry?.groups ?? []).map((g: any) => ({ weeks: g.weekKeys, dates: g.bursts.map((b: any) => `${b.startYmd}..${b.endYmd}`) }))
 
-for (const { shape, flights, editWeek, groups } of CASE2_SHAPES) {
-  for (const name of SPREAD_CHANNELS) {
-    const ch = chan(name)
-    for (const v of VARIANTS) {
-      const key = `${name} | ${variantName(v)} | ${shape}`
-      const saved = savedPlan(ch, v).map((l) => ({ ...l, bursts: flights.map((f) => savedBurst(l.buyType, l._label.endsWith("awkward") ? "awkward" : "round", v, f)) }))
-      const open = (lines: any[]) => ch.toExpert(lines, COLS, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
+for (const weekStartsOn of [0, 1] as const) {
+  const cols = weekStartsOn === 0 ? COLS : buildWeeklyGanttColumnsFromCampaign(START, END, 1)
+  const keys = cols.map((c) => c.weekKey)
+  const grid = weekStartsOn === 0 ? "" : " (Monday grid)"
+  for (const { shape, flights, editWeek, groups } of CASE2_SHAPES) {
+    for (const name of SPREAD_CHANNELS) {
+      const ch = chan(name)
+      for (const v of VARIANTS) {
+        const key = `${name} | ${variantName(v)} | ${shape}${grid}`
+        const saved = savedPlan(ch, v).map((l) => ({ ...l, bursts: flights.map((f) => savedBurst(l.buyType, l._label.endsWith("awkward") ? "awkward" : "round", v, f)) }))
+        const open = (lines: any[]) => ch.toExpert(lines, cols, START, END, ...(ch.toExpertFee ? [{ feePct: v.fee }] : []))
 
-      test(`${key}: nothing hidden, and no edit returns every line as saved (C361b)`, () => {
-        const rows = open(saved)
-        for (const l of saved) {
-          assert.equal(hiddenOrDropped(rowOf(rows, l.line_item_id)), 0, `${l._label}: the grid hides a quantity`)
-        }
-        const moves = movesBetween(saved, applyNoEdit(ch, v, saved))
-        assert.equal(summary(moves), NO_MOVES, moves.sample.join("; "))
-      })
+        test(`${key}: nothing hidden, and no edit returns every line as saved (C361b)`, () => {
+          const rows = open(saved)
+          for (const l of saved) {
+            assert.equal(hiddenOrDropped(rowOf(rows, l.line_item_id), keys), 0, `${l._label}: the grid hides a quantity`)
+          }
+          const moves = movesBetween(saved, applyNoEdit(ch, v, saved, undefined, cols))
+          assert.equal(summary(moves), NO_MOVES, moves.sample.join("; "))
+        })
 
-      test(`${key}: the carry's groups come from the saved dates, not from the cells (C361b)`, () => {
-        const rows = open(saved)
-        for (const l of saved) {
-          const row = rowOf(rows, l.line_item_id)
-          const got = carryGroups(row)
-          assert.deepEqual(got.map((g: any) => g.weeks), groups.map((g) => [...g]), `${l._label}: groups`)
-          // The same line with every cell laid out differently (no span, no
-          // day cell, 1 in every week) gives the same groups and bursts.
-          const flat = { ...row, expertCarry: undefined, mergedWeekSpans: [], dailyValues: {}, weeklyValues: Object.fromEntries(weekKeys.map((k) => [k, 1])) }
-          attachExpertCarry([flat], [l], COLS, START, END)
-          assert.deepEqual(carryGroups(flat), got, `${l._label}: the groups moved with the layout`)
-        }
-      })
+        test(`${key}: the carry's groups come from the saved dates, not from the cells (C361b)`, () => {
+          const rows = open(saved)
+          for (const l of saved) {
+            const row = rowOf(rows, l.line_item_id)
+            const got = carryGroups(row)
+            assert.deepEqual(
+              got.map((g: any) => g.weeks),
+              groups[weekStartsOn].map((g) => g.map((i) => keys[i]!)),
+              `${l._label}: groups`
+            )
+            // The same line with every cell laid out differently (no span, no
+            // day cell, 1 in every week) gives the same groups and bursts.
+            const flat = { ...row, expertCarry: undefined, mergedWeekSpans: [], dailyValues: {}, weeklyValues: Object.fromEntries(keys.map((k) => [k, 1])) }
+            attachExpertCarry([flat], [l], cols, START, END)
+            assert.deepEqual(carryGroups(flat), got, `${l._label}: the groups moved with the layout`)
+          }
+        })
 
-      test(`${key}: an edited group saves what the grid's money shows (C361b)`, () => {
-        const fee = v.fee
-        const opts: Record<string, unknown> = ch.feeOnly ? { [ch.feeKey]: fee } : { [ch.feeKey]: fee, budgetIncludesFees: v.incl }
-        const rated = saved.filter((l) => RATE_PRICED.has(l.buyType))
-        const rows = open(rated)
-        const k = weekKeys[editWeek]!
-        for (const l of rated) {
-          const row = rowOf(rows, l.line_item_id)
-          assert.ok(Number(row.weeklyValues[k]) > 0, `${l._label}: week ${editWeek + 1} holds a week cell`)
-          row.weeklyValues[k] = Number(row.weeklyValues[k]) + 1
-        }
-        const applied = readLines(ch.merge(ch.fromExpert(rows, COLS, START, END, opts), rated))
-        for (const l of rated) {
-          const row = rowOf(rows, l.line_item_id)
-          const line = applied.get(l.line_item_id)!
-          const saves = line.bursts.reduce((c, b) => c + b.cents, 0)
-          const shows = cents(expertRowCostSplit(row, weekKeys, fee).raw)
-          assert.ok(Math.abs(saves - shows) <= line.bursts.length, `${l._label}: Apply saves ${saves}c, the grid shows ${shows}c`)
-          const qty = line.bursts.reduce((q, b) => q + b.deliverables, 0)
-          assert.ok(Math.abs(qty - expertRowQuantitySum(row, weekKeys)) < 1e-6, `${l._label}: deliverables ${qty}`)
-        }
-      })
+        test(`${key}: an edited group saves what the grid's money shows (C361b)`, () => {
+          const fee = v.fee
+          const opts: Record<string, unknown> = ch.feeOnly ? { [ch.feeKey]: fee } : { [ch.feeKey]: fee, budgetIncludesFees: v.incl }
+          const rated = saved.filter((l) => RATE_PRICED.has(l.buyType))
+          const rows = open(rated)
+          for (const l of rated) {
+            const edited = editFirstCell(rowOf(rows, l.line_item_id), keys)
+            if (weekStartsOn === 0) assert.equal(edited, keys[editWeek], `${l._label}: week ${editWeek + 1} holds a week cell`)
+          }
+          const applied = readLines(ch.merge(ch.fromExpert(rows, cols, START, END, opts), rated))
+          for (const l of rated) {
+            const row = rowOf(rows, l.line_item_id)
+            const line = applied.get(l.line_item_id)!
+            const saves = line.bursts.reduce((c, b) => c + b.cents, 0)
+            const shows = cents(expertRowCostSplit(row, keys, fee).raw)
+            assert.ok(Math.abs(saves - shows) <= line.bursts.length, `${l._label}: Apply saves ${saves}c, the grid shows ${shows}c`)
+            const qty = line.bursts.reduce((q, b) => q + b.deliverables, 0)
+            assert.ok(Math.abs(qty - expertRowQuantitySum(row, keys)) < 1e-6, `${l._label}: deliverables ${qty}`)
+          }
+        })
+      }
     }
   }
 }

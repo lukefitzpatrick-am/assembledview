@@ -94,6 +94,17 @@ for (const [name, toExpert, buyType] of SIX) {
     assert.deepEqual(cellsOf(row), ["", "", 7, ""])
   })
 
+  test(`${name}: a one-week burst over a week that holds a week cell does not open as a span (V93 A, C361bfix)`, () => {
+    // 7 Mar 8 to 21 (a span over weeks 2 and 3); 7 Mar 1 to 14 overlap it, all
+    // in week 1; 7 Mar 1 to 7 cover only week 1, which holds that cell: no span
+    // over it (a span would hide the 7 and an edited Apply would drop them),
+    // so week 1 holds 14.
+    const row = openWith(toExpert, line(buyType, [[7, "2026-03-08", "2026-03-21"], [7, "2026-03-01", "2026-03-14"], [7, "2026-03-01", "2026-03-07"]]))
+    assert.deepEqual(spansOf(row), [["2026-03-08", "2026-03-15", 7]])
+    assert.deepEqual(cellsOf(row), [14, "", "", ""])
+    assert.deepEqual(daysOf(row), {})
+  })
+
   test(`${name}: a burst over weeks that hold nothing still opens as a span`, () => {
     // 7 Mar 1 to 7 (a span); 7 Mar 15 to 28 touches no taken week: a second span.
     const row = openWith(toExpert, line(buyType, [[7, "2026-03-01", "2026-03-07"], [7, "2026-03-15", "2026-03-28"]]))
