@@ -204,6 +204,17 @@ const takesGridQty = (bt: string) => isInclusion(bt) || bt === "fixed_cost"
  * Fixed cost always opens as 1, and package inclusions opens as 1 on the
  * fourteen non-spread grids, so neither is ever counted here. Production
  * opens its amount.
+ *
+ * shortcut: a second copy of the imports' quantity rules, not what each
+ * import placed (C-370, C370 review F4; live 0). Too narrow: OOH (not panels)
+ * and the 13 week-cell imports read deliverables only, so a burst with a
+ * budget and a rate but 0 deliverables is neither placed nor carried, and
+ * Radio opens a budget under one spot as 0: a no-edit Apply drops either.
+ * Too wide: on an OOH panels line a burst with its own bonus type, a rate and
+ * 0 panels opens its rate as the count but is counted here, so beside a
+ * placed burst in a shown week an edited Apply writes it twice. Upgrade when
+ * a live line has either shape or V104 to V106 are built: each import
+ * records the bursts it placed and `attachExpertCarry` reads that.
  */
 function opensNoQuantity(b: Record<string, unknown>, bt: string, lineBuyType: string): boolean {
   if (bt === "fixed_cost" || bt === "package_inclusions") return false
