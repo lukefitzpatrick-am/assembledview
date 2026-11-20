@@ -6,7 +6,9 @@
  * name in a form whose submit writes the network and the station to the line;
  * a blank name shows on the field; Escape and Cancel close it and focus goes
  * back to the button; a line with no network gets a prompt, not the dialog.
- * Nothing is stored or listed (station stub option A).
+ * Nothing is stored or listed (station stub option A). Also Cinema's own
+ * screen rules on the shared shell: the card summary shows Network and the
+ * line summary counts deliverables by Cinema's card rule.
  *
  * @vitest-environment jsdom
  */
@@ -221,5 +223,40 @@ describe("Cinema Add Station access (W5f)", () => {
     await settle(50)
     expect(dialogFor(), "Cancel closes").toBeUndefined()
     expect(document.activeElement, "focus back after Cancel").toBe(button)
+  }, 30_000)
+
+  it("the card summary shows the line's network and the line summary counts deliverables by Cinema's card rule", async () => {
+    act(() => {
+      root.render(
+        <CinemaContainer
+          clientId="client-1"
+          feecinema={0}
+          onTotalMediaChange={noop}
+          onBurstsChange={noop}
+          onInvestmentChange={noop}
+          onLineItemsChange={noop}
+          onMediaLineItemsChange={noop}
+          campaignStartDate={new Date(2026, 0, 5)}
+          campaignEndDate={new Date(2026, 2, 31)}
+          campaignBudget={0}
+          campaignId=""
+          mediaTypes={[]}
+          initialLineItems={[
+            {
+              line_item_id: "tst001CN1",
+              line_item: 1,
+              network: "Hoyts",
+              buy_type: "package",
+              // Saved quantity 8; Cinema's card rule gives $12,000.00 / $1,000.00 = 12.
+              bursts: [{ budget: "$12,000.00", buyAmount: "$1,000.00", calculatedValue: 8, startDate: "2026-01-05", endDate: "2026-01-31" }],
+            },
+          ]}
+        />,
+      )
+    })
+    await settle()
+    const summary = [...host.querySelectorAll("span")].find((s) => /media ·/.test(s.textContent ?? ""))
+    expect(summary?.textContent).toMatch(/· 12 deliverables$/)
+    expect(host.textContent).toContain("Network: Hoyts")
   }, 30_000)
 })
