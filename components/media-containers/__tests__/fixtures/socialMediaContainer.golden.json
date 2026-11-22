@@ -2555,7 +2555,8 @@
             "buyAmount": "",
             "startDate": "2026-01-04T13:00:00.000Z",
             "endDate": "2026-03-30T13:00:00.000Z",
-            "calculatedValue": 0
+            "calculatedValue": 0,
+            "fee": 0
           }
         ],
         "feePct": 12.5,

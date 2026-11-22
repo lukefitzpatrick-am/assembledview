@@ -12956,6 +12956,7 @@
             "buyAmount": "",
             "calculatedValue": 0,
             "endDate": "2026-03-30T13:00:00.000Z",
+            "fee": 0,
             "startDate": "2026-01-04T13:00:00.000Z"
           }
         ],
@@ -13024,6 +13025,7 @@
             "buyAmount": "",
             "calculatedValue": 0,
             "endDate": "2026-03-30T13:00:00.000Z",
+            "fee": 0,
             "startDate": "2026-01-04T13:00:00.000Z"
           }
         ],

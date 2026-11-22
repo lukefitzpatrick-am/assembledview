@@ -78,3 +78,10 @@ for (const wso of [0, 1] as const) {
     })
   }
 }
+
+for (const wso of [0, 1] as const) {
+  test(`Integration, ${wso ? "Monday" : "Sunday"} grid: a lump-sum line's burst comes back as the line's own burst, every field as held (V105 A)`, () => {
+    const own = { budget: "$7,000.00", buyAmount: "$7,000.00", calculatedValue: 0, fee: 0, startDate: "2026-05-03", endDate: "2026-05-24" }
+    assert.deepEqual(run(INTEGRATION, lineOf("package", [own]), wso).applied.bursts, [own])
+  })
+}

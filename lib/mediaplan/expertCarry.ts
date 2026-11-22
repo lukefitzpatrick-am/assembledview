@@ -70,8 +70,11 @@ type CarriedBurst = {
   takesGridQty: boolean
   startYmd: string
   endYmd: string
-  /** C-370: a burst the grid cannot place (or, V105 A, carried in a lump-sum week 1); no value the mapper wrote elsewhere stands in for one it was saved without. */
-  unplaced?: true
+  /**
+   * C-370: a burst the grid cannot place (or, V105 A, carried in a lump-sum week 1) has no
+   * cell of its own, so Apply gives back the line's own burst, every field as the line held it.
+   */
+  asSaved?: Record<string, unknown>
 }
 
 type ExpertCarryGroup = {
@@ -281,7 +284,7 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
       for (const k of keys) if (!parent.has(k)) parent.set(k, k)
       for (const k of keys.slice(1)) parent.set(find(k), find(keys[0]!))
     }
-    const seen: { b: Record<string, unknown>; keys: string[]; saved: CarriedBurst; noCell: boolean }[] = []
+    const seen: { raw: Record<string, unknown>; b: Record<string, unknown>; keys: string[]; saved: CarriedBurst; noCell: boolean }[] = []
     for (const raw of rawBursts(item)) {
       // V104 A: `ProductionContainer`'s load keeps cost, amount and dates only. Read them as the
       // Production import does (`normalizeProductionBursts`): budget cost x amount, rate and deliverables the amount.
@@ -309,7 +312,7 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
       // V102 A: a burst with no quantity counts whatever its budget (a blank one is $0).
       const noCell =
         opensNoQuantity(b, bt, lineBuyType) || (keys.length === 0 && (present(b.budget) || isInclusion(bt)))
-      seen.push({ b, keys, saved, noCell })
+      seen.push({ raw, b, keys, saved, noCell })
     }
     // Backstop: every week no other burst touches must be blank. If one holds a
     // quantity, something opened one for these bursts after all (an import
@@ -326,11 +329,11 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
     const lump = opened && weekKeys.every((k, i) => holdsQuantity(row, [k], weekKeys) === (i === 0))
     if (lump) {
       join(weekKeys.slice(0, 1))
-      for (const { saved } of seen) placed.push({ key: weekKeys[0]!, burst: { ...saved, unplaced: true } })
+      for (const { raw, saved } of seen) placed.push({ key: weekKeys[0]!, burst: { ...saved, asSaved: raw } })
     }
-    for (const { b, keys, saved, noCell } of lump ? [] : seen) {
+    for (const { raw, b, keys, saved, noCell } of lump ? [] : seen) {
       if (noCell && !opened) {
-        unplaced.push({ ...saved, takesGridQty: false, unplaced: true })
+        unplaced.push({ ...saved, asSaved: raw })
         continue
       }
       if (!reachesGrid(b, lineBuyType) || keys.length === 0) continue
@@ -429,8 +432,6 @@ function carriedBurst<B extends Record<string, unknown>>(template: B, saved: Car
   if ("buyAmount" in template && present(saved.buyAmount)) {
     out.buyAmount = carriedBuyAmount(template.buyAmount, saved.buyAmount)
   }
-  // C-370: a burst the grid cannot place has no mapper value of its own: a blank rate stays blank.
-  if ("buyAmount" in template && !present(saved.buyAmount) && saved.unplaced) out.buyAmount = saved.buyAmount ?? ""
   if ("calculatedValue" in template) {
     const qty = storedQty(saved.calculatedValue)
     if (qty > 0 || !saved.takesGridQty) out.calculatedValue = qty
@@ -492,13 +493,12 @@ function applyExpertCarry<L>(row: ExpertCarryRow, line: L, weekKeys: readonly st
     if (done.has(g)) continue
     done.add(g)
     const mine = generated.get(g)!
-    groups[g]!.bursts.forEach((saved, n) => out.push(carriedBurst(mine[n] ?? mine[0]!, saved)))
+    groups[g]!.bursts.forEach((saved, n) => out.push(saved.asSaved ? { ...saved.asSaved } : carriedBurst(mine[n] ?? mine[0]!, saved)))
   }
   // Each unplaced burst goes back in date order, after any burst that starts the same day.
-  const template = (bursts as Record<string, unknown>[])[0]!
   for (const saved of unplaced) {
     const at = out.findIndex((b) => ymd(b.startDate) > saved.startYmd)
-    out.splice(at < 0 ? out.length : at, 0, carriedBurst(template, saved))
+    out.splice(at < 0 ? out.length : at, 0, { ...saved.asSaved })
   }
   return { ...line, bursts: out }
 }

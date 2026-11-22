@@ -85,3 +85,11 @@ for (const wso of [0, 1] as const) {
     })
   }
 }
+
+for (const wso of [0, 1] as const) {
+  test(`Search, ${wso ? "Monday" : "Sunday"} grid: a burst the grid cannot place comes back as the line's own burst, every field as held (blank budget, its fee key)`, () => {
+    const own = { budget: "", buyAmount: "", calculatedValue: 0, fee: 0, startDate: "2026-03-15T03:04:05.678Z", endDate: "2026-03-21T03:04:05.678Z" }
+    const saved = lineOf("cpc", [{ budget: "$1,950.00", buyAmount: "$2.00", calculatedValue: 975, startDate: "2026-03-01", endDate: "2026-03-07" }, own])
+    assert.deepEqual(run(CHANNELS[3]!, saved, wso).applied.bursts.find((b: any) => b.startDate === own.startDate), own)
+  })
+}
