@@ -20,8 +20,10 @@ test("sitePath: stored URL or path first, else /sites/cli-<id>; anything else re
   assert.equal(sitePath("/sites/cli-golf", null), "/sites/cli-golf")
   assert.equal(sitePath(null, "LEGAL"), "/sites/cli-legal")
   assert.equal(sitePath("", null), null)
-  assert.equal(sitePath("https://evil.example/sites/a/../b", null), null)
+  assert.equal(sitePath("https://other.example/sites/a/../b", null), "/sites/a") // first segment only, on SHAREPOINT_HOST
   assert.equal(sitePath("/personal/luke", null), null)
+  assert.equal(sitePath("https://assembledmedia.sharepoint.com/sites/cli-bic/SitePages/Home.aspx", null), "/sites/cli-bic")
+  assert.equal(sitePath("not a url", "golf"), "/sites/cli-golf")
 })
 
 test("odataQuote doubles single quotes", () => {
@@ -39,8 +41,20 @@ test("fileText reads docx, pptx, xlsx and csv; null for an unknown type", async 
   assert.equal(await fileText("d.pptx", await pptx.generateAsync({ type: "nodebuffer" })), "Slide 1\nTwo\n\nSlide 2\nTen")
 
   const wb = new ExcelJS.Workbook()
-  wb.addWorksheet("Plan").addRows([["Channel", "Budget"], ["Search", 1200]])
-  assert.equal(await fileText("p.xlsx", Buffer.from(await wb.xlsx.writeBuffer())), "Sheet Plan\nChannel\tBudget\nSearch\t1200")
+  wb.addWorksheet("Plan").addRows([
+    ["Channel", "Budget"],
+    ["Search", 1200],
+    [
+      { richText: [{ text: "Rich " }, { text: "text" }] },
+      { text: "Link", hyperlink: "https://x.example" },
+      { formula: "B2*2", result: 2400 },
+      new Date(Date.UTC(2026, 0, 1)),
+    ],
+  ])
+  assert.equal(
+    await fileText("p.xlsx", Buffer.from(await wb.xlsx.writeBuffer())),
+    "Sheet Plan\nChannel\tBudget\nSearch\t1200\nRich text\tLink\t2400\t2026-01-01",
+  )
 
   assert.equal(await fileText("a.csv", Buffer.from("a,b")), "a,b")
   assert.equal(await fileText("a.zip", Buffer.from("x")), null)

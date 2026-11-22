@@ -34,6 +34,17 @@ import type { AvaToolContext, AvaToolResult } from "./types"
 const TEXT_CAP = 20_000
 const MAX_BYTES = 15 * 1024 * 1024
 const HITS = 25
+const UNZIPPED_CAP = 50 * 1024 * 1024
+
+/** Zip entries over the cap are refused before they inflate (zip bombs). */
+async function loadZip(bytes: Buffer): Promise<JSZip> {
+  const zip = await JSZip.loadAsync(bytes)
+  for (const f of Object.values(zip.files)) {
+    const size = (f as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0
+    if (size > UNZIPPED_CAP) throw new Error(`File part ${f.name} is too large to read.`)
+  }
+  return zip
+}
 
 export const searchClientFilesInput = z.object({
   client: z.string().trim().min(1).optional(),
@@ -43,9 +54,9 @@ export const searchClientFilesInput = z.object({
 
 /** Server-relative site path from a stored URL or path. Null when it isn't a /sites/ path. */
 export function sitePath(stored: unknown, mbaidentifier: string | null): string | null {
-  const raw = String(stored ?? "").trim()
-  const path = raw ? raw.replace(/^https:\/\/[^/]+/i, "").replace(/\/+$/, "") : siteUrlForClient(mbaidentifier)
-  return path && /^\/sites\/[A-Za-z0-9_-]+$/.test(path) ? path : null
+  const ok = (p: string | null) => (p && /^\/sites\/[A-Za-z0-9_-]+$/.test(p) ? p : null)
+  const fromStored = String(stored ?? "").trim().match(/^(?:https:\/\/[^/]+)?(\/sites\/[^/?#]+)/i)?.[1] ?? null
+  return ok(fromStored) ?? ok(siteUrlForClient(mbaidentifier))
 }
 
 /** OData string literal: single quotes doubled. */
@@ -68,27 +79,35 @@ export async function fileText(name: string, bytes: Buffer): Promise<string | nu
   if (["txt", "csv", "md", "json"].includes(ext)) return bytes.toString("utf8")
   if (ext === "pdf") return (await extractSpecPdfText(bytes)).text
   if (ext === "docx") {
-    const xml = await (await JSZip.loadAsync(bytes)).file("word/document.xml")?.async("string")
+    const xml = await (await loadZip(bytes)).file("word/document.xml")?.async("string")
     return xml ? stripXml(xml, "w:p") : null
   }
   if (ext === "pptx") {
-    const zip = await JSZip.loadAsync(bytes)
+    const zip = await loadZip(bytes)
     const slides = Object.keys(zip.files)
       .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
       .sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0]))
-    const parts = await Promise.all(slides.map(async (f, i) => `Slide ${i + 1}\n${stripXml(await zip.file(f)!.async("string"), "a:p")}`))
-    return parts.join("\n\n")
+    let out = ""
+    for (const [i, f] of slides.entries()) {
+      if (out.length > TEXT_CAP) break
+      out += `${out ? "\n\n" : ""}Slide ${i + 1}\n${stripXml(await zip.file(f)!.async("string"), "a:p")}`
+    }
+    return out
   }
   if (ext === "xlsx") {
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(bytes as unknown as ArrayBuffer)
-    return wb.worksheets
-      .map((ws) => {
-        const rows: string[] = []
-        ws.eachRow((row) => rows.push((row.values as unknown[]).slice(1).map((v) => (v && typeof v === "object" && "result" in v ? String((v as { result: unknown }).result) : String(v ?? ""))).join("\t")))
-        return `Sheet ${ws.name}\n${rows.join("\n")}`
+    let out = ""
+    for (const ws of wb.worksheets) {
+      out += `${out ? "\n\n" : ""}Sheet ${ws.name}`
+      ws.eachRow((row) => {
+        if (out.length > TEXT_CAP) return
+        const cells: string[] = []
+        row.eachCell({ includeEmpty: true }, (c) => cells.push(c.value instanceof Date ? c.value.toISOString().slice(0, 10) : c.text))
+        out += `\n${cells.join("\t")}`
       })
-      .join("\n\n")
+    }
+    return out
   }
   return null
 }
@@ -105,7 +124,11 @@ function graphToken(): Promise<string> {
 }
 
 async function graph(path: string): Promise<Response> {
-  const res = await fetch(`${MS_GRAPH_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${await graphToken()}` } })
+  const res = await fetch(`${MS_GRAPH_BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${await graphToken()}` },
+    signal: AbortSignal.timeout(20_000),
+  })
+  if (res.status === 429) throw new Error(`SharePoint is busy. Try again in ${res.headers.get("retry-after") ?? "a minute"} seconds, not straight away.`)
   if (!res.ok) throw new Error(res.status === 403 || res.status === 404 ? `SharePoint said ${res.status}: the site isn't shared with AssembledView, or the file isn't on it.` : `SharePoint said ${res.status}.`)
   return res
 }
@@ -161,8 +184,9 @@ export const searchClientFilesTool: AvaTool = {
     try {
       const group = resolveClientGroup(await getCachedClients(), scoped.slug)
       if (!group) return { content: `No client found for "${scoped.slug}".`, isError: true }
-      const path = sitePath(group.anchor.sharepoint_site_url, group.mbaidentifier)
-      if (!path) return { content: `${scoped.slug} has no SharePoint site on record (no MBA identifier).`, isError: true }
+      const stored = [group.anchor, ...group.members].map((r) => r.sharepoint_site_url).find((u) => String(u ?? "").trim())
+      const path = sitePath(stored, group.mbaidentifier)
+      if (!path) return { content: `${scoped.slug} has no SharePoint site on record (no usable site URL or MBA identifier).`, isError: true }
       const site = (await (await graph(`/sites/${SHAREPOINT_HOST}:${path}?$select=id,displayName`)).json()) as { id: string; displayName?: string }
       // shortcut: the site's default library (Shared Documents) only; add /drives when a client keeps files elsewhere.
       const drive = `/sites/${encodeURIComponent(site.id)}/drive`
