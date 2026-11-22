@@ -46,6 +46,7 @@ import { runScenarioTool } from "./runScenario";
 import { previewBillingRevisionTool } from "./previewBillingRevision";
 import { applyBillingRevisionTool } from "./applyBillingRevision";
 import { queryTrueUpTool } from "./queryTrueUp";
+import { queryDataTool } from "./queryData";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -85,6 +86,7 @@ const AVA_TOOLS: AvaTool[] = [
   previewBillingRevisionTool,
   applyBillingRevisionTool,
   queryTrueUpTool,
+  queryDataTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);

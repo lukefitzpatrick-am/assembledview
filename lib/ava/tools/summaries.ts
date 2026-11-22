@@ -60,6 +60,7 @@ export const AVA_TOOL_NAMES = [
   "preview_billing_revision",
   "apply_billing_revision",
   "query_true_up",
+  "query_data",
 ] as const
 
 /**

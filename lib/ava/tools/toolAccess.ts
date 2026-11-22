@@ -74,6 +74,7 @@ export const AVA_TOOL_TAGS: Record<AvaToolName, AvaToolTag> = {
   preview_billing_revision: { access: "write" },
   apply_billing_revision: { access: "write" },
   query_true_up: { access: "read" },
+  query_data: { access: "read" },
 }
 
 /** The registry's tags. Unknown names return undefined (treated as write). */

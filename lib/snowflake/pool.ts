@@ -777,7 +777,12 @@ async function connectConnection(
   })
 }
 
-async function getServerlessConnection(requestId: string, signal?: AbortSignal): Promise<snowflake.Connection> {
+/** `role` overrides SNOWFLAKE_ROLE for this one connection (Ava query_data uses AVA_READONLY). */
+export async function getServerlessConnection(
+  requestId: string,
+  signal?: AbortSignal,
+  role?: string,
+): Promise<snowflake.Connection> {
   throwIfAborted(signal)
   const env = getEnv()
   validateSnowflakeConfig(env)
@@ -786,7 +791,7 @@ async function getServerlessConnection(requestId: string, signal?: AbortSignal):
   const connection = snowflake.createConnection({
     account: env.account!,
     username: env.username!,
-    role: env.role!,
+    role: role ?? env.role!,
     warehouse: env.warehouse!,
     database: env.database!,
     schema: env.schema!,
@@ -892,7 +897,7 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function destroyConnection(connection: snowflake.Connection) {
+export function destroyConnection(connection: snowflake.Connection) {
   try {
     connection.destroy((err) => {
       if (err) {
@@ -1367,7 +1372,7 @@ async function executeHealthCheckQuery(
   })
 }
 
-async function executeWithTimeout<T = any>(
+export async function executeWithTimeout<T = any>(
   connection: snowflake.Connection,
   sqlText: string,
   binds: any[] = [],

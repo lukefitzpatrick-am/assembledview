@@ -466,6 +466,18 @@ export const FEATURE_DEFINITIONS = [
    *      CODEX_V2 env var can then be deleted in Vercel).
    */
   {
+    key: "ava_data_query",
+    label: "Ava: query Supabase and Snowflake",
+    description:
+      "Ava gets query_data: her own read-only SELECT on Supabase (as ava_readonly, the tables already granted to her) or Snowflake ASSEMBLEDVIEW.MART (as role AVA_READONLY, no secondary roles), at most 200 rows. Admins only, never on /tasks. Before turning on: run sql/snowflake/roles/AVA_READONLY.sql in Snowsight (Supabase needs nothing new). Off: Ava has only her purpose-built tools.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "codex_v2",
     label: "Tasks (Codex)",
     description:
