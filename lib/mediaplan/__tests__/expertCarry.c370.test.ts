@@ -309,8 +309,10 @@ test("Search: a package inclusions burst saved with 0 that shares a week opens a
     { budget: "0", buyAmount: "0", calculatedValue: 0, startDate: "2026-03-08", endDate: "2026-03-14" },
   ])
   const edited = run(search, saved, 0, 0, (row, keys) => doubleWeek(row, keys, "2026-03-01"))
-  const gridQty = Object.values(edited.row.weeklyValues).reduce((q: number, v: any) => q + Number(v || 0), 0)
-  assert.equal(qtyOfLine(edited.applied), gridQty)
+  // C371 (V106 A): its 1, in a week under the span, folds into the span (2 + 1), so the grid shows one
+  // span and no week cell, and Apply writes that one span's burst.
+  assert.deepEqual(edited.row.mergedWeekSpans.map((sp: any) => sp.totalQty), [6])
+  assert.equal(Object.values(edited.row.weeklyValues).filter((v: any) => Number(v) > 0).length, 0)
+  assert.equal(edited.applied.bursts.length, 1)
   assert.ok(!edited.applied.bursts.some((b: any) => Number(b.calculatedValue) === 0))
 })
-const qtyOfLine = (line: any) => (line.bursts ?? []).reduce((t: number, b: any) => t + Number(b.calculatedValue || 0), 0)

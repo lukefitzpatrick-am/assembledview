@@ -24,7 +24,7 @@ import {
   type MoneyFormatOptions,
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
-import { projectLumpSumCardBudgetsOntoExpertRows } from "./cardExpertBudgetSync"
+import { projectLumpSumCardBudgetsOntoExpertRows, type LumpSumProjectableExpertRow } from "./cardExpertBudgetSync"
 import { attachExpertCarry, mapRowsWithCarry } from "./expertCarry"
 import { ingestSourceRowRefsFromFormSnapshot } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import {
@@ -612,6 +612,46 @@ function accumulateDistributableBurstForExpertImport(
     totalDeliverables,
     open.length > 0 ? open : shown.length > 0 ? shown : overlapKeys
   )
+}
+
+/**
+ * The 13 week-cell grids' open (Digital Video, Digital Display, Social,
+ * Search, Influencers, Integration, Newspaper, Magazines, the five
+ * programmatic): C-371's fold, then the card's lump sum, then the carry (a
+ * burst dated outside the campaign sits in the first or last week).
+ *
+ * C-371 (V106 A): a week cell or day cells in a week under exactly one span
+ * fold into that span, as the grid's merge sums the week and day values under
+ * a new span into its total (`handleMergeSelectedWeeks`), so the grid shows
+ * the quantity and Apply writes it. These imports open every burst with the
+ * line's buy type, so the buy types always match. A week under two spans
+ * (overlapping spans, which the grid never makes) is left as before. So is a
+ * fixed cost line until V96 (C-369: one less priced cell changes its money).
+ * The fold runs before the lump sum: the lump sum is not a burst, and a lump
+ * put in a span would be priced on a no-edit Apply (V105 A carries it as week 1).
+ */
+function openWeekCellGridRows<R extends LumpSumProjectableExpertRow>(
+  rows: R[],
+  lineItems: Parameters<typeof attachExpertCarry>[1],
+  weekColumns: WeeklyGanttWeekColumn[],
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  lumpOptions?: Parameters<typeof projectLumpSumCardBudgetsOntoExpertRows>[2]
+): R[] {
+  const weekKeys = weekColumns.map((c) => c.weekKey)
+  for (const row of rows) {
+    if (String(row.buyType ?? "").toLowerCase() === "fixed_cost") continue
+    weekKeys.forEach((k, i) => {
+      const over = (row.mergedWeekSpans ?? []).filter((sp) => sp.startWeekKey <= k && k <= sp.endWeekKey)
+      if (over.length !== 1) return
+      const days = Object.keys(row.dailyValues ?? {}).filter((d) => d >= k && d < (weekKeys[i + 1] ?? "9999"))
+      const sp = over[0]!
+      sp.totalQty = parseNum(sp.totalQty) + parseNum(row.weeklyValues[k]) + days.reduce((t, d) => t + parseNum(row.dailyValues![d]), 0)
+      row.weeklyValues[k] = ""
+      for (const d of days) delete row.dailyValues![d]
+    })
+  }
+  return attachExpertCarry(projectLumpSumCardBudgetsOntoExpertRows(rows, weekKeys, lumpOptions), lineItems, weekColumns, campaignStartDate, campaignEndDate, true)
 }
 
 /** Resolve export burst dates: day override > span overrides > week window. */
@@ -3963,17 +4003,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Digital Display `digidisplaylineItems` entry shape used by {@link DigitalDisplayContainer}. */
@@ -4408,17 +4438,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Digital Audio `digiaudiolineItems` entry shape used by {@link DigitalAudioContainer}. */
@@ -5278,17 +5298,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Search `lineItems` entry shape used by {@link SearchContainer}. */
@@ -5705,17 +5715,7 @@ export function mapStandardSearchLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Influencers `lineItems` entry shape used by {@link InfluencersContainer}. */
@@ -6151,17 +6151,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Integration `lineItems` entry shape used by {@link IntegrationContainer}. */
@@ -6597,17 +6587,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey)
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate)
 }
 
 /** Newspaper `newspaperlineItems` entry shape used by {@link NewspaperContainer}. */
@@ -6966,19 +6946,8 @@ export function mapStandardNewspaperLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 /** Magazines `magazineslineItems` entry shape used by {@link MagazinesContainer}. */
@@ -7332,19 +7301,8 @@ export function mapStandardMagazineLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 // --- Programmatic (Audio / BVOD / Display / OOH / Video) expert mappings ---
@@ -7819,19 +7777,8 @@ export function mapStandardProgAudioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 /** Prog BVOD `lineItems` shape (see {@link ProgBVODContainer}). */
@@ -8021,19 +7968,8 @@ export function mapStandardProgBvodLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 /** Prog Display `lineItems` shape (see {@link ProgDisplayContainer}). */
@@ -8235,19 +8171,8 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 /** Prog Video `lineItems` shape (see {@link ProgVideoContainer}). */
@@ -8443,19 +8368,8 @@ export function mapStandardProgVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
 
 /** Prog OOH `lineItems` shape (see {@link ProgOOHContainer}). */
@@ -8648,17 +8562,6 @@ export function mapStandardProgOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
-  return attachExpertCarry(
-    projectLumpSumCardBudgetsOntoExpertRows(
-      __expertImportRows,
-      weekColumns.map((c) => c.weekKey),
-      // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
-      { keepZeroPackageQty: true }
-    ),
-    lineItems,
-    weekColumns,
-    campaignStartDate,
-    campaignEndDate,
-    /* outsideToEdgeWeek */ true
-  )
+  // B35 (C-168 (d)): a package with no quantity keeps 0; Apply keeps the card's bursts.
+  return openWeekCellGridRows(__expertImportRows, lineItems, weekColumns, campaignStartDate, campaignEndDate, { keepZeroPackageQty: true })
 }
