@@ -225,9 +225,9 @@ function opensNoQuantity(b: Record<string, unknown>, bt: string, lineBuyType: st
 }
 
 /**
- * A saved burst the carry can give back: it has a budget (a Production burst
- * saved as cost and amount only, or a blank budget, is priced by the mapper as
- * before), and a quantity, or is a bonus, package inclusions or fixed cost
+ * A saved burst the carry can give back: it has a budget (a blank budget is
+ * priced by the mapper as before; a Production burst saved as cost and amount
+ * only reads cost x amount, V104 A), and a quantity, or is a bonus, package inclusions or fixed cost
  * burst (the import places those whatever their quantity), or is a panels
  * burst with a rate: OOH's import reads the rate as the panel count when the
  * deliverables are 0 or blank (`panelsBurstQtyForExpert`), so it reached the
@@ -282,7 +282,12 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
       for (const k of keys.slice(1)) parent.set(find(k), find(keys[0]!))
     }
     const seen: { b: Record<string, unknown>; keys: string[]; saved: CarriedBurst; noCell: boolean }[] = []
-    for (const b of rawBursts(item)) {
+    for (const raw of rawBursts(item)) {
+      // V104 A: `ProductionContainer`'s load keeps cost, amount and dates only. Read them as the
+      // Production import does (`normalizeProductionBursts`): budget cost x amount, rate and deliverables the amount.
+      const b = present(raw.budget) || !("cost" in raw)
+        ? raw
+        : { buyAmount: String(storedQty(raw.amount)), calculatedValue: raw.amount, ...raw, budget: plainMoney(storedQty(raw.cost) * storedQty(raw.amount)) }
       const startYmd = ymd(b.startDate ?? b.start_date)
       const endYmd = ymd(b.endDate ?? b.end_date) || startYmd
       if (!startYmd) continue

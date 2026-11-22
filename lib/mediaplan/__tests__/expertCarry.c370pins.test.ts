@@ -3,8 +3,7 @@ import "@/lib/testing/bothZones"
  * C370fix: pins the C370 review found missing (F5, F6, F1). No source
  * change. Each kills a mutation that survived the expert core and the broad
  * `lib/mediaplan/` and `tests/lib/` suites (review V6, V7, V12, V17, V18).
- * The Production pin documents an older drop on the container path and is
- * skipped until V104 is built. Sunday and Monday grids, both zones.
+ * The Production pin runs on the container's load shape (V104 A, C371). Sunday and Monday grids, both zones.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -144,8 +143,7 @@ for (const wso of GRIDS) {
 // --- F1 (review): Production on the container path (V104) ----------------------------
 
 test(
-  "Production on ProductionContainer's load shape (cost, amount, dates, no budget): a burst after the campaign end comes back as saved untouched",
-  { skip: "known failure until V104 (C-370, review F1): ProductionContainer's load keeps no budget, so the carry never engages and Apply drops the burst" },
+  "Production on ProductionContainer's load shape (cost, amount, dates, no budget): a burst after the campaign end comes back as saved untouched (V104 A, C371)",
   () => {
     const d = (y: number, m: number, dd: number) => new Date(y, m - 1, dd)
     const saved: any = {
