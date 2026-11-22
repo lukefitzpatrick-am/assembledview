@@ -1,6 +1,6 @@
 # Plan: Ava's access to data and work tools (23 Nov 2026)
 
-Status: Phase 1 built (pack 19, switch `ava_data_query`, off). Phase 2 paused: GA4, GSC and ad platform data are all in Snowflake (Luke, 23 Nov), so `query_data` covers them. Phase 3 proposed on Graph, not Work IQ.
+Status: Phase 1 built (pack 19, switch `ava_data_query`, off). Phase 2 paused: GA4, GSC and ad platform data are all in Snowflake (Luke, 23 Nov), so `query_data` covers them. Phase 3 SharePoint built on Graph (pack 84, switch `ava_sharepoint`, off); Teams skipped.
 
 ## How Ava calls tools today
 
@@ -83,7 +83,7 @@ MCP output is outside text, so it counts as captured: the turn is tainted and wr
 
 ## Phase 3 without Work IQ
 
-- **SharePoint:** Microsoft Graph app-only, with `Sites.Selected` (read) granted site by site. It needs no Copilot licence. It reuses the AssembledView Entra app (`docs/brain/modules/m365.md`) and adds one read tool, offered on `/tasks` only and tagged capture, so it taints the turn.
+- **SharePoint (built, `search_client_files`):** Microsoft Graph app-only, with `Sites.Selected` (read) granted site by site. No Copilot licence. Reuses the AssembledView Entra app. Always one client: the page's client or the one the user names (Luke, 23 Nov). Tagged read, not capture, until the server keeps its own taint record (C-195, C-372).
 - **Teams messages:** skip for now. App-only channel reads are a protected Graph API that needs Microsoft approval. Meeting content already reaches Ava through Fireflies into `client_notes`.
 
 ## Under 90%

@@ -478,6 +478,18 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "ava_sharepoint",
+    label: "Ava: read client SharePoint files",
+    description:
+      "Ava gets search_client_files: she finds and reads files on the SharePoint site of the client in context (or the client the user names), and no other site. Read only, text from pdf, docx, pptx, xlsx, csv, txt, md and json. Never on /tasks. Before turning on: on the AssembledView Entra app add Graph application permission Sites.Selected (admin consent), grant it read on each client site (cli-*), and set M365_TENANT_ID, M365_CLIENT_ID and M365_CLIENT_SECRET in Vercel. Off: Ava can't see SharePoint.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "codex_v2",
     label: "Tasks (Codex)",
     description:

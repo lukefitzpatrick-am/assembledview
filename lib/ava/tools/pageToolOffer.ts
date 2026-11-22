@@ -22,13 +22,14 @@ const MBA_DETAIL = /^\/mediaplans\/mba\/[^/]+\/?$/
  * lib/features/server (lib/ava/tools/toolFlags.ts) and passes them in. With
  * none passed (tests, pure callers) the env value is the fallback.
  */
-export type AvaToolFlags = { billingRevisions: boolean; trueUp: boolean; dataQuery?: boolean }
+export type AvaToolFlags = { billingRevisions: boolean; trueUp: boolean; dataQuery?: boolean; sharepoint?: boolean }
 
 function envToolFlags(): AvaToolFlags {
   return {
     billingRevisions: featureEnvValue("billing_revisions"),
     trueUp: featureEnvValue("true_up"),
     dataQuery: featureEnvValue("ava_data_query"),
+    sharepoint: featureEnvValue("ava_sharepoint"),
   }
 }
 
@@ -50,6 +51,9 @@ function trueUpToolsOk(pathname: string | undefined, on: boolean): boolean {
 
 /** query_data: ava_data_query on. Not on /tasks (not on its allowlist). */
 export const DATA_QUERY_TOOLS = new Set(["query_data"])
+
+/** search_client_files: ava_sharepoint on. Not on /tasks (not on its allowlist). */
+export const SHAREPOINT_TOOLS = new Set(["search_client_files"])
 
 /** Pathname from PageContext.route — string or `{ pathname }`. Empty/absent → undefined. */
 export function pageContextRoutePathname(
@@ -121,7 +125,7 @@ export function avaWebSearchAllowed(
  * `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
  * Billing revision tools (BILLING_REVISIONS) and query_true_up (TRUE_UP) are offered only on
  * `/finance/*` and the MBA detail page (never create or edit). query_data needs
- * ava_data_query on.
+ * ava_data_query on; search_client_files needs ava_sharepoint on.
  * `/tasks/*` is an allowlist (TASKS_TOOL_ALLOWLIST plus capture tools); any
  * tool not on it is not offered there (F14, fail closed). Capture tools are
  * offered on `/tasks/*` only. A tainted conversation, and a chat request with
@@ -140,7 +144,8 @@ export function avaToolDefinitionsForPage<T extends { name: string }>(
     (t) =>
       (revisionsOk || !BILLING_REVISION_TOOLS.has(t.name)) &&
       (trueUpOk || !TRUE_UP_TOOLS.has(t.name)) &&
-      (flags.dataQuery === true || !DATA_QUERY_TOOLS.has(t.name)),
+      (flags.dataQuery === true || !DATA_QUERY_TOOLS.has(t.name)) &&
+      (flags.sharepoint === true || !SHAREPOINT_TOOLS.has(t.name)),
   )
   const tagOf = scope.tagOf ?? avaToolTag
   let out = offerForSurface(offered, pageContext)

@@ -48,6 +48,9 @@ export const MS_LOGIN_BASE_URL = withDefault(
   "https://login.microsoftonline.com",
 )
 
+/** SharePoint tenant host for client sites (/sites/cli-<id>). */
+export const SHAREPOINT_HOST = withDefault("SHAREPOINT_HOST", "assembledmedia.sharepoint.com")
+
 /** Default client-credentials scope for Graph. */
 export const MS_GRAPH_SCOPE = withDefault(
   "MS_GRAPH_SCOPE",

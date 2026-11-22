@@ -61,6 +61,7 @@ export const AVA_TOOL_NAMES = [
   "apply_billing_revision",
   "query_true_up",
   "query_data",
+  "search_client_files",
 ] as const
 
 /**

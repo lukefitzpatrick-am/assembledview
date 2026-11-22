@@ -75,6 +75,8 @@ export const AVA_TOOL_TAGS: Record<AvaToolName, AvaToolTag> = {
   apply_billing_revision: { access: "write" },
   query_true_up: { access: "read" },
   query_data: { access: "read" },
+  // Files can hold client-written text; not tagged capture until C-195 (C-372).
+  search_client_files: { access: "read" },
 }
 
 /** The registry's tags. Unknown names return undefined (treated as write). */
