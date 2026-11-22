@@ -40,7 +40,7 @@
  *
  * C-370 (V99 A): a saved burst the grid cannot place (no campaign week, or no
  * quantity the import can open: 0 deliverables with a $0.00 rate or a $0.00
- * budget) has no cell the planner could edit, so Apply gives it back exactly
+ * or blank budget, V102 A) has no cell the planner could edit, so Apply gives it back exactly
  * as saved, outside every group, whatever else changed. The grid's money
  * counts its budget. The cells the import makes for such a burst with 0 (a 0
  * span, a 0 week cell, the empty line's campaign burst) carry no quantity or
@@ -301,8 +301,9 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
         startYmd,
         endYmd,
       }
+      // V102 A: a burst with no quantity counts whatever its budget (a blank one is $0).
       const noCell =
-        (keys.length === 0 || opensNoQuantity(b, bt, lineBuyType)) && (present(b.budget) || isInclusion(bt))
+        opensNoQuantity(b, bt, lineBuyType) || (keys.length === 0 && (present(b.budget) || isInclusion(bt)))
       seen.push({ b, keys, saved, noCell })
     }
     // Backstop: every week no other burst touches must be blank. If one holds a
