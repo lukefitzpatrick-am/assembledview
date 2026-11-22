@@ -5,7 +5,8 @@
  * The database role is the boundary, not the text check:
  * - Supabase runs on AVA_DATABASE_URL as ava_readonly (0003): read-only
  *   transactions, a 5 s statement timeout, SELECT only on the granted tables,
- *   ava_read RLS policies.
+ *   ava_read RLS policies. Each query runs in a read-only transaction that
+ *   always rolls back, so a set_config() can't outlive it on a pooled backend.
  * - Snowflake runs on its own connection as role AVA_READONLY with no
  *   secondary roles (SELECT on ASSEMBLEDVIEW.MART only, sql/snowflake/roles).
  * The text check only gives Ava a plain refusal before a round trip.
@@ -47,14 +48,15 @@ export function wrapWithLimit(sql: string, cap = QUERY_DATA_ROW_CAP): string {
 
 function describeSql(source: "supabase" | "snowflake", table: string | undefined): { sql: string; binds: string[] } {
   const schema = source === "supabase" ? "public" : "MART"
+  const cols = source === "supabase" ? "information_schema.columns" : "ASSEMBLEDVIEW.information_schema.columns"
   if (table) {
     return {
-      sql: `select column_name, data_type, is_nullable from information_schema.columns where table_schema = ${source === "supabase" ? "$1" : "?"} and lower(table_name) = lower(${source === "supabase" ? "$2" : "?"}) order by ordinal_position`,
+      sql: `select column_name, data_type, is_nullable from ${cols} where table_schema = ${source === "supabase" ? "$1" : "?"} and lower(table_name) = lower(${source === "supabase" ? "$2" : "?"}) order by ordinal_position`,
       binds: [schema, table],
     }
   }
   return {
-    sql: `select table_name, count(*) as columns from information_schema.columns where table_schema = ${source === "supabase" ? "$1" : "?"} group by table_name order by table_name`,
+    sql: `select table_name, count(*) as columns from ${cols} where table_schema = ${source === "supabase" ? "$1" : "?"} group by table_name order by table_name`,
     binds: [schema],
   }
 }
@@ -82,8 +84,19 @@ export function shapeRows(source: string, rows: Record<string, unknown>[], cap =
   return content
 }
 
+const ROLLBACK = new Error("query_data rollback")
+
 async function runSupabase(sql: string, binds: string[]): Promise<Record<string, unknown>[]> {
-  return Array.from(await getAvaClient().unsafe(sql, binds)) as Record<string, unknown>[]
+  let rows: Record<string, unknown>[] = []
+  await getAvaClient()
+    .begin("read only", async (tx) => {
+      rows = Array.from(await tx.unsafe(sql, binds)) as Record<string, unknown>[]
+      throw ROLLBACK
+    })
+    .catch((err) => {
+      if (err !== ROLLBACK) throw err
+    })
+  return rows
 }
 
 async function runSnowflake(sql: string, binds: string[]): Promise<Record<string, unknown>[]> {
@@ -118,6 +131,7 @@ export const queryDataTool: AvaTool = {
       "source snowflake: ASSEMBLEDVIEW.MART delivery and pacing facts (Snowflake SQL).",
       "Leave out sql to list tables; pass table (no sql) to list its columns. Look before you query.",
       "sql: one SELECT or WITH statement, no semicolons inside. At most 200 rows come back; aggregate in SQL.",
+      "For a ranked or top-n answer put your own ORDER BY and LIMIT (200 or less) inside the query.",
       "Rules: plan money columns in Postgres are integer cents (divide by 100 for dollars).",
       "The published version is media_plan_masters.published_version_id, never max(version_number).",
       "Never compute a media/fee split yourself; say the figure is raw and point to the plan page.",
