@@ -1,6 +1,6 @@
 # Plan: Ava's access to data and work tools (23 Nov 2026)
 
-Status: Phase 1 built (pack 19, switch `ava_data_query`, off). Phases 2 and 3 proposed, waiting on Luke.
+Status: Phase 1 built (pack 19, switch `ava_data_query`, off). Phase 2 paused: GA4, GSC and ad platform data are all in Snowflake (Luke, 23 Nov), so `query_data` covers them. Phase 3 proposed on Graph, not Work IQ.
 
 ## How Ava calls tools today
 
@@ -75,11 +75,16 @@ MCP output is outside text, so it counts as captured: the turn is tainted and wr
 - Teams and mail text is outside text, so it would be a capture tool: `/tasks` only, and taints the conversation.
 - Wait until Work IQ is GA for the tenant and the Codex pilot is through.
 
-## Questions for Luke
+## Answers (Luke, 23 Nov)
 
-1. Do GA4 and GSC now land in BigQuery (`assembledview`), or still in Snowflake (`V_GA4_*`, `V_GSC_*` views)? This decides whether Ava needs BigQuery at all. If it's Snowflake, `query_data` already covers it once the views exist.
-2. Which phase 2 server first? The recommendation is BigQuery (if question 1 says so), then none until the pilot ends.
-3. Microsoft 365 licences: does the tenant have Copilot or Agent 365 licences for Work IQ?
+1. GA4, GSC and the ad platforms all land in Snowflake. Ava needs no BigQuery, Google Ads or Meta server: `query_data` reads the MART views. The `V_GA4_*` and `V_GSC_*` views must exist in MART first (DATA-MODEL lists them as not created; check with `query_data` and no `sql`).
+2. Phase 2 is paused. A live ads server only adds account structure, and the Meta server can write.
+3. Copilot or Agent 365 licences: unknown. The Microsoft 365 connector can't read licences. Check in the Microsoft 365 admin centre, Billing, Licences.
+
+## Phase 3 without Work IQ
+
+- **SharePoint:** Microsoft Graph app-only, with `Sites.Selected` (read) granted site by site. It needs no Copilot licence. It reuses the AssembledView Entra app (`docs/brain/modules/m365.md`) and adds one read tool, offered on `/tasks` only and tagged capture, so it taints the turn.
+- **Teams messages:** skip for now. App-only channel reads are a protected Graph API that needs Microsoft approval. Meeting content already reaches Ava through Fireflies into `client_notes`.
 
 ## Under 90%
 
