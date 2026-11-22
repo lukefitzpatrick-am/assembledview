@@ -70,7 +70,7 @@ type CarriedBurst = {
   takesGridQty: boolean
   startYmd: string
   endYmd: string
-  /** C-370: a burst the grid cannot place; no value the mapper wrote elsewhere stands in for one it was saved without. */
+  /** C-370: a burst the grid cannot place (or, V105 A, carried in a lump-sum week 1); no value the mapper wrote elsewhere stands in for one it was saved without. */
   unplaced?: true
 }
 
@@ -315,12 +315,20 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
     // quantity, something opened one for these bursts after all (an import
     // rule, or the card's lump sum put in the first week when no dated burst
     // was placed: `projectLumpSumCardBudgetsOntoExpertRows`), so they are
-    // treated as before.
+    // treated as before, unless week 1 is the only week with a quantity (V105 A).
     const otherKeys = new Set(seen.filter((x) => !x.noCell).flatMap((x) => x.keys))
     const opened = weekKeys.some((k) => !otherKeys.has(k) && holdsQuantity(row, [k], weekKeys))
     const placed: { burst: CarriedBurst; key: string }[] = []
     const unplaced: CarriedBurst[] = []
-    for (const { b, keys, saved, noCell } of seen) {
+    // V105 A (C-370 (3)): the only quantity on the row is week 1's (the card's lump
+    // sum when no dated burst was placed), so the line's saved bursts are one week-1
+    // group: untouched they come back as saved; edit week 1 and it is priced from the grid.
+    const lump = opened && weekKeys.every((k, i) => holdsQuantity(row, [k], weekKeys) === (i === 0))
+    if (lump) {
+      join(weekKeys.slice(0, 1))
+      for (const { saved } of seen) placed.push({ key: weekKeys[0]!, burst: { ...saved, unplaced: true } })
+    }
+    for (const { b, keys, saved, noCell } of lump ? [] : seen) {
       if (noCell && !opened) {
         unplaced.push({ ...saved, takesGridQty: false, unplaced: true })
         continue
