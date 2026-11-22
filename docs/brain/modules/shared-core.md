@@ -49,6 +49,8 @@ Boot warming via `instrumentation.ts` → dynamic `instrumentation.node.ts` only
 
 - `lib/nav/routeManifest.ts` is the single source of truth for sidebar structure (`ADMIN_SIDEBAR_GROUPS`), labels, titles, breadcrumbs, and command-palette destinations. `AppSidebar` / bottom nav / `CommandPalette` / `DynamicBreadcrumbs` derive from it — do not invent parallel nav maps. Client-role nav is `buildClientMenuItems`: one dashboard link per `clientSlugs` (server-derived, primary first), then Creative (`/dashboard/{activeSlug}/creative`), then Knowledge Hub. Labels come from `GET /api/dashboard/[slug]/name` (same tenant check as the dashboard GET); fallback `formatClientSlugLabel`. Bottom nav caps client items at 3 so Creative and Knowledge stay in the 5-slot bar. Full admin IA notes live in `docs/brain/modules/admin-misc.md` (Navigation identity).
 
+- In-app help (switch `in_app_help`, off by default): `HelpPanel` in the top bar opens a side sheet with the page topic from `lib/help/topics.ts` (`helpTopicFor` walks up to the nearest parent route with a topic). Steps with an `anchor` offer Show me, which scrolls to and focuses that element after the sheet closes. `HelpTip` is the inline `?` toggletip. Long form: `docs/handbook/06-user-guide.md`.
+
 ## Cross-cutting utils
 
 - `lib/utils.ts` (216 importers) — `cn()`, `theme`, `mediaTypeTheme` (channel colour keys are load-bearing).

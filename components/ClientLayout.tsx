@@ -20,6 +20,7 @@ import { getAssistantContext } from "@/lib/assistantBridge"
 import { CommandPalette, CommandPaletteTrigger } from "@/components/CommandPalette"
 import { DocumentTitleFromManifest } from "@/components/DocumentTitleFromManifest"
 import { ThemeToggle } from "@/components/ThemeToggle"
+import { HelpPanel } from "@/components/help/Help"
 import { cn } from "@/lib/utils"
 import type { ChatMode } from "@/src/ava/modes"
 import type { PageContext } from "@/lib/ava/types"
@@ -118,6 +119,7 @@ export function ClientLayout({
                       </div>
                       <div className="ml-auto flex shrink-0 items-center gap-2">
                         <CommandPaletteTrigger />
+                        <HelpPanel />
                         <ThemeToggle />
                       </div>
                     </div>

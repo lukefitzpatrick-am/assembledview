@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { HelpTip } from "@/components/help/Help"
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -200,12 +201,14 @@ export function SectionScopeBar({
         <p className="text-xs text-muted-foreground">
           Scope: FY{fyDisplayLabel(draft.fy)} (forecast is financial-year native)
           {dirty ? " · unsaved changes" : ""}
+          <HelpTip id="financeScope" label="Finance scope" />
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
           Scope: FY{fyDisplayLabel(draft.fy)} · {draft.monthRange.from} → {draft.monthRange.to}
           {draft.clients.length ? ` · ${draft.clients.length} client(s)` : " · all clients"}
           {dirty ? " · unsaved changes" : ""}
+          <HelpTip id="financeScope" label="Finance scope" />
         </p>
       )}
     </div>

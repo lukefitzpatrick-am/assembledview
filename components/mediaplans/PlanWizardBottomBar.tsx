@@ -4,6 +4,7 @@ import { Download, Loader2 } from "lucide-react"
 
 import { heroBandSecondaryClassName } from "@/components/brand/HeroBand"
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
+import { HelpTip } from "@/components/help/Help"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -281,6 +282,7 @@ export function PlanWizardBottomBar({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-am-muted-on-black">
               Unallocated
+              <HelpTip id="planUnallocated" label="Unallocated" />
             </p>
             <p className={cn("num text-sm font-semibold", unallocatedClass)}>{totals.unallocated}</p>
           </div>
@@ -375,6 +377,7 @@ export function PlanWizardBottomBar({
           ]}
         />
       ) : null}
+      <HelpTip id="planPublish" label="Save or publish" />
       <SplitActionButton
         label={primaryLabel}
         busyLabel={savePublishesImmediately ? "Publishing…" : "Saving…"}
