@@ -259,8 +259,9 @@ export function useChannelStationAdd(
 
   const add = async () => {
     if (Object.keys(missingSiteFields("Station", name, network)).length > 0) return
-    toast({ title: "Station Added", description: `${name} has been successfully added.` })
     if (lineIndex !== null) {
+      // V91 A: the stub stores nothing, so the toast says where the station went.
+      toast({ title: `Station set on line ${lineIndex + 1}` })
       form.setValue(`${fieldKey}.${lineIndex}.network`, network)
       form.setValue(`${fieldKey}.${lineIndex}.station`, name)
     }

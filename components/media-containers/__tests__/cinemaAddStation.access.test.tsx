@@ -6,9 +6,13 @@
  * name in a form whose submit writes the network and the station to the line;
  * a blank name shows on the field; Escape and Cancel close it and focus goes
  * back to the button; a line with no network gets a prompt, not the dialog.
- * Nothing is stored or listed (station stub option A). Also Cinema's own
- * screen rules on the shared shell: the card summary shows Network and the
- * line summary counts deliverables by Cinema's card rule.
+ * Nothing is stored or listed (station stub option A), so the toast says
+ * "Station set on line N" (V91 A). A network picked in the dialog is the one
+ * the line saves (W5f review F1). Also Cinema's own screen rules on the
+ * shared shell: the card summary shows Network, and the line summary counts
+ * deliverables by Cinema's card rule at the channel fee (W5f review F2),
+ * labelled "package" and "spots" (V90 A). Every card field label names its
+ * control.
  *
  * @vitest-environment jsdom
  */
@@ -19,6 +23,16 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { resetWeekStartsOnStore } from "@/lib/mediaplan/useWeekStartsOn"
+
+const toasts = vi.hoisted(() => {
+  const list: Array<{ title?: unknown }> = []
+  const toast = (t: { title?: unknown }) => {
+    list.push(t)
+  }
+  return { list, toast }
+})
+
+vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toasts.toast }) }))
 
 vi.mock("@/contexts/MediaPlanContext", () => ({
   useMediaPlanContext: () => ({ mbaNumber: "tst001", setMbaNumber: () => {} }),
@@ -99,6 +113,7 @@ describe("Cinema Add Station access (W5f)", () => {
     window.localStorage.clear()
     resetWeekStartsOnStore()
     media = []
+    toasts.list.length = 0
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -164,6 +179,13 @@ describe("Cinema Add Station access (W5f)", () => {
       "no button without its line",
     ).toBe(3)
 
+    // Every card field label names a control (the highlight wrapper used to take the id).
+    const cardLabels = [...host.querySelectorAll("label")]
+    expect(cardLabels.length).toBeGreaterThan(20)
+    for (const l of cardLabels) {
+      expect(l.htmlFor && document.getElementById(l.htmlFor), `label "${l.textContent?.trim()}" names a control`).toBeTruthy()
+    }
+
     // A line with no network: a prompt, no dialog.
     await open(addButton(3)[0])
     expect(dialogFor(), "no dialog without a network").toBeUndefined()
@@ -194,6 +216,15 @@ describe("Cinema Add Station access (W5f)", () => {
       "Station name is required",
     )
 
+    // Pick another network in the dialog: the line saves it with the station.
+    act(() => networkControl!.click())
+    await settle(50)
+    const hoyts = [...document.querySelectorAll("[cmdk-item]")].find(
+      (o) => o.textContent?.trim() === "Hoyts",
+    ) as HTMLElement
+    expect(hoyts, "Hoyts option").toBeTruthy()
+    act(() => hoyts.click())
+    await settle(50)
     act(() => setInput(name, "Station New"))
     act(() => name.form!.requestSubmit())
     await settle()
@@ -201,9 +232,11 @@ describe("Cinema Add Station access (W5f)", () => {
     const saved = media[media.length - 1]
     expect(saved.map((l) => [l.network, l.station])).toEqual([
       ["Hoyts", "Station 1"],
-      ["Village", "Station New"],
+      ["Hoyts", "Station New"],
       ["", ""],
     ])
+    expect(toasts.list.map((t) => t.title)).toContain("Station set on line 2")
+    expect(toasts.list.map((t) => t.title)).not.toContain("Station Added")
     await settle(50)
     expect(document.activeElement, "focus back on Add Station after Add").toBe(button)
 
@@ -230,7 +263,7 @@ describe("Cinema Add Station access (W5f)", () => {
       root.render(
         <CinemaContainer
           clientId="client-1"
-          feecinema={0}
+          feecinema={12.5}
           onTotalMediaChange={noop}
           onBurstsChange={noop}
           onInvestmentChange={noop}
@@ -250,13 +283,22 @@ describe("Cinema Add Station access (W5f)", () => {
               // Saved quantity 8; Cinema's card rule gives $12,000.00 / $1,000.00 = 12.
               bursts: [{ budget: "$12,000.00", buyAmount: "$1,000.00", calculatedValue: 8, startDate: "2026-01-05", endDate: "2026-01-31" }],
             },
+            {
+              line_item_id: "tst001CN2",
+              line_item: 2,
+              network: "Village",
+              buy_type: "spots",
+              budget_includes_fees: true,
+              // Fee-inclusive at 12.5%: $9,000.00 gross is $7,875.00 net, / $100.00 = 78.75, rounded 79.
+              bursts: [{ budget: "$9,000.00", buyAmount: "$100.00", calculatedValue: 1, startDate: "2026-01-05", endDate: "2026-01-31" }],
+            },
           ]}
         />,
       )
     })
     await settle()
-    const summary = [...host.querySelectorAll("span")].find((s) => /media ·/.test(s.textContent ?? ""))
-    expect(summary?.textContent).toMatch(/· 12 deliverables$/)
+    const summary = [...host.querySelectorAll("span")].filter((s) => /media ·/.test(s.textContent ?? ""))
+    expect(summary.map((s) => s.textContent?.replace(/^.*· /, ""))).toEqual(["12 package", "79 spots"])
     expect(host.textContent).toContain("Network: Hoyts")
   }, 30_000)
 })

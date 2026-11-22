@@ -324,6 +324,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
     return withInjectedComboboxValue(options, current)
   }
 
+  // FormControl sits on the control itself, inside the highlight wrapper,
+  // so the field's label names it (W5g; the wrapper took the id before).
   const highlight = (
     value: unknown,
     node: React.ReactNode,
@@ -335,7 +337,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
       value={value}
       kind={kind}
     >
-      {node}
+      <FormControl>{node}</FormControl>
     </DraftHighlightedField>
   )
 
@@ -383,11 +385,11 @@ function ExpertCardFieldControl<T extends FieldValues>({
               <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
               {fieldAdornment ? (
                 <div className="flex flex-1 items-center space-x-1">
-                  <FormControl>{highlight(field.value, combobox)}</FormControl>
+                  {highlight(field.value, combobox)}
                   {fieldAdornment}
                 </div>
               ) : (
-                <FormControl>{highlight(field.value, combobox)}</FormControl>
+                highlight(field.value, combobox)
               )}
               {flagUnknownPublisher &&
               d.kind === "combobox-publishers" &&
@@ -412,22 +414,20 @@ function ExpertCardFieldControl<T extends FieldValues>({
         render={({ field }) => (
           <FormItem className="flex flex-col space-y-1">
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
-            <FormControl>
-              {highlight(
-                field.value,
-                <SingleDatePicker
-                  ref={field.ref}
-                  name={field.name}
-                  onBlur={field.onBlur}
-                  value={field.value}
-                  onChange={field.onChange}
-                  className="h-8 w-full pl-2 text-left text-sm font-normal"
-                  campaignStartDate={campaignStartDate}
-                  campaignEndDate={campaignEndDate}
-                />,
-                "date",
-              )}
-            </FormControl>
+            {highlight(
+              field.value,
+              <SingleDatePicker
+                ref={field.ref}
+                name={field.name}
+                onBlur={field.onBlur}
+                value={field.value}
+                onChange={field.onChange}
+                className="h-8 w-full pl-2 text-left text-sm font-normal"
+                campaignStartDate={campaignStartDate}
+                campaignEndDate={campaignEndDate}
+              />,
+              "date",
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -443,23 +443,21 @@ function ExpertCardFieldControl<T extends FieldValues>({
         render={({ field }) => (
           <FormItem className="flex flex-col space-y-1">
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
-            <FormControl>
-              {highlight(
-                field.value,
-                <Input
-                  {...field}
-                  type="number"
-                  placeholder={d.placeholder}
-                  className="h-8 w-full text-sm"
-                  value={field.value ?? ""}
-                  onChange={(e) => {
-                    field.onChange(e)
-                    onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
-                  }}
-                />,
-                "money",
-              )}
-            </FormControl>
+            {highlight(
+              field.value,
+              <Input
+                {...field}
+                type="number"
+                placeholder={d.placeholder}
+                className="h-8 w-full text-sm"
+                value={field.value ?? ""}
+                onChange={(e) => {
+                  field.onChange(e)
+                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                }}
+              />,
+              "money",
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -500,24 +498,22 @@ function ExpertCardFieldControl<T extends FieldValues>({
             )}
           >
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
-            <FormControl>
-              {highlight(
-                field.value,
-                <AutoGrowField
-                  ref={field.ref}
-                  name={field.name}
-                  value={(field.value as string | undefined) ?? ""}
-                  onBlur={field.onBlur}
-                  placeholder={d.placeholder}
-                  singleLine={isCompact}
-                  className={cn(isPrimary && "h-full min-h-[7rem]")}
-                  onChange={(e) => {
-                    field.onChange(e)
-                    onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
-                  }}
-                />,
-              )}
-            </FormControl>
+            {highlight(
+              field.value,
+              <AutoGrowField
+                ref={field.ref}
+                name={field.name}
+                value={(field.value as string | undefined) ?? ""}
+                onBlur={field.onBlur}
+                placeholder={d.placeholder}
+                singleLine={isCompact}
+                className={cn(isPrimary && "h-full min-h-[7rem]")}
+                onChange={(e) => {
+                  field.onChange(e)
+                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                }}
+              />,
+            )}
             <FormMessage />
           </FormItem>
         )}

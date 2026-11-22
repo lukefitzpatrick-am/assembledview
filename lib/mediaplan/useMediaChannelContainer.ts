@@ -826,6 +826,11 @@ export function useMediaChannelContainer(
         return "Impressions"
       case "fixed_cost":
         return "Fixed Fee"
+      // V90 A: spots and package read as Radio and Cinema named them.
+      case "spots":
+        return "Spots"
+      case "package":
+        return "Package"
       default:
         return "Deliverables"
     }
