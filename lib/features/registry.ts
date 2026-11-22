@@ -691,6 +691,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["security_headers"],
     vercelReason: "Read in middleware on every request, which can't query the database. Change it in Vercel and redeploy.",
   },
+  {
+    key: "in_app_help",
+    label: "In-app help",
+    description:
+      "A Help button in the top bar opens a side panel for the page: what it is for, the steps, tips and links (lib/help/topics.ts). Steps that name a part of the page offer Show me. A few fields get a ? tip. Clients see it on their dashboards. Off: no button, no tips. Nothing needs to be true first.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
 ] as const satisfies readonly FeatureDefinition[]
 
 export type FeatureKey = (typeof FEATURE_DEFINITIONS)[number]["key"]
