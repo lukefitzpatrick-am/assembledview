@@ -20,6 +20,7 @@ import { z } from "zod"
 
 import { resolveClientGroup } from "@/lib/clients/clientGroup"
 import { MS_GRAPH_BASE_URL, SHAREPOINT_HOST } from "@/lib/config/endpoints"
+import { utcDateISO } from "@/lib/dates/civil"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { createFetchGraphTransport } from "@/lib/m365/graphTransport"
 import { siteUrlForClient } from "@/lib/m365/siteUrlForClient"
@@ -46,7 +47,7 @@ async function loadZip(bytes: Buffer): Promise<JSZip> {
   return zip
 }
 
-export const searchClientFilesInput = z.object({
+const searchClientFilesInput = z.object({
   client: z.string().trim().min(1).optional(),
   query: z.string().trim().min(1).max(200).optional(),
   itemId: z.string().trim().regex(/^[A-Za-z0-9!_-]+$/).optional(),
@@ -103,7 +104,7 @@ export async function fileText(name: string, bytes: Buffer): Promise<string | nu
       ws.eachRow((row) => {
         if (out.length > TEXT_CAP) return
         const cells: string[] = []
-        row.eachCell({ includeEmpty: true }, (c) => cells.push(c.value instanceof Date ? c.value.toISOString().slice(0, 10) : c.text))
+        row.eachCell({ includeEmpty: true }, (c) => cells.push(c.value instanceof Date ? utcDateISO(c.value) : c.text))
         out += `\n${cells.join("\t")}`
       })
     }

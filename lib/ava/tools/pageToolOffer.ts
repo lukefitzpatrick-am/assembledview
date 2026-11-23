@@ -50,10 +50,10 @@ function trueUpToolsOk(pathname: string | undefined, on: boolean): boolean {
 }
 
 /** query_data: ava_data_query on. Not on /tasks (not on its allowlist). */
-export const DATA_QUERY_TOOLS = new Set(["query_data"])
+const DATA_QUERY_TOOLS = new Set(["query_data"])
 
 /** search_client_files: ava_sharepoint on. Not on /tasks (not on its allowlist). */
-export const SHAREPOINT_TOOLS = new Set(["search_client_files"])
+const SHAREPOINT_TOOLS = new Set(["search_client_files"])
 
 /** Pathname from PageContext.route — string or `{ pathname }`. Empty/absent → undefined. */
 export function pageContextRoutePathname(

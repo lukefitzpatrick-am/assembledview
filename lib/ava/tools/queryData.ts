@@ -16,6 +16,7 @@ import "server-only"
 import { z } from "zod"
 
 import { getAvaClient } from "@/db/avaClient"
+import { BUSINESS_TZ } from "@/lib/dates/melbourne"
 import { destroyConnection, executeWithTimeout, getServerlessConnection } from "@/lib/snowflake/pool"
 
 import { jsonContent } from "./helpers"
@@ -23,13 +24,13 @@ import { parseZodOrError, requireAvaDbOrSoftFail } from "./postgresShared"
 import type AvaTool from "./types"
 import type { AvaToolContext, AvaToolResult } from "./types"
 
-export const SNOWFLAKE_AVA_ROLE = "AVA_READONLY"
+const SNOWFLAKE_AVA_ROLE = "AVA_READONLY"
 export const QUERY_DATA_ROW_CAP = 200
 const CELL_CAP = 500
 const CONTENT_CAP = 60_000
 const SNOWFLAKE_TIMEOUT_S = 30
 
-export const queryDataInput = z.object({
+const queryDataInput = z.object({
   source: z.enum(["supabase", "snowflake"]),
   sql: z.string().trim().min(1).max(8000).optional(),
   table: z.string().trim().regex(/^[A-Za-z0-9_]+$/).optional(),
@@ -106,7 +107,7 @@ async function runSnowflake(sql: string, binds: string[]): Promise<Record<string
     for (const s of [
       "USE SECONDARY ROLES NONE",
       `ALTER SESSION SET STATEMENT_TIMEOUT_IN_SECONDS = ${SNOWFLAKE_TIMEOUT_S}`,
-      "ALTER SESSION SET TIMEZONE = 'Australia/Melbourne'",
+      `ALTER SESSION SET TIMEZONE = '${BUSINESS_TZ}'`,
       "ALTER SESSION SET QUERY_TAG = 'ava_query_data'",
     ]) {
       await executeWithTimeout(conn, s, [], 10_000, "ava_session", id)

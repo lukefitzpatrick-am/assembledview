@@ -30,6 +30,11 @@ export function daysBetweenISO(fromISO: string, toISO: string): number {
   return Math.round((utcMillis(toISO) - utcMillis(fromISO)) / 86_400_000)
 }
 
+/** A `Date`'s UTC calendar day as `YYYY-MM-DD` (spreadsheet dates, which are zone-free and stored as UTC). */
+export function utcDateISO(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
 /** `YYYY-MM` moved by `months` (negative goes back). */
 export function addMonthsISO(month: string, months: number): string {
   const [y, m] = month.split("-").map(Number)
