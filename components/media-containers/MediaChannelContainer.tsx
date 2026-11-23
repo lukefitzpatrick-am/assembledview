@@ -475,7 +475,7 @@ export default function MediaChannelContainer({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Leave {shell.title} Expert Mode?</DialogTitle>
+            <DialogTitle>Leave {expertDialogTitle}?</DialogTitle>
             <DialogDescription>
               You have unsaved changes in Expert Mode. Apply saves them to the{" "}
               {shell.title} section; leaving now discards those edits.

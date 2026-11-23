@@ -869,7 +869,7 @@ function ExpertCardBursts<T extends FieldValues>({
                     className="h-8 w-8"
                     onClick={() => onAppendBurst(lineItemIndex)}
                     title="Add burst"
-                    aria-label="Add burst"
+                    aria-label={`Add burst to line ${lineItemIndex + 1}`}
                   >
                     <Plus className="h-4 w-4" aria-hidden />
                   </Button>
@@ -880,7 +880,7 @@ function ExpertCardBursts<T extends FieldValues>({
                     className="h-8 w-8"
                     onClick={() => onDuplicateBurst(lineItemIndex, burstIndex)}
                     title="Duplicate burst"
-                    aria-label="Duplicate burst"
+                    aria-label={`Duplicate burst on line ${lineItemIndex + 1}`}
                   >
                     <Copy className="h-3.5 w-3.5" aria-hidden />
                   </Button>
@@ -891,7 +891,7 @@ function ExpertCardBursts<T extends FieldValues>({
                     className="h-8 w-8 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => onRemoveBurst(lineItemIndex, burstIndex)}
                     title="Remove burst"
-                    aria-label="Remove burst"
+                    aria-label={`Remove burst ${burstIndex + 1} from line ${lineItemIndex + 1}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   </Button>

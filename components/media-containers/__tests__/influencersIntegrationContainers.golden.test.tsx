@@ -476,11 +476,11 @@ describe.each(CHANNELS)("$name container golden (W5b)", (channel) => {
 
     // 4. Burst edits on line 1: Duplicate (copies the last burst), Add, then
     //    Remove the typed burst. Leaves [burst 1, its copy, a new empty burst].
-    act(() => byLabel("Duplicate burst")[0].click())
+    act(() => byLabel("Duplicate burst on line 1")[0].click())
     await settle()
-    act(() => byLabel("Add burst")[0].click())
+    act(() => byLabel("Add burst to line 1")[0].click())
     await settle()
-    act(() => byLabel("Remove burst")[1].click())
+    act(() => byLabel("Remove burst 2 from line 1")[0].click())
     await settle()
     out.burstEdits = snapshot(rec)
 
