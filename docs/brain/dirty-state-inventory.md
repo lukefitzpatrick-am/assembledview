@@ -45,7 +45,7 @@ Eleven `*Container.tsx` files hold local `expertApplyPendingPageSave`. The twelf
 |---|---|---|---|---|---|
 | 1 | `TelevisionContainer` | Bespoke | yes | yes | `subscribeMediaPlanPageSaved` → false |
 | 2 | `RadioContainer` | Bespoke | yes | yes | same |
-| 3 | `NewspaperContainer` | Bespoke | yes | yes | same |
+| 3 | `NewspaperContainer` | Shared (W5i): see row 15 | no | via the hook | via the hook |
 | 4 | `MagazinesContainer` | Bespoke | yes | yes | same |
 | 5 | `OOHContainer` | Bespoke | yes | yes (C-38 fixed) | same |
 | 6 | `CinemaContainer` | Bespoke | yes | yes | same |
