@@ -14,7 +14,7 @@ import {
   RADIO_LOAD_DEDUPE,
 } from "@/lib/mediaplan/dedupeInitialLineItems"
 
-const radio = (extra: Record<string, unknown>) => ({
+const radio = (extra: Record<string, unknown>): Record<string, unknown> => ({
   market: "Sydney",
   network: "Nova",
   station: "Nova 100",
