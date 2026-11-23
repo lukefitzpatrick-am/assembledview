@@ -234,7 +234,7 @@ export interface ExpertToStandardBurstOptions {
   feePctRadio?: number
   /** Cinema: fee %; used with budgetIncludesFees (Cinema config, `feePctCinema`). */
   feePctCinema?: number
-  /** Television: fee %; used with budgetIncludesFees (see TelevisionContainer). */
+  /** Television: fee %; used with budgetIncludesFees (see `televisionLine.ts`). */
   feePctTelevision?: number
   /** BVOD: fee %; used with budgetIncludesFees (see BVODContainer). */
   feePctBvod?: number
@@ -2694,7 +2694,7 @@ type StandardTelevisionBurst = StandardMediaBurst & {
   tarps?: string
 }
 
-/** Television `televisionlineItems` entry shape used by {@link TelevisionContainer}. */
+/** A Television form line (the shared container's `lineItems` entry, W5h). */
 export interface StandardTelevisionFormLineItem {
   market: string
   network: string

@@ -565,10 +565,9 @@ export const bvodFormSchema = z.object({
 
 // --- Television --------------------------------------------------------------
 export const televisionFormSchema = z.object({
-  televisionlineItems: z.array(televisionlineItemSchema),
+  lineItems: z.array(televisionlineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type TelevisionFormValues = z.infer<typeof televisionFormSchema>
 
 // --- Newspaper ---------------------------------------------------------------
 export const newspapersFormSchema = z.object({

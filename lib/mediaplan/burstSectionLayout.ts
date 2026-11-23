@@ -1,5 +1,5 @@
 /**
- * Shared burst row layout tokens — aligned to TelevisionContainer burst rows.
+ * Shared burst row layout tokens, first aligned to the old Television burst rows.
  * Field labels and form paths stay in each container; only layout classes live here.
  */
 

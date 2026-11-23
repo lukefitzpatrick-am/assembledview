@@ -111,7 +111,6 @@ const OFFLINE_CHARTS = [
   ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
   ["NewspaperContainer.tsx", "newspaperlineItems", "feenewspapers"],
   ["OOHContainer.tsx", "lineItems", "feeooh"],
-  ["TelevisionContainer.tsx", "televisionlineItems", "feetelevision"],
 ] as const
 
 function assertChartDelegates(

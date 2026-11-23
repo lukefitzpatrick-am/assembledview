@@ -43,6 +43,18 @@ export const RADIO_LOAD_DEDUPE: LoadDedupeKeys = {
   }),
 }
 
+/** Television's load key (W5h, moved from its container): id, market, network, station, daypart and placement; no line dropped. */
+export const TELEVISION_LOAD_KEY: LoadDedupeKeys = {
+  loadKey: (item) => ({
+    id: item.id,
+    market: item.market,
+    network: item.network,
+    station: item.station,
+    daypart: item.daypart,
+    placement: item.placement,
+  }),
+}
+
 /**
  * Integration's (W5b) and Radio's (W5g) load de-dupe, moved unchanged from
  * their old bespoke containers and run by `useMediaChannelContainer` with the

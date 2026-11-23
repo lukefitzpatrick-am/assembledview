@@ -99,10 +99,9 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "MagazinesContainer.tsx",
   "NewspaperContainer.tsx",
   "ProductionContainer.tsx",
-  "TelevisionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 4 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
+test("CHARACTERISATION: 3 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
   for (const file of [
     ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
     "OOHContainer.tsx",

@@ -44,6 +44,8 @@ import {
   getVideoSites,
   createRadioStation,
   getRadioStations,
+  getTVStations,
+  createTVStation,
 } from "@/lib/api"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
@@ -66,6 +68,7 @@ import {
   SEARCH_EXPERT_CHANNEL_CONFIG,
   SOCIALMEDIA_EXPERT_CHANNEL_CONFIG,
   TELEVISION_EXPERT_CHANNEL_CONFIG,
+  createEmptyTelevisionExpertRow,
   createEmptyProgAudioExpertRow,
   createEmptyProgBvodExpertRow,
   createEmptyProgDisplayExpertRow,
@@ -118,6 +121,7 @@ import {
   mapStandardSearchLineItemsToExpertRows,
   mapStandardSocialMediaLineItemsToExpertRows,
   mapStandardTvLineItemsToExpertRows,
+  mapTvExpertRowsToStandardLineItems,
   mapRadioExpertRowsToStandardLineItems,
 } from "@/lib/mediaplan/expertChannelMappings"
 import {
@@ -166,6 +170,9 @@ import {
   serializeSearchStandardLineItemsBaseline,
   serializeSocialMediaExpertRowsBaseline,
   serializeSocialMediaStandardLineItemsBaseline,
+  mergeTelevisionStandardFromExpertWithPrevious,
+  serializeTelevisionExpertRowsBaseline,
+  serializeTelevisionStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
@@ -180,8 +187,9 @@ import {
   getRadioBursts,
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
-import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
-import type { BurstFactory } from "@/lib/mediaplan/burstOperations"
+import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, TELEVISION_LOAD_KEY, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
+import { getTelevisionBursts, televisionExcelRow, televisionHydrateLine } from "@/lib/mediaplan/televisionLine"
+import { newBurstReactKey, televisionBurstDefaults, type BurstFactory } from "@/lib/mediaplan/burstOperations"
 import { radioExcelRow } from "@/lib/mediaplan/radioLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
@@ -2125,17 +2133,51 @@ export const TELEVISION_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: televisionFormSchema,
   fetchPublishers: getPublishersForTelevision,
   toExpert: mapStandardTvLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapTvExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeTelevisionStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeTelevisionStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeTelevisionExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyTelevisionExpertRow,
+  // "television", no line id, No Ad Serving false, deliverables from TARPs.
   billingMediaTypeLabel: "television",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getTelevisionBursts,
+  expertFromFeeKey: "feePctTelevision",
+  dedupeOnLoad: TELEVISION_LOAD_KEY,
+  hydrateLine: televisionHydrateLine,
+  excelRow: televisionExcelRow,
+  tarps: true,
+  zeroBudgetBuyTypes: ["bonus"],
+  // New lines as the old container built them: dated now, 30s, no TARPs; the
+  // footer's Add also gives the line its Ad Size and TARPs.
+  newLine: (ids, footer) => ({
+    ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
+    buyType: "",
+    ...(footer ? { size: "30s", tarps: "" } : {}),
+    ...ids,
+    bursts: [{ ...televisionBurstDefaults({ startDate: new Date(), endDate: new Date() }), _reactKey: newBurstReactKey() }],
+  }),
+  newBurst: televisionBurstDefaults,
+  copyToBursts: ["size"],
+  addStation: true,
+  stations: { fetch: getTVStations, create: createTVStation },
+  shell: {
+    title: "Television Media",
+    themeKey: "television",
+    timelineMediaTypeKey: "television",
+    loadLabel: "TV",
+    exitConfirmYesAttr: "data-tv-expert-exit-yes",
+    entryModeAriaLabel: "Television entry mode",
+    expertDialogTitle: "Television Expert Mode",
+  },
+  summaryDimensions: {
+    Network: "network",
+    Station: "station",
+    Daypart: "daypart",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "rounded" as const,
   gridConfig: TELEVISION_EXPERT_CHANNEL_CONFIG,
-  calculatedVariant: "cpcCpvCpm",
+  calculatedVariant: "television",
   hasBursts: true,
   fieldMap: [
     {

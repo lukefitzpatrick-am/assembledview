@@ -8,9 +8,7 @@ import test from "node:test"
 const FEE_PCT = 15
 
 test("bonus buy type burst helpers", async () => {
-  const { getTelevisionBursts } = await import(
-    "../../components/media-containers/TelevisionContainer"
-  )
+  const { getTelevisionBursts } = await import("../../lib/mediaplan/televisionLine")
   const { getSocialMediaBursts } = await import(
     "../../components/media-containers/SocialMediaContainer"
   )
@@ -19,7 +17,7 @@ test("bonus buy type burst helpers", async () => {
 
   const tvForm = {
     getValues: (field: string) =>
-      field === "televisionlineItems"
+      field === "lineItems"
         ? [
             {
               buyType: "bonus",
@@ -69,7 +67,7 @@ test("bonus buy type burst helpers", async () => {
 
   const tvPackageForm = {
     getValues: (field: string) =>
-      field === "televisionlineItems"
+      field === "lineItems"
         ? [
             {
               buyType: "package_inclusions",
@@ -115,7 +113,7 @@ test("bonus buy type burst helpers", async () => {
       getValues: (field: string) =>
         field === key ? form.getValues(field).map((li: any) => ({ ...li, buyType })) : [],
     }) as any
-  const tvPaid = getTelevisionBursts(asPaid(tvForm, "televisionlineItems", "cpt"), FEE_PCT)
+  const tvPaid = getTelevisionBursts(asPaid(tvForm, "lineItems", "cpt"), FEE_PCT)
   const socialPaid = getSocialMediaBursts(asPaid(socialForm, "lineItems", "cpm"), FEE_PCT)
   for (const [label, b] of [["TV paid", tvPaid[0]], ["Social paid", socialPaid[0]]] as const) {
     assert.ok(b.mediaAmount > 0, `${label} control has media`)
