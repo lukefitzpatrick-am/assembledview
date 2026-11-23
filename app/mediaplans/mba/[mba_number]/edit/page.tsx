@@ -130,7 +130,8 @@ import {
 } from "@/lib/billing/billingAliasGhostPairs"
 import { BillingAliasDuplicateNotice } from "@/components/billing/BillingAliasDuplicateNotice"
 import { clientFeatureOn } from "@/lib/features/client"
-import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
+import type { ClientFeeField } from "@/lib/finance/clientFeeChannels"
+import { planClientFeeState, useClientFeesOnPlanStart } from "@/app/mediaplans/_form/clientFees"
 import {
   reportWorkingBillingAliasReconcile,
   type WorkingBillingAliasReconcileSource,
@@ -1073,7 +1074,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [adservdisplay, setAdServDisplay] = useState<number | null>(null)
   const [adservaudio, setAdServAudio] = useState<number | null>(null)
 
-  const applyClientFees = useCallback((clientData: any) => {
+  const applyClientFees = useCallback((clientData: any, planStart: unknown) => {
     if (!clientData) return
 
     const setIfDefined = <T,>(
@@ -1085,12 +1086,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
     }
 
-    // B22: the one client-row-to-fee-state rule (create uses it too). A field
-    // the row doesn't have is left as it is. Switch off: the 12 fields from
-    // 0113 are ignored and Influencers is the Content Creator rate.
-    const fees = clientFeeStateFromRow(clientData, {
-      channelFees: clientFeatureOn("channel_client_fees"),
-    })
+    // B22, S4: the one client-row-to-fee-state rule (create uses it too), each
+    // fee at the plan start date. A field the row doesn't have is left as it
+    // is. Switch off: the 12 fields from 0113 are ignored and Influencers is
+    // the Content Creator rate.
+    const fees = planClientFeeState(clientData, planStart)
 
     // Fees
     setIfDefined(fees.feetelevision, setFeeTelevision)
@@ -2052,6 +2052,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const mpProgooh = useWatch({ control: form.control, name: 'mp_progooh' })
   const mpInfluencers = useWatch({ control: form.control, name: 'mp_influencers' })
   const campaignStartDate = useWatch({ control: form.control, name: 'mp_campaigndates_start' })
+  useClientFeesOnPlanStart(selectedClient, campaignStartDate, applyClientFees)
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
   const campaignDatesOutOfOrder = useCampaignDateOrderError(
     form,
@@ -3184,7 +3185,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         // This ensures fees are available even if client lookup fails
         if (data.clientData || data.client) {
           const clientData = data.clientData || data.client
-          applyClientFees(clientData)
+          applyClientFees(clientData, parseDate(data.campaign_start_date))
         }
         
         if (!isCancelled) {
@@ -3264,7 +3265,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         if (!selectedClient || selectedClient.id !== client.id) {
           setSelectedClient(client)
           // Set all fees from client data (ensuring they're applied to state)
-          applyClientFees(client)
+          applyClientFees(client, form.getValues("mp_campaigndates_start"))
           // Quiet window for fee-driven container republishes after the dirty gate opens.
           quietPassiveForMs(2500)
           

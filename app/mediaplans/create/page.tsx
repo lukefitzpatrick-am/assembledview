@@ -404,7 +404,8 @@ import { mediaKeyMap, planBurstOverlapLines, planFeeSeedConfigs, type PlanChanne
 import { cloneBillingMonths } from "@/app/mediaplans/_form/billingMonths"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { clientFeatureOn } from "@/lib/features/client"
-import { clientFeeStateFromRow, type ClientFeeField } from "@/lib/finance/clientFeeChannels"
+import type { ClientFeeField } from "@/lib/finance/clientFeeChannels"
+import { planClientFeeState, useClientFeesOnPlanStart } from "@/app/mediaplans/_form/clientFees"
 
 
 const mediaPlanSchema = z.object({
@@ -3209,6 +3210,45 @@ function CreateMediaPlan() {
     }
   }
 
+  // B22, S4: the same client-row-to-fee-state rule as edit (applyClientFees),
+  // each fee at the plan start date. Sets all 20, including TV, radio,
+  // newspapers, magazines and OOH. Switch off: the 12 fields from 0113 are
+  // null and Influencers is the Content Creator rate, as before.
+  const applyClientFees = useCallback((selectedClient: Client, planStart: unknown) => {
+    const clientFees = planClientFeeState(selectedClient as unknown as Record<string, unknown>, planStart)
+    setFeeTelevision(clientFees.feetelevision ?? null);
+    setFeeRadio(clientFees.feeradio ?? null);
+    setFeeNewspapers(clientFees.feenewspapers ?? null);
+    setFeeMagazines(clientFees.feemagazines ?? null);
+    setFeeOoh(clientFees.feeooh ?? null);
+    setFeeSearch(clientFees.feesearch ?? null);
+    setFeeSocial(clientFees.feesocial ?? null);
+    setFeeCinema(clientFees.feecinema ?? null);
+    setFeeDigiAudio(clientFees.feedigiaudio ?? null);
+    setFeeDigiDisplay(clientFees.feedigidisplay ?? null);
+    setFeeDigiVideo(clientFees.feedigivideo ?? null);
+    setFeeBVOD(clientFees.feebvod ?? null);
+    // Integration: feeintegration only (absent => 0%). Influencers: feeinfluencers or feecontentcreator.
+    setFeeIntegration(clientFees.feeintegration ?? null);
+    setFeeInfluencers(clientFees.feeinfluencers ?? null);
+    setFeeProgDisplay(clientFees.feeprogdisplay ?? null);
+    setFeeProgVideo(clientFees.feeprogvideo ?? null);
+    setFeeProgBvod(clientFees.feeprogbvod ?? null);
+    setFeeProgAudio(clientFees.feeprogaudio ?? null);
+    setFeeProgOoh(clientFees.feeprogooh ?? null);
+    setFeeContentCreator(clientFees.feecontentcreator ?? null);
+    setAdServVideo(selectedClient.adservvideo);
+    setAdServImp(selectedClient.adservimp);
+    setAdServDisplay(selectedClient.adservdisplay);
+    setAdServAudio(selectedClient.adservaudio);
+  }, [])
+
+  useClientFeesOnPlanStart(
+    clients.find((c) => c.id.toString() === selectedClientId),
+    campaignStart,
+    applyClientFees,
+  )
+
   const handleClientChange = (clientId: string) => {
     if (shouldSkipClientChange(selectedClientId, clientId)) {
       return
@@ -3245,38 +3285,7 @@ function CreateMediaPlan() {
         setMbaNumber("")
       }
       setSelectedClientId(clientId)
-      // B22: the same client-row-to-fee-state rule as edit (applyClientFees).
-      // Sets all 20, including TV, radio, newspapers, magazines and OOH, which
-      // create never set before. Switch off: the 12 fields from 0113 are null
-      // and Influencers is the Content Creator rate, as before.
-      const clientFees = clientFeeStateFromRow(selectedClient as unknown as Record<string, unknown>, {
-        channelFees: clientFeatureOn("channel_client_fees"),
-      })
-      setFeeTelevision(clientFees.feetelevision ?? null);
-      setFeeRadio(clientFees.feeradio ?? null);
-      setFeeNewspapers(clientFees.feenewspapers ?? null);
-      setFeeMagazines(clientFees.feemagazines ?? null);
-      setFeeOoh(clientFees.feeooh ?? null);
-      setFeeSearch(clientFees.feesearch ?? null);
-      setFeeSocial(clientFees.feesocial ?? null);
-      setFeeCinema(clientFees.feecinema ?? null);
-      setFeeDigiAudio(clientFees.feedigiaudio ?? null);
-      setFeeDigiDisplay(clientFees.feedigidisplay ?? null);
-      setFeeDigiVideo(clientFees.feedigivideo ?? null);
-      setFeeBVOD(clientFees.feebvod ?? null);
-      // Integration: feeintegration only (absent => 0%). Influencers: feeinfluencers or feecontentcreator.
-      setFeeIntegration(clientFees.feeintegration ?? null);
-      setFeeInfluencers(clientFees.feeinfluencers ?? null);
-      setFeeProgDisplay(clientFees.feeprogdisplay ?? null);
-      setFeeProgVideo(clientFees.feeprogvideo ?? null);
-      setFeeProgBvod(clientFees.feeprogbvod ?? null);
-      setFeeProgAudio(clientFees.feeprogaudio ?? null);
-      setFeeProgOoh(clientFees.feeprogooh ?? null);
-      setFeeContentCreator(clientFees.feecontentcreator ?? null);
-      setAdServVideo(selectedClient.adservvideo);
-      setAdServImp(selectedClient.adservimp);
-      setAdServDisplay(selectedClient.adservdisplay);
-      setAdServAudio(selectedClient.adservaudio);
+      applyClientFees(selectedClient, form.getValues("mp_campaigndates_start"))
       if (selectedClient.mp_client_name) {
         getClientKPIs(selectedClient.mp_client_name)
           .then((data) => {

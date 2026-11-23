@@ -11,8 +11,9 @@
  * - Snapshot shape: the fee loading built on edit equals the one built on
  *   create, and equals the pre-B22 edit page, so mba_fee_snapshots.fees keeps
  *   its keys (feeinfluencers included).
- * - Source pins: both pages call the helper and read the switch once; create
- *   sets all 20; the dead refreshClientFeesFromApi is gone.
+ * - Source pins: create sets all 20; edit applies every field. (S4 moved the
+ *   switch read and the helper call into app/mediaplans/_form/clientFees.ts,
+ *   tested by behaviour in clientFeeChannels.rateOn.s4.)
  */
 import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
@@ -226,15 +227,6 @@ test("Humanforce with OOH 10%: only OOH changes, and only with the switch on", (
 
 const editPage = readFileSync(join(process.cwd(), "app/mediaplans/mba/[mba_number]/edit/page.tsx"), "utf8")
 const createPage = readFileSync(join(process.cwd(), "app/mediaplans/create/page.tsx"), "utf8")
-
-test("source: both pages read the switch once and call the helper once", () => {
-  for (const [label, page] of [["edit", editPage], ["create", createPage]] as const) {
-    assert.equal((page.match(/clientFeatureOn\("channel_client_fees"\)/g) ?? []).length, 1, label)
-    assert.equal((page.match(/clientFeeStateFromRow\(/g) ?? []).length, 1, label)
-  }
-  assert.doesNotMatch(editPage, /refreshClientFeesFromApi/)
-  assert.doesNotMatch(editPage, /clientData\.feeinfluencers/)
-})
 
 test("source: create sets all 20 fee states from the helper", () => {
   const setters: Record<string, string> = {
