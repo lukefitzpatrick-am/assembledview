@@ -34,12 +34,11 @@ export function oohHydrateLine(line: Line, saved: Line, ctx: Ctx): Line & { burs
   const { line_item: _a, lineItem: _b, line_item_id: _c, lineItemId: _d, bursts: _e, totalMedia: _f, totalDeliverables: _g, totalFee: _h, ...fields } = line
   const lineNumber = pickLineItemNumber(saved, ctx.index + 1)
   const lineItemId = saved.line_item_id || saved.lineItemId || buildLineItemId(ctx.mbaNumber, MEDIA_TYPE_ID_CODES.ooh, lineNumber)
-  const savedAttrs = saved.attrs as Line | undefined
   const hydrated = hydrateOohEditorLine(saved, ctx)
   return {
     ...fields,
     network: hydrated.network,
-    format: hydrated.format ?? String(hydrated.attrs?.format_unresolved_raw ?? hydrated.attrs?.publisher_format_name ?? ""),
+    format: hydrated.format ?? String(hydrated.attrs?.format_unresolved_raw ?? ""),
     buyType: hydrated.buyType ?? String(hydrated.attrs?.buyType_unresolved_raw ?? ""),
     type: hydrated.type,
     size: hydrated.size,
@@ -51,7 +50,7 @@ export function oohHydrateLine(line: Line, saved: Line, ctx: Ctx): Line & { burs
     line_item: lineNumber,
     lineItem: lineNumber,
     attrs: hydrated.attrs ?? saved.attrs ?? undefined,
-    buy_granularity: savedAttrs?.buy_granularity ?? saved.buy_granularity ?? saved.buyGranularity ?? undefined,
+    buy_granularity: saved.buy_granularity ?? saved.buyGranularity ?? undefined,
     bursts: hydrated.bursts,
   }
 }
