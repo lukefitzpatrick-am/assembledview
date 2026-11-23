@@ -6,6 +6,7 @@
 import { z } from "zod"
 
 import { LINE_CHANNELS } from "@/db/schema"
+import { isTrackingType } from "@/lib/delivery/trackingType"
 
 const monthAmountSchema = z.object({
   month: z.string().min(1),
@@ -49,7 +50,17 @@ const lineItemSchema = z.object({
   budgetIncludesFees: z.boolean().nullable().optional(),
   noAdserving: z.boolean().nullable().optional(),
   bursts: z.unknown(),
-  attrs: z.record(z.string(), z.unknown()).nullable().optional(),
+  // S7: a tracking type, when present, is one of the four (both spellings the resolver reads).
+  attrs: z
+    .record(z.string(), z.unknown())
+    .refine(
+      (a) =>
+        (a.tracking_type === undefined || isTrackingType(a.tracking_type)) &&
+        (a.trackingType === undefined || isTrackingType(a.trackingType)),
+      { message: "attrs.tracking_type must be tracked, supplier_reported, assumed or not_tracked" },
+    )
+    .nullable()
+    .optional(),
   mediaType: z.string().min(1),
   rate: z.number(),
   enteredAmount: z.number(),

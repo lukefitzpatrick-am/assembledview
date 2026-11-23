@@ -58,10 +58,15 @@ export function assumeSpendForSnapshotLine(args: AssumeSpendLine): boolean {
   if (isValueAddBuyType(args.buyType)) return false
   if (!(args.deliveryMediaCents > 0)) return false
   if (OFFLINE_SOURCE_TABLES.has(args.sourceTable)) return true
-  if (!DIGITAL_SOURCE_TABLES.has(args.sourceTable)) return false
-  if (!args.noAdserving) return false
-  const key = deliverySourceLookupKey(args.publisher, args.platform)
-  return lookupActiveDeliverySource(key) == null
+  return isNoSourceDigitalLine(args)
+}
+
+/** A digital line with No Ad Serving and no active delivery source: nothing reports its delivery. */
+export function isNoSourceDigitalLine(
+  args: Pick<AssumeSpendLine, "sourceTable" | "noAdserving" | "publisher" | "platform">,
+): boolean {
+  if (!DIGITAL_SOURCE_TABLES.has(args.sourceTable) || !args.noAdserving) return false
+  return lookupActiveDeliverySource(deliverySourceLookupKey(args.publisher, args.platform)) == null
 }
 
 /**

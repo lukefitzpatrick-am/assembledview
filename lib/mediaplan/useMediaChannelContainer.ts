@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { ownTrackingTypeEntry } from "@/lib/delivery/trackingType"
 import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
@@ -558,14 +559,17 @@ export function useMediaChannelContainer(
           totalDeliverables: item.total_deliverables || 0,
           totalFee: item.total_fee || 0,
         }
-        if (!config.hydrateLine) return line
-        return config.hydrateLine(line, item, {
-          feePct: feePct ?? 0,
-          mbaNumber,
-          campaignStartDate,
-          campaignEndDate,
-          index,
-        })
+        const hydrated = config.hydrateLine
+          ? config.hydrateLine(line, item, {
+              feePct: feePct ?? 0,
+              mbaNumber,
+              campaignStartDate,
+              campaignEndDate,
+              index,
+            })
+          : line
+        // S7: only a saved choice adds the key (every channel, after its own hydrate).
+        return { ...hydrated, ...ownTrackingTypeEntry("trackingType", item) }
       })
 
       form.reset({
@@ -612,14 +616,17 @@ export function useMediaChannelContainer(
         line_item: lineItem.line_item,
         totalMedia: totalMedia,
       }
-      if (!config.saveLine) return row
-      return config.saveLine(row, lineItem, {
-        feePct: feePct || 0,
-        mbaNumber,
-        campaignStartDate,
-        campaignEndDate,
-        index,
-      })
+      const saved = config.saveLine
+        ? config.saveLine(row, lineItem, {
+            feePct: feePct || 0,
+            mbaNumber,
+            campaignStartDate,
+            campaignEndDate,
+            index,
+          })
+        : row
+      // S7: lands in line_items.attrs; a line with no choice saves as before.
+      return { ...saved, ...ownTrackingTypeEntry("tracking_type", lineItem) }
     })
 
     publishMediaLineItemsIfChanged(

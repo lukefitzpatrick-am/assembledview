@@ -2,6 +2,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { BillingBurst } from "@/lib/billing/types"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { ownTrackingTypeEntry } from "@/lib/delivery/trackingType"
 import type { UseFormReturn } from "react-hook-form"
 import type { StandardDigiDisplayFormLineItem } from "@/lib/mediaplan/expertChannelMappings"
 
@@ -193,6 +194,7 @@ type DigiDisplayFormLine = {
   market?: string
   fixedCostMedia?: boolean
   fixedCostFrom?: string
+  trackingType?: string
   clientPaysForMedia?: boolean
   budgetIncludesFees?: boolean
   noadserving?: boolean
@@ -221,6 +223,7 @@ export function asStandardDigiDisplayItems(
     fixedCostMedia: li.fixedCostMedia ?? false,
     // B23: carried only when the card has one, so Apply keeps the date.
     ...(li.fixedCostFrom !== undefined ? { fixedCostFrom: li.fixedCostFrom } : {}),
+    ...ownTrackingTypeEntry("trackingType", li),
     clientPaysForMedia: li.clientPaysForMedia ?? false,
     budgetIncludesFees: li.budgetIncludesFees ?? false,
     noadserving: li.noadserving ?? false,

@@ -661,6 +661,18 @@ export const FEATURE_DEFINITIONS = [
     requires: ["unmapped_delivery"],
   },
   {
+    key: "line_tracking_type",
+    label: "Tracking type per line",
+    description:
+      "S7. Each line card in both plan editors gets a Tracking control: Tracked (platform or ad server data), Supplier reported (a supplier file), Assumed (even spend from the plan) or Not tracked. It starts on the line's default, which is what pacing reads for it today: a programmatic line from a supplier-file source (Channel Factory, Vistar, Broadsign) or a Channel Factory Digital Video line is Supplier reported, a digital line with No Ad Serving and no delivery source is Assumed, otherwise the channel's default (lib/delivery/trackingType.ts). Picking the default stores nothing; any other pick is saved in the line's attrs and stays until the planner picks the default, so lines nobody set save exactly as before. Pacing does not read it yet: the next batch makes each line read only the delivery its tracking type allows. Nothing needs to be true first. Off: no control; saved choices are kept.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "pacing_digest_data_checks",
     label: "Pacing digest data checks",
     description:

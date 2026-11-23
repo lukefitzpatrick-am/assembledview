@@ -22,6 +22,8 @@ import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
 import { CanonicalBurstMoney } from "@/components/media-containers/CanonicalBurstMoney"
 import { AaRoutingInfo } from "@/components/media-containers/AaRoutingInfo"
 import { FixedCostFromField } from "@/components/media-containers/FixedCostFromField"
+import { TrackingTypeField } from "@/components/media-containers/TrackingTypeField"
+import { mapUiMediaTypeToLineChannel } from "@/lib/mediaplan/mapUiMediaTypeToLineChannel"
 import { deliveryFlagsFromClient } from "@/lib/delivery/deliveryFlags"
 import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
 import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
@@ -996,6 +998,7 @@ export function ExpertCard<T extends FieldValues>({
   }) as boolean | undefined
   const cardFields = getExpertCardSurfaceFields(config)
   const optionFlags = getExpertOptionFlags(config)
+  const lineChannel = mapUiMediaTypeToLineChannel(config.mediaTypeKey)
   const dropdownFields = cardFields.filter((d) =>
     isComboboxDescriptorKind(d.kind)
   )
@@ -1121,6 +1124,15 @@ export function ExpertCard<T extends FieldValues>({
                   />
                 ) : null}
               </div>
+            ) : null}
+            {lineChannel ? (
+              <TrackingTypeField
+                form={form}
+                itemsKey={itemsKey}
+                lineItemIndex={lineItemIndex}
+                channel={lineChannel}
+                lineLabel={`${config.channelLabel.toLowerCase()} line item ${lineItemIndex + 1}`}
+              />
             ) : null}
             <div className="text-right">
               <span className="block text-[11px] text-muted-foreground">Total</span>

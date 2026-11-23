@@ -43,6 +43,8 @@ import type {
   StandardProductionFormLineItem,
 } from "./expertChannelMappings.js"
 
+import { ownTrackingTypeEntry } from "@/lib/delivery/trackingType"
+
 import { formatBurstDateLocal } from "./burstDate"
 import {
   keepZeroQuantityPackageBurstsOnApply,
@@ -84,6 +86,8 @@ function attachBurstPreserve<T extends { bursts?: unknown; buyType?: string }>(
   return {
     ...li,
     ...carriedFixedCostFrom(li, prev),
+    // S7: the grid has no tracking column, so Apply keeps the card's choice.
+    ...ownTrackingTypeEntry("trackingType", prev as object),
     bursts: (options?.keepZeroQuantityPackageBursts && floored === generated
       ? keepZeroQuantityPackageBurstsOnApply(generated, previous, li.buyType)
       : floored) as T["bursts"],
