@@ -220,6 +220,8 @@ export const HELP_TIPS = {
   planPublish:
     "Publish creates the version that clients, billing and pacing read. On a plan that is already published, Save draft keeps your work without changing what they see.",
   financeScope: "Every finance section uses this month and scope. Change it once here.",
+  clientFeeEffectiveDate:
+    "A rate change takes effect from its date. A plan takes each fee at its start date: the latest change on or before that date, else the Fees box. Plans starting earlier keep their rate when saved again. Published versions never change.",
 } as const
 
 export type HelpTipId = keyof typeof HELP_TIPS

@@ -27,6 +27,7 @@ import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
+import { ClientFeeRateChangesSection } from "@/components/clients/ClientFeeRateChangesSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { TypedNumberInput } from "@/components/clients/TypedNumberInput"
 import { useConfirm } from "@/hooks/use-confirm"
@@ -629,6 +630,10 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               </>
             ) : null}
           </div>
+
+          {isAdmin && clientFeatureOn("client_fee_rate_history") ? (
+            <ClientFeeRateChangesSection clientId={client.id} channelFeesOn={channelFeesOn} />
+          ) : null}
 
           <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-4">Ad Serving Fees</h3>
