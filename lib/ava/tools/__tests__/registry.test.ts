@@ -54,6 +54,8 @@ test("ava tool catalog: names unique and complete", () => {
     "preview_billing_revision",
     "apply_billing_revision",
     "query_true_up",
+    "query_data",
+    "search_client_files",
   ])
 })
 
