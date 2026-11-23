@@ -204,6 +204,13 @@
       "when": 1794526247791,
       "tag": "0028_codex_s1_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795436834755,
+      "tag": "0029_client_fee_rates",
+      "breakpoints": true
     }
   ]
 }
