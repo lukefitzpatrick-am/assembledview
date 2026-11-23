@@ -624,7 +624,11 @@ function accumulateDistributableBurstForExpertImport(
  * fold into that span, as the grid's merge sums the week and day values under
  * a new span into its total (`handleMergeSelectedWeeks`), so the grid shows
  * the quantity and Apply writes it. These imports open every burst with the
- * line's buy type, so the buy types always match. A week under two spans
+ * line's buy type, so the buy types always match.
+ * shortcut: a burst saved with its own bonus type on a paid line, under a paid
+ * span, folds in and an edited Apply prices it as paid (C371 review F5, live 0;
+ * the import does the same for one in its own week). Upgrade when a live line
+ * on these 13 grids has an own-type burst. A week under two spans
  * (overlapping spans, which the grid never makes) is left as before. So is a
  * fixed cost line until V96 (C-369: one less priced cell changes its money).
  * The fold runs before the lump sum: the lump sum is not a burst, and a lump

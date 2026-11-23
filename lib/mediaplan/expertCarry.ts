@@ -216,8 +216,9 @@ const takesGridQty = (bt: string) => isInclusion(bt) || bt === "fixed_cost"
  * Too wide: on an OOH panels line a burst with its own bonus type, a rate and
  * 0 panels opens its rate as the count but is counted here, so beside a
  * placed burst in a shown week an edited Apply writes it twice. Upgrade when
- * a live line has either shape or V104 to V106 are built: each import
- * records the bursts it placed and `attachExpertCarry` reads that.
+ * a live line has either shape or Luke answers C371 Q3: each import records
+ * the bursts it placed and `attachExpertCarry` reads that (all 20 imports,
+ * its own pack, so not done with V104 to V106).
  */
 function opensNoQuantity(b: Record<string, unknown>, bt: string, lineBuyType: string): boolean {
   if (bt === "fixed_cost" || bt === "package_inclusions") return false
