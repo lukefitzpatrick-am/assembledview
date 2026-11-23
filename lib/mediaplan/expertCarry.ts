@@ -88,7 +88,7 @@ export type ExpertCarry = {
   buyType: string
   budgetIncludesFees: boolean
   groups: ExpertCarryGroup[]
-  /** C-370 (V99 A): saved bursts the grid cannot place, given back as saved on every Apply. */
+  /** C-370 (V99 A): saved bursts the grid cannot place, given back as saved on every Apply (a $0 one with no quantity only while no burst the grid wrote covers its dates, C371fix F1). */
   unplaced: CarriedBurst[]
 }
 

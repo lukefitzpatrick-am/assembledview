@@ -14,6 +14,7 @@ import test from "node:test"
 import { format } from "date-fns"
 
 import { findOverlappingBursts } from "@/lib/mediaplan/burstOverlap"
+import { mapRowsWithCarry } from "@/lib/mediaplan/expertCarry"
 import * as M from "@/lib/mediaplan/expertChannelMappings"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowCostSplit } from "@/lib/mediaplan/expertRowCost"
@@ -81,6 +82,11 @@ for (const wso of [0, 1] as const) {
     }
   }
 
+  test(`Radio, ${grid} grid: a blank burst under a saved paid burst comes back as saved untouched: only a burst the grid wrote counts, not a carried one (C371fix F1)`, () => {
+    const saved = { buyType: "spots", budgetIncludesFees: false, clientPaysForMedia: false, fixedCostMedia: false, noadserving: false, ...ids, bursts: [{ budget: "$1,950.00", buyAmount: "$650.00", calculatedValue: 3, startDate: "2026-03-01", endDate: "2026-03-07" }, { budget: "", buyAmount: "", calculatedValue: 0, startDate: "2026-03-01", endDate: "2026-03-28" }] }
+    assert.deepEqual(run(RADIO, saved, START, END, wso).applied.bursts.map((b: any) => [money(b), day(b.startDate), day(b.endDate)]), [[1950, "2026-03-01", "2026-03-07"], [0, "2026-03-01", "2026-03-28"]])
+  })
+
   test(`Television package lump line, ${grid} grid: an edit in a week under the saved burst, not week 1, is priced from the grid with no overlap (C371fix F2, PENFOLD018 31931 shape)`, () => {
     const start = new Date(2026, 2, 1)
     const end = new Date(2026, 5, 28)
@@ -107,3 +113,22 @@ for (const wso of [0, 1] as const) {
     assert.equal(cents(applied), money)
   })
 }
+
+// The rule on its own: only a $0 burst with no quantity is left out, and only when a written burst shares a day with it.
+test("A burst the grid cannot place is left out only when it is $0 with no quantity and a burst the grid wrote shares a day with it (C371fix F1)", () => {
+  const cols = buildWeeklyGanttColumnsFromCampaign(START, END, 0)
+  const typed = { budget: "$300.00", buyAmount: "$100.00", calculatedValue: 3, startDate: "2026-03-01", endDate: "2026-03-21" }
+  const unplaced = (asSaved: Record<string, unknown>) => ({ budget: asSaved.budget, buyAmount: asSaved.buyAmount, calculatedValue: asSaved.calculatedValue, amount: asSaved.amount, takesGridQty: false, startYmd: String(asSaved.startDate), endYmd: String(asSaved.endDate), asSaved })
+  const apply = (...saved: Record<string, unknown>[]) => {
+    const row = { weeklyValues: {}, expertCarry: { unitRate: 0, buyType: "", budgetIncludesFees: false, groups: [], unplaced: saved.map(unplaced) } }
+    return mapRowsWithCarry([row], cols, () => ({ bursts: [typed] }))[0]!.bursts
+  }
+  const blankUnder = { budget: "", buyAmount: "", calculatedValue: 0, startDate: "2026-03-15", endDate: "2026-03-28" }
+  assert.deepEqual(apply(blankUnder), [typed])
+  for (const kept of [
+    { ...blankUnder, calculatedValue: 5 },
+    { cost: 0, amount: 2, budget: "", calculatedValue: 0, startDate: "2026-03-15", endDate: "2026-03-28" },
+    { ...blankUnder, budget: "$50.00" },
+    { ...blankUnder, startDate: "2026-03-22" },
+  ]) assert.deepEqual(apply(kept), [typed, kept])
+})
