@@ -88,6 +88,9 @@ export function BurstReadonlyMetric({
       <div className="flex items-center gap-1">
         <Input
           type="text"
+          // The heading above is a FormLabel with no control to tie to, so the
+          // read-only field carries its own name (W5l item 5).
+          aria-label={label}
           className={cn(
             MP_BURST_READONLY_INPUT,
             muted && "bg-muted/30 border-border/40 text-muted-foreground",
