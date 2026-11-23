@@ -96,7 +96,7 @@ Pacing shows delivery against plan for live campaigns, to yesterday.
 
 Status: **behind** is under 90% of expected delivery, **on track** is 90% to 110%, **ahead** is over 110%.
 
-A line with no delivery may not be matched to the plan yet. **Relabels** (Admin) attaches unmatched delivery to a plan line: pick a client or MBA on Match, preview, check the lines it moves, then apply. A relabel can be reverted. **Unmapped** lists recent delivery that matches no published line.
+A line with no delivery may not be matched to the plan yet. **Relabels** (Admin) attaches unmatched delivery to a plan line: pick a client or MBA on Match, preview, check the lines it moves, then apply. A relabel can be reverted. **Unmapped** lists recent delivery that matches no published line. Each row says what to do and, where it can, which line to relabel to. With the unmatched delivery queue switched on, it also shows how many days the delivery has been unmatched, and after 3 days **Copy supplier note** gives a draft asking the supplier or trader to put the plan line id in the platform name. The app does not send it. The pacing digest counts the queue and links to it.
 
 ## Client dashboards
 
