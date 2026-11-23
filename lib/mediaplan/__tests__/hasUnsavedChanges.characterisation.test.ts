@@ -99,11 +99,8 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "ProductionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 1 bespoke container + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
-  for (const file of [
-    ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
-    "OOHContainer.tsx",
-  ]) {
+test("CHARACTERISATION: 1 bespoke container + hook set expertApplyPendingPageSave(true) on Apply", () => {
+  for (const file of CONTAINERS_THAT_SET_PENDING_ON_APPLY) {
     const src = read(`components/media-containers/${file}`)
     assert.match(
       src,
@@ -122,15 +119,6 @@ test("CHARACTERISATION: 1 bespoke container + hook + OOH set expertApplyPendingP
     hook,
     /subscribeMediaPlanPageSaved\(\(\) => setExpertApplyPendingPageSave\(false\)\)/
   )
-})
-
-test("CHARACTERISATION (C-38 FIXED): OOHContainer sets expertApplyPendingPageSave(true) on Apply", () => {
-  const ooh = read("components/media-containers/OOHContainer.tsx")
-  assert.match(
-    ooh,
-    /subscribeMediaPlanPageSaved\(\(\) => setExpertApplyPendingPageSave\(false\)\)/
-  )
-  assert.match(ooh, /setExpertApplyPendingPageSave\(true\)/)
 })
 
 test("CHARACTERISATION: MediaChannelContainer consumes hook pending flag (does not own setTrue)", () => {

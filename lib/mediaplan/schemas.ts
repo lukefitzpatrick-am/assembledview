@@ -586,7 +586,6 @@ export const oohFormSchema = z.object({
   lineItems: z.array(oohlineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type OohFormValues = z.infer<typeof oohFormSchema>
 
 // --- Cinema ------------------------------------------------------------------
 export const cinemaFormSchema = z.object({

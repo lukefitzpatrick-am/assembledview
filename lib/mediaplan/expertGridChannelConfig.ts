@@ -1273,8 +1273,8 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
       ),
   }
 
-/** Match labels/values on {@link OOHContainer} comboboxes. */
-export const OOH_FORMAT_OPTIONS: ComboboxOption[] = [
+/** OOH's Format list (card and grid). */
+const OOH_FORMAT_OPTIONS: ComboboxOption[] = [
   { value: "active", label: "Active" },
   { value: "large_format", label: "Large Format" },
   { value: "other", label: "Other" },

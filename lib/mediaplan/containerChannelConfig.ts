@@ -68,6 +68,7 @@ import {
   createEmptyNewspaperExpertRow,
   createEmptyMagazinesExpertRow,
   OOH_EXPERT_CHANNEL_CONFIG,
+  createEmptyOohExpertRow,
   PRODUCTION_EXPERT_CHANNEL_CONFIG,
   PROGAUDIO_EXPERT_CHANNEL_CONFIG,
   PROGBVOD_EXPERT_CHANNEL_CONFIG,
@@ -123,6 +124,7 @@ import {
   mapNewspaperExpertRowsToStandardLineItems,
   mapMagazineExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
+  mapOohExpertRowsToStandardLineItems,
   mapStandardProductionLineItemsToExpertRows,
   mapStandardProgAudioLineItemsToExpertRows,
   mapStandardProgBvodLineItemsToExpertRows,
@@ -189,6 +191,9 @@ import {
   serializeNewspaperExpertRowsBaseline,
   serializeNewspaperStandardLineItemsBaseline,
   mergeMagazineStandardFromExpertWithPrevious,
+  mergeOohStandardFromExpertWithPrevious,
+  serializeOohExpertRowsBaseline,
+  serializeOohStandardLineItemsBaseline,
   serializeMagazinesExpertRowsBaseline,
   serializeMagazineStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
@@ -212,6 +217,7 @@ import { getTelevisionBursts, televisionExcelRow, televisionHydrateLine } from "
 import { newBurstReactKey, televisionBurstDefaults, type BurstFactory } from "@/lib/mediaplan/burstOperations"
 import { newspaperExcelRow } from "@/lib/mediaplan/newspaperLine"
 import { radioExcelRow } from "@/lib/mediaplan/radioLine"
+import { getOohBursts, oohExcelRow, oohHydrateLine } from "@/lib/mediaplan/oohLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
@@ -3282,14 +3288,38 @@ export const OOH_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: oohFormSchema,
   fetchPublishers: getPublishersForOoh,
   toExpert: mapStandardOohLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapOohExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeOohStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeOohStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeOohExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyOohExpertRow,
+  // OOH's own shape (W5k, moved from its container): no line id, camel `noAdserving` (C-36).
   billingMediaTypeLabel: "ooh",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getOohBursts,
+  expertFromFeeKey: "feePctOoh",
+  hydrateLine: oohHydrateLine,
+  excelRow: oohExcelRow,
+  excelPackageKeepsQuantity: true,
+  // Create passes OOH's save rows back as its initial lines.
+  ownPublishEcho: true,
+  cardDerivesPackage: true,
+  largeFormatGate: true,
+  cardCells: [["Network", "network"], ["Format", "format"]],
+  shell: {
+    title: "OOH Media",
+    themeKey: "ooh",
+    timelineMediaTypeKey: "ooh",
+    loadLabel: "OOH",
+    exitConfirmYesAttr: "data-ooh-expert-exit-yes",
+    entryModeAriaLabel: "OOH entry mode",
+    expertDialogTitle: "OOH Expert Mode",
+  },
+  summaryDimensions: {
+    Network: "network",
+    Placement: "placement",
+    Format: "format",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "rounded" as const,
   gridConfig: OOH_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "ooh",

@@ -107,36 +107,7 @@ test("the hook passes the form lines through and does not gross up again", () =>
   assert.doesNotMatch(fn, /100 - pct/)
 })
 
-const OFFLINE_CHARTS = [
-  ["OOHContainer.tsx", "lineItems", "feeooh"],
-] as const
-
-function assertChartDelegates(
-  file: string,
-  fieldKey: string,
-  feeName: string,
-) {
-  const source = readFileSync(
-    join(process.cwd(), "components/media-containers", file),
-    "utf8",
-  )
-  const start = source.indexOf("export function calculateInvestmentPerMonth")
-  const end = source.indexOf("export default function", start)
-  const fn = source.slice(start, end)
-  assert.match(fn, new RegExp(`form\\.getValues\\("${fieldKey}"\\)`), file)
-  assert.match(
-    fn,
-    new RegExp(`return channelInvestmentByMonth\\(items, ${feeName} \\|\\| 0\\)`),
-    file,
-  )
-  assert.doesNotMatch(fn, /100 - feePct/, file)
-}
-
-
 test("offline container charts equal the shared helper", () => {
-  for (const [file, fieldKey, feeName] of OFFLINE_CHARTS) {
-    assertChartDelegates(file, fieldKey, feeName)
-  }
   const items = [line({ budgetIncludesFees: false })]
   const chart = channelInvestmentByMonth(items, 15)
   assert.deepEqual(monthCents(chart), monthCents(channelInvestmentByMonth(items, 15)))

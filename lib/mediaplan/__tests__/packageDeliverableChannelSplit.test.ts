@@ -4,8 +4,6 @@
  */
 import assert from "node:assert/strict"
 import test from "node:test"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 
 import { cinemaCardDeliverables } from "@/lib/mediaplan/cinemaLine"
 import {
@@ -62,14 +60,6 @@ test("Cinema falls through to derived package deliverables (hotfix removed)", ()
     NET_BUDGET,
     "Cinema package round-trip deliverablesFromBudget ↔ netMediaFromDeliverables"
   )
-})
-
-test("source: OOH HOTFIX no longer special-cases package", () => {
-  const ooh = readFileSync(
-    join(process.cwd(), "components/media-containers/OOHContainer.tsx"),
-    "utf8"
-  )
-  assert.doesNotMatch(ooh, /HOTFIX:[\s\S]*buyTypeLower === "package"/)
 })
 
 test("Cinema's card works package deliverables out from budget and rate (W5f, on the shared container)", () => {
