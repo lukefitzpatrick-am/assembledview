@@ -198,6 +198,10 @@ export function useMediaChannelContainer(
 
   // All channel containers use the same RHF root key today.
   const fieldKey = "lineItems"
+  // Television's TARPs surface (W5h): the card's TARPs field writes each
+  // burst's tarps and deliverables, so a money change only moves totals, and
+  // the summary adds the bursts' TARPs.
+  const tv = config.calculatedVariant === "television"
   const mediaTypeIdCode = config.mediaTypeIdCode as MediaCode
 
   const prevInvestmentRef = useRef<{ monthYear: string; amount: string }[]>([])
@@ -641,7 +645,7 @@ export function useMediaChannelContainer(
       let lineDeliverables = 0
       ;(lineItem.bursts || []).forEach((burst: any) => {
         // The bonus input writes a string; sum numbers, never concatenate.
-        lineDeliverables += config.tarps
+        lineDeliverables += tv
           ? tarpsOf(burst)
           : config.cardDeliverables
           ? config.cardDeliverables(burst, lineItem.buyType, Boolean(lineItem.budgetIncludesFees), feePct || 0)
@@ -689,7 +693,8 @@ export function useMediaChannelContainer(
     (lineItemIndex: number, value: string) => {
       form.setValue(`${fieldKey}.${lineItemIndex}.buyType`, value)
 
-      if ((config.zeroBudgetBuyTypes ?? ["bonus", "package_inclusions"]).includes(value)) {
+      // Bonus zeroes the money; package inclusions too, except on Television.
+      if (value === "bonus" || (value === "package_inclusions" && !tv)) {
         const currentBursts = form.getValues(`${fieldKey}.${lineItemIndex}.bursts`) || []
         const zeroedBursts = currentBursts.map((burst: any) => ({
           ...burst,
@@ -711,7 +716,7 @@ export function useMediaChannelContainer(
   const handleValueChange = useCallback(
     (lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
       // The card's TARPs field writes Television's deliverables; only totals move here.
-      if (config.tarps) return handleLineItemValueChange(lineItemIndex)
+      if (tv) return handleLineItemValueChange(lineItemIndex)
       const burst = form.getValues(`${fieldKey}.${lineItemIndex}.bursts.${burstIndex}`)
       const lineItem = form.getValues(`${fieldKey}.${lineItemIndex}`)
       const valuePath = `${fieldKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`

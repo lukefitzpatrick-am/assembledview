@@ -466,15 +466,6 @@ export type ContainerChannelConfig = {
    */
   adSizes?: ContainerAdSizes
   /**
-   * Television's TARPs surface (W5h): the card's TARPs field writes each
-   * burst's `tarps` and deliverables (the hook only updates totals on a
-   * money change), and the summary adds the bursts' TARPs. Unset: the
-   * hook's deliverables rule.
-   */
-  tarps?: true
-  /** Buy types whose pick zeroes the line's budgets and buy amounts. Unset: bonus and package inclusions. */
-  zeroBudgetBuyTypes?: readonly string[]
-  /**
    * A new line (Add, and the placeholder's Add when `footer` is false), given
    * its id fields. Unset: the field map's defaults, one burst in the campaign
    * window, the ids last.
@@ -2215,8 +2206,6 @@ export const TELEVISION_CONTAINER_CONFIG: ContainerChannelConfig = {
   dedupeOnLoad: TELEVISION_LOAD_KEY,
   hydrateLine: televisionHydrateLine,
   excelRow: televisionExcelRow,
-  tarps: true,
-  zeroBudgetBuyTypes: ["bonus"],
   // New lines as the old container built them: dated now, 30s, no TARPs; the
   // footer's Add also gives the line its Ad Size and TARPs.
   newLine: (ids, footer) => ({
