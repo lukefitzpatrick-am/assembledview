@@ -486,6 +486,17 @@ export type ContainerChannelConfig = {
   newBurst?: BurstFactory
   /** Line fields a card edit copies to every burst of the line (Television's Ad Size). */
   copyToBursts?: readonly string[]
+  /** The card works package deliverables out from budget and rate, as cpm (OOH, the 4 Aug 2026 decision, C-168 (a)). Unset: package keeps its quantity. */
+  cardDerivesPackage?: true
+  /**
+   * OOH's large-format gate (W5k, moved from its container): over 30
+   * panel-granularity lines the cards are hidden behind a summary with
+   * "Open expert view", and the grid opens once on load (also after a
+   * large-format ingest accept). Unset: none of these.
+   */
+  largeFormatGate?: true
+  /** The card summary's first and third cells, as [label, line field] (OOH: Network, Format). Unset: by `addStation`, `sites` and `stations`. */
+  cardCells?: readonly [readonly [string, string], readonly [string, string]]
 }
 
 /**

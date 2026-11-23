@@ -174,15 +174,8 @@ test("card path: a package burst keeps the quantity typed (computeLoadedDelivera
   assert.equal(computeLoadedDeliverables("package", { budget: "750", buyAmount: "250" }, false, 0), 0, "blank is 0")
 })
 
-test("card path: every container and the shared hook skip package in handleValueChange", () => {
-  const files = [
-    "lib/mediaplan/useMediaChannelContainer.ts",
-  ]
-  for (const rel of files) {
-    const src = readFileSync(join(process.cwd(), rel), "utf8")
-    assert.match(src, /buyTypeLower === "package_inclusions" \|\|\s*buyTypeLower === "package"\s*\)\s*\{\s*return;?\s*\}/, rel)
-  }
-})
+// The card path's package skip is pinned by mounted output: the Newspaper, Magazines and Radio goldens
+// (a shared-hook card keeps a package quantity) and the OOH golden (OOH's card works it out, W5k).
 
 test("round trip, switch on: a digital card package of 3 opens in the grid as 3 and applies back as 3", () => {
   const std: any = {

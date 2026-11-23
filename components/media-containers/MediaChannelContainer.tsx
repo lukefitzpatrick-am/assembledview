@@ -20,6 +20,13 @@ import {
 import type { ExpertGridTitleOption } from "@/lib/mediaplan/expertGridChannelConfig"
 import { writeContainerEntryMode } from "@/lib/mediaplan/containerEntryMode"
 import {
+  consumeIngestOohExpertPreference,
+  countOohPanelGranularityLines,
+  OOH_PANEL_LINE_EXPERT_THRESHOLD,
+  shouldShowOohLargeFormatSummary,
+} from "@/lib/mediaplans/ingest/oohLargeFormatExpertGate"
+import { useEffect, useMemo, useRef } from "react"
+import {
   useMediaChannelContainer,
   type MediaChannelContainerHookProps,
 } from "@/lib/mediaplan/useMediaChannelContainer"
@@ -163,7 +170,38 @@ export default function MediaChannelContainer({
   const stationAdd = useChannelStationAdd(config.addStation ? shell.loadLabel : undefined, config.stations, form, fieldKey, toast)
   const adSizeList = useChannelAdSizes(config.adSizes, shell.loadLabel, form, fieldKey, toast)
   // The card summary's third cell: the line's site, title or bid strategy.
-  const thirdCell = config.sites ? ["Site", "site"] : stationAdd.key === "title" ? ["Title", "title"] : ["Bid strategy", "bidStrategy"]
+  const thirdCell = config.cardCells?.[1] ?? (config.sites ? ["Site", "site"] : stationAdd.key === "title" ? ["Title", "title"] : ["Bid strategy", "bidStrategy"])
+  const firstCell = config.cardCells?.[0]
+  const panelLineCount = useMemo(
+    () =>
+      config.largeFormatGate
+        ? countOohPanelGranularityLines(
+            ((watchedLineItems || []) as Array<{ lineItemId?: string; line_item_id?: string; channel?: string; attrs?: Record<string, unknown>; buy_granularity?: string }>).map((li) => ({
+              lineItemId: li.lineItemId || li.line_item_id || null,
+              channel: li.channel ?? "ooh",
+              attrs: { ...(li.attrs ?? {}), ...(li.buy_granularity ? { buy_granularity: li.buy_granularity } : {}) },
+            })),
+          )
+        : 0,
+    [config.largeFormatGate, watchedLineItems],
+  )
+  const largeFormat = shouldShowOohLargeFormatSummary(panelLineCount)
+  // After a large-format ingest accept (or when over the card limit), open the
+  // grid once on load: never leave 50 to 300 cards mounted.
+  const didAutoOpenExpertRef = useRef(false)
+  useEffect(() => {
+    if (!config.largeFormatGate || didAutoOpenExpertRef.current) return
+    if (expertModalOpen) {
+      didAutoOpenExpertRef.current = true
+      return
+    }
+    const fromIngest = consumeIngestOohExpertPreference()
+    if (!fromIngest && !largeFormat) return
+    if ((watchedLineItems || []).length === 0) return
+    didAutoOpenExpertRef.current = true
+    writeContainerEntryMode("schedule")
+    openExpertModal()
+  }, [config.largeFormatGate, openExpertModal, expertModalOpen, largeFormat, watchedLineItems])
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
@@ -271,7 +309,31 @@ export default function MediaChannelContainer({
                       onAdd={() => appendLineItem(emptyPayload(false))}
                     />
                   ) : null}
-                  {lineItemFields.map((field, lineItemIndex) => {
+                  {largeFormat && lineItemFields.length > 0 ? (
+                    <div className="rounded-card border border-border bg-card p-6 shadow-e1">
+                      <p className="text-sm font-medium text-foreground">
+                        <span className="num">{panelLineCount}</span> large-format panel line
+                        {panelLineCount === 1 ? "" : "s"}{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (over the {OOH_PANEL_LINE_EXPERT_THRESHOLD}-card interim limit)
+                        </span>
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Card entry is suppressed for this volume — use the schedule grid (expert view) to edit.
+                      </p>
+                      <Button
+                        type="button"
+                        className="mt-4"
+                        onClick={() => {
+                          writeContainerEntryMode("schedule")
+                          openExpertModal()
+                        }}
+                      >
+                        Open expert view
+                      </Button>
+                    </div>
+                  ) : null}
+                  {!largeFormat && lineItemFields.map((field, lineItemIndex) => {
                     const lineItemId = resolvedLineItemId(
                       form.getValues(`${fieldKey}.${lineItemIndex}`),
                       mbaNumber,
@@ -333,9 +395,11 @@ export default function MediaChannelContainer({
                             <div className="grid grid-cols-4 gap-4 text-sm">
                               <div>
                                 <span className="font-medium">
-                                  {config.addStation ? "Network:" : config.sites ? "Publisher:" : "Platform:"}
+                                  {firstCell ? `${firstCell[0]}:` : config.addStation ? "Network:" : config.sites ? "Publisher:" : "Platform:"}
                                 </span>{" "}
-                                {(config.sites
+                                {(firstCell
+                                  ? form.watch(`${fieldKey}.${lineItemIndex}.${firstCell[1]}`)
+                                  : config.sites
                                   ? siteList.publisherOf(lineItemIndex)
                                   : form.watch(
                                       `${fieldKey}.${lineItemIndex}.${config.addStation ? "network" : "platform"}`,

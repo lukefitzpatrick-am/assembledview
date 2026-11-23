@@ -744,7 +744,7 @@ export function useMediaChannelContainer(
       if (
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions" ||
-        buyTypeLower === "package"
+        (buyTypeLower === "package" && !config.cardDerivesPackage)
       ) {
         return
       }
@@ -852,6 +852,8 @@ export function useMediaChannelContainer(
         return "Package"
       case "insertions":
         return "Insertions"
+      case "panels":
+        return "Panels"
       default:
         return "Deliverables"
     }
