@@ -18,7 +18,13 @@
  * import: the route passes querySnowflake in. Types are imported by the client.
  */
 import { roundMoney2 } from "@/lib/money/cents"
-import { lineIdInName, parseMatchLineId } from "@/lib/pacing/relabel/match/rules"
+import {
+  legacyLineIdReason,
+  lineIdInName,
+  parseMatchLineId,
+  sameNumberCandidates,
+} from "@/lib/pacing/relabel/match/rules"
+import { isCm360Channel } from "@/lib/pacing/relabel/shared/channels"
 import { suggestedMbaFromCampaignName } from "./suggestedMbaFromCampaignName"
 import {
   labelMapJoinSql,
@@ -32,13 +38,14 @@ export const UNMAPPED_DELIVERY_WINDOW_DAYS = 30
 /** Upper bound on ids checked against the published snapshot in one query. */
 const MAX_LOOKUP_IDS = 500
 
-export type UnmappedSuggestionKind = "relabel" | "add_line" | "rename"
+/** `match`: an old id with candidate lines; the Match tab decides, because it checks for duplicates. */
+export type UnmappedSuggestionKind = "relabel" | "match" | "add_line" | "rename"
 
 export type UnmappedSuggestion = {
   kind: UnmappedSuggestionKind
   /** Lower case MBA, or a client stem from the campaign prefix (upper case), or null. */
   mba: string | null
-  /** For relabel: the published target. For add_line: the id that is not on the plan. */
+  /** For relabel: the published target. For match and add_line: the id that is not on the plan. */
   lineItemId: string | null
   action: string
 }
@@ -205,7 +212,11 @@ export type PublishedLookup = {
   lineIds: ReadonlySet<string>
   /** MBAs with at least one published line, lower case. */
   mbas: ReadonlySet<string>
+  /** Published lines of the MBAs a legacy id names: line id and plan `line_channel`, lower case. */
+  linesByMba: ReadonlyMap<string, readonly { lineItemId: string; lineChannel: string }[]>
 }
+
+
 
 /** Pure: what to do about one unmapped entity. */
 export function suggestUnmappedFix(row: RawRow, published: PublishedLookup): UnmappedSuggestion {
@@ -225,6 +236,28 @@ export function suggestUnmappedFix(row: RawRow, published: PublishedLookup): Unm
   const planStyle = (current && parseMatchLineId(current) ? current : null) ?? nameId
   if (planStyle) {
     const mba = parseMatchLineId(planStyle)?.mba ?? null
+    const why = legacyLineIdReason(planStyle)
+    const targets = why
+      ? sameNumberCandidates(row.channel, planStyle, (mba && published.linesByMba.get(mba)) || []).map((l) => l.lineItemId)
+      : []
+    // Only CM360 with no spend is safe to pre-fill. Other delivery may duplicate an entity already on
+    // the line (RL2), and the 30-day spend here cannot rule out earlier spend; only Match checks that.
+    if (targets.length === 1 && !(row.spend > 0) && isCm360Channel(row.channel)) {
+      return {
+        kind: "relabel",
+        mba,
+        lineItemId: targets[0]!,
+        action: `${why}. The only published line with the same MBA, number and channel is ${targets[0]}. Relabel it to that line.`,
+      }
+    }
+    if (targets.length > 0) {
+      return {
+        kind: "match",
+        mba,
+        lineItemId: planStyle,
+        action: `${why}. ${targets.join(" or ")} ${targets.length === 1 ? "has" : "have"} the same MBA, number and channel. Check it on the Match tab for ${mba}, which flags delivery already counted on a line, and relabel there.`,
+      }
+    }
     return {
       kind: "add_line",
       mba,
@@ -266,28 +299,43 @@ export function summariseUnmappedDelivery(rows: readonly Pick<UnmappedDeliveryRo
 }
 
 /** Ids and MBAs worth checking against the published snapshot. */
-export function lookupCandidates(rows: readonly RawRow[]): { lineIds: string[]; mbas: string[] } {
+export function lookupCandidates(rows: readonly RawRow[]): { lineIds: string[]; mbas: string[]; legacyMbas: string[] } {
   const lineIds = new Set<string>()
   const mbas = new Set<string>()
+  const legacyMbas = new Set<string>()
   for (const row of rows) {
     const nameId = lineIdInName(row.name) ?? lineIdInName(row.campaignName)
     if (nameId) lineIds.add(nameId)
     for (const t of [...mbaTokensInText(row.name), ...mbaTokensInText(row.campaignName)]) mbas.add(t)
+    for (const id of [row.currentLineItemId, nameId]) {
+      if (id && legacyLineIdReason(id)) legacyMbas.add(parseMatchLineId(id)!.mba)
+    }
   }
-  return { lineIds: [...lineIds].slice(0, MAX_LOOKUP_IDS), mbas: [...mbas].slice(0, MAX_LOOKUP_IDS) }
+  return {
+    lineIds: [...lineIds].slice(0, MAX_LOOKUP_IDS),
+    mbas: [...mbas].slice(0, MAX_LOOKUP_IDS),
+    legacyMbas: [...legacyMbas].slice(0, MAX_LOOKUP_IDS),
+  }
 }
 
-export function buildPublishedLookupSql(lineIdCount: number, mbaCount: number): string | null {
+/** Binds in order: line ids, MBAs, legacy MBAs. Rows are KIND, VAL and (for `mline`) the snapshot SOURCE_TABLE in CH. */
+export function buildPublishedLookupSql(lineIdCount: number, mbaCount: number, legacyMbaCount = 0): string | null {
   const parts: string[] = []
   if (lineIdCount > 0) {
-    parts.push(`SELECT 'line' AS KIND, LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR))) AS VAL
+    parts.push(`SELECT 'line' AS KIND, LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR))) AS VAL, CAST(NULL AS VARCHAR) AS CH
       FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
       WHERE LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR))) IN (${Array(lineIdCount).fill("?").join(", ")})`)
   }
   if (mbaCount > 0) {
-    parts.push(`SELECT DISTINCT 'mba' AS KIND, LOWER(TRIM(CAST(s.MBA_NUMBER AS VARCHAR))) AS VAL
+    parts.push(`SELECT DISTINCT 'mba' AS KIND, LOWER(TRIM(CAST(s.MBA_NUMBER AS VARCHAR))) AS VAL, CAST(NULL AS VARCHAR) AS CH
       FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
       WHERE LOWER(TRIM(CAST(s.MBA_NUMBER AS VARCHAR))) IN (${Array(mbaCount).fill("?").join(", ")})`)
+  }
+  if (legacyMbaCount > 0) {
+    parts.push(`SELECT 'mline' AS KIND, LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR))) AS VAL,
+        LOWER(TRIM(CAST(s.SOURCE_TABLE AS VARCHAR))) AS CH
+      FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+      WHERE LOWER(TRIM(CAST(s.MBA_NUMBER AS VARCHAR))) IN (${Array(legacyMbaCount).fill("?").join(", ")})`)
   }
   return parts.length ? parts.join("\n      UNION ALL\n      ") : null
 }
@@ -302,19 +350,29 @@ export async function getUnmappedDelivery(
   ).map(mapUnmappedDeliveryRow)
 
   const cand = lookupCandidates(raw)
-  const lookupSql = buildPublishedLookupSql(cand.lineIds.length, cand.mbas.length)
+  const lookupSql = buildPublishedLookupSql(cand.lineIds.length, cand.mbas.length, cand.legacyMbas.length)
   const lineIds = new Set<string>()
   const mbas = new Set<string>()
+  const linesByMba = new Map<string, { lineItemId: string; lineChannel: string }[]>()
   if (lookupSql) {
-    const found = await query(lookupSql, [...cand.lineIds, ...cand.mbas], { label: "unmapped_delivery_lookup" })
+    const found = await query(lookupSql, [...cand.lineIds, ...cand.mbas, ...cand.legacyMbas], {
+      label: "unmapped_delivery_lookup",
+    })
     for (const r of found) {
       const val = String(r.VAL ?? "").trim().toLowerCase()
       if (!val) continue
       if (r.KIND === "line") lineIds.add(val)
       else if (r.KIND === "mba") mbas.add(val)
+      else if (r.KIND === "mline") {
+        const mba = parseMatchLineId(val)?.mba
+        if (!mba) continue
+        // SOURCE_TABLE is media_plan_<line_channel> (CHANNEL_TO_SOURCE_TABLE).
+        const lineChannel = String(r.CH ?? "").trim().toLowerCase().replace(/^media_plan_/, "")
+        linesByMba.set(mba, [...(linesByMba.get(mba) ?? []), { lineItemId: val, lineChannel }])
+      }
     }
   }
-  const rows = raw.map((r) => ({ ...r, suggestion: suggestUnmappedFix(r, { lineIds, mbas }) }))
+  const rows = raw.map((r) => ({ ...r, suggestion: suggestUnmappedFix(r, { lineIds, mbas, linesByMba }) }))
   return { windowDays, rows, summary: summariseUnmappedDelivery(rows) }
 }
 

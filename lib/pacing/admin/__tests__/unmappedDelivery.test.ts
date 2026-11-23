@@ -24,6 +24,7 @@ import {
 const published = {
   lineIds: new Set(["pgaaus015sm3", "hartm001se8"]),
   mbas: new Set(["pgaaus015", "hartm001", "golf025"]),
+  linesByMba: new Map(),
 }
 
 function raw(over: Partial<ReturnType<typeof mapUnmappedDeliveryRow>> = {}) {

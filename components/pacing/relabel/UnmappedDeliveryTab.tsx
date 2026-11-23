@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { formatMoney } from "@/lib/format/money"
 import {
@@ -13,18 +13,20 @@ import {
   type UnmappedDeliveryRow,
   type UnmappedSuggestionKind,
 } from "@/lib/pacing/admin/unmappedDelivery"
+import { relabelsHref } from "@/lib/pacing/relabel/shared/relabelPageUrl"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
 
 const KIND_LABEL: Record<UnmappedSuggestionKind, string> = {
   relabel: "Relabel",
+  match: "Check on Match",
   add_line: "Not on plan",
   rename: "No line id",
 }
 
 function kindVariant(kind: UnmappedSuggestionKind): "success" | "warning" | "secondary" {
   if (kind === "relabel") return "success"
-  if (kind === "add_line") return "warning"
+  if (kind === "add_line" || kind === "match") return "warning"
   return "secondary"
 }
 
@@ -143,9 +145,19 @@ export function UnmappedDeliveryTab({
                   <div className="mt-1 text-muted-foreground">{row.suggestion.action}</div>
                 </td>
                 <td className="p-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
-                    Relabel
-                  </Button>
+                  {row.suggestion.kind === "match" ? (
+                    <a
+                      href={relabelsHref({ mba: row.suggestion.mba })}
+                      aria-label={`Open Match for ${row.suggestion.mba}`}
+                      className={buttonVariants({ size: "sm", variant: "outline" })}
+                    >
+                      Open Match
+                    </a>
+                  ) : (
+                    <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
+                      Relabel
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

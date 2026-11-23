@@ -174,14 +174,36 @@ export function classifyMatch(
   return { entities, lines }
 }
 
-function candidatesFor(entity: MatchEntity, parsed: ParsedLineId, lines: MatchPlanLine[]): MatchPlanLine[] {
-  const family = warehouseFamily(entity.channel)
+/**
+ * Plan lines a warehouse id can mean: same MBA and number, a different id,
+ * and a plan channel the warehouse channel can feed. The Match tab and the
+ * unmatched delivery queue both use it; neither may relabel a candidate
+ * without the duplicate check (`classifyMatch`).
+ */
+export function sameNumberCandidates<L extends { lineItemId: string; lineChannel: string }>(
+  channel: string,
+  lineItemId: string,
+  lines: readonly L[],
+): L[] {
+  const parsed = parseMatchLineId(lineItemId)
+  if (!parsed) return []
+  const family = warehouseFamily(channel)
   return lines.filter((line) => {
-    if (line.lineItemId === entity.lineItemId) return false
+    if (line.lineItemId === lineItemId) return false
     const target = parseMatchLineId(line.lineItemId)
     if (!target || target.mba !== parsed.mba || target.num !== parsed.num) return false
     return familiesCompatible(family, planFamily(line.lineChannel))
   })
+}
+
+/** Why an `ML` or no-code id cannot match as it is; null for any other id. */
+export function legacyLineIdReason(lineItemId: string): string | null {
+  const parsed = parseMatchLineId(lineItemId)
+  if (parsed?.code === "ml") {
+    return `${lineItemId} uses the legacy ML code (before May 2026). The plan now uses specific codes`
+  }
+  if (parsed && parsed.code == null) return `${lineItemId} is missing its media code`
+  return null
 }
 
 type Draft = { kind: MatchSuggestion["kind"]; targets: string[]; reason: string; entity: MatchEntity }
@@ -210,16 +232,11 @@ function draftFor(entity: MatchEntity, lines: MatchPlanLine[], lineIds: Set<stri
   }
 
   if (entity.status !== "not_on_plan") return null
-  const parsed = parseMatchLineId(entity.lineItemId)
-  if (!parsed) return null
-  const candidates = candidatesFor(entity, parsed, lines)
+  const candidates = sameNumberCandidates(entity.channel, entity.lineItemId, lines)
   if (candidates.length === 0) return null
 
-  if (parsed.code === "ml" || parsed.code == null) {
-    const why =
-      parsed.code === "ml"
-        ? `${entity.lineItemId} uses the legacy ML code (before May 2026). The plan now uses specific codes`
-        : `${entity.lineItemId} is missing its media code`
+  const why = legacyLineIdReason(entity.lineItemId)
+  if (why) {
     if (candidates.length === 1) {
       return {
         kind: "high",
