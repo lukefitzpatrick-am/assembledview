@@ -1,13 +1,61 @@
+type Item = Record<string, any>
+
+/** The fields a channel's load de-dupe compares: an id-less line's, and the whole load's. */
+export type LoadDedupeKeys = {
+  fallbackKey: (item: Item) => Record<string, unknown>
+  loadKey: (item: Item) => Record<string, unknown>
+}
+
+/** Integration's keys (W5b): platform, objective, campaign, buy type and targeting. */
+export const INTEGRATION_LOAD_DEDUPE: LoadDedupeKeys = {
+  fallbackKey: (item) => ({
+    platform: item?.platform ?? "",
+    objective: item?.objective ?? "",
+    campaign: item?.campaign ?? "",
+    buy_type: item?.buy_type ?? item?.buyType ?? "",
+    targeting_attribute: item?.targeting_attribute ?? item?.targetingAttribute ?? "",
+  }),
+  loadKey: (item) => ({
+    id: item.id,
+    platform: item.platform,
+    objective: item.objective,
+    campaign: item.campaign,
+    buy_type: item.buy_type,
+  }),
+}
+
+/** Radio's keys (W5g, moved from its container): market, network, station, buy type and placement. */
+export const RADIO_LOAD_DEDUPE: LoadDedupeKeys = {
+  fallbackKey: (item) => ({
+    market: item?.market ?? "",
+    network: item?.network ?? item?.platform ?? item?.publisher ?? "",
+    station: item?.station ?? item?.site ?? "",
+    buy_type: item?.buy_type ?? item?.buyType ?? "",
+    placement: item?.placement ?? "",
+  }),
+  loadKey: (item) => ({
+    id: item.id,
+    market: item.market,
+    network: item.network,
+    station: item.station,
+    buy_type: item.buy_type,
+  }),
+}
+
 /**
- * Integration's load de-dupe, moved unchanged from the old bespoke container
- * (W5b) and run by `useMediaChannelContainer` when the config sets
- * `dedupeOnLoad`.
+ * Integration's (W5b) and Radio's (W5g) load de-dupe, moved unchanged from
+ * their old bespoke containers and run by `useMediaChannelContainer` with the
+ * keys the config's `dedupeOnLoad` names.
  *
  * A repeated line id (or `id`) keeps its first line. A line with no id is a
- * repeat when platform, objective, campaign, buy type and targeting match an
- * earlier one. Live (Nov 2026): no saved version repeats a line id.
+ * repeat when the channel's fallback fields match an earlier one. Live (Nov
+ * 2026): no saved version repeats a line id.
  */
-export function dedupeInitialLineItems<T extends Record<string, unknown>>(items: T[], tag: string): T[] {
+export function dedupeInitialLineItems<T extends Item>(
+  items: T[],
+  tag: string,
+  keys: LoadDedupeKeys,
+): T[] {
   const seen = new Set<string>()
   const deduped: T[] = []
 
@@ -22,14 +70,7 @@ export function dedupeInitialLineItems<T extends Record<string, unknown>>(items:
       continue
     }
 
-    const fallbackKey = JSON.stringify({
-      platform: item?.platform ?? "",
-      objective: item?.objective ?? "",
-      campaign: item?.campaign ?? "",
-      buy_type: item?.buy_type ?? item?.buyType ?? "",
-      targeting_attribute: item?.targeting_attribute ?? item?.targetingAttribute ?? "",
-    })
-    const key = `fallback:${fallbackKey}`
+    const key = `fallback:${JSON.stringify(keys.fallbackKey(item))}`
     if (seen.has(key)) continue
     seen.add(key)
     deduped.push(item)
@@ -44,19 +85,11 @@ export function dedupeInitialLineItems<T extends Record<string, unknown>>(items:
 
 /**
  * The identity of a load: a later load with the same key is skipped, so the
- * form keeps its edits (Integration's guard, kept as it was).
+ * form keeps its edits (Integration's and Radio's guard, kept as they were).
  * shortcut: the key ignores budgets and dates, so a reload that changes only
  * money is not shown; upgrade when Luke rules it should hydrate like every
  * other channel (W5b question).
  */
-export function initialLinesLoadKey(items: Record<string, unknown>[]): string {
-  return JSON.stringify(
-    items.map((item) => ({
-      id: item.id,
-      platform: item.platform,
-      objective: item.objective,
-      campaign: item.campaign,
-      buy_type: item.buy_type,
-    })),
-  )
+export function initialLinesLoadKey(items: Item[], keys: LoadDedupeKeys): string {
+  return JSON.stringify(items.map(keys.loadKey))
 }

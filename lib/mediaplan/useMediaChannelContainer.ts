@@ -303,11 +303,13 @@ export function useMediaChannelContainer(
     if (!config.toExpert || !config.createEmptyExpertRow || !config.serializeExpertBaseline) {
       return
     }
+    // Only Radio's mapper reads the fee (a fee-inclusive load); the rest take four arguments.
     const mapped = config.toExpert(
       form.getValues(fieldKey) || [],
       expertWeekColumns,
       campaignStartDate,
       campaignEndDate,
+      { feePct: feePct ?? 0 },
     )
     const weekKeys = expertWeekColumns.map((c) => c.weekKey)
     const rows =
@@ -332,6 +334,7 @@ export function useMediaChannelContainer(
     campaignEndDate,
     config,
     expertWeekColumns,
+    feePct,
     fieldKey,
     form,
   ])
@@ -472,13 +475,14 @@ export function useMediaChannelContainer(
   })
 
   const lastLoadKeyRef = useRef("")
+  const ownPublishRef = useRef<unknown[] | null>(null)
   useStableHydration(
     initialLineItems,
     (loaded) => {
       let items = loaded
       if (config.dedupeOnLoad) {
-        items = dedupeInitialLineItems(loaded, config.mediaTypeString)
-        const loadKey = initialLinesLoadKey(items)
+        items = dedupeInitialLineItems(loaded, config.mediaTypeString, config.dedupeOnLoad)
+        const loadKey = initialLinesLoadKey(items, config.dedupeOnLoad)
         if (lastLoadKeyRef.current === loadKey) return
         lastLoadKeyRef.current = loadKey
       }
@@ -560,6 +564,7 @@ export function useMediaChannelContainer(
       setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     expertModalOpenRef,
+    config.ownPublishEcho ? ownPublishRef : undefined,
   )
 
   useEffect(() => {
@@ -608,6 +613,7 @@ export function useMediaChannelContainer(
       mediaLineItemsPublishFpRef,
       transformedLineItems,
       (items) => {
+        ownPublishRef.current = items
         startTransition(() => {
           onMediaLineItemsChange(items)
         })

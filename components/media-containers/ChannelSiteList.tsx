@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { useToast } from "@/components/ui/use-toast"
-import type { ContainerChannelConfig, ContainerSite } from "@/lib/mediaplan/containerChannelConfig"
+import type { ContainerChannelConfig, ContainerSite, ContainerStation } from "@/lib/mediaplan/containerChannelConfig"
 import { useFieldErrors } from "@/hooks/use-field-errors"
 
 type Toast = ReturnType<typeof useToast>["toast"]
@@ -199,21 +199,44 @@ function addStationLabel(noun: string, lineNumber: number): string {
 
 /**
  * Add Station for a channel whose config sets `addStation` (W5f, moved from
- * the Cinema container; station stub option A). The button beside the
- * card's Station field needs the line's network; the dialog takes it (the
- * planner can pick another) and a station name, and Add writes both to the
- * line. Nothing is stored or listed: there is no station catalogue.
- * `noun` unset: no card props and no dialog.
+ * the Cinema container). The button beside the card's Station field needs
+ * the line's network; the dialog takes it (the planner can pick another) and
+ * a station name.
+ * - No `stations` (Cinema, station stub option A): Add writes both to the
+ *   line. Nothing is stored or listed.
+ * - `stations` (Radio, W5g): the card's Station field lists the catalogue's
+ *   stations for the line's network, and Add creates the station, reads the
+ *   list again and writes the created network and station to the line.
+ * `noun` unset: no list, no card props and no dialog.
  */
 export function useChannelStationAdd(
   noun: string | undefined,
+  stations: ContainerChannelConfig["stations"],
   form: UseFormReturn,
   fieldKey: string,
   toast: Toast,
 ) {
+  const [list, setList] = useState<ContainerStation[]>([])
   const [lineIndex, setLineIndex] = useState<number | null>(null)
   const [network, setNetwork] = useState("")
   const [name, setName] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(
+    async (errorTitle: string) => {
+      if (!stations) return
+      try {
+        setList(await stations.fetch())
+      } catch (error) {
+        toast({ title: errorTitle, description: (error as Error).message, variant: "destructive" })
+      }
+    },
+    [stations, toast],
+  )
+
+  useEffect(() => {
+    if (noun && stations) void load(`Error loading ${noun} Stations`)
+  }, [noun, stations, load])
 
   const openFor = (li: number) => {
     const lineNetwork = form.getValues(`${fieldKey}.${li}.network`)
@@ -230,10 +253,10 @@ export function useChannelStationAdd(
     setNetwork(lineNetwork)
   }
 
-  /** ExpertCard props for line `li`: the Add Station button. */
+  /** ExpertCard props for line `li`: the Add Station button, and the catalogue's stations for its network. */
   const cardProps = (li: number) => {
     if (!noun) return {}
-    return {
+    const adornment = {
       fieldAdornments: {
         station: (
           <Button
@@ -249,6 +272,23 @@ export function useChannelStationAdd(
         ),
       },
     }
+    if (!stations) return adornment
+    const lineNetwork = form.watch(`${fieldKey}.${li}.network`)
+    return {
+      ...adornment,
+      stationOptions: list
+        .filter((s) => !lineNetwork || s.network === lineNetwork)
+        .map((s) => ({ value: s.station || `station-${s.id}`, label: s.station || "(Unnamed station)" })),
+      comboboxPropsByKey: {
+        station: {
+          disabled: !lineNetwork,
+          placeholder: lineNetwork ? "Select Station" : "Select Network first",
+          searchPlaceholder: "Search stations...",
+          emptyText: lineNetwork ? `No stations found for "${lineNetwork}".` : "Select Network first",
+          buttonClassName: "h-9 w-full rounded-md",
+        },
+      },
+    }
   }
 
   const close = () => {
@@ -259,16 +299,35 @@ export function useChannelStationAdd(
 
   const add = async () => {
     if (Object.keys(missingSiteFields("Station", name, network)).length > 0) return
-    if (lineIndex !== null) {
+    if (!stations) {
       // V91 A: the stub stores nothing, so the toast says where the station went.
-      toast({ title: `Station set on line ${lineIndex + 1}` })
-      form.setValue(`${fieldKey}.${lineIndex}.network`, network)
-      form.setValue(`${fieldKey}.${lineIndex}.station`, name)
+      if (lineIndex !== null) {
+        toast({ title: `Station set on line ${lineIndex + 1}` })
+        form.setValue(`${fieldKey}.${lineIndex}.network`, network)
+        form.setValue(`${fieldKey}.${lineIndex}.station`, name)
+      }
+      close()
+      return
     }
-    close()
+    try {
+      setSaving(true)
+      const created = await stations.create({ station: name, network })
+      toast({ title: "Station Added", description: `${created.station} has been successfully added.` })
+      await load(`Error refreshing ${noun} Stations`)
+      if (lineIndex !== null) {
+        form.setValue(`${fieldKey}.${lineIndex}.network`, created.network)
+        form.setValue(`${fieldKey}.${lineIndex}.station`, created.station)
+      }
+      close()
+    } catch (error) {
+      toast({ title: "Error Adding Station", description: (error as Error).message, variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return {
+    list,
     cardProps,
     dialog: {
       kind: "Station" as AddKind,
@@ -279,7 +338,7 @@ export function useChannelStationAdd(
       setPlatform: setNetwork,
       name,
       setName,
-      saving: false,
+      saving,
       close,
       add,
     },

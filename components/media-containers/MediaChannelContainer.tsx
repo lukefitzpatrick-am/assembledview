@@ -158,7 +158,7 @@ export default function MediaChannelContainer({
   })
 
   const siteList = useChannelSiteList(config.sites, form, fieldKey, toast)
-  const stationAdd = useChannelStationAdd(config.addStation ? shell.title : undefined, form, fieldKey, toast)
+  const stationAdd = useChannelStationAdd(config.addStation ? shell.loadLabel : undefined, config.stations, form, fieldKey, toast)
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
@@ -424,6 +424,7 @@ export default function MediaChannelContainer({
                 onRowsChange={handleExpertRowsChange}
                 publishers={publishers}
                 sites={siteList.list}
+                stations={stationAdd.list}
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {

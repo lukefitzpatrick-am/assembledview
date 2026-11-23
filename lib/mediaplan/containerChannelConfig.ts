@@ -172,6 +172,7 @@ import {
   getIntegrationBursts,
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
+import { INTEGRATION_LOAD_DEDUPE, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
@@ -245,6 +246,19 @@ type ContainerSites = {
   create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
 
+/** One row of a channel's station catalogue (`radio_stations`). */
+export type ContainerStation = {
+  id: number
+  station: string
+  network: string
+}
+
+/** A channel's station catalogue: read it and add to it. */
+type ContainerStations = {
+  fetch: () => Promise<ContainerStation[]>
+  create: (station: { station: string; network: string }) => Promise<ContainerStation>
+}
+
 /** A form line or save row as a channel's transforms see it (W5d). */
 type ContainerLine = Record<string, unknown>
 type ContainerFormLine = ContainerLine & { bursts: ContainerLine[] }
@@ -264,6 +278,7 @@ type ContainerChannelShell = {
   title: string
   themeKey: MediaTypeThemeKey
   timelineMediaTypeKey: string
+  /** The channel's plain name ("Radio"): Add Station's noun. */
   loadLabel: string
   /** data-* attribute on the exit-confirm "Yes" button */
   exitConfirmYesAttr: string
@@ -322,10 +337,17 @@ export type ContainerChannelConfig = {
   /** "after" puts a duplicated line straight after its source. Unset: at the end. */
   duplicatePlacement?: "after"
   /**
-   * Drop repeated initial lines and skip a reload with the same lines
-   * (`dedupeInitialLineItems`, Integration). Unset: every new array hydrates.
+   * Drop repeated initial lines and skip a reload with the same lines, by
+   * these keys (`dedupeInitialLineItems`: Integration's, Radio's). Unset:
+   * every new array hydrates.
    */
-  dedupeOnLoad?: boolean
+  dedupeOnLoad?: LoadDedupeKeys
+  /**
+   * An `initialLineItems` array that is the channel's own save rows echoed
+   * back (create does this for Radio) is not loaded, so the form keeps its
+   * cards (W5g, moved from Radio). Unset: every new array hydrates.
+   */
+  ownPublishEcho?: true
   /** Excel rows keep a package line's saved quantity (Integration, C-168). Unset: budget ÷ rate. */
   excelPackageKeepsQuantity?: boolean
   /**
@@ -386,6 +408,14 @@ export type ContainerChannelConfig = {
    * catalogue). The card summary shows Network. Unset: none of these.
    */
   addStation?: true
+  /**
+   * The channel's station catalogue (W5g, Radio), with `addStation`: the
+   * card's Station field lists the stations of the line's network, the grid
+   * gets the list, and Add Station creates the station, reads the list again
+   * and writes the created network and station to the line. Unset: no list,
+   * and Add Station only writes to the line (the stub).
+   */
+  stations?: ContainerStations
 }
 
 /**
@@ -2892,7 +2922,7 @@ export const INTEGRATION_CONTAINER_CONFIG: ContainerChannelConfig = {
   billingBursts: getIntegrationBursts,
   burstDateFallback: "campaignDay",
   duplicatePlacement: "after",
-  dedupeOnLoad: true,
+  dedupeOnLoad: INTEGRATION_LOAD_DEDUPE,
   excelPackageKeepsQuantity: true,
   expertFromFeeKey: "feePctIntegration",
   summaryDimensions: {
