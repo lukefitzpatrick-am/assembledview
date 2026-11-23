@@ -451,12 +451,16 @@ export default function MediaChannelContainer({
                                     )) || "Not selected"}
                               </div>
                               <div>
-                                <span className="font-medium">Buy Type:</span>{" "}
-                                {formatBuyTypeForExport(
-                                  form.watch(
-                                    `${fieldKey}.${lineItemIndex}.buyType`,
-                                  ) || undefined,
-                                ) || "Not selected"}
+                                <span className="font-medium">
+                                  {config.cardBuyTypeCell ? `${config.cardBuyTypeCell[0]}:` : "Buy Type:"}
+                                </span>{" "}
+                                {(config.cardBuyTypeCell
+                                  ? form.watch(`${fieldKey}.${lineItemIndex}.${config.cardBuyTypeCell[1]}`)
+                                  : formatBuyTypeForExport(
+                                      form.watch(
+                                        `${fieldKey}.${lineItemIndex}.buyType`,
+                                      ) || undefined,
+                                    )) || "Not selected"}
                               </div>
                               <div>
                                 <span className="font-medium">{thirdCell[0]}:</span>{" "}

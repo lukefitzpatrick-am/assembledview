@@ -1,14 +1,11 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Copy, Plus, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
-  MP_BURST_ACTION_COLUMN,
   MP_BURST_CARD,
   MP_BURST_CARD_CONTENT,
   MP_BURST_DATE_RANGE,
@@ -107,46 +104,3 @@ export function BurstReadonlyMetric({
   )
 }
 
-export function BurstRowActions({
-  onAdd,
-  onDuplicate,
-  onRemove,
-}: {
-  onAdd: () => void
-  onDuplicate: () => void
-  onRemove: () => void
-}) {
-  return (
-    <div className={MP_BURST_ACTION_COLUMN}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-10 text-sm px-3"
-        onClick={onAdd}
-      >
-        <Plus className="h-4 w-4 mr-1" />
-        Add
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-10 text-sm px-3"
-        onClick={onDuplicate}
-      >
-        <Copy className="h-4 w-4 mr-1" />
-        Duplicate
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-10 text-sm px-3"
-        onClick={onRemove}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </div>
-  )
-}

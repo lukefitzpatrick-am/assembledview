@@ -1,6 +1,10 @@
 /**
  * W5l golden: Production's saved output, pinned on its own (bespoke)
- * container before the move onto the shared channel container.
+ * container before the move onto the shared channel container, and unchanged
+ * by the move but for one number: the channel total now comes from the shared
+ * money path, which rounds each burst to cents, so the float dust of the old
+ * sum is gone (28325.309999999998 became 28325.31; the same $28,325.31 on
+ * screen). Everything else is byte-identical (C-383).
  *
  * Records what the container hands the plan page: the save payload
  * (onMediaLineItemsChange) and the persisted bursts it becomes

@@ -152,7 +152,7 @@ function defaultProductionBurst(ctx: Ctx) {
  * quantity. A `rate` also writes that cost on every burst of the line.
  */
 export function writeProductionBurstMoney(
-  form: UseFormReturn<any>,
+  form: UseFormReturn,
   fieldKey: string,
   lineItemIndex: number,
   rate?: string,

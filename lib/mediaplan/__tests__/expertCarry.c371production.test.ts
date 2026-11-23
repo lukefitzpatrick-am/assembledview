@@ -1,10 +1,13 @@
 import "@/lib/testing/bothZones"
 /**
- * C371 (V104 A, C-370 (4)): Production on `ProductionContainer`'s load shape
- * (cost, amount, dates; no budget). The carry reads cost x amount as the
+ * C371 (V104 A, C-370 (4)): Production on its bare load shape (cost, amount,
+ * dates; no budget, as a burst saved before the dual-write gives). The carry
+ * reads cost x amount as the
  * saved budget, so an untouched Apply gives every burst back as saved and a
  * burst outside the campaign is never dropped. An edited group is priced from
- * the grid (unit rate x quantity). Live shapes: a burst before the campaign
+ * the grid (unit rate x quantity). The shared shell also mirrors the money
+ * keys onto each form burst (W5l), so the last test of each grid pins that
+ * the carry is the same either way. Live shapes: a burst before the campaign
  * (glenda001 13492, QATAR001 13504, PGAAUS010 13560, hartm002 13582), two
  * bursts at different costs (TheY001 53240), monthly bursts (candel001 13717),
  * one burst over many weeks (candel003 13568). Sunday and Monday grids, both
@@ -16,6 +19,7 @@ import test from "node:test"
 import { format } from "date-fns"
 
 import * as M from "@/lib/mediaplan/expertChannelMappings"
+import { roundMoney2 } from "@/lib/money"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowCostSplit } from "@/lib/mediaplan/expertRowCost"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -24,7 +28,7 @@ const START = new Date(2026, 2, 1)
 const END = new Date(2026, 5, 30)
 const d = (s: string) => new Date(`${s}T00:00:00`)
 const burst = (cost: number, amount: number, s: string, e: string) => ({ cost, amount, startDate: d(s), endDate: d(e) })
-/** `ProductionContainer`'s load: cost, amount and Date dates per burst, no budget. */
+/** Production's bare load: cost, amount and Date dates per burst, no budget. */
 const lineOf = (bursts: ReturnType<typeof burst>[]) => ({ mediaType: "Production", publisher: "Studio", description: "Edit", market: "National", unitRate: bursts[0]!.cost, buyType: "production", line_item_id: "c371p", lineItemId: "c371p", line_item: 1, lineItem: 1, bursts })
 /** A burst as [cents, amount, dates], in date order. */
 const read = (l: any) => [...l.bursts].map((b: any) => [Math.round(Number(b.cost) * Number(b.amount) * 100), Number(b.amount), `${format(b.startDate, "yyyy-MM-dd")}..${format(b.endDate, "yyyy-MM-dd")}`] as const).sort((a, b) => a[2].localeCompare(b[2]))
@@ -45,6 +49,14 @@ function bumpFirst(row: any) {
   if (week && (!dayKey || week <= dayKey)) row.weeklyValues[week] = Number(row.weeklyValues[week]) + 1
   else row.dailyValues[dayKey!] = Number(row.dailyValues[dayKey!]) + 1
 }
+
+/** The shared shell's load (W5l): the same burst, plus the money keys the card writes. */
+const withMoney = (b: ReturnType<typeof burst>) => ({
+  ...b,
+  budget: String(roundMoney2(b.cost * b.amount)),
+  buyAmount: String(b.amount),
+  calculatedValue: b.amount,
+})
 
 const SHAPES = [
   { name: "a burst before the campaign beside one inside it (glenda001 13492 shape)", saved: lineOf([burst(10_000, 1, "2026-01-25", "2026-01-26"), burst(10_000, 1, "2026-03-10", "2026-03-10")]) },
@@ -74,5 +86,15 @@ for (const wso of [0, 1] as const) {
   test(`Production, ${grid} grid: TheY001 53240 shape, first week edited: the untouched second burst keeps its own cost (V104 A)`, () => {
     const { applied } = run(SHAPES[3]!.saved, wso, bumpFirst)
     assert.deepEqual(read(applied).filter((b) => b[2] === "2026-05-11..2026-05-12"), [[1_300_000, 1, "2026-05-11..2026-05-12"]])
+  })
+
+  test(`Production, ${grid} grid: the shared shell's load, with the money keys mirrored, carries exactly as the bare shape (W5l)`, () => {
+    for (const { name, saved } of SHAPES) {
+      const mirrored = { ...saved, bursts: saved.bursts.map(withMoney) }
+      const bare = run(saved, wso)
+      const mir = run(mirrored, wso)
+      assert.deepEqual(read(mir.applied), read(bare.applied), name)
+      assert.equal(mir.grid, bare.grid, name)
+    }
   })
 }

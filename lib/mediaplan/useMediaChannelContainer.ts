@@ -74,7 +74,12 @@ export type MediaChannelContainerHookProps = {
   campaignEndDate: Date
   campaignBudget: number
   campaignId: string
-  mediaTypes: string[]
+  /**
+   * The channel's own media type strings, or the page's `{ value, label }`
+   * production types when the config takes its `mediaType` list from here
+   * (`mediaTypeOptions`, W5l).
+   */
+  mediaTypes: Array<string | { value: string; label: string }>
   initialLineItems?: any[]
   /** Raw form lines on every change (Social's create-page line count). */
   onRawLineItemsChange?: (lineItems: unknown[]) => void

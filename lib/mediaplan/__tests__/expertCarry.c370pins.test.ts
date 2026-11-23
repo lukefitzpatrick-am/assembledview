@@ -143,7 +143,7 @@ for (const wso of GRIDS) {
 // --- F1 (review): Production on the container path (V104) ----------------------------
 
 test(
-  "Production on ProductionContainer's load shape (cost, amount, dates, no budget): a burst after the campaign end comes back as saved untouched (V104 A, C371)",
+  "Production on its bare load shape (cost, amount, dates, no budget): a burst after the campaign end comes back as saved untouched (V104 A, C371)",
   () => {
     const d = (y: number, m: number, dd: number) => new Date(y, m - 1, dd)
     const saved: any = {

@@ -25,6 +25,7 @@ import {
   getPublishersForMagazines,
   getPublishersForNewspapers,
   getPublishersForOoh,
+  getPublishersForProduction,
   getPublishersForProgAudio,
   getPublishersForProgBvod,
   getPublishersForProgDisplay,
@@ -70,6 +71,7 @@ import {
   OOH_EXPERT_CHANNEL_CONFIG,
   createEmptyOohExpertRow,
   PRODUCTION_EXPERT_CHANNEL_CONFIG,
+  createEmptyProductionExpertRow,
   PROGAUDIO_EXPERT_CHANNEL_CONFIG,
   PROGBVOD_EXPERT_CHANNEL_CONFIG,
   PROGDISPLAY_EXPERT_CHANNEL_CONFIG,
@@ -126,6 +128,7 @@ import {
   mapStandardOohLineItemsToExpertRows,
   mapOohExpertRowsToStandardLineItems,
   mapStandardProductionLineItemsToExpertRows,
+  mapProductionExpertRowsToStandardLineItems,
   mapStandardProgAudioLineItemsToExpertRows,
   mapStandardProgBvodLineItemsToExpertRows,
   mapStandardProgDisplayLineItemsToExpertRows,
@@ -192,6 +195,8 @@ import {
   serializeNewspaperStandardLineItemsBaseline,
   mergeMagazineStandardFromExpertWithPrevious,
   mergeOohStandardFromExpertWithPrevious,
+  mergeProductionStandardFromExpertWithPrevious,
+  serializeProductionExpertRowsBaseline,
   serializeOohExpertRowsBaseline,
   serializeOohStandardLineItemsBaseline,
   serializeMagazinesExpertRowsBaseline,
@@ -214,10 +219,16 @@ import {
 } from "@/lib/mediaplan/legacyBillingBursts"
 import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, TELEVISION_LOAD_KEY, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
 import { getTelevisionBursts, televisionExcelRow, televisionHydrateLine } from "@/lib/mediaplan/televisionLine"
-import { newBurstReactKey, televisionBurstDefaults, type BurstFactory } from "@/lib/mediaplan/burstOperations"
+import { newBurstReactKey, productionBurstDefaults, televisionBurstDefaults, type BurstFactory } from "@/lib/mediaplan/burstOperations"
 import { newspaperExcelRow } from "@/lib/mediaplan/newspaperLine"
 import { radioExcelRow } from "@/lib/mediaplan/radioLine"
 import { getOohBursts, oohExcelRow, oohHydrateLine } from "@/lib/mediaplan/oohLine"
+import {
+  productionBillingBursts,
+  productionExcelRow,
+  productionHydrateLine,
+  productionSaveLine,
+} from "@/lib/mediaplan/productionLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
@@ -503,6 +514,11 @@ export type ContainerChannelConfig = {
   largeFormatGate?: true
   /** The card summary's first and third cells, as [label, line field] (OOH: Network, Format). Unset: by `addStation`, `sites` and `stations`. */
   cardCells?: readonly [readonly [string, string], readonly [string, string]]
+  /**
+   * The card summary's second cell, for a channel with no buy types
+   * (Production, W5l: its Publisher). Unset: the line's buy type.
+   */
+  cardBuyTypeCell?: readonly [string, string]
   /**
    * The channel's bursts are a unit cost and a quantity, not a budget
    * (Production, W5l, moved from its container). The card draws Cost,
@@ -4030,16 +4046,44 @@ export const PRODUCTION_CONTAINER_CONFIG: ContainerChannelConfig = {
   mediaTypeString: "Production",
   mediaTypeIdCode: MEDIA_TYPE_ID_CODES.production,
   schema: productionFormSchema,
-  fetchPublishers: null,
+  fetchPublishers: getPublishersForProduction,
   toExpert: mapStandardProductionLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
+  fromExpert: mapProductionExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeProductionStandardFromExpertWithPrevious,
+  // Production tracked no standard-side baseline, so the cards are never dirty
+  // on their own; the grid's own baseline still guards the exit confirm.
   serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  serializeExpertBaseline: serializeProductionExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyProductionExpertRow,
+  // Production's own shape (W5l, moved from its container): a burst is a unit
+  // cost and a quantity, there are no buy types and no fee.
   billingMediaTypeLabel: "production",
+  billingBursts: productionBillingBursts,
   expertFromFeeKey: null,
-  summaryDimensions: {},
+  hydrateLine: productionHydrateLine,
+  saveLine: productionSaveLine,
+  excelRow: productionExcelRow,
+  costQuantityBursts: true,
+  mediaTypeOptions: true,
+  flagUnknownPublisherKeys: ["publisher"],
+  newBurst: productionBurstDefaults,
+  duplicatePlacement: "after",
+  cardCells: [["Production type", "mediaType"], ["Market", "market"]],
+  cardBuyTypeCell: ["Publisher", "publisher"],
+  shell: {
+    title: "Production",
+    themeKey: "production",
+    timelineMediaTypeKey: "production",
+    loadLabel: "Production",
+    exitConfirmYesAttr: "data-production-expert-exit-yes",
+    entryModeAriaLabel: "Production entry mode",
+    expertDialogTitle: "Production Expert Mode",
+  },
+  summaryDimensions: {
+    "Production type": "mediaType",
+    Publisher: "publisher",
+    Market: "market",
+  },
   deliverableRoundingPolicy: "raw" as const,
   gridConfig: PRODUCTION_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "cpcCpvCpm",
@@ -4064,10 +4108,12 @@ export const PRODUCTION_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // A new line's production type is the first of the page's list, which
+      // only the container knows (`mediaTypeOptions`): the map's default is blank.
       camel: "mediaType",
       snake: "media_type",
       excel: null,
-      default: "mediaTypeOptions[0]?.value || \"",
+      default: "",
       inDefaults: true,
       inHydration: true,
       inApi: true,

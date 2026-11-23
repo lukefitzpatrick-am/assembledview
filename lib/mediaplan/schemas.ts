@@ -678,5 +678,3 @@ export const productionFormSchema = z.object({
   lineItems: z.array(productionLineItemSchema).min(1, "At least one line item is required"),
 })
 
-export type ProductionFormValues = z.infer<typeof productionFormSchema>
-export type ProductionBurstValues = z.infer<typeof productionBurstSchema>

@@ -19,10 +19,7 @@ import {
 
 const root = process.cwd()
 
-const WEEK_START_OWNERS = [
-  "components/media-containers/ProductionContainer.tsx",
-  "lib/mediaplan/useMediaChannelContainer.ts",
-] as const
+const WEEK_START_OWNERS = ["lib/mediaplan/useMediaChannelContainer.ts"] as const
 
 function read(rel: string): string {
   return readFileSync(join(root, rel), "utf8")
@@ -173,8 +170,8 @@ test("invalid stored value → Sunday", () => {
   }
 })
 
-test("both owners use useWeekStartsOn with no local WeekStartsOn state", () => {
-  assert.equal(WEEK_START_OWNERS.length, 2)
+test("the one owner uses useWeekStartsOn with no local WeekStartsOn state", () => {
+  assert.equal(WEEK_START_OWNERS.length, 1)
   for (const rel of WEEK_START_OWNERS) {
     const src = read(rel)
     assert.match(

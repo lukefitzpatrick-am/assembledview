@@ -7,15 +7,12 @@ import test from "node:test"
  * Do not import `containerChannelConfig.ts` here — it pulls `lib/api.ts` and
  * requires Xano env. Pin the contract from source.
  *
- * 19 shared-shell channels live in the hook; 1 bespoke container owns its
- * useForm defaultValues. All twenty must start empty so Add creates the first
- * line (ContainerEmptyLinesPlaceholder). Edit hydrate still replaces via
+ * All twenty channels are shared-shell, so the hook owns every useForm
+ * defaultValues. They must start empty so Add creates the first line
+ * (ContainerEmptyLinesPlaceholder). Edit hydrate still replaces via
  * useStableHydration — do not change that path.
  */
-const LINE_ITEM_DEFAULT_OWNERS = [
-  "lib/mediaplan/useMediaChannelContainer.ts",
-  "components/media-containers/ProductionContainer.tsx",
-] as const
+const LINE_ITEM_DEFAULT_OWNERS = ["lib/mediaplan/useMediaChannelContainer.ts"] as const
 
 test("emptyChannelLineItemsDefault is an empty array — Add creates the first line", () => {
   const src = readFileSync(
