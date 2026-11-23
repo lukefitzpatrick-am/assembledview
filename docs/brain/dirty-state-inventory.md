@@ -39,7 +39,7 @@ Edit dirty **set** sites are mostly `markUnsavedChanges` / `markPassiveChannelCh
 
 ## The 15 Expert dirty sites
 
-Two `*Container.tsx` files hold local `expertApplyPendingPageSave` (OOH and Production). The third is `useMediaChannelContainer` (shared by the other 18 channels via `MediaChannelContainer`).
+One `*Container.tsx` file holds local `expertApplyPendingPageSave` (Production). The other is `useMediaChannelContainer` (shared by the other 19 channels via `MediaChannelContainer`).
 
 | # | Site | Mechanism | Local expert dirty | Sets pending on Apply | Clears pending |
 |---|---|---|---|---|---|
@@ -47,7 +47,7 @@ Two `*Container.tsx` files hold local `expertApplyPendingPageSave` (OOH and Prod
 | 2 | `RadioContainer` | Shared (W5g): see row 15 | no | via the hook | via the hook |
 | 3 | `NewspaperContainer` | Shared (W5i): see row 15 | no | via the hook | via the hook |
 | 4 | `MagazinesContainer` | Shared (W5j): see row 15 | no | via the hook | via the hook |
-| 5 | `OOHContainer` | Bespoke | yes | yes (C-38 fixed) | same |
+| 5 | `OOHContainer` | Shared (W5k): see row 15 | no | via the hook | via the hook |
 | 6 | `CinemaContainer` | Shared (W5f): see row 15 | no | via the hook | via the hook |
 | 7 | `DigitalDisplayContainer` | Shared (W5d): see row 15 | no | via the hook | via the hook |
 | 8 | `DigitalAudioContainer` | Shared (W5c): see row 15 | no | via the hook | via the hook |
@@ -59,7 +59,7 @@ Two `*Container.tsx` files hold local `expertApplyPendingPageSave` (OOH and Prod
 | 14 | `InfluencersContainer` | Shared (W5b): see row 15 | no | via the hook | via the hook |
 | 15 | `useMediaChannelContainer` → `MediaChannelContainer` | Shared hook + shell | hook owns state; shell renders | yes (hook) | subscribe in hook |
 
-Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`, `SocialMediaContainer`, `IntegrationContainer`, `InfluencersContainer`, `DigitalVideoContainer`, `DigitalAudioContainer`, `DigitalDisplayContainer`, `BVODContainer`, `CinemaContainer`, `RadioContainer`, `TelevisionContainer`, `NewspaperContainer`, `MagazinesContainer`.
+Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`, `SocialMediaContainer`, `IntegrationContainer`, `InfluencersContainer`, `DigitalVideoContainer`, `DigitalAudioContainer`, `DigitalDisplayContainer`, `BVODContainer`, `CinemaContainer`, `RadioContainer`, `TelevisionContainer`, `NewspaperContainer`, `MagazinesContainer`, `OOHContainer`.
 
 Per-channel Expert **grid** dirty (modal exit confirm) is separate: baseline serialize ≠ current rows. Discard / leave-without-Apply closes the modal and does **not** touch `expertApplyPendingPageSave`. Apply writes form with `{ shouldDirty: true }` (trips page `form.watch`) **and** (except OOH) sets pending true.
 
@@ -139,7 +139,7 @@ Page Save SUCCESS (or any true→false of hasUnsavedChanges)
 
 ## C-38 — OOH gap (FIXED)
 
-`OOHContainer.handleExpertApply` sets `setExpertApplyPendingPageSave(true)` with its 10 bespoke peers + `useMediaChannelContainer`. Characterisation requires the setTrue.
+`OOHContainer.handleExpertApply` set `setExpertApplyPendingPageSave(true)`. Since W5k OOH runs on `useMediaChannelContainer`, which sets it (row 15); the characterisation loop covers the hook.
 
 ---
 
