@@ -92,4 +92,18 @@ for (const wso of [0, 1] as const) {
     assert.deepEqual(findOverlappingBursts(applied.bursts), [])
     assert.equal(cents(applied), money)
   })
+
+  test(`Television package lump line, ${grid} grid: an edit in a week the saved burst does not touch keeps the saved burst as saved beside the new one (C371fix F2, review N13)`, () => {
+    const start = new Date(2026, 2, 1)
+    const end = new Date(2026, 5, 28)
+    const own = { budget: "$150,000.00", buyAmount: "$0.00", calculatedValue: 0, startDate: "2026-04-12", endDate: "2026-05-09" }
+    const saved = { buyType: "package", budgetIncludesFees: false, clientPaysForMedia: false, fixedCostMedia: false, noadserving: false, ...ids, bursts: [own] }
+    const { grid: money, applied } = run(TV, saved, start, end, wso, (row, keys) => {
+      row.weeklyValues[keys.find((w) => w > "2026-06-05" && w <= "2026-06-08")!] = 2
+    })
+    assert.deepEqual(applied.bursts[0], own)
+    assert.equal(applied.bursts.length, 2)
+    assert.deepEqual(findOverlappingBursts(applied.bursts), [])
+    assert.equal(cents(applied), money)
+  })
 }
