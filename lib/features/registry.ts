@@ -358,6 +358,19 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "client_fee_rate_history",
+    requiresMarker: "0120_client_fee_rates",
+    label: "Client fee rates from a date",
+    description:
+      "A client fee rate can change from a date (decision S4). On: the client page gets a Rate changes panel for admins (pick a fee, a rate and the date it takes effect from; delete a change), and the media plan editor takes each client fee at the plan's start date: the latest change on or before that date, else the client's fee box. So a change from 1 March reaches plans starting on or after 1 March, and a plan that started before keeps its rate when it is saved again. Published versions never change (the fee snapshot is frozen at publish). Needs migration 0120 (client_fee_rates): until it runs this switch reads off and can't be turned on. Off: no panel, the editor reads the fee boxes only, as before, and /api/clients/[id]/fee-rates is 404. Changes entered stay stored and count again when it is turned back on.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:

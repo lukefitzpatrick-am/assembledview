@@ -3,6 +3,9 @@ import {
   getCachedClientsList,
 } from "@/lib/cache/clientsCache"
 import { requireRole } from "@/lib/requireRole"
+import { isFeatureOn } from "@/lib/features/server"
+import { listClientFeeRateChanges } from "@/lib/data/clientFeeRates"
+import { CLIENT_FEE_RATE_CHANGES_KEY } from "@/lib/finance/clientFeeChannels"
 import {
   createClientPostgresFirst,
 } from "@/lib/data/writeClients"
@@ -21,6 +24,17 @@ export async function GET(request: NextRequest) {
     const { data, stale } = await getCachedClientsList({ bypassCache })
     const headers: Record<string, string> = {}
     if (stale) headers["x-warning"] = "served-stale-after-upstream-failure"
+    // S4: each client's dated fee rate changes, read per request (not cached) so
+    // a new change or the switch reaches the editor at once. A failed read
+    // fails the request: a plan must never price on the wrong rate.
+    if (await isFeatureOn("client_fee_rate_history")) {
+      const changes = await listClientFeeRateChanges()
+      const withChanges = data.map((client) => ({
+        ...client,
+        [CLIENT_FEE_RATE_CHANGES_KEY]: changes.get(Number(client?.id)) ?? [],
+      }))
+      return NextResponse.json(withChanges, { headers })
+    }
     return NextResponse.json(data, { headers })
   } catch (error) {
     console.error("Failed to fetch clients:", error)

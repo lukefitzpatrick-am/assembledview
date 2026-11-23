@@ -13,9 +13,14 @@
  *   the Influencers fallback only.
  * - The 12 fields added by migration 0113 are read only with the switch
  *   channel_client_fees on (lib/features/registry.ts).
+ * - A rate can change from a date (S4, client_fee_rates, switch
+ *   client_fee_rate_history). The rate on a date is the latest dated change
+ *   on or before it, else the clients column (clientFeeRateOn).
  *
  * Pure: no React, no server-only, so client and server code both import it.
  */
+
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export type ClientFeeChannelGroup =
   | "traditional"
@@ -99,6 +104,62 @@ export function clientFeeFormRows<S extends Row["since"]>(since: S): readonly Ex
   )
 }
 
+/**
+ * One dated client fee rate change (a client_fee_rates row, S4). The server
+ * attaches a client's changes to its row as `fee_rate_changes` while the
+ * switch client_fee_rate_history is on.
+ */
+export type ClientFeeRateChange = {
+  field: ClientFeeField
+  /** Whole percent, 0 to 100. */
+  ratePct: number
+  /** Melbourne civil date the rate takes effect from, YYYY-MM-DD. */
+  effectiveFrom: string
+}
+
+/** The client row key that carries the dated changes. */
+export const CLIENT_FEE_RATE_CHANGES_KEY = "fee_rate_changes"
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * S4: the one rule for a client's fee rate on a date. The latest dated change
+ * for the field on or before `onDate` (a Melbourne civil date, YYYY-MM-DD),
+ * else the clients column value (the rate before the first dated change).
+ * Dates compare as text, which orders YYYY-MM-DD correctly. Throws on a date
+ * that isn't YYYY-MM-DD: a guessed date is a wrong fee.
+ */
+function clientFeeRateOn(
+  row: Readonly<Record<string, unknown>>,
+  changes: readonly ClientFeeRateChange[],
+  field: ClientFeeField,
+  onDate: string,
+): unknown {
+  if (!ISO_DAY.test(onDate)) throw new Error(`clientFeeRateOn: date must be YYYY-MM-DD, got ${onDate}`)
+  let best: ClientFeeRateChange | null = null
+  for (const change of changes) {
+    if (change.field !== field || change.effectiveFrom > onDate) continue
+    if (!best || change.effectiveFrom > best.effectiveFrom) best = change
+  }
+  return best ? best.ratePct : row[field]
+}
+
+/** The row's dated changes, keeping only well-formed entries. */
+function rateChangesOf(row: Readonly<Record<string, unknown>>): ClientFeeRateChange[] {
+  const raw = row[CLIENT_FEE_RATE_CHANGES_KEY]
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (c): c is ClientFeeRateChange =>
+      c != null &&
+      typeof c === "object" &&
+      (CLIENT_FEE_FIELDS as readonly unknown[]).includes(c.field) &&
+      typeof c.ratePct === "number" &&
+      Number.isFinite(c.ratePct) &&
+      typeof c.effectiveFrom === "string" &&
+      ISO_DAY.test(c.effectiveFrom),
+  )
+}
+
 /** Editor fee state from a client row: one entry per fee field the row has. */
 export type ClientFeeState = Partial<Record<ClientFeeField, number | null>>
 
@@ -124,18 +185,25 @@ function feeValue(value: unknown): number | null {
  *   null. With the switch off it is always Content Creator. An explicit 0 is
  *   kept as 0%. Present when either field is present, so the published
  *   mba_fee_snapshots.fees keeps its feeinfluencers key.
+ * - S4: when the row carries dated changes (`fee_rate_changes`), each field
+ *   is its rate on `onDate` (clientFeeRateOn): the plan's start date, as a
+ *   Melbourne civil date (today in Melbourne when not given). No changes:
+ *   the columns, as before.
  */
 export function clientFeeStateFromRow(
   row: Readonly<Record<string, unknown>> | null | undefined,
-  opts: { channelFees: boolean },
+  opts: { channelFees: boolean; onDate?: string | null },
 ): ClientFeeState {
   const state: ClientFeeState = {}
   if (!row) return state
+  const changes = rateChangesOf(row)
+  const read = (field: ClientFeeField): unknown =>
+    changes.length > 0 ? clientFeeRateOn(row, changes, field, opts.onDate || getMelbourneTodayISO()) : row[field]
   const has = (field: string) => opts.channelFees || !(CHANNEL_CLIENT_FEE_FIELDS as readonly string[]).includes(field)
   for (const channel of CLIENT_FEE_CHANNELS) {
-    const own = has(channel.field) ? row[channel.field] : undefined
+    const own = has(channel.field) ? read(channel.field) : undefined
     if ("inheritsFrom" in channel) {
-      const inherited = row[channel.inheritsFrom]
+      const inherited = read(channel.inheritsFrom)
       if (own === undefined && inherited === undefined) continue
       state[channel.field] = feeValue(own) ?? feeValue(inherited)
       continue
