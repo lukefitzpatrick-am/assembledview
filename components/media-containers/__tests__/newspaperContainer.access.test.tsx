@@ -86,7 +86,7 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     vi.restoreAllMocks()
   })
 
-  async function mount(expand: number[]) {
+  async function mount(expand: number[], initialLineItems: unknown[] = lines) {
     act(() => {
       root.render(
         <NewspaperContainer
@@ -102,7 +102,7 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
           campaignBudget={0}
           campaignId=""
           mediaTypes={[]}
-          initialLineItems={lines}
+          initialLineItems={initialLineItems}
         />,
       )
     })
@@ -143,6 +143,11 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     )
     expect(unnamedInputs.map((i) => i.outerHTML.slice(0, 80)), "inputs with no name").toEqual([])
     expect(named("Insertions, burst 2, line 1").length, "burst deliverables named like Budget").toBe(1)
+  }, 30_000)
+
+  it("names a bonus line's burst deliverables input by its burst and line (W5i review W1)", async () => {
+    await mount([2], [lines[0], { ...lines[0], line_item_id: "tst001NP2", line_item: 2, buy_type: "bonus", bursts: [burst({ calculatedValue: 5 })] }])
+    expect(named("Bonus Deliverables, burst 1, line 2").length).toBe(1)
   }, 30_000)
 
   it("lists titles by the line's network, disables Title with no network, and shows Title and Insertions in the summaries", async () => {
