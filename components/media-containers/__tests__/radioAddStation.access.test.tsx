@@ -7,8 +7,9 @@
  * Added" (the station is stored in the catalogue); focus goes back to the
  * button. Each card field label names its control; the Station label names
  * its combobox, which lists the
- * catalogue's stations for the line's network; the schedule grid gets the
- * catalogue too. The summary labels spots and package lines "spots" and
+ * catalogue's stations for the line's network (reloaded after an add, and
+ * disabled with no network); the schedule grid gets the catalogue too, and
+ * the channel fee both ways on a fee-inclusive line. The summary labels spots and package lines "spots" and
  * "package" (V90 A).
  *
  * @vitest-environment jsdom
@@ -144,12 +145,12 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
     vi.restoreAllMocks()
   })
 
-  async function mount(expand: number[]) {
+  async function mount(expand: number[], items: unknown[] = lines, fee = 0) {
     act(() => {
       root.render(
         <RadioContainer
           clientId="client-1"
-          feeradio={0}
+          feeradio={fee}
           onTotalMediaChange={noop}
           onBurstsChange={noop}
           onInvestmentChange={noop}
@@ -160,7 +161,7 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
           campaignBudget={0}
           campaignId=""
           mediaTypes={[]}
-          initialLineItems={lines}
+          initialLineItems={items as any[]}
         />,
       )
     })
@@ -187,6 +188,8 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
     act(() => addButton(3)[0].click())
     await settle(50)
     expect(dialogFor(), "no dialog without a network").toBeUndefined()
+    const stationControl = (i: number) => document.getElementById(labels(host, "Station")[i].htmlFor) as HTMLButtonElement
+    expect(stationControl(2).disabled, "no station pick without a network").toBe(true)
 
     const [button] = addButton(1)
     act(() => {
@@ -222,6 +225,10 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
     expect(db.toasts.map((t) => t.title)).toContain("Station Added")
     await settle(50)
     expect(document.activeElement, "focus back on Add Station").toBe(button)
+    // The list is reloaded after the add, so line 2 (also ARN) is offered the new station.
+    act(() => stationControl(1).click())
+    await settle(50)
+    expect(optionTexts()).toEqual(["Gold 104", "KIIS"])
   }, 30_000)
 
   it("ties each Station label to its combobox, lists the line's network's stations, and gives the grid the catalogue", async () => {
@@ -277,5 +284,38 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
       "10 spots",
       "8 package",
     ])
+  }, 30_000)
+
+  it("gives the schedule grid the channel fee both ways on a fee-inclusive line", async () => {
+    // $8,000 gross at 12.5% is $7,000 net: 70 spots at $100, and 50 spots back
+    // is $5,000 net, $5,714.29 gross.
+    const feeLines = [
+      line(1, {
+        budget_includes_fees: true,
+        bursts: [{ budget: "$8,000.00", buyAmount: "$100.00", startDate: "2026-01-05", endDate: "2026-01-11" }],
+      }),
+    ]
+    await mount([], feeLines, 12.5)
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "THEAD" ? 40 : 2000
+      })
+    const grid = [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Schedule grid")!
+    act(() => grid.click())
+    await settle(100)
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement
+    const week = [...dialog.querySelectorAll("input")].find((i) => i.value === "70")
+    expect(week, "70 spots, net of the fee").toBeTruthy()
+    act(() => setInput(week!, "50"))
+    await settle(50)
+    const apply = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Apply to plan (not saved yet)",
+    ) as HTMLButtonElement
+    act(() => apply.click())
+    offsetHeight.mockRestore()
+    await settle()
+    const [b] = media[media.length - 1][0].bursts
+    expect([b.budget, b.calculatedValue]).toEqual(["5714.29", 50])
   }, 30_000)
 })
