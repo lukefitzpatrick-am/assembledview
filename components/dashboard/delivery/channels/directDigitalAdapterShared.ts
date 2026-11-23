@@ -13,7 +13,6 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
 import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
-import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { cpm, ctr as clickThroughRate } from "@/lib/money/rates"
 import {
   ESTIMATED_SPEND_LABEL,
@@ -28,9 +27,7 @@ import {
 } from "@/lib/delivery/directDigitalFeeLookup"
 import { isCpcBuyType } from "@/lib/kpi/kpiReview"
 import { CLIENT_REPORTED_SPEND_LABEL } from "@/components/dashboard/delivery/shared/clientLineLabels"
-import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import { sumReportedSpend } from "@/lib/delivery/programmatic/applyReportedSpend"
 import type { ProgressCardProps } from "../shared/ProgressCard"
@@ -840,17 +837,6 @@ export function buildDirectDigitalChannelSection(input: {
 
   const ctrDecimal = clickThroughRate(rollup.clicks, rollup.impressions)
 
-  const ctrTargetRaw = (() => {
-    const rows = withDelivery
-      .map((m) => getLineItemKpiRow(input.lineItemTargets, input.mbaNumber, input.kpiVersionNumber, m.id))
-      .filter(Boolean) as CampaignKPI[]
-    if (!rows.length) return undefined
-    const first = rows[0]?.ctr
-    if (first == null || first <= 0) return undefined
-    if (!rows.every((r) => r.ctr === first)) return undefined
-    return normaliseRatioTarget(first)
-  })()
-
   const aggregateKpiTiles: KpiTileProps[] = [
     {
       label: labels.impressions,
@@ -865,11 +851,6 @@ export function buildDirectDigitalChannelSection(input: {
     {
       label: "CTR",
       value: fmtRatioDecimal(ctrDecimal),
-      expected: ctrTargetRaw != null ? fmtRatioDecimal(ctrTargetRaw) : undefined,
-      status:
-        ctrDecimal != null && ctrTargetRaw != null && ctrTargetRaw > 0
-          ? deliveryStatusFromPct(safeDiv(ctrDecimal, ctrTargetRaw) * 100)
-          : "no-data",
       accentColour,
     },
     {
@@ -1106,9 +1087,6 @@ export function buildDirectDigitalChannelSection(input: {
 
   const accordionItems = withDelivery.map((m) => {
     const liCtr = clickThroughRate(m.totals.clicks, m.totals.impressions)
-    const kpiRow = getLineItemKpiRow(input.lineItemTargets, input.mbaNumber, input.kpiVersionNumber, m.id)
-    const liCtrTarget =
-      kpiRow?.ctr != null && kpiRow.ctr > 0 ? normaliseRatioTarget(kpiRow.ctr) : undefined
 
     const lineHasCompletes = m.totals.videoCompletes > 0
     const dailyRows = m.daily.map((d) => ({
@@ -1202,11 +1180,6 @@ export function buildDirectDigitalChannelSection(input: {
           {
             label: "CTR",
             value: fmtRatioDecimal(liCtr),
-            expected: liCtrTarget != null ? fmtRatioDecimal(liCtrTarget) : undefined,
-            status:
-              liCtr != null && liCtrTarget != null && liCtrTarget > 0
-                ? deliveryStatusFromPct(safeDiv(liCtr, liCtrTarget) * 100)
-                : "no-data",
             accentColour,
           },
           {

@@ -2,7 +2,7 @@ import { dirname } from "path"
 import { fileURLToPath } from "url"
 import { FlatCompat } from "@eslint/eslintrc"
 
-import { MEASURE_BASELINE, MEASURE_FILES, MEASURE_IGNORES, measuresPlugin } from "./scripts/measure-registry.mjs"
+import { MEASURE_BAND_IMPORTS, MEASURE_BASELINE, MEASURE_FILES, MEASURE_IGNORES, isMeasureScreen, measuresPlugin } from "./scripts/measure-registry.mjs"
 import { CODEX_SOURCE, CODEX_SPECIFIER_SELECTORS, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks, codexUrlSelectorsFor } from "./scripts/codex-boundary.mjs"
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -149,12 +149,15 @@ const config = [
     files: MEASURE_FILES,
     ignores: MEASURE_IGNORES,
     plugins: { measures: measuresPlugin },
-    rules: { "measures/no-local-measure": ["error", { baseline: MEASURE_BASELINE }] },
+    rules: {
+      "measures/no-local-measure": ["error", { baseline: MEASURE_BASELINE }],
+      "no-restricted-imports": ["error", { patterns: [...RESTRICTED_IMPORTS, ...MEASURE_BAND_IMPORTS] }],
+    },
   },
   // C-200 (S32 A, B51): Codex task writes only in Tasks (scripts/codex-boundary.mjs).
   // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.
   ...codexImportBlocks(ROOT, {
-    restrictedImports: RESTRICTED_IMPORTS,
+    restrictedImportsFor: (file) => [...RESTRICTED_IMPORTS, ...(isMeasureScreen(file) ? MEASURE_BAND_IMPORTS : [])],
     syntaxFor: c200SyntaxFor,
   }),
 ]

@@ -259,10 +259,10 @@ function codexZones(file, outside) {
  * then one block per governed file (named writers, their callers, allowlisted
  * pages, read modules). A later block replaces a rule's options, so each
  * per-file block repeats what the file gets from the rest of the config:
- * `restrictedImports` (the `no-restricted-imports` patterns every file has)
+ * `restrictedImportsFor(file)` (the file's `no-restricted-imports` patterns from the rest of the config)
  * and `syntaxFor(file)` (its other `no-restricted-syntax` selectors).
  */
-export function codexImportBlocks(root, { restrictedImports, syntaxFor }) {
+export function codexImportBlocks(root, { restrictedImportsFor, syntaxFor }) {
   const paths = (zones) => ({
     "import/no-restricted-paths": zones.length ? ["error", { basePath: root, zones }] : "off",
   })
@@ -285,7 +285,7 @@ export function codexImportBlocks(root, { restrictedImports, syntaxFor }) {
         files: [globEscape(file)],
         rules: {
           ...paths(codexZones(file, read || !inCodexZone(file))),
-          "no-restricted-imports": ["error", { patterns: [...restrictedImports, ...imports] }],
+          "no-restricted-imports": ["error", { patterns: [...restrictedImportsFor(file), ...imports] }],
           "no-restricted-syntax": syntax.length ? ["error", ...syntax] : "off",
         },
       }

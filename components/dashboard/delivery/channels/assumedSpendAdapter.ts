@@ -12,8 +12,7 @@ import { formatMoney } from "@/lib/format/money"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
-import { assumedDeliveryPacePct } from "@/lib/spend/assumedSpend"
+import { assumedDeliveryPace } from "@/lib/spend/assumedSpend"
 import { isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 import { paceVsExpected, resolvePacingWindow, windowPhrase, type PacingWindow } from "@/lib/pacing/expectedForWindow"
@@ -63,7 +62,7 @@ function flag(value: unknown): boolean {
  */
 function spendCard(assumed: number, media: number, window: PacingWindow): ProgressCardProps {
   const expected = assumed
-  const pct = assumedDeliveryPacePct(assumed, expected)
+  const { pct, status } = assumedDeliveryPace(assumed, expected)
   const progress = paceVsExpected(assumed, expected).progress
   const assumedText = formatMoney(assumed, { decimals: 0 })
   const expectedText = formatMoney(expected, { decimals: 0 })
@@ -79,7 +78,7 @@ function spendCard(assumed: number, media: number, window: PacingWindow): Progre
     plannedTotal: media,
     variance: (pct - 100) / 100,
     varianceLabel: `vs expected ${phrase}`,
-    status: deliveryStatusFromPct(pct),
+    status,
   }
 }
 

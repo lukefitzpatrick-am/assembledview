@@ -2,6 +2,7 @@ import { buildDateListISO } from "@/lib/delivery/search/searchCore"
 import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
+import { deliveryStatusFromPct, type DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 
 /** Card and section title. Not "Booked spend (flat allocation)". */
 export const ASSUMED_SPEND_LABEL = "Assumed spend"
@@ -93,6 +94,12 @@ export function assumedDeliveryPacePct(delivered: number, expected: number): num
   if (deliveredCents === expectedCents) return 100
   if (expectedCents === 0) return 100
   return (delivered / expected) * 100
+}
+
+/** The pace of an assumed figure against its own expected: `assumedDeliveryPacePct` and its band (both zero is On track). */
+export function assumedDeliveryPace(delivered: number, expected: number): { pct: number; status: DeliveryStatus } {
+  const pct = assumedDeliveryPacePct(delivered, expected)
+  return { pct, status: deliveryStatusFromPct(pct) }
 }
 
 /**

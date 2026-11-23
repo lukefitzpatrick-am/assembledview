@@ -33,6 +33,7 @@ export const MEASURES = [
   { measure: "Delivered spend, client", module: "lib/delivery/getDeliveredTotalsForClient.ts", fn: "getDeliveredTotalsForClient" },
   { measure: "Direct digital estimated spend", module: "lib/delivery/estimateDirectDigitalSpend.ts", fn: "estimateDirectDigitalSpend" },
   { measure: "Assumed spend to date", module: "lib/spend/assumedSpend.ts", fn: "assumedLineToDateCents" },
+  { measure: "Assumed spend pace and its band (both zero is On track)", module: "lib/spend/assumedSpend.ts", fn: "assumedDeliveryPace" },
   { measure: "Budget utilised (planned to date against planned)", module: "lib/dashboard/plannedSpendConsistency.ts", fn: "computePlannedSpendTotals" },
   { measure: "Billed, per month", module: "lib/finance/composeFinanceHubRecords.ts", fn: "composeBillingRecordsForMonth" },
   { measure: "Cost per thousand impressions (CPM)", module: "lib/money/rates.ts", fn: "cpm" },
@@ -63,6 +64,19 @@ const MEASURE_SELECTORS = [
 /** Screen code: the files the rule covers. */
 export const MEASURE_FILES = ["{app,components}/**/*.{js,jsx,ts,tsx}"]
 export const MEASURE_IGNORES = ["app/api/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+/** MEASURE_FILES less MEASURE_IGNORES, as a test on a repo path. */
+export const isMeasureScreen = (file) =>
+  /^(app|components)\/.+\.[jt]sx?$/.test(file) && !file.startsWith("app/api/") && !/(^|\/)__tests__\/|\.(test|spec)\./.test(file)
+
+/**
+ * `no-restricted-imports` patterns for screen code (S10fix, Q3 A): a screen bands a pace through
+ * paceVsExpected (or assumedDeliveryPace), never the raw band helpers, so a band always has its pace.
+ */
+const BAND_MESSAGE = "S10: band a pace through paceVsExpected or assumedDeliveryPace (scripts/measure-registry.mjs), not the raw band helper."
+export const MEASURE_BAND_IMPORTS = [
+  { regex: "(^|/)lib/pacing/deliveryStatusFromPct(\\.ts)?$", message: BAND_MESSAGE },
+  { regex: "(^|/)lib/pacing/status(\\.ts)?$", importNames: ["statusFromExpectedPct"], message: BAND_MESSAGE },
+]
 
 /** `measures/no-local-measure`: options `{ baseline }`, the allowed count per repo path. */
 const noLocalMeasure = {
