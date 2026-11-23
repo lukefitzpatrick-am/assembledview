@@ -195,9 +195,11 @@ export default function MediaChannelContainer({
       didAutoOpenExpertRef.current = true
       return
     }
+    // Read the one-shot ingest flag only once lines exist: hydrate fills the
+    // form after the first render, so an earlier read spent it on `[]` (C-382).
+    if ((watchedLineItems || []).length === 0) return
     const fromIngest = consumeIngestOohExpertPreference()
     if (!fromIngest && !largeFormat) return
-    if ((watchedLineItems || []).length === 0) return
     didAutoOpenExpertRef.current = true
     writeContainerEntryMode("schedule")
     openExpertModal()
