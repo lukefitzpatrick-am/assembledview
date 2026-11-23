@@ -4,7 +4,9 @@
  * pass; through hydrate and a card edit, every array that reaches the save
  * callback is save rows, and the last write of the save callback after the
  * edit carries the edited money. The wrapper takes no raw-lines callback, so
- * no page can wire raw form lines to its save state.
+ * no page can wire raw form lines to its save state. Also pinned: a new
+ * card line saves its network as its publisher, and an edited fee-inclusive
+ * grid row comes back grossed up by the channel fee.
  *
  * @vitest-environment jsdom
  */
@@ -110,5 +112,74 @@ describe("Magazines hands a page its save rows only (W5j, C-377 lesson)", () => 
     }
     expect(saves.at(-1)![0]).toMatchObject({ totalMedia: 2000, title: "Womens Weekly", size: "Full Page", publisher: "Are Media" })
     expect(calls.map(([name]) => name)).not.toContain("raw")
+  }, 30_000)
+
+  function render(media: any[][], initialLineItems: unknown[]) {
+    act(() => {
+      root.render(
+        <MagazinesContainer
+          clientId="client-1"
+          feemagazines={10}
+          onTotalMediaChange={() => {}}
+          onBurstsChange={() => {}}
+          onInvestmentChange={() => {}}
+          onLineItemsChange={() => {}}
+          onMediaLineItemsChange={(rows: any[]) => media.push(rows)}
+          campaignStartDate={new Date(2026, 0, 5)}
+          campaignEndDate={new Date(2026, 2, 31)}
+          campaignBudget={0}
+          campaignId=""
+          mediaTypes={["magazines"]}
+          initialLineItems={initialLineItems}
+        />,
+      )
+    })
+  }
+
+  const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!
+
+  it("saves a new card line's network as its publisher", async () => {
+    const media: any[][] = []
+    render(media, [])
+    await settle()
+    act(() => button("Add line item").click())
+    await settle(50)
+    const toggle = host.querySelector('button[aria-label="Expand details for magazines line item 1"]') as HTMLButtonElement | null
+    if (toggle) act(() => toggle.click())
+    await settle(50)
+    const network = [...host.querySelectorAll("label")].find((l) => l.textContent?.trim() === "Network")!.parentElement!.querySelector('[role="combobox"]') as HTMLElement
+    act(() => network.click())
+    await settle(50)
+    act(() => ([...document.querySelectorAll("[cmdk-item]")].find((o) => o.textContent?.trim() === "Are Media") as HTMLElement).click())
+    await settle()
+    expect(media.at(-1)![0]).toMatchObject({ network: "Are Media", publisher: "Are Media" })
+  }, 30_000)
+
+  it("gives an edited fee-inclusive row back grossed up by the channel fee on Apply", async () => {
+    // $1,100 gross at 10% is $990 net: 10 insertions at $99. 5 back is $495 net, $550 gross.
+    const media: any[][] = []
+    render(media, [{ ...line, budget_includes_fees: true, bursts: [{ budget: "$1,100.00", buyAmount: "$99.00", startDate: "2026-01-05", endDate: "2026-01-11", calculatedValue: 10 }] }])
+    await settle()
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "THEAD" ? 40 : 2000
+      })
+    act(() => button("Schedule grid").click())
+    await settle(100)
+    const grid = document.querySelector('[role="dialog"]') as HTMLElement
+    const week = [...grid.querySelectorAll("input")].filter((i) => i.value === "10").pop()
+    expect(week, "10 insertions in week 1").toBeTruthy()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(week, "5")
+      week!.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() => week!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })))
+    await settle(400)
+    act(() => button("Apply to plan (not saved yet)").click())
+    offsetHeight.mockRestore()
+    await settle()
+    const [b] = media.at(-1)![0].bursts
+    expect([b.budget, b.calculatedValue]).toEqual(["550", 5])
   }, 30_000)
 })

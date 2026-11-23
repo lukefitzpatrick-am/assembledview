@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   getInfluencersBursts,
   getIntegrationBursts,
+  getMagazinesBursts,
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
 
@@ -43,3 +44,18 @@ for (const [name, bursts] of SHAPES) {
     )
   })
 }
+
+test("magazines legacy billing keeps a typed bonus count as saved, and the line's No Ad Serving box (W5j)", () => {
+  const lineItems = [
+    {
+      buyType: "bonus",
+      noadserving: true,
+      bursts: [{ budget: "0", calculatedValue: "5", startDate: START, endDate: END }],
+    },
+  ]
+  const [out] = getMagazinesBursts({ getValues: () => lineItems } as never, 10)
+  assert.equal(out.mediaType, "magazines")
+  assert.equal(out.deliverables, "5")
+  assert.equal(out.noAdserving, true)
+  assert.equal("lineItemId" in out, false)
+})

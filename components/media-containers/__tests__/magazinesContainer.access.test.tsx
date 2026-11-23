@@ -220,6 +220,8 @@ describe("Magazines on the shared shell: names, labels and catalogues (W5j)", ()
     }
     expect(await options("Womens Weekly")).toEqual(["Womens Weekly"])
     expect(await options("Full Page")).toEqual(["Full Page"])
+    // A line saved with a network and no publisher shows the network as its publisher (W5j load rule).
+    expect([...grid.querySelectorAll("input, textarea")].map((i) => (i as HTMLInputElement).value)).toContain("Are Media")
     offsetHeight.mockRestore()
   }, 30_000)
 
