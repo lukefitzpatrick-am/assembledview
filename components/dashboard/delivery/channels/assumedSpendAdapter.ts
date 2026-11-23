@@ -16,7 +16,7 @@ import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { assumedDeliveryPacePct } from "@/lib/spend/assumedSpend"
 import { isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
-import { resolvePacingWindow, windowPhrase, type PacingWindow } from "@/lib/pacing/expectedForWindow"
+import { paceVsExpected, resolvePacingWindow, windowPhrase, type PacingWindow } from "@/lib/pacing/expectedForWindow"
 
 const ATL_FAMILIES = [
   { key: "television", sourceTable: "media_plan_television", mediaType: "Television" },
@@ -64,7 +64,7 @@ function flag(value: unknown): boolean {
 function spendCard(assumed: number, media: number, window: PacingWindow): ProgressCardProps {
   const expected = assumed
   const pct = assumedDeliveryPacePct(assumed, expected)
-  const progress = expected > 0 ? Math.max(0, Math.min(1, assumed / expected)) : 0
+  const progress = paceVsExpected(assumed, expected).progress
   const assumedText = formatMoney(assumed, { decimals: 0 })
   const expectedText = formatMoney(expected, { decimals: 0 })
   const mediaText = formatMoney(media, { decimals: 0 })

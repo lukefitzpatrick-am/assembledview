@@ -56,15 +56,6 @@ const PILL_BY_BAND: Record<SpendPacingBand, PillMeta> = {
   "no-data": { label: "No data", variant: "secondary" },
 }
 
-/** Delivered ÷ the schedule expected the card prints. Bands are `PACING_STATUS_THRESHOLDS`. ≥115 maps to Ahead here. */
-function deliveryBand(
-  actualSpend: number | undefined,
-  expectedSpend: number | undefined,
-): SpendPacingBand | null {
-  if (typeof actualSpend !== "number" || !Number.isFinite(actualSpend)) return null
-  return paceVsExpected(actualSpend, expectedSpend ?? Number.NaN).status
-}
-
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0
   return Math.max(0, Math.min(1, n))
@@ -83,10 +74,9 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
   return clamp01(numerator / denominator)
 }
 
-/** Whole-percent label. Capped at 0 to 100% unless `uncapped` (ahead shows as ahead). */
-function pctLabel(value: number, uncapped = false): string {
-  const ratio = uncapped ? Math.max(0, Number.isFinite(value) ? value : 0) : clamp01(value)
-  return `${Math.round(ratio * 100)}%`
+/** Whole-percent label, capped at 0 to 100%. */
+function pctLabel(value: number): string {
+  return `${Math.round(clamp01(value) * 100)}%`
 }
 
 function formatImpressions(value: number | undefined): string {
@@ -171,18 +161,22 @@ export function CampaignStatusStrip({
   const spendKnown = typeof actualSpend === "number" && Number.isFinite(actualSpend)
   const expectedKnown = typeof expectedSpend === "number" && Number.isFinite(expectedSpend)
 
-  const spendVsExpected = ratio(spendKnown ? actualSpend : undefined, expectedSpend)
+  // One pace for the pill, the bar and the caption: delivered ÷ the schedule expected the card prints (≥115 reads Ahead here).
+  // Nothing expected: an empty bar and 0%, never a full bar beside a No data pill.
+  const spendPace = spendKnown ? paceVsExpected(actualSpend, expectedSpend ?? Number.NaN) : null
+  const spendVsExpected = spendPace?.pct === undefined ? 0 : spendPace.progress
   const spendVsBudget = ratio(spendKnown ? actualSpend : undefined, budget)
   const spendPct = expectedKnown && expectedSpend > 0 ? spendVsExpected : spendVsBudget
   const expectedVsBudget = ratio(expectedSpend, budget)
   const impressionsAgainstExpected =
     typeof expectedImpressions === "number" && Number.isFinite(expectedImpressions) && expectedImpressions > 0
-  const impressionsPct = ratio(
-    deliveredImpressions,
-    impressionsAgainstExpected ? expectedImpressions : plannedImpressions,
-  )
+  const impressionsPace =
+    impressionsAgainstExpected && typeof deliveredImpressions === "number" && Number.isFinite(deliveredImpressions)
+      ? paceVsExpected(deliveredImpressions, expectedImpressions!)
+      : null
+  const impressionsPct = impressionsPace ? impressionsPace.progress : ratio(deliveredImpressions, plannedImpressions)
 
-  const band = deliveryBand(spendKnown ? actualSpend : undefined, expectedSpend)
+  const band: SpendPacingBand | null = spendPace ? spendPace.status : null
   const pill = band ? PILL_BY_BAND[band] : null
 
   const sentence = statusSentence({
@@ -203,12 +197,9 @@ export function CampaignStatusStrip({
   const budgetCaptionMoney = formatMoneyCompact(budget)
   const impressionsBasis = impressionsAgainstExpected ? `expected ${periodLabel}` : "planned"
   // Against expected the figure is not capped at 100%: ahead shows as ahead.
-  const impressionsPctText =
-    impressionsAgainstExpected &&
-    typeof deliveredImpressions === "number" &&
-    Number.isFinite(deliveredImpressions)
-      ? pctLabel(Math.max(0, deliveredImpressions) / expectedImpressions!, true)
-      : pctLabel(impressionsPct)
+  const impressionsPctText = impressionsPace
+    ? `${Math.round(Math.max(0, impressionsPace.pct ?? 0))}%`
+    : pctLabel(impressionsPct)
   const impressionsCaption =
     typeof channelsTotal === "number" && channelsTotal > 0
       ? `${impressionsPctText} of ${impressionsBasis} (channels reporting)`
