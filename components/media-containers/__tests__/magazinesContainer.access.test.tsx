@@ -34,6 +34,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
     { id: 2, title: "Good Weekend", network: "Nine" },
   ],
   getMagazinesAdSizes: async () => [{ id: 1, adsize: "Full Page" }],
+  createMagazineAdSize: async (data: { adsize: string }) => ({ id: 2, ...data }),
 }))
 
 const { default: MagazinesContainer } = await import("@/components/media-containers/MagazinesContainer")
@@ -186,6 +187,15 @@ describe("Magazines on the shared shell: names, labels and catalogues (W5j)", ()
     act(() => button("Add Ad Size").click())
     await settle(50)
     expect(sizeDialog.textContent, "a blank ad size is refused on the field").toContain("Ad Size is required")
+    const sizeInput = [...sizeDialog.querySelectorAll("input")][0] as HTMLInputElement
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(sizeInput, "DPS")
+      sizeInput.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() => button("Add Ad Size").click())
+    await settle(100)
+    // The old container closed the Title dialog here and left this one open.
+    expect([...document.querySelectorAll('[role="dialog"] h2')].map((h) => h.textContent?.trim()), "Add Ad Size closes its dialog").toEqual([])
   }, 30_000)
 
   it("lists the grid's titles by the row's network, and its ad sizes", async () => {

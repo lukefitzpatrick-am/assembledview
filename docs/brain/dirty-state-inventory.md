@@ -13,7 +13,7 @@ Expert Mode has a second, softer flag: `expertApplyPendingPageSave` (“Applied 
 | Layer | State | Sets when | Clears when |
 |---|---|---|---|
 | Page | `hasUnsavedChanges` (controller) | `markUnsavedChanges` / `markPassiveChannelChange` / `forceDirty` | `clearDirtyOnSaveSuccess` (save only); `clearDirtyForHydration` (load/gate) |
-| Expert soft badge | `expertApplyPendingPageSave` | Expert Apply (`setTrue`) — all 14 bespoke + hook | Page-saved window event (driven by page dirty true→false) |
+| Expert soft badge | `expertApplyPendingPageSave` | Expert Apply (`setTrue`) — OOH, Production and the hook | Page-saved window event (driven by page dirty true→false) |
 
 **Clear timing verdict (PROPERTY):** every save-path clear is `clearDirtyOnSaveSuccess` after a successful draft/version/publish step. Failed save / early return / outer catch leave dirty. There is no clear-on-attempt API.
 
@@ -39,27 +39,27 @@ Edit dirty **set** sites are mostly `markUnsavedChanges` / `markPassiveChannelCh
 
 ## The 15 Expert dirty sites
 
-Eleven `*Container.tsx` files hold local `expertApplyPendingPageSave`. The twelfth is `useMediaChannelContainer` (shared by Prog\*, Search, Social, Influencers and Integration via `MediaChannelContainer`).
+Two `*Container.tsx` files hold local `expertApplyPendingPageSave` (OOH and Production). The third is `useMediaChannelContainer` (shared by the other 18 channels via `MediaChannelContainer`).
 
 | # | Site | Mechanism | Local expert dirty | Sets pending on Apply | Clears pending |
 |---|---|---|---|---|---|
-| 1 | `TelevisionContainer` | Bespoke | yes | yes | `subscribeMediaPlanPageSaved` → false |
-| 2 | `RadioContainer` | Bespoke | yes | yes | same |
+| 1 | `TelevisionContainer` | Shared (W5h): see row 15 | no | via the hook | via the hook |
+| 2 | `RadioContainer` | Shared (W5g): see row 15 | no | via the hook | via the hook |
 | 3 | `NewspaperContainer` | Shared (W5i): see row 15 | no | via the hook | via the hook |
-| 4 | `MagazinesContainer` | Bespoke | yes | yes | same |
+| 4 | `MagazinesContainer` | Shared (W5j): see row 15 | no | via the hook | via the hook |
 | 5 | `OOHContainer` | Bespoke | yes | yes (C-38 fixed) | same |
-| 6 | `CinemaContainer` | Bespoke | yes | yes | same |
-| 7 | `DigitalDisplayContainer` | Bespoke | yes | yes | same |
-| 8 | `DigitalAudioContainer` | Bespoke | yes | yes | same |
-| 9 | `DigitalVideoContainer` | Bespoke | yes | yes | same |
-| 10 | `BVODContainer` | Bespoke | yes | yes | same |
+| 6 | `CinemaContainer` | Shared (W5f): see row 15 | no | via the hook | via the hook |
+| 7 | `DigitalDisplayContainer` | Shared (W5d): see row 15 | no | via the hook | via the hook |
+| 8 | `DigitalAudioContainer` | Shared (W5c): see row 15 | no | via the hook | via the hook |
+| 9 | `DigitalVideoContainer` | Shared (W5c): see row 15 | no | via the hook | via the hook |
+| 10 | `BVODContainer` | Shared (W5d): see row 15 | no | via the hook | via the hook |
 | 11 | `IntegrationContainer` | Shared (W5b): see row 15 | no | via the hook | via the hook |
 | 12 | `ProductionContainer` | Bespoke | yes | yes | same |
 | 13 | `SocialMediaContainer` | Shared (W5a): see row 15 | no | via the hook | via the hook |
 | 14 | `InfluencersContainer` | Shared (W5b): see row 15 | no | via the hook | via the hook |
 | 15 | `useMediaChannelContainer` → `MediaChannelContainer` | Shared hook + shell | hook owns state; shell renders | yes (hook) | subscribe in hook |
 
-Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`, `SocialMediaContainer`, `IntegrationContainer`, `InfluencersContainer`.
+Thin adapters with **no** local pending state (delegate to #15): `ProgDisplayContainer`, `ProgVideoContainer`, `ProgBVODContainer`, `ProgAudioContainer`, `ProgOOHContainer`, `SearchContainer`, `SocialMediaContainer`, `IntegrationContainer`, `InfluencersContainer`, `DigitalVideoContainer`, `DigitalAudioContainer`, `DigitalDisplayContainer`, `BVODContainer`, `CinemaContainer`, `RadioContainer`, `TelevisionContainer`, `NewspaperContainer`, `MagazinesContainer`.
 
 Per-channel Expert **grid** dirty (modal exit confirm) is separate: baseline serialize ≠ current rows. Discard / leave-without-Apply closes the modal and does **not** touch `expertApplyPendingPageSave`. Apply writes form with `{ shouldDirty: true }` (trips page `form.watch`) **and** (except OOH) sets pending true.
 
