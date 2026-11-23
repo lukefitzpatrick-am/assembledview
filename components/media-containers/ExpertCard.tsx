@@ -31,8 +31,13 @@ import {
   buyAmountUnitPriceWarning,
   getBuyAmountColumnLabel,
   getCpcFamilyBurstCalculatedColumnLabel,
+  getTelevisionBurstCalculatedColumnLabel,
+  TelevisionBurstTarpsField,
   type CpcFamilyVariant,
 } from "@/components/media-containers/burst-calculated-fields"
+
+/** "television": the burst's TARPs field (it writes `tarps` and the deliverables), and only bonus locks the money. */
+type CardVariant = CpcFamilyVariant | "television"
 import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { formatBurstLabel } from "@/lib/bursts"
 import {
@@ -95,7 +100,7 @@ export type ExpertCardProps<T extends FieldValues> = {
   /** Extra options for `combobox-dynamic` / `combobox-sites` / `combobox-titles`. */
   dynamicOptionsByKey?: Record<string, ComboboxOption[]>
   feePct: number
-  calculatedVariant?: CpcFamilyVariant
+  calculatedVariant?: CardVariant
   campaignStartDate: Date
   campaignEndDate: Date
   onBurstValueChange: (lineItemIndex: number, burstIndex: number) => void
@@ -544,7 +549,7 @@ function ExpertCardBursts<T extends FieldValues>({
   lineItemIndex: number
   lineItemId: string
   feePct: number
-  calculatedVariant: CpcFamilyVariant
+  calculatedVariant: CardVariant
   mediaTypeKey: string
   campaignStartDate: Date
   campaignEndDate: Date
@@ -571,15 +576,15 @@ function ExpertCardBursts<T extends FieldValues>({
       name: fieldName<T>(itemsKey, lineItemIndex, "bursts"),
     }) as unknown[] | undefined) ?? []
 
-  const bonusLocked = buyType === "bonus" || buyType === "package_inclusions"
+  const tv = calculatedVariant === "television"
+  const bonusLocked = buyType === "bonus" || (!tv && buyType === "package_inclusions")
   const mountCalculated = shouldMountCpcFamilyBurstCalculatedField({
     mediaTypeKey,
     buyType,
   })
-  const calculatedLabel = getCpcFamilyBurstCalculatedColumnLabel(
-    calculatedVariant,
-    buyType || ""
-  )
+  const calculatedLabel = tv
+    ? getTelevisionBurstCalculatedColumnLabel(buyType || "")
+    : getCpcFamilyBurstCalculatedColumnLabel(calculatedVariant as CpcFamilyVariant, buyType || "")
   const buyAmountLabel = getBuyAmountColumnLabel(buyType)
 
   return (
@@ -818,19 +823,30 @@ function ExpertCardBursts<T extends FieldValues>({
                         itemsKey,
                         lineItemIndex,
                         burstIndex,
-                        "calculatedValue"
+                        tv ? "tarps" : "calculatedValue"
                       )}
-                      render={({ field }) => (
-                        <CpcFamilyBurstCalculatedField
-                          form={form}
-                          itemsKey={itemsKey}
-                          lineItemIndex={lineItemIndex}
-                          burstIndex={burstIndex}
-                          field={field}
-                          feePct={feePct}
-                          variant={calculatedVariant}
-                        />
-                      )}
+                      render={({ field }) =>
+                        tv ? (
+                          <TelevisionBurstTarpsField
+                            form={form}
+                            itemsKey={itemsKey}
+                            lineItemIndex={lineItemIndex}
+                            burstIndex={burstIndex}
+                            field={field}
+                            feePct={feePct}
+                          />
+                        ) : (
+                          <CpcFamilyBurstCalculatedField
+                            form={form}
+                            itemsKey={itemsKey}
+                            lineItemIndex={lineItemIndex}
+                            burstIndex={burstIndex}
+                            field={field}
+                            feePct={feePct}
+                            variant={calculatedVariant as CpcFamilyVariant}
+                          />
+                        )
+                      }
                     />
                   ) : (
                     <div />

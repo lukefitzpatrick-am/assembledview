@@ -11,7 +11,6 @@ import { ExpertIncompleteRowsSummary } from "@/components/media-containers/Exper
 import { ExpertGrid } from "@/components/media-containers/ExpertGrid"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
-import type { CpcFamilyVariant } from "@/components/media-containers/burst-calculated-fields"
 import {
   buildDefaultLineItem,
   type ContainerChannelConfig,
@@ -163,16 +162,12 @@ export default function MediaChannelContainer({
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
   const summaryDimensions = Object.keys(config.summaryDimensions)
-  const calculatedVariant = config.calculatedVariant as CpcFamilyVariant
 
-  const emptyPayload = () => ({
-    ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate),
-    ...nextLineFields(
-      form.getValues(fieldKey) || [],
-      mbaNumber,
-      config.mediaTypeIdCode,
-    ),
-  })
+  const emptyPayload = (footer: boolean) => {
+    const ids = nextLineFields(form.getValues(fieldKey) || [], mbaNumber, config.mediaTypeIdCode)
+    if (config.newLine) return config.newLine(ids, footer)
+    return { ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate), ...ids }
+  }
 
   return (
     <div className="space-y-6">
@@ -267,7 +262,7 @@ export default function MediaChannelContainer({
                 <div className="space-y-6">
                   {lineItemFields.length === 0 ? (
                     <ContainerEmptyLinesPlaceholder
-                      onAdd={() => appendLineItem(emptyPayload())}
+                      onAdd={() => appendLineItem(emptyPayload(false))}
                     />
                   ) : null}
                   {lineItemFields.map((field, lineItemIndex) => {
@@ -297,7 +292,7 @@ export default function MediaChannelContainer({
                         totalDisplay={totalDisplay}
                         publishers={publishers}
                         feePct={feePct || 0}
-                        calculatedVariant={calculatedVariant}
+                        calculatedVariant={config.calculatedVariant}
                         campaignStartDate={campaignStartDate}
                         campaignEndDate={campaignEndDate}
                         onBurstValueChange={handleValueChange}
@@ -314,6 +309,13 @@ export default function MediaChannelContainer({
                         onComboboxValueChange={(key, li, value) => {
                           if (key === "buyType") handleBuyTypeChange(li, value)
                           siteList.onComboboxValueChange(key, li, value)
+                        }}
+                        onFieldValueChange={(key, li, value) => {
+                          if (!config.copyToBursts?.includes(key)) return
+                          const bursts: unknown[] = form.getValues(`${fieldKey}.${li}.bursts`) || []
+                          bursts.forEach((_, bi) =>
+                            form.setValue(`${fieldKey}.${li}.bursts.${bi}.${key}`, value, { shouldDirty: true }),
+                          )
                         }}
                         {...siteList.cardProps(lineItemIndex)}
                         {...stationAdd.cardProps(lineItemIndex)}
@@ -389,7 +391,7 @@ export default function MediaChannelContainer({
                                   type="button"
                                   size="sm"
                                   onClick={() =>
-                                    appendLineItem(emptyPayload())
+                                    appendLineItem(emptyPayload(true))
                                   }
                                 >
                                   <Plus className="mr-1.5 h-3.5 w-3.5" />

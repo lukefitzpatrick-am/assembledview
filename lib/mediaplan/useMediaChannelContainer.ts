@@ -38,6 +38,7 @@ import {
   stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
 import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
+import { tarpsOf } from "@/lib/mediaplan/televisionLine"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -640,7 +641,9 @@ export function useMediaChannelContainer(
       let lineDeliverables = 0
       ;(lineItem.bursts || []).forEach((burst: any) => {
         // The bonus input writes a string; sum numbers, never concatenate.
-        lineDeliverables += config.cardDeliverables
+        lineDeliverables += config.tarps
+          ? tarpsOf(burst)
+          : config.cardDeliverables
           ? config.cardDeliverables(burst, lineItem.buyType, Boolean(lineItem.budgetIncludesFees), feePct || 0)
           : Number.parseFloat(String(burst.calculatedValue ?? 0)) || 0
       })
@@ -686,7 +689,7 @@ export function useMediaChannelContainer(
     (lineItemIndex: number, value: string) => {
       form.setValue(`${fieldKey}.${lineItemIndex}.buyType`, value)
 
-      if (value === "bonus" || value === "package_inclusions") {
+      if ((config.zeroBudgetBuyTypes ?? ["bonus", "package_inclusions"]).includes(value)) {
         const currentBursts = form.getValues(`${fieldKey}.${lineItemIndex}.bursts`) || []
         const zeroedBursts = currentBursts.map((burst: any) => ({
           ...burst,
@@ -702,11 +705,13 @@ export function useMediaChannelContainer(
 
       handleLineItemValueChange(lineItemIndex)
     },
-    [form, handleLineItemValueChange, fieldKey],
+    [form, handleLineItemValueChange, fieldKey, config],
   )
 
   const handleValueChange = useCallback(
     (lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
+      // The card's TARPs field writes Television's deliverables; only totals move here.
+      if (config.tarps) return handleLineItemValueChange(lineItemIndex)
       const burst = form.getValues(`${fieldKey}.${lineItemIndex}.bursts.${burstIndex}`)
       const lineItem = form.getValues(`${fieldKey}.${lineItemIndex}`)
       const valuePath = `${fieldKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`
@@ -788,9 +793,10 @@ export function useMediaChannelContainer(
         campaignEndDate,
         onAfter: handleLineItemValueChange,
         toast: toast as Parameters<typeof appendBurst>[0]["toast"],
+        makeBurst: config.newBurst,
       })
     },
-    [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate, fieldKey],
+    [form, handleLineItemValueChange, toast, campaignStartDate, campaignEndDate, fieldKey, config],
   )
 
   const handleDuplicateBurst = useCallback(
@@ -832,6 +838,8 @@ export function useMediaChannelContainer(
         return "Impressions"
       case "fixed_cost":
         return "Fixed Fee"
+      case "cpt":
+        return "TARPs"
       // V90 A: spots and package read as Radio and Cinema named them.
       case "spots":
         return "Spots"

@@ -1496,6 +1496,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       render={({ field }) => (
                                         <TelevisionBurstTarpsField
                                           form={form}
+                                          itemsKey="televisionlineItems"
                                           lineItemIndex={lineItemIndex}
                                           burstIndex={burstIndex}
                                           field={field}

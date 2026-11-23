@@ -2,7 +2,8 @@ type Item = Record<string, unknown>
 
 /** The fields a channel's load de-dupe compares: an id-less line's, and the whole load's. */
 export type LoadDedupeKeys = {
-  fallbackKey: (item: Item) => Record<string, unknown>
+  /** Unset: no line is dropped; only a reload with the same load key is skipped (Television). */
+  fallbackKey?: (item: Item) => Record<string, unknown>
   loadKey: (item: Item) => Record<string, unknown>
 }
 
@@ -56,6 +57,8 @@ export function dedupeInitialLineItems<T extends Item>(
   tag: string,
   keys: LoadDedupeKeys,
 ): T[] {
+  const { fallbackKey } = keys
+  if (!fallbackKey) return items
   const seen = new Set<string>()
   const deduped: T[] = []
 
@@ -70,7 +73,7 @@ export function dedupeInitialLineItems<T extends Item>(
       continue
     }
 
-    const key = `fallback:${JSON.stringify(keys.fallbackKey(item))}`
+    const key = `fallback:${JSON.stringify(fallbackKey(item))}`
     if (seen.has(key)) continue
     seen.add(key)
     deduped.push(item)

@@ -323,10 +323,9 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
   )
 }
 
-const TELEVISION_ITEMS_KEY = "televisionlineItems"
-
 type TelevisionTarpsProps<T extends FieldValues> = {
   form: UseFormReturn<T>
+  itemsKey: string
   lineItemIndex: number
   burstIndex: number
   field: ControllerRenderProps<T>
@@ -335,6 +334,7 @@ type TelevisionTarpsProps<T extends FieldValues> = {
 
 export function TelevisionBurstTarpsField<T extends FieldValues>({
   form,
+  itemsKey,
   lineItemIndex,
   burstIndex,
   field,
@@ -342,19 +342,19 @@ export function TelevisionBurstTarpsField<T extends FieldValues>({
 }: TelevisionTarpsProps<T>) {
   const buyTypeWatch = useWatch({
     control: form.control,
-    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.buyType` as never,
+    name: `${itemsKey}.${lineItemIndex}.buyType` as never,
   }) as unknown as string
   const budgetIncludesFees = useWatch({
     control: form.control,
-    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.budgetIncludesFees` as never,
+    name: `${itemsKey}.${lineItemIndex}.budgetIncludesFees` as never,
   })
   const budgetValue = useWatch({
     control: form.control,
-    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.budget` as never,
+    name: `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.budget` as never,
   })
   const buyAmountValue = useWatch({
     control: form.control,
-    name: `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.buyAmount` as never,
+    name: `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.buyAmount` as never,
   })
 
   const calculatedValue = useMemo(() => {
@@ -389,9 +389,9 @@ export function TelevisionBurstTarpsField<T extends FieldValues>({
       return
     }
     const tarpsPath =
-      `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.tarps` as const
+      `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.tarps` as const
     const calcPath =
-      `${TELEVISION_ITEMS_KEY}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue` as const
+      `${itemsKey}.${lineItemIndex}.bursts.${burstIndex}.calculatedValue` as const
     const newValue = calculatedValue
     const currentTarps = form.getValues(tarpsPath as never)
     if (String(currentTarps ?? "") !== newValue) {
@@ -411,6 +411,7 @@ export function TelevisionBurstTarpsField<T extends FieldValues>({
     }
   }, [
     calculatedValue,
+    itemsKey,
     lineItemIndex,
     burstIndex,
     form,

@@ -181,6 +181,7 @@ import {
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
 import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
+import type { BurstFactory } from "@/lib/mediaplan/burstOperations"
 import { radioExcelRow } from "@/lib/mediaplan/radioLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
@@ -226,6 +227,7 @@ export type FieldMapEntry = {
 
 type CalculatedVariant =
   | "cpcCpvCpm"
+  | "television"
   | "radio"
   | "ooh"
   | "cinema"
@@ -425,6 +427,25 @@ export type ContainerChannelConfig = {
    * and Add Station only writes to the line (the stub).
    */
   stations?: ContainerStations
+  /**
+   * Television's TARPs surface (W5h): the card's TARPs field writes each
+   * burst's `tarps` and deliverables (the hook only updates totals on a
+   * money change), and the summary adds the bursts' TARPs. Unset: the
+   * hook's deliverables rule.
+   */
+  tarps?: true
+  /** Buy types whose pick zeroes the line's budgets and buy amounts. Unset: bonus and package inclusions. */
+  zeroBudgetBuyTypes?: readonly string[]
+  /**
+   * A new line (Add, and the placeholder's Add when `footer` is false), given
+   * its id fields. Unset: the field map's defaults, one burst in the campaign
+   * window, the ids last.
+   */
+  newLine?: (ids: Record<string, unknown>, footer: boolean) => Record<string, unknown>
+  /** A burst added by Add burst. Unset: `standardBurstDefaults`. */
+  newBurst?: BurstFactory
+  /** Line fields a card edit copies to every burst of the line (Television's Ad Size). */
+  copyToBursts?: readonly string[]
 }
 
 /**
