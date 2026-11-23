@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import ExcelJS from "exceljs"
 
+import { setFeatureRowReaderForTests } from "../../features/server.js"
 import type { DraftDocumentsBody } from "../draftDocumentsBody.js"
 import { renderDraftDocuments } from "../renderDraftDocuments.js"
 import { pdfText } from "./pdfText.js"
@@ -105,5 +106,76 @@ describe("renderDraftDocuments Media Plan", () => {
       sheet.headerFooter.oddHeader,
       `&C&"Aptos,Bold"&20DRAFT - NOT FOR CLIENT`
     )
+  })
+})
+
+async function serviceFeeMonths(on: boolean): Promise<{ total: number; months: number[] }> {
+  setFeatureRowReaderForTests(
+    async () => new Map([["client_fee_rate_history", { key: "client_fee_rate_history", enabled: on, updatedAt: null, updatedBy: null, updatedByName: null, note: null }]])
+  )
+  try {
+    const result = await renderDraftDocuments(
+      fixtureSaveBody({
+        kind: "media_plan",
+        campaignEndDate: "2026-02-28",
+        lineItems: [
+          {
+            lineItemId: "search-1",
+            channel: "search",
+            mediaType: "search",
+            rate: 1,
+            enteredAmount: 10000,
+            buyType: "cpc",
+            publisher: "Google",
+            platform: "Google",
+            approval: "approved",
+            bursts: [
+              { startDate: "2026-01-01", endDate: "2026-01-31", budget: 5000 },
+              { startDate: "2026-02-01", endDate: "2026-02-28", budget: 5000 },
+            ],
+            feeOverride: {
+              mode: "manual",
+              months: [
+                { month: "2026-01", amount: 0 },
+                { month: "2026-02", amount: 1000 },
+              ],
+              dateBasis: "billing",
+            },
+          },
+        ],
+      } as Partial<DraftDocumentsBody>)
+    )
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(result.buffer as unknown as ExcelJS.Buffer)
+    const sheet = wb.getWorksheet("Media Plan")!
+    let months: number[] = []
+    let total = 0
+    sheet.eachRow((row) => {
+      if (String(row.getCell(2).value ?? "") !== "Service Fee") return
+      total = Number(row.getCell(14).value)
+      months = []
+      row.eachCell((cell, col) => {
+        // A merged month range reports its value on every cell; read its first cell only.
+        if (col > 14 && cell.master.address === cell.address && typeof cell.value === "number") months.push(cell.value)
+      })
+    })
+    return { total, months: months.filter((v) => v !== 0) }
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
+}
+
+describe("renderDraftDocuments Media Plan: S4 fee months (client_fee_rate_history)", () => {
+  it("switch on: the Service Fee row puts a fee moved to February in February only", async () => {
+    const { total, months } = await serviceFeeMonths(true)
+    assert.ok(total > 0)
+    assert.deepEqual(months, [total])
+  })
+
+  it("switch off: the Service Fee row splits by delivery month, as before S4", async () => {
+    const { total, months } = await serviceFeeMonths(false)
+    assert.ok(total > 0)
+    assert.equal(months.length, 2)
+    assert.equal(months[0], months[1])
   })
 })

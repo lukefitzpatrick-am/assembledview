@@ -193,6 +193,66 @@ describe("buildMediaItemsFromPlanDetail", () => {
     assert.equal(result.mbaData.totals.service_fee, 5_000)
   })
 
+  function storedFeeMonths(feeMonthsFollowBilling: boolean | undefined) {
+    return buildMediaItemsFromPlanDetail({
+      versionData: versionMapped({
+        legacySchedules: {
+          billingSchedule: [{ monthYear: "July 2026", feeTotal: "$1,000.00" }],
+          deliverySchedule: [{ monthYear: "August 2026", feeTotal: "$1,000.00" }],
+        },
+      }),
+      clientName: dump.master.mpClientName,
+      lineItems: groupedLines(),
+      feeSnapshot: {},
+      publishers: [],
+      logoBase64: LOGO,
+      feeMonthsFollowBilling,
+    })
+  }
+
+  it("S4 switch on: with no snapshot rates the Service Fee months are the stored billing months", () => {
+    const result = storedFeeMonths(true)
+    assert.ok(result.mbaData.totals.service_fee > 0)
+    assert.deepEqual(result.serviceMonthWeights.fee, { "July 2026": 1000 })
+  })
+
+  it("S4 switch off (or absent): the stored delivery months, as before S4", () => {
+    assert.deepEqual(storedFeeMonths(false).serviceMonthWeights.fee, { "August 2026": 1000 })
+    assert.deepEqual(storedFeeMonths(undefined).serviceMonthWeights.fee, { "August 2026": 1000 })
+  })
+
+  it("S4 switch on: with snapshot rates, a fee override billed in September puts the Service Fee in September only", () => {
+    const build = (feeMonthsFollowBilling: boolean) =>
+      buildMediaItemsFromPlanDetail({
+        versionData: versionMapped(),
+        clientName: dump.master.mpClientName,
+        lineItems: groupedLines(),
+        feeSnapshot: dump.feeSnapshot,
+        publishers: [],
+        logoBase64: LOGO,
+        billingOverrideRows: [
+          {
+            line_item_id: "glenda008SM1",
+            component: "fee",
+            mode: "manual",
+            months: [
+              { month: "2026-07", amount: 0 },
+              { month: "2026-08", amount: 0 },
+              { month: "2026-09", amount: 5000 },
+            ],
+            date_basis: "billing",
+          },
+        ],
+        feeMonthsFollowBilling,
+      })
+    const on = build(true)
+    assert.equal(on.mbaData.totals.service_fee, 5_000)
+    assert.deepEqual(Object.keys(on.serviceMonthWeights.fee ?? {}).filter((m) => (on.serviceMonthWeights.fee ?? {})[m] > 0), ["September 2026"])
+    // Off: delivery months, so July and August carry fee too.
+    const off = build(false)
+    assert.ok(Object.values(off.serviceMonthWeights.fee ?? {}).filter((v) => v > 0).length > 1)
+  })
+
   it("mba_scope.partial drops excluded social rows; totals equal the slice; note is present", () => {
     const result = buildMediaItemsFromPlanDetail({
       versionData: {
