@@ -59,13 +59,18 @@ export function UnmappedDeliveryTab({
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<string>("")
   const [copied, setCopied] = useState<string>("")
+  // The note to select by hand when the clipboard refuses.
+  const [uncopied, setUncopied] = useState<{ name: string; note: string } | null>(null)
   const queue = clientFeatureOn("unmatched_delivery_queue")
   const today = useMemo(() => getMelbourneTodayISO(), [])
 
   const copyNote = async (row: UnmappedDeliveryRow, note: string) => {
+    setCopied("") // so a second copy of the same row is announced again
     const ok = await copyToClipboard(note)
-    setCopied(ok ? `Supplier note for ${row.name} copied.` : "Could not copy. Select the note text instead.")
+    setUncopied(ok ? null : { name: row.name, note })
+    setCopied(ok ? `Supplier note for ${row.name} copied.` : `Could not copy. The note for ${row.name} is below the table; select it and copy.`)
   }
+
 
   const load = useCallback(async () => {
     setError(null)
@@ -150,6 +155,20 @@ export function UnmappedDeliveryTab({
           <tbody>
             {visible.map((row) => {
               const note = queue ? supplierNoteDraft(row, today) : null
+              const action =
+                row.suggestion.kind === "match" ? (
+                  <a
+                    href={relabelsHref({ mba: row.suggestion.mba })}
+                    aria-label={`Open Match for ${row.suggestion.mba}`}
+                    className={buttonVariants({ size: "sm", variant: "outline" })}
+                  >
+                    Open Match
+                  </a>
+                ) : (
+                  <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
+                    Relabel
+                  </Button>
+                )
               return (
                 <tr key={`${row.channel}|${row.platformEntityId}`} className="border-t border-border align-top">
                   <td className="p-2">{row.channel}</td>
@@ -168,21 +187,9 @@ export function UnmappedDeliveryTab({
                     <div className="mt-1 text-muted-foreground">{row.suggestion.action}</div>
                   </td>
                   <td className="p-2">
-                    <div className="flex flex-col gap-1">
-                      {row.suggestion.kind === "match" ? (
-                        <a
-                          href={relabelsHref({ mba: row.suggestion.mba })}
-                          aria-label={`Open Match for ${row.suggestion.mba}`}
-                          className={buttonVariants({ size: "sm", variant: "outline" })}
-                        >
-                          Open Match
-                        </a>
-                      ) : (
-                        <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
-                          Relabel
-                        </Button>
-                      )}
-                      {note ? (
+                    {note ? (
+                      <div className="flex flex-col gap-1">
+                        {action}
                         <Button
                           type="button"
                           size="sm"
@@ -193,8 +200,10 @@ export function UnmappedDeliveryTab({
                         >
                           Copy supplier note
                         </Button>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : (
+                      action
+                    )}
                   </td>
                 </tr>
               )
@@ -206,6 +215,12 @@ export function UnmappedDeliveryTab({
         <p role="status" aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
           {copied}
         </p>
+      ) : null}
+      {queue && uncopied ? (
+        <label className="block space-y-1 text-xs">
+          <span>Supplier note for {uncopied.name}</span>
+          <textarea readOnly rows={12} value={uncopied.note} className="w-full rounded-card border border-border bg-background p-2 font-mono" />
+        </label>
       ) : null}
     </div>
   )

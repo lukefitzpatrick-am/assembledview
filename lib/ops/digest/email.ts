@@ -252,8 +252,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("ahead", groups.ahead)}
         ${section("no-data", groups["no-data"])}
         ${renderRelabelSection(payload)}
-        ${renderDataChecksSection(payload)}
-        ${renderUnmatchedSection(payload)}
+        ${renderDataChecksSection(payload)}${renderUnmatchedSection(payload)}
         <tr><td style="padding:0 24px 8px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};">
           Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
         </td></tr>
