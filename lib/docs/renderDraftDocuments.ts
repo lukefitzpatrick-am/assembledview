@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
+import { isFeatureOn } from "@/lib/features/server"
 import { computeApprovedSlice } from "@/lib/finance/approvedSlice"
 import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
 import {
@@ -30,7 +31,7 @@ import {
 import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
 import {
   adServingMonthWeightsFromDeliverySchedule,
-  feeMonthWeightsFromDeliverySchedule,
+  feeMonthWeightsFromSchedule,
 } from "@/lib/docs/workbookServiceMonthWeights"
 import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
@@ -362,19 +363,21 @@ export async function renderDraftDocuments(
   // Service Fee and Ad Serving month cells. Published versions read the billing
   // schedule (DOC-1, serviceMonthAmounts in buildMediaItemsFromPersisted). A
   // draft has no persisted schedule_months rows, so it keeps the FALLBACK:
-  // each line's delivery-month weights.
+  // each line's delivery-month weights; with client_fee_rate_history on the
+  // fee months follow the billing schedule instead (S4).
   const excludedLineIds = new Set(
     financials.perLine
       .filter((line) => line.flags.excluded)
       .map((line) => String(line.lineItemId))
   )
   const includeLine = (lineItemId: string) => !excludedLineIds.has(lineItemId)
+  const feeMonthsFollowBilling = body.kind !== "aa_media_plan" && (await isFeatureOn("client_fee_rate_history"))
   const serviceMonthWeights =
     body.kind === "aa_media_plan"
       ? undefined
       : {
-          fee: feeMonthWeightsFromDeliverySchedule({
-            deliverySchedule: financials.deliverySchedule,
+          fee: feeMonthWeightsFromSchedule({
+            schedule: feeMonthsFollowBilling ? financials.billingSchedule : financials.deliverySchedule,
             includeLine,
             selectedMonthYears,
           }),

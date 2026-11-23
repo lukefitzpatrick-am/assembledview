@@ -8,8 +8,11 @@
  *
  * Fallback (drafts, which have no persisted rows, and versions with no
  * billing fee / ad serving rows): DELIVERY-month weights per line (Luke,
- * 22 Oct 2026). The weights only shape the split. The row totals always come
- * from the MBA totals, so the workbook totals do not change.
+ * 22 Oct 2026). With the switch client_fee_rate_history on, Service Fee
+ * weights come from the BILLING schedule instead (S4: fee months follow
+ * billing); Ad Serving stays on delivery. The weights only
+ * shape the split. The row totals always come from the MBA totals, so the
+ * workbook totals do not change.
  */
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -143,14 +146,18 @@ function restrictToMonths(
   return hasPositive(narrowed) ? narrowed : weights
 }
 
-/** Fee by delivery month: each included line's fee months on the delivery schedule. */
-export function feeMonthWeightsFromDeliverySchedule(args: {
-  deliverySchedule: readonly BillingMonth[]
+/**
+ * Fee by month: each included line's fee months on the schedule given: the
+ * billing schedule with client_fee_rate_history on (S4), else the delivery
+ * schedule (22 Oct 2026).
+ */
+export function feeMonthWeightsFromSchedule(args: {
+  schedule: readonly BillingMonth[]
   includeLine: (lineItemId: string) => boolean
   selectedMonthYears?: readonly string[] | null
 }): Record<string, number> {
   const weights: Record<string, number> = {}
-  for (const { item } of distinctScheduleLines(args.deliverySchedule)) {
+  for (const { item } of distinctScheduleLines(args.schedule)) {
     if (!args.includeLine(String(item.id ?? ""))) continue
     addMonths(weights, item.feeMonthlyAmounts)
   }

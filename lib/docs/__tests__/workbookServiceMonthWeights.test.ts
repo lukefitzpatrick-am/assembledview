@@ -5,7 +5,7 @@ import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import {
   adServingDollarsByLineFromApprovedSlice,
   adServingMonthWeightsFromDeliverySchedule,
-  feeMonthWeightsFromDeliverySchedule,
+  feeMonthWeightsFromSchedule,
   firstUsableWeights,
   monthTotalsFromStoredSchedule,
 } from "@/lib/docs/workbookServiceMonthWeights"
@@ -59,8 +59,8 @@ const BIC = schedule({
 })
 
 test("fee weights sum each line's delivery fee months once", () => {
-  const weights = feeMonthWeightsFromDeliverySchedule({
-    deliverySchedule: BIC,
+  const weights = feeMonthWeightsFromSchedule({
+    schedule: BIC,
     includeLine: () => true,
   })
   assert.deepEqual(weights, {
@@ -71,16 +71,16 @@ test("fee weights sum each line's delivery fee months once", () => {
 })
 
 test("excluded lines carry no fee weight", () => {
-  const weights = feeMonthWeightsFromDeliverySchedule({
-    deliverySchedule: BIC,
+  const weights = feeMonthWeightsFromSchedule({
+    schedule: BIC,
     includeLine: (id) => id !== "billing-progVideo::BICAU006PV9",
   })
   assert.equal(weights[SEP], 2351.65)
 })
 
 test("selected MBA months narrow the weights", () => {
-  const weights = feeMonthWeightsFromDeliverySchedule({
-    deliverySchedule: BIC,
+  const weights = feeMonthWeightsFromSchedule({
+    schedule: BIC,
     includeLine: () => true,
     selectedMonthYears: [OCT, NOV],
   })

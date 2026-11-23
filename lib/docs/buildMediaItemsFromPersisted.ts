@@ -67,7 +67,7 @@ import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaSc
 import {
   adServingDollarsByLineFromApprovedSlice,
   adServingMonthWeightsFromDeliverySchedule,
-  feeMonthWeightsFromDeliverySchedule,
+  feeMonthWeightsFromSchedule,
   firstUsableWeights,
   monthTotalsFromStoredSchedule,
   serviceMonthAmountsFromBillingRows,
@@ -218,6 +218,11 @@ export type BuildMediaItemsFromPlanDetailArgs = {
    * rows. The workbook Service Fee and Ad Serving month cells are these.
    */
   billingScheduleServiceRows?: BillingScheduleServiceRow[]
+  /**
+   * S4, switch client_fee_rate_history: the fallback Service Fee months follow
+   * the billing schedule. Off or absent: the delivery schedule (22 Oct 2026).
+   */
+  feeMonthsFollowBilling?: boolean
 }
 
 /**
@@ -382,7 +387,8 @@ export function buildMediaItemsFromPlanDetail(
 
   // Service Fee and Ad Serving month cells: the billing schedule (DOC-1,
   // serviceMonthAmounts below). The delivery-month weights are the fallback
-  // for a component the billing schedule has no rows for.
+  // for a component the billing schedule has no rows for (fee months follow
+  // billing instead with client_fee_rate_history on, S4).
   const excludedLineIds = new Set(
     financials.perLine
       .filter((line) => line.flags.excluded)
@@ -392,12 +398,19 @@ export function buildMediaItemsFromPlanDetail(
   const scopeMonths = persistedScope?.monthYears ?? null
   const storedDelivery =
     args.versionData.deliverySchedule ?? args.versionData.delivery_schedule ?? null
-  const computedFeeWeights = feeMonthWeightsFromDeliverySchedule({
-    deliverySchedule: financials.deliverySchedule,
+  // S4 (switch on): the fallback fee months follow billing. Off: delivery.
+  const followBilling = args.feeMonthsFollowBilling === true
+  const computedFeeWeights = feeMonthWeightsFromSchedule({
+    schedule: followBilling ? financials.billingSchedule : financials.deliverySchedule,
     includeLine,
     selectedMonthYears: scopeMonths,
   })
-  const storedFeeWeights = monthTotalsFromStoredSchedule(storedDelivery, "feeTotal")
+  const storedFeeWeights = monthTotalsFromStoredSchedule(
+    followBilling
+      ? (args.versionData.billingSchedule ?? args.versionData.billing_schedule ?? null)
+      : storedDelivery,
+    "feeTotal",
+  )
   const feeWeights =
     mbaData.totals.service_fee > 0
       ? feeSnapshotHasRates(args.feeSnapshot)
@@ -573,6 +586,8 @@ export async function buildMediaItemsFromPersisted(args: {
   }
 
   const publishers = (await fetchPublishersFromPostgres()) as unknown as Publisher[]
+  const { isFeatureOn } = await import("@/lib/features/server")
+  const feeMonthsFollowBilling = await isFeatureOn("client_fee_rate_history")
   const lineItems = (data.lineItems ?? {}) as MbaGetMediaLineItems
   const clientName = String(
     data.mp_client_name ?? data.mpClientName ?? "",
@@ -588,5 +603,6 @@ export async function buildMediaItemsFromPersisted(args: {
     approvedSlice,
     billingOverrideRows,
     billingScheduleServiceRows,
+    feeMonthsFollowBilling,
   })
 }

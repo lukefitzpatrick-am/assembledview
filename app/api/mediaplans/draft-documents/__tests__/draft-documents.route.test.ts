@@ -38,6 +38,12 @@ const getDbMock = mock.fn(() => {
   throw new Error("draft-documents must not touch the database")
 })
 
+/** Switch reads go through getDb; stub them so getDb stays "never touched" (S4 reads one). */
+const isFeatureOnMock = mock.fn(async (key: string) => {
+  assert.equal(key, "client_fee_rate_history")
+  return false
+})
+
 if (supportsMockModule()) {
   await mock.module!("@/lib/requireRole", {
     namedExports: {
@@ -47,6 +53,11 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/auth/checkClientMbaAccess", {
     namedExports: {
       checkClientMbaAccess: checkAccessMock,
+    },
+  })
+  await mock.module!("@/lib/features/server", {
+    namedExports: {
+      isFeatureOn: isFeatureOnMock,
     },
   })
   await mock.module!("@/db", {
