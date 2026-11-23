@@ -11,6 +11,8 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
+import { isFeatureOn } from "@/lib/features/server"
+import { storedBillingStands } from "@/lib/finance/billingOnRead"
 import { loadComposedBillingRecordsForMonth } from "@/lib/finance/loadComposedBillingMonth"
 import {
   buildPlanReconciliation,
@@ -29,7 +31,7 @@ export async function loadPlanReconciliation(month: string): Promise<PlanReconci
   const monthDate = `${month}-01`
   const db = getDb()
 
-  const [planResult, recordResult, composed] = await Promise.all([
+  const [planResult, recordResult, composed, onRead] = await Promise.all([
     db.execute(sql`
       SELECT
         m.mba_number,
@@ -73,7 +75,10 @@ export async function loadPlanReconciliation(month: string): Promise<PlanReconci
         r.campaign_name,
         r.total,
         r.approved_amount_cents,
-        r.approved_at
+        r.approved_at,
+        r.exported_at,
+        r.matched_xero_invoice_id,
+        r.billed
       FROM finance_billing_records r
       WHERE r.billing_type = 'media'
         AND left(coalesce(r.billing_month, ''), 7) = ${month}
@@ -90,6 +95,7 @@ export async function loadPlanReconciliation(month: string): Promise<PlanReconci
         publishersIdParam: null,
       },
     }),
+    isFeatureOn("billing_compute_on_read"),
   ])
 
   if (!composed.ok) {
@@ -99,7 +105,10 @@ export async function loadPlanReconciliation(month: string): Promise<PlanReconci
   const inputs = joinPlanReconciliationInputs({
     month,
     plans: rowsOf<PlanFactsSqlRow>(planResult),
-    records: rowsOf<RecordFactsSqlRow>(recordResult),
+    // S12: a record not yet approved or sent has no figure of its own; finance is the To bill figure.
+    records: rowsOf<RecordFactsSqlRow & Parameters<typeof storedBillingStands>[0]>(recordResult).filter(
+      (row) => !onRead || storedBillingStands(row),
+    ),
     exported: composed.records.filter((r) => r.billing_type === "media"),
   })
   return buildPlanReconciliation(month, inputs)

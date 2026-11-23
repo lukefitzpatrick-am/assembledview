@@ -374,7 +374,7 @@ export const FEATURE_DEFINITIONS = [
     key: "billing_compute_on_read",
     label: "Billing amounts worked out when read",
     description:
-      "A billing amount is worked out from the published plan each time it is read, and a stored copy is used only once the invoice is approved or sent (decision S12). On: the Invoiced vs expected report reads a media billing record that is not yet approved, sent to accounts, matched to a Xero invoice or billed at what the plan bills that month now (the To bill figure; nothing when the plan no longer bills the month), not the amount stored when the record was first saved. Approved and sent records, and SOW and retainer records, keep their stored amounts, and nothing stored is changed. Nothing needs to be in place first. Off: it reads the stored amounts, as before.",
+      "A billing amount is worked out from the published plan each time it is read, and a stored copy is used only once the invoice is approved or sent (decision S12). On: the Invoiced vs expected report and Plan reconciliation read a media billing record that is not yet approved, sent to accounts, matched to a Xero invoice or billed at what the plan bills that month now (the To bill figure; nothing when the plan no longer bills the month; Plan reconciliation then shows the To bill figure as finance), not the amount stored when the record was first saved. Approved and sent records, and SOW and retainer records, keep their stored amounts, and nothing stored is changed. Nothing needs to be in place first. Off: both reports read the stored amounts, as before.",
     area: "finance",
     defaultOn: false,
     clientVisible: false,
