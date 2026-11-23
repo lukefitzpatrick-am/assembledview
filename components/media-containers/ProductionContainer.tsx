@@ -15,5 +15,5 @@ type ProductionContainerProps = Omit<
 >
 
 export default function ProductionContainer(props: ProductionContainerProps) {
-  return <MediaChannelContainer config={PRODUCTION_CONTAINER_CONFIG} feePct={0} {...props} />
+  return <MediaChannelContainer config={PRODUCTION_CONTAINER_CONFIG} {...props} feePct={0} />
 }
