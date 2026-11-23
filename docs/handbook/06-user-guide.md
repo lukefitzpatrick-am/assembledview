@@ -32,6 +32,8 @@ Open **Create Campaign**. The plan builds in four steps. The rail on the left ju
 3. **MBA & billing.** Check the billing schedule month by month and the KPIs. Exclude a channel from the MBA here if it is not approved yet.
 4. **Review & files.** Check the totals, then publish.
 
+With tracking type per line switched on, each line card has a **Tracking** control: Tracked (platform or ad server data), Supplier reported (the supplier's own file), Assumed (even spend from the plan) or Not tracked. It starts on the line's default, marked (default). Change it only when the line's data differs from that.
+
 The bar at the bottom shows Budget, Allocated and Unallocated. Unallocated turns amber when the lines add up to more than the budget.
 
 **Files** gives draft downloads before you publish: draft MBA, draft Media Plan and, for Advertising Associates clients, the draft AA plan. Drafts are watermarked DRAFT and are not for the client.
