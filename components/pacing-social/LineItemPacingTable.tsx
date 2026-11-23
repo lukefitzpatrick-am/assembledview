@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
-import { inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
+import { lineDeliverablePacePct } from "@/lib/pacing/expectedForWindow";
 import {
   formatRatioAsPercent,
   formatVariancePercent,
@@ -322,24 +322,9 @@ function deliverableActualFromMetrics(
   }
 }
 
-function lineDeliverablePacingPct(
-  row: SocialPacingCampaignRow,
-  asOfDate: string,
-): number | null {
-  if (row.deliverableTarget <= 0 || !row.lineItemStartDate || !row.lineItemEndDate) {
-    return null;
-  }
-  const totalDays = inclusiveDaysBetween(row.lineItemStartDate, row.lineItemEndDate);
-  if (!totalDays || totalDays <= 0) return null;
-  const elapsed = inclusiveDaysBetween(row.lineItemStartDate, asOfDate);
-  if (!elapsed || elapsed <= 0) return null;
-  const expected = row.deliverableTarget * Math.min(1, elapsed / totalDays);
-  if (expected <= 0) return null;
-  return (row.deliverableActual / expected) * 100;
-}
 
 function deliverableCellTint(row: SocialPacingCampaignRow, asOfDate: string): string {
-  const pct = lineDeliverablePacingPct(row, asOfDate);
+  const pct = lineDeliverablePacePct(row, asOfDate);
   if (pct === null) return "";
   const deviation = Math.abs(Number(pct) - 100);
   if (!Number.isFinite(deviation)) return "text-tone-action-fg";

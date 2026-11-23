@@ -4,8 +4,6 @@
   "components/dashboard/campaign/CampaignDetailsModal.tsx": 3,
   "components/dashboard/delivery/common/deliveryChartReshape.ts": 1,
   "components/dashboard/modals/ClientFinanceSlideOver.tsx": 4,
-  "components/pacing-programmatic/LineItemPacingTable.tsx": 2,
-  "components/pacing-social/LineItemPacingTable.tsx": 2,
   "components/pacing/channel/LinePacingCard.tsx": 2,
   "components/pacing/detail/CampaignBurstsTab.tsx": 1,
   "components/pacing/detail/CampaignDetailModal.tsx": 1,

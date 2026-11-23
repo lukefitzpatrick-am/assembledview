@@ -318,6 +318,32 @@ export function paceVsExpected(delivered: number, expected: number): PaceVsExpec
   }
 }
 
+/**
+ * Delivered deliverables against expected for one line, to the as-at day
+ * (inclusive). Each burst is spread over its own days, so a gap or an uneven
+ * rate counts (C-392). Null when the line has no unit target, the delivered
+ * figure is not finite, or nothing is expected yet.
+ */
+export function lineDeliverablePacePct(
+  line: {
+    bursts: unknown
+    deliverableTarget: number
+    deliverableActual: number
+    lineItemStartDate: string | null
+    lineItemEndDate: string | null
+  },
+  asAtISO: string,
+): number | null {
+  // A delivered figure that is not a number gets no tint (NaN sentinel), never a 0.
+  if (!(line.deliverableTarget > 0) || !Number.isFinite(line.deliverableActual)) return null
+  const window = resolvePacingWindowISO({
+    campaignStartISO: line.lineItemStartDate,
+    campaignEndISO: line.lineItemEndDate,
+    asAtISO,
+  })
+  return paceVsExpected(line.deliverableActual, expectedForWindow(line.bursts, "deliverables", window)).pct ?? null
+}
+
 /** "to date" or "in period" for card copy. */
 export function windowPhrase(window: PacingWindow): string {
   return window.filtered ? "in period" : "to date"
