@@ -503,6 +503,30 @@ export type ContainerChannelConfig = {
   largeFormatGate?: true
   /** The card summary's first and third cells, as [label, line field] (OOH: Network, Format). Unset: by `addStation`, `sites` and `stations`. */
   cardCells?: readonly [readonly [string, string], readonly [string, string]]
+  /**
+   * The channel's bursts are a unit cost and a quantity, not a budget
+   * (Production, W5l, moved from its container). The card draws Cost,
+   * Quantity, the dates and the line's burst total instead of the shared
+   * budget rows; a burst's money is cost x quantity, written to the standard
+   * `budget`, `buyAmount` and `calculatedValue` keys exactly as save persists
+   * them, so the totals, the summary, the investment chart, the card title
+   * and the expert carry read it with no rule of their own; the card's Unit
+   * Cost field writes every burst's cost; and a new line starts with one cost
+   * and quantity burst. Unset: the shared budget and rate bursts.
+   */
+  costQuantityBursts?: true
+  /**
+   * The container's `mediaTypes` prop fills the `mediaType` combobox on the
+   * card and in the grid (Production's production types, W5l), and a new line
+   * takes the first of them. Unset: the grid config's own options.
+   */
+  mediaTypeOptions?: true
+  /**
+   * Card combobox keys whose saved value is flagged "Not in Publishers, pick
+   * one" when it matches no publisher name (Production's free-text
+   * publishers). The value still shows and saves unchanged. Unset: no flag.
+   */
+  flagUnknownPublisherKeys?: readonly string[]
 }
 
 /**

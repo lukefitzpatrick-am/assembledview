@@ -8,6 +8,7 @@ import {
   useChannelStationAdd,
 } from "@/components/media-containers/ChannelSiteList"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { CostQuantityBurstRows } from "@/components/media-containers/CostQuantityBurstRows"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { ExpertGrid } from "@/components/media-containers/ExpertGrid"
@@ -68,18 +69,22 @@ function buildEmptyLineItemPayload(
   campaignStartDate: Date,
   campaignEndDate: Date,
 ) {
+  const startDate = defaultMediaBurstStartDate(campaignStartDate, campaignEndDate)
+  const endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
   return {
     ...buildDefaultLineItem(config.fieldMap),
     bursts: [
-      {
-        budget: "",
-        buyAmount: "",
-        startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-        endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-        calculatedValue: 0,
-        fee: 0,
-        _reactKey: newBurstReactKey(),
-      } as FieldValues,
+      (config.costQuantityBursts
+        ? { cost: 0, amount: 0, startDate, endDate, _reactKey: newBurstReactKey() }
+        : {
+            budget: "",
+            buyAmount: "",
+            startDate,
+            endDate,
+            calculatedValue: 0,
+            fee: 0,
+            _reactKey: newBurstReactKey(),
+          }) as FieldValues,
     ],
     totalMedia: 0,
     totalDeliverables: 0,
@@ -136,6 +141,7 @@ export default function MediaChannelContainer({
     handleDuplicateLineItem,
     handleBuyTypeChange,
     handleValueChange,
+    writeCostQuantityMoney,
     handleAppendBurst,
     handleDuplicateBurst,
     handleRemoveBurst,
@@ -208,11 +214,26 @@ export default function MediaChannelContainer({
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
   const summaryDimensions = Object.keys(config.summaryDimensions)
+  // Production's own type list, from the page (the card's and the grid's
+  // `mediaType` combobox). Every other channel's list is in its grid config.
+  const mediaTypeOptions = useMemo(
+    () =>
+      config.mediaTypeOptions
+        ? (mediaTypes as Array<string | { value: string; label: string }>).map((item) =>
+            typeof item === "string" ? { value: item, label: item } : item,
+          )
+        : undefined,
+    [config.mediaTypeOptions, mediaTypes],
+  )
 
   const emptyPayload = (footer: boolean) => {
     const ids = nextLineFields(form.getValues(fieldKey) || [], mbaNumber, config.mediaTypeIdCode)
     if (config.newLine) return config.newLine(ids, footer)
-    return { ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate), ...ids }
+    return {
+      ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate),
+      ...(mediaTypeOptions ? { mediaType: mediaTypeOptions[0]?.value ?? "" } : {}),
+      ...ids,
+    }
   }
 
   return (
@@ -361,6 +382,8 @@ export default function MediaChannelContainer({
                         }
                         totalDisplay={totalDisplay}
                         publishers={publishers}
+                        flagUnknownPublisherKeys={config.flagUnknownPublisherKeys}
+                        {...(mediaTypeOptions ? { dynamicOptionsByKey: { mediaType: mediaTypeOptions } } : {})}
                         feePct={feePct || 0}
                         calculatedVariant={config.calculatedVariant}
                         campaignStartDate={campaignStartDate}
@@ -381,6 +404,10 @@ export default function MediaChannelContainer({
                           siteList.onComboboxValueChange(key, li, value)
                         }}
                         onFieldValueChange={(key, li, value) => {
+                          if (config.costQuantityBursts && key === "unitRate") {
+                            writeCostQuantityMoney(li, value)
+                            return
+                          }
                           if (!config.copyToBursts?.includes(key)) return
                           const bursts: unknown[] = form.getValues(`${fieldKey}.${li}.bursts`) || []
                           bursts.forEach((_, bi) =>
@@ -392,6 +419,22 @@ export default function MediaChannelContainer({
                           stationAdd.cardProps(lineItemIndex),
                           adSizeList.cardProps(lineItemIndex),
                         )}
+                        burstsSlot={
+                          config.costQuantityBursts ? (
+                            <CostQuantityBurstRows
+                              form={form}
+                              itemsKey={fieldKey}
+                              lineItemIndex={lineItemIndex}
+                              noun={shell.title}
+                              campaignStartDate={campaignStartDate}
+                              campaignEndDate={campaignEndDate}
+                              onValueChange={writeCostQuantityMoney}
+                              onAppendBurst={handleAppendBurst}
+                              onDuplicateBurst={handleDuplicateBurst}
+                              onRemoveBurst={handleRemoveBurst}
+                            />
+                          ) : undefined
+                        }
                         summaryRow={
                           <div className="border-b px-6 py-2">
                             <div className="grid grid-cols-4 gap-4 text-sm">
@@ -501,7 +544,13 @@ export default function MediaChannelContainer({
                 {...(stationAdd.key === "title"
                   ? { titles: stationAdd.list as ExpertGridTitleOption[] }
                   : { stations: stationAdd.list })}
-                extraComboboxOptions={config.adSizes ? { size: adSizeList.options } : undefined}
+                extraComboboxOptions={
+                  config.adSizes
+                    ? { size: adSizeList.options }
+                    : mediaTypeOptions
+                      ? { mediaType: mediaTypeOptions }
+                      : undefined
+                }
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {

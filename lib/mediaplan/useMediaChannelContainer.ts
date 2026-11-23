@@ -39,6 +39,7 @@ import {
 } from "@/lib/mediaplan/lineItemOrder"
 import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import { tarpsOf } from "@/lib/mediaplan/televisionLine"
+import { writeProductionBurstMoney } from "@/lib/mediaplan/productionLine"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -378,7 +379,7 @@ export function useMediaChannelContainer(
   )
 
   const handleExpertApply = useCallback(() => {
-    if (!config.fromExpert || !config.mergeFromExpert || !config.serializeStandardBaseline) {
+    if (!config.fromExpert || !config.mergeFromExpert) {
       return
     }
     const prevLineItems = form.getValues(fieldKey) || []
@@ -418,9 +419,11 @@ export function useMediaChannelContainer(
           "Applying expert mode reset per-burst ad serving overrides on this channel to baseline. Re-enter them on the affected bursts if needed.",
       })
     }
-    standardBaselineRef.current = config.serializeStandardBaseline(
-      form.getValues(fieldKey) || [],
-    )
+    if (config.serializeStandardBaseline) {
+      standardBaselineRef.current = config.serializeStandardBaseline(
+        form.getValues(fieldKey) || [],
+      )
+    }
     setExpertExitConfirmOpen(false)
     if (!config.expertApplyKeepsExpanded) collapseAllLineItems()
     setExpertApplyPendingPageSave(true)
@@ -713,8 +716,21 @@ export function useMediaChannelContainer(
     [form, handleLineItemValueChange, fieldKey, tv],
   )
 
+  /**
+   * Production's card (W5l): a burst's money is its cost x quantity, written
+   * to the standard money keys. A `rate` also writes every burst's cost.
+   */
+  const writeCostQuantityMoney = useCallback(
+    (lineItemIndex: number, rate?: string) => {
+      writeProductionBurstMoney(form, fieldKey, lineItemIndex, rate)
+      handleLineItemValueChange(lineItemIndex)
+    },
+    [form, fieldKey, handleLineItemValueChange],
+  )
+
   const handleValueChange = useCallback(
     (lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
+      if (config.costQuantityBursts) return writeCostQuantityMoney(lineItemIndex)
       // The card's TARPs field writes Television's deliverables; only totals move here.
       if (tv) return handleLineItemValueChange(lineItemIndex)
       const burst = form.getValues(`${fieldKey}.${lineItemIndex}.bursts.${burstIndex}`)
@@ -785,7 +801,7 @@ export function useMediaChannelContainer(
         handleLineItemValueChange(lineItemIndex)
       }
     },
-    [feePct, form, handleLineItemValueChange, fieldKey, config, tv],
+    [feePct, form, handleLineItemValueChange, fieldKey, config, tv, writeCostQuantityMoney],
   )
 
   const handleAppendBurst = useCallback(
@@ -1054,6 +1070,7 @@ export function useMediaChannelContainer(
     handleDuplicateLineItem,
     handleBuyTypeChange,
     handleValueChange,
+    writeCostQuantityMoney,
     handleAppendBurst,
     handleDuplicateBurst,
     handleRemoveBurst,
