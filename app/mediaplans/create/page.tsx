@@ -867,7 +867,6 @@ function CreateMediaPlan() {
   const newspaperTotalRef = useRef(0)
   const [newspaperFeeTotal, setNewspaperFeeTotal] = useState(0)
   const newspaperFeeTotalRef = useRef(0)
-  const [newspaperLineItems, setNewspaperLineItems] = useState<any[]>([])
   const [newspaperMediaLineItems, setNewspaperMediaLineItems] = useState<any[]>([])
 
   // ─ Magazines
@@ -1158,7 +1157,7 @@ function CreateMediaPlan() {
     return (
       televisionMediaLineItems.length +
       radioMediaLineItems.length +
-      newspaperLineItems.length +
+      newspaperMediaLineItems.length +
       magazineMediaLineItems.length +
       oohMediaLineItems.length +
       cinemaMediaLineItems.length +
@@ -1180,7 +1179,7 @@ function CreateMediaPlan() {
   }, [
     televisionMediaLineItems,
     radioMediaLineItems,
-    newspaperLineItems,
+    newspaperMediaLineItems,
     magazineMediaLineItems,
     oohMediaLineItems,
     cinemaMediaLineItems,
@@ -2679,11 +2678,6 @@ function CreateMediaPlan() {
   const handleSocialMediaLineItemsStateChange = useCallback((items: LineItem[]) => {
     markUnsavedChanges();
     setSocialMediaLineItems(items);
-  }, [markUnsavedChanges]);
-
-  const handleNewspaperLineItemsStateChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setNewspaperLineItems(items);
   }, [markUnsavedChanges]);
 
   const handleMagazineLineItemsStateChange = useCallback((items: LineItem[]) => {
@@ -8146,7 +8140,6 @@ const handleSaveAll = async (opts?: {
                             onBurstsChange={handleNewspaperBurstsChange}
                             onInvestmentChange={(rows) => handleInvestmentChange("newspaper", rows)}
                             onLineItemsChange={setNewspaperItems}
-                            onNewspaperLineItemsChange={setNewspaperLineItems}
                             onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
                             initialLineItems={emptyLineResume.newspaper}
                             campaignStartDate={campaignStart}

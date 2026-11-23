@@ -173,7 +173,6 @@ interface NewspapersContainerProps {
   onBurstsChange: (bursts: BillingBurst[]) => void;
   onInvestmentChange: (investmentByMonth: any) => void;
   onLineItemsChange: (items: LineItem[]) => void;
-  onNewspaperLineItemsChange: (lineItems: any[]) => void;
   onMediaLineItemsChange: (lineItems: any[]) => void;
   campaignStartDate: Date;
   campaignEndDate: Date;
@@ -235,7 +234,6 @@ export default function NewspapersContainer({
   onBurstsChange,
   onInvestmentChange,
   onLineItemsChange,
-  onNewspaperLineItemsChange,
   onMediaLineItemsChange,
   campaignStartDate,
   campaignEndDate,
@@ -1077,16 +1075,6 @@ useEffect(() => {
   // push it up to page.tsx
   onLineItemsChange(items);
 }, [watchedLineItems, feenewspapers, createLineItemId, form, mbaNumber, onLineItemsChange]);
-
-// Add new useEffect to capture raw newspaper line items data
-useEffect(() => {
-  const rawLineItems = keepLineIdsOnReorder<any>(
-    watchedLineItems || [],
-    mbaNumber,
-    MEDIA_TYPE_ID_CODES.newspaper,
-  );
-  onNewspaperLineItemsChange(rawLineItems);
-}, [watchedLineItems, mbaNumber, onNewspaperLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

@@ -11016,7 +11016,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                           onBurstsChange={handleNewspaperBurstsChange}
                           onInvestmentChange={(rows) => handleInvestmentChange("newspaper", rows)}
                           onLineItemsChange={handleNewspaperItemsChange}
-                          onNewspaperLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
                           campaignEndDate={campaignEndDate}

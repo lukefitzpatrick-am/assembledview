@@ -66,7 +66,7 @@ const CHANNELS: Array<{
     name: "Newspaper",
     Container: NewspaperContainer,
     code: "NP",
-    props: { feenewspapers: 0, onNewspaperLineItemsChange: () => {} },
+    props: { feenewspapers: 0 },
     network: "News Corp",
     buyType: "insertions",
   },

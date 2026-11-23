@@ -346,7 +346,6 @@ describe("Newspaper container golden (W5i)", () => {
         <NewspaperContainer
           clientId="client-1"
           feenewspapers={FEE}
-          onNewspaperLineItemsChange={() => {}}
           {...callbacks}
           campaignStartDate={CAMPAIGN_START}
           campaignEndDate={CAMPAIGN_END}
