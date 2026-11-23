@@ -189,6 +189,11 @@ describe("Cinema Add Station access (W5f)", () => {
     // A line with no network: a prompt, no dialog.
     await open(addButton(3)[0])
     expect(dialogFor(), "no dialog without a network").toBeUndefined()
+    // Cinema has no catalogue: that line's Station combobox stays open to typing (W5g review F2).
+    const station3 = document.getElementById(labels(host, "Station")[2].htmlFor) as HTMLButtonElement
+    expect(station3.getAttribute("role")).toBe("combobox")
+    expect(station3.disabled, "Station enabled with no network").toBe(false)
+    expect(station3.textContent).not.toContain("Select Network first")
 
     const [button] = addButton(2)
     await open(button)

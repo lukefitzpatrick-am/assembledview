@@ -9,7 +9,8 @@
  * its combobox, which lists the
  * catalogue's stations for the line's network (reloaded after an add, and
  * disabled with no network); the schedule grid gets the catalogue too, and
- * the channel fee both ways on a fee-inclusive line. The summary labels spots and package lines "spots" and
+ * the channel fee both ways on a fee-inclusive line, and on open for a
+ * fee-inclusive package line with a blank count (W5g review F1). The summary labels spots and package lines "spots" and
  * "package" (V90 A).
  *
  * @vitest-environment jsdom
@@ -56,6 +57,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }))
 
 const { default: RadioContainer } = await import("@/components/media-containers/RadioContainer")
+const { RADIO_CONTAINER_CONFIG } = await import("@/lib/mediaplan/containerChannelConfig")
 
 const noop = () => {}
 
@@ -317,5 +319,33 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
     await settle()
     const [b] = media[media.length - 1][0].bursts
     expect([b.budget, b.calculatedValue]).toEqual(["5714.29", 50])
+  }, 30_000)
+
+  it("hands the grid the channel fee on open, for a fee-inclusive package line with a blank count (W5g review F1)", async () => {
+    // The mapper reads the fee only for a burst with no saved count. A package
+    // count is never worked out from money (it comes back 0 and the card's
+    // lump sum fills week 1), so the fee itself is what is pinned.
+    const toExpert = vi.spyOn(RADIO_CONTAINER_CONFIG, "toExpert")
+    const feeLines = [
+      line(1, {
+        buy_type: "package",
+        budget_includes_fees: true,
+        bursts: [{ budget: "$8,000.00", buyAmount: "$1,000.00", calculatedValue: "", startDate: "2026-01-05", endDate: "2026-01-11" }],
+      }),
+    ]
+    await mount([], feeLines, 12.5)
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "THEAD" ? 40 : 2000
+      })
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Schedule grid")!.click())
+    await settle(100)
+    offsetHeight.mockRestore()
+    expect(toExpert).toHaveBeenCalledTimes(1)
+    const [lines, , , , options] = toExpert.mock.calls[0]
+    expect(lines[0].buyType).toBe("package")
+    expect(lines[0].budgetIncludesFees).toBe(true)
+    expect(options).toEqual({ feePct: 12.5 })
   }, 30_000)
 })
