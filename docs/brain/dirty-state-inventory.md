@@ -39,7 +39,7 @@ Edit dirty **set** sites are mostly `markUnsavedChanges` / `markPassiveChannelCh
 
 ## The 15 Expert dirty sites
 
-One `*Container.tsx` file holds local `expertApplyPendingPageSave` (Production). The other is `useMediaChannelContainer` (shared by the other 19 channels via `MediaChannelContainer`).
+No `*Container.tsx` file holds local `expertApplyPendingPageSave`: `useMediaChannelContainer` owns it for all 20 channels via `MediaChannelContainer` (W5l).
 
 | # | Site | Mechanism | Local expert dirty | Sets pending on Apply | Clears pending |
 |---|---|---|---|---|---|
@@ -54,7 +54,7 @@ One `*Container.tsx` file holds local `expertApplyPendingPageSave` (Production).
 | 9 | `DigitalVideoContainer` | Shared (W5c): see row 15 | no | via the hook | via the hook |
 | 10 | `BVODContainer` | Shared (W5d): see row 15 | no | via the hook | via the hook |
 | 11 | `IntegrationContainer` | Shared (W5b): see row 15 | no | via the hook | via the hook |
-| 12 | `ProductionContainer` | Bespoke | yes | yes | same |
+| 12 | `ProductionContainer` | Shared (W5l): see row 15 | no | via the hook | via the hook |
 | 13 | `SocialMediaContainer` | Shared (W5a): see row 15 | no | via the hook | via the hook |
 | 14 | `InfluencersContainer` | Shared (W5b): see row 15 | no | via the hook | via the hook |
 | 15 | `useMediaChannelContainer` → `MediaChannelContainer` | Shared hook + shell | hook owns state; shell renders | yes (hook) | subscribe in hook |
