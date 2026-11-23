@@ -23,7 +23,8 @@ type PillMeta = { label: string; variant: NonNullable<BadgeProps["variant"]> }
 function reportingPill(status: DeliveryStatus | null): PillMeta {
   if (status === "ahead") return { label: "Ahead", variant: "ahead" }
   if (status === "behind") return { label: "Behind", variant: "behind" }
-  return { label: "On track", variant: "on-track" }
+  if (status === "on-track") return { label: "On track", variant: "on-track" }
+  return { label: "No data", variant: "secondary" }
 }
 
 function channelDotClass(key: string): string {
