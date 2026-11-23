@@ -325,10 +325,11 @@ export function attachExpertCarry<R extends ExpertCarryRow>(
     const unplaced: CarriedBurst[] = []
     // V105 A (C-370 (3)): the only quantity on the row is week 1's (the card's lump
     // sum when no dated burst was placed), so the line's saved bursts are one week-1
-    // group: untouched they come back as saved; edit week 1 and it is priced from the grid.
+    // group: untouched they come back as saved; edit week 1, or a week under their
+    // dates (C371fix F2), and it is priced from the grid.
     const lump = opened && weekKeys.every((k, i) => holdsQuantity(row, [k], weekKeys) === (i === 0))
     if (lump) {
-      join(weekKeys.slice(0, 1))
+      join([weekKeys[0]!, ...seen.flatMap((x) => x.keys)])
       for (const { raw, saved } of seen) placed.push({ key: weekKeys[0]!, burst: { ...saved, asSaved: raw } })
     }
     for (const { raw, b, keys, saved, noCell } of lump ? [] : seen) {
@@ -483,11 +484,12 @@ function applyExpertCarry<L>(row: ExpertCarryRow, line: L, weekKeys: readonly st
   const echoes = (b: Record<string, unknown>) =>
     unplaced.length > 0 && storedQty(b.calculatedValue) === 0 && parseBurstMoney(b.budget) === 0
   const out: Record<string, unknown>[] = []
+  const typed: Record<string, unknown>[] = []
   const done = new Set<number>()
   for (const b of bursts as Record<string, unknown>[]) {
     const g = groupOf(b)
     if (g === undefined) {
-      if (!echoes(b)) out.push(b)
+      if (!echoes(b)) out.push(b), typed.push(b)
       continue
     }
     if (done.has(g)) continue
@@ -497,6 +499,10 @@ function applyExpertCarry<L>(row: ExpertCarryRow, line: L, weekKeys: readonly st
   }
   // Each unplaced burst goes back in date order, after any burst that starts the same day.
   for (const saved of unplaced) {
+    // C371fix F1: a $0 burst with no quantity (a new card line's blank campaign burst) is not
+    // written once a burst the grid wrote covers its dates: publish refuses overlapping bursts.
+    const empty = parseBurstMoney(saved.budget) === 0 && storedQty(saved.calculatedValue) === 0 && storedQty(saved.amount) === 0
+    if (empty && typed.some((b) => ymd(b.startDate) <= saved.endYmd && (ymd(b.endDate) || ymd(b.startDate)) >= saved.startYmd)) continue
     const at = out.findIndex((b) => ymd(b.startDate) > saved.startYmd)
     out.splice(at < 0 ? out.length : at, 0, { ...saved.asSaved })
   }
