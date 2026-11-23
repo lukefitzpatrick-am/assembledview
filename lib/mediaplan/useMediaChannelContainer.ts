@@ -845,6 +845,8 @@ export function useMediaChannelContainer(
         return "Spots"
       case "package":
         return "Package"
+      case "insertions":
+        return "Insertions"
       default:
         return "Deliverables"
     }

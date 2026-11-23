@@ -2,6 +2,8 @@
 
 import {
   AddSiteDialog,
+  mergeCardProps,
+  useChannelAdSizes,
   useChannelSiteList,
   useChannelStationAdd,
 } from "@/components/media-containers/ChannelSiteList"
@@ -15,6 +17,7 @@ import {
   buildDefaultLineItem,
   type ContainerChannelConfig,
 } from "@/lib/mediaplan/containerChannelConfig"
+import type { ExpertGridTitleOption } from "@/lib/mediaplan/expertGridChannelConfig"
 import { writeContainerEntryMode } from "@/lib/mediaplan/containerEntryMode"
 import {
   useMediaChannelContainer,
@@ -158,6 +161,9 @@ export default function MediaChannelContainer({
 
   const siteList = useChannelSiteList(config.sites, form, fieldKey, toast)
   const stationAdd = useChannelStationAdd(config.addStation ? shell.loadLabel : undefined, config.stations, form, fieldKey, toast)
+  const adSizeList = useChannelAdSizes(config.adSizes, shell.loadLabel, form, fieldKey, toast)
+  // The card summary's third cell: the line's site, title or bid strategy.
+  const thirdCell = config.sites ? ["Site", "site"] : stationAdd.key === "title" ? ["Title", "title"] : ["Bid strategy", "bidStrategy"]
   const mediaHex = getMediaTypeThemeHex(shell.themeKey)
   const expertDialogTitle = shell.expertDialogTitle ?? `${shell.title} Expert Mode`
   const entryModeAriaLabel = shell.entryModeAriaLabel ?? `${shell.title} entry mode`
@@ -317,8 +323,11 @@ export default function MediaChannelContainer({
                             form.setValue(`${fieldKey}.${li}.bursts.${bi}.${key}`, value, { shouldDirty: true }),
                           )
                         }}
-                        {...siteList.cardProps(lineItemIndex)}
-                        {...stationAdd.cardProps(lineItemIndex)}
+                        {...mergeCardProps(
+                          siteList.cardProps(lineItemIndex),
+                          stationAdd.cardProps(lineItemIndex),
+                          adSizeList.cardProps(lineItemIndex),
+                        )}
                         summaryRow={
                           <div className="border-b px-6 py-2">
                             <div className="grid grid-cols-4 gap-4 text-sm">
@@ -341,12 +350,8 @@ export default function MediaChannelContainer({
                                 ) || "Not selected"}
                               </div>
                               <div>
-                                <span className="font-medium">
-                                  {config.sites ? "Site:" : "Bid strategy:"}
-                                </span>{" "}
-                                {form.watch(
-                                  `${fieldKey}.${lineItemIndex}.${config.sites ? "site" : "bidStrategy"}`,
-                                ) || "Not selected"}
+                                <span className="font-medium">{thirdCell[0]}:</span>{" "}
+                                {form.watch(`${fieldKey}.${lineItemIndex}.${thirdCell[1]}`) || "Not selected"}
                               </div>
                               <div>
                                 <span className="font-medium">Bursts:</span>{" "}
@@ -426,7 +431,11 @@ export default function MediaChannelContainer({
                 onRowsChange={handleExpertRowsChange}
                 publishers={publishers}
                 sites={siteList.list}
-                stations={stationAdd.list}
+                // A title catalogue's rows carry their title (Newspaper).
+                {...(stationAdd.key === "title"
+                  ? { titles: stationAdd.list as ExpertGridTitleOption[] }
+                  : { stations: stationAdd.list })}
+                extraComboboxOptions={config.adSizes ? { size: adSizeList.options } : undefined}
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {
@@ -503,6 +512,7 @@ export default function MediaChannelContainer({
 
       <AddSiteDialog dialog={siteList.dialog} publishers={publishers} />
       <AddSiteDialog dialog={stationAdd.dialog} publishers={publishers} />
+      <AddSiteDialog dialog={adSizeList.dialog} publishers={publishers} />
     </div>
   )
 }

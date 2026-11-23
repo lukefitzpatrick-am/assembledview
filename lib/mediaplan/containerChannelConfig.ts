@@ -265,17 +265,30 @@ type ContainerSites = {
   create: (site: { platform: string; site: string }) => Promise<ContainerSite>
 }
 
-/** One row of a channel's station catalogue (`radio_stations`). */
+/** One row of a channel's station catalogue (`radio_stations`), or title catalogue (`newspapers`). */
 export type ContainerStation = {
   id: number
-  station: string
   network: string
+  station?: string
+  title?: string
 }
 
-/** A channel's station catalogue: read it and add to it. */
+/** A channel's station (or title) catalogue: read it and add to it. */
 type ContainerStations = {
+  /** The line field a row fills and names: "title" (Newspaper's titles, W5i). Unset: "station". */
+  key?: "title"
   fetch: () => Promise<ContainerStation[]>
+  /** `station` is the typed name, whatever `key` is. */
   create: (station: { station: string; network: string }) => Promise<ContainerStation>
+}
+
+/** One row of a channel's ad size catalogue (`newspaper_adsizes`). */
+export type ContainerAdSize = { id: number; adsize: string }
+
+/** A channel's ad size catalogue: read it and add to it (W5i, Newspaper). */
+type ContainerAdSizes = {
+  fetch: () => Promise<ContainerAdSize[]>
+  create: (adSize: { adsize: string }) => Promise<ContainerAdSize>
 }
 
 /** A form line or save row as a channel's transforms see it (W5d). */
@@ -435,6 +448,13 @@ export type ContainerChannelConfig = {
    * and Add Station only writes to the line (the stub).
    */
   stations?: ContainerStations
+  /**
+   * The channel's ad size catalogue (W5i, Newspaper): the card's Ad Size
+   * field lists every ad size, the grid gets them, and Add Ad Size beside the
+   * field creates one, reads the list again and sets it on the line. Unset:
+   * none of these.
+   */
+  adSizes?: ContainerAdSizes
   /**
    * Television's TARPs surface (W5h): the card's TARPs field writes each
    * burst's `tarps` and deliverables (the hook only updates totals on a
