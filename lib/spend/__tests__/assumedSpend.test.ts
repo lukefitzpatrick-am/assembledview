@@ -9,6 +9,7 @@ import {
   ASSUMED_SPEND_LABEL,
   ASSUMED_SPEND_MODE,
   assumedDailyCents,
+  assumedDeliveryPace,
   assumedSpendForBurst,
 } from "../assumedSpend"
 
@@ -156,4 +157,11 @@ test("panel flight instants are Sydney civil days too", () => {
   })
   assert.equal(days[0]?.date, "2026-07-06")
   assert.equal(days[days.length - 1]?.date, "2026-07-12")
+})
+
+test("assumedDeliveryPace: an assumed figure is on track against itself, both zero included; a real gap bands", () => {
+  assert.deepEqual(assumedDeliveryPace(1234.56, 1234.56), { pct: 100, status: "on-track" })
+  assert.deepEqual(assumedDeliveryPace(0, 0), { pct: 100, status: "on-track" })
+  assert.deepEqual(assumedDeliveryPace(50, 100), { pct: 50, status: "behind" })
+  assert.equal(assumedDeliveryPace(120, 100).status, "ahead")
 })

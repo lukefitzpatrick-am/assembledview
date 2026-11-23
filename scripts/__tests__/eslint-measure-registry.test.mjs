@@ -17,15 +17,15 @@ import { MEASURE_BASELINE, MEASURES } from "../measure-registry.mjs"
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const RULE = "measures/no-local-measure"
 
-/** The measure rule's message lines per repo path. `noBaseline` lints with every count at 0. */
-function lint(args, { input, noBaseline = false } = {}) {
+/** The measure rule's message lines per repo path (`rule` picks another rule). `noBaseline` lints with every count at 0. */
+function lint(args, { input, noBaseline = false, rule = RULE } = {}) {
   const extra = noBaseline ? ["--rule", JSON.stringify({ [RULE]: ["error", { baseline: {} }] })] : []
   const run = spawnSync(path.join(repo, "node_modules/.bin/eslint"), ["--format", "json", "--no-warn-ignored", ...extra, ...args], { cwd: repo, input, encoding: "utf8", maxBuffer: 1 << 26 })
   assert.ok(run.stdout, run.stderr)
   const out = {}
   for (const r of JSON.parse(run.stdout)) {
     assert.deepEqual(r.messages.filter((m) => m.fatal), [], r.filePath)
-    out[path.relative(repo, r.filePath)] = r.messages.filter((m) => m.ruleId === RULE).map((m) => m.line)
+    out[path.relative(repo, r.filePath)] = r.messages.filter((m) => m.ruleId === rule).map((m) => m.line)
   }
   return out
 }
@@ -83,4 +83,26 @@ test("every registered measure names a function its module exports", async () =>
     const mod = await import(pathToFileURL(path.join(repo, m.module)).href)
     assert.equal(typeof mod[m.fn], "function", `${m.module} ${m.fn}`)
   }
+})
+
+const BANDS = [
+  'import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"',
+  'import { pacingStatus, statusFromExpectedPct } from "@/lib/pacing/status"',
+  'import { deliveryStatusFromPct as band } from "../../lib/pacing/deliveryStatusFromPct"',
+  'import { pacingStatus as label } from "@/lib/pacing/status"',
+  "export const all = [deliveryStatusFromPct, statusFromExpectedPct, pacingStatus, band, label]",
+].join("\n")
+const bandLines = (file) => lint(["--stdin", "--stdin-filename", file], { input: BANDS, rule: "no-restricted-imports" })[file] ?? []
+
+test("a screen may not import the raw band helpers, in any spelling, a Codex-governed screen included", () => {
+  assert.deepEqual(bandLines("components/dashboard/NewCard.tsx"), [1, 2, 3])
+  assert.deepEqual(bandLines("app/dashboard/[slug]/NewCard.tsx"), [1, 2, 3])
+  // CreativeAdminLanding has its own C-200 block (codexImportBlocks), which keeps the ban through restrictedImportsFor.
+  assert.deepEqual(bandLines("components/creative/CreativeAdminLanding.tsx"), [1, 2, 3])
+})
+
+test("lib, routes and tests may import the band helpers", () => {
+  assert.deepEqual(bandLines("lib/pacing/newBand.ts"), [])
+  assert.deepEqual(bandLines("app/api/new/route.ts"), [])
+  assert.deepEqual(bandLines("components/dashboard/__tests__/x.test.tsx"), [])
 })
