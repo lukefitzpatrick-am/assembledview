@@ -8,6 +8,7 @@ import {
   lookupCandidates,
   suggestUnmappedFix,
   supplierNoteDraft,
+  supplierNoteDue,
 } from "../unmappedDelivery.js"
 
 function raw(over: Partial<Parameters<typeof suggestUnmappedFix>[0]> = {}) {
@@ -127,8 +128,8 @@ test("S5: getUnmappedDelivery binds the legacy MBAs last and suggests from the m
     }
     return [
       { KIND: "mba", VAL: "pgaaus010" },
-      { KIND: "mline", VAL: "PGAAUS010DD1", CH: "digi_display" },
-      { KIND: "mline", VAL: "pgaaus010sm1", CH: "social" },
+      { KIND: "mline", VAL: "PGAAUS010DD1", CH: "MEDIA_PLAN_DIGI_DISPLAY" },
+      { KIND: "mline", VAL: "pgaaus010sm1", CH: "media_plan_social" },
     ]
   })
   assert.deepEqual(binds[1], ["pgaaus010", "pgaaus010"])
@@ -173,4 +174,49 @@ test("S5: the note names the suggested line for a relabel, and asks which bookin
   )!
   assert.match(unknown, /Please tell us which booking this is, and put the plan line id in the placement name\./)
   assert.match(unknown, /Placement: Ad set A/)
+})
+
+test("S5fix (H1): any legacy row with spend goes to Match, whatever the channel; only no spend pre-fills", () => {
+  const one = { ...published, linesByMba: new Map([["pgaaus010", [{ lineItemId: "pgaaus010dd1", lineChannel: "digi_display" }]]]) }
+  for (const spend of [0.01, 5000]) {
+    const s = suggestUnmappedFix(raw({ spend }), one)
+    assert.equal(s.kind, "match", `spend ${spend}`)
+    assert.equal(s.lineItemId, "pgaaus010ml1", "the target is never the pre-fill line")
+    assert.match(s.action, /pgaaus010dd1 has the same MBA, number and channel\. Check it on the Match tab for pgaaus010/)
+  }
+  assert.equal(suggestUnmappedFix(raw({ spend: 0 }), one).kind, "relabel")
+  assert.equal(suggestUnmappedFix(raw({ spend: -3 }), one).kind, "relabel", "a credit cannot double count spend")
+})
+
+test("S5fix (L4b): line ids, MBAs and legacy MBAs bind in that order", async () => {
+  const binds: unknown[][] = []
+  await getUnmappedDelivery(async (_sql, b = [], options) => {
+    binds.push(b)
+    if (options?.label !== "unmapped_delivery") return []
+    return [
+      { CHANNEL: "Social - Meta", PLATFORM_LINE_ITEM_ID: "1", NAME: "x hema001sm2", CAMPAIGN_NAME: "GOLF025 y", RESOLVED_LINE_ITEM_ID: "pgaaus0103", FIRST_DATE: "2026-11-01", LAST_DATE: "2026-11-02", SPEND: 1, IMPRESSIONS: 1 },
+    ]
+  })
+  assert.deepEqual(binds[1], ["hema001sm2", "hema001", "golf025", "pgaaus010"])
+  const sql = buildPublishedLookupSql(1, 1, 1)!
+  const order = ["'line'", "'mba'", "'mline'"].map((k) => sql.indexOf(k))
+  assert.deepEqual([...order].sort((a, b) => a - b), order)
+})
+
+test("S5fix (M1): a note only when the supplier can fix the name", () => {
+  const today = "2026-11-30"
+  // The name already carries a current plan line id: ours to relabel or add, not the supplier's.
+  assert.equal(supplierNoteDraft(queued({ name: "Brand pgaaus010sm1 AU", suggestion: { kind: "relabel", mba: "pgaaus010", lineItemId: "pgaaus010sm1", action: "x" } }), today), null)
+  assert.equal(supplierNoteDraft(queued({ currentLineItemId: "pgaaus010sm9", suggestion: { kind: "add_line", mba: "pgaaus010", lineItemId: "pgaaus010sm9", action: "x" } }), today), null)
+  // No plan line id at all: the MBA token row and the rename row.
+  assert.ok(supplierNoteDraft(queued(), today))
+  assert.ok(supplierNoteDraft(queued({ suggestion: { kind: "rename", mba: null, lineItemId: null, action: "x" } }), today))
+  // An old id, sent to Match or pre-filled: the supplier must put the current id in.
+  const old = supplierNoteDraft(queued({ currentLineItemId: "pgaaus010ml1", suggestion: { kind: "match", mba: "pgaaus010", lineItemId: "pgaaus010ml1", action: "x" } }), today)!
+  assert.match(old, /has carried the old plan line id pgaaus010ml1 for at least \d+ days/)
+  assert.match(old, /Please put the current plan line id \(it starts PGAAUS010\) in the ad set name\./)
+  const noCode = supplierNoteDraft(queued({ currentLineItemId: "pgaaus0101", suggestion: { kind: "relabel", mba: "pgaaus010", lineItemId: "pgaaus010sm1", action: "x" } }), today)!
+  assert.match(noCode, /Please put pgaaus010sm1 in the ad set name\./)
+  assert.equal(supplierNoteDue(queued({ currentLineItemId: "pgaaus010sm9" }), today), false)
+  assert.equal(supplierNoteDue(queued({ currentLineItemId: "pgaaus010ml9" }), today), true)
 })

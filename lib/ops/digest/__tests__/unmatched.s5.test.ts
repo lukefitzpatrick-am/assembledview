@@ -130,3 +130,11 @@ test("email: a blank APP_BASE_URL link still renders the count without a broken 
   assert.match(html, /2 have been unmatched for 3 days or more with a fix only the supplier can make, and have a supplier note ready\./)
   assert.doesNotMatch(html, /Open the queue/)
 })
+
+test("S5fix (M1): the digest counts a note only where the supplier can fix the name", async () => {
+  const ours = { ...row("2026-11-01", 1), name: "Brand pgaaus010sm1", suggestion: { kind: "relabel" as const, mba: "pgaaus010", lineItemId: "pgaaus010sm1", action: "z" } }
+  const legacy = { ...row("2026-11-01", 1), currentLineItemId: "pgaaus010ml1" }
+  const out = await loadDigestUnmatchedDelivery(deps({ load: async () => ({ windowDays: 30, rows: [ours, legacy, row("2026-11-01", 1)] }) }))
+  assert.equal(out?.status === "ok" && out.entities, 3)
+  assert.equal(out?.status === "ok" && out.noteDue, 2)
+})
