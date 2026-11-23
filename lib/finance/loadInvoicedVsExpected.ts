@@ -8,6 +8,7 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { getDb } from "@/db"
+import { invoiceKeyOf, storedBillingStands } from "@/lib/finance/billingOnRead"
 import {
   buildInvoicedVsExpected,
   fyMonthWindow,
@@ -17,6 +18,8 @@ import {
   type PlanExpectedRow,
   type UnmatchedInvoiceRow,
 } from "@/lib/finance/invoicedVsExpected"
+import { loadComputedCentsByInvoiceKey } from "@/lib/finance/loadComposedBillingMonth"
+import { isFeatureOn } from "@/lib/features/server"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 
@@ -32,6 +35,9 @@ type PlanSql = {
   total: string | number | null
   billed_amount_cents: number | string | null
   matched_xero_invoice_id: string | null
+  approved_at: string | null
+  exported_at: string | null
+  billed: boolean | null
   xero_match_resolution: string | null
   invoice_number: string | null
   status: string | null
@@ -78,6 +84,9 @@ export async function loadInvoicedVsExpected(
         r.total,
         r.billed_amount_cents,
         r.matched_xero_invoice_id,
+        r.approved_at,
+        r.exported_at,
+        r.billed,
         r.xero_match_resolution,
         i.invoice_number,
         i.status,
@@ -114,7 +123,18 @@ export async function loadInvoicedVsExpected(
     `),
   ])
 
-  const plans: PlanExpectedRow[] = rowsOf<PlanSql>(planRows).map((row) => ({
+  const planSql = rowsOf<PlanSql>(planRows)
+  // S12: a media record not yet approved or sent is expected at what the plan bills now, not its stored copy.
+  // SOW and retainer keep theirs: their sources fail soft (a failed read is no record, so $0).
+  const open = (await isFeatureOn("billing_compute_on_read"))
+    ? planSql.filter((row) => row.billing_type === "media" && !storedBillingStands(row))
+    : []
+  const computed = open.length
+    ? await loadComputedCentsByInvoiceKey(open.map((row) => (row.billing_month ?? "").slice(0, 7)))
+    : new Map<string, number>()
+  const onRead = new Set(open)
+
+  const plans: PlanExpectedRow[] = planSql.map((row) => ({
     invoiceKey: row.invoice_key,
     billingMonth: (row.billing_month ?? "").slice(0, 7),
     clientName: row.client_name ?? "",
@@ -122,9 +142,13 @@ export async function loadInvoicedVsExpected(
     mbaNumber: row.mba_number ?? "",
     campaignName: row.campaign_name ?? "",
     billingType: row.billing_type ?? "",
-    approvedAmountCents: intOrNull(row.approved_amount_cents),
-    scheduleCents: row.total == null ? null : centsFromDollars(row.total),
-    billedAmountCents: intOrNull(row.billed_amount_cents),
+    ...(onRead.has(row)
+      ? { approvedAmountCents: null, scheduleCents: computed.get(invoiceKeyOf(row.invoice_key)) ?? 0, billedAmountCents: null }
+      : {
+          approvedAmountCents: intOrNull(row.approved_amount_cents),
+          scheduleCents: row.total == null ? null : centsFromDollars(row.total),
+          billedAmountCents: intOrNull(row.billed_amount_cents),
+        }),
     matchedXeroInvoiceId: row.matched_xero_invoice_id,
     xeroMatchResolution: row.xero_match_resolution,
     invoiceNumber: row.invoice_number,

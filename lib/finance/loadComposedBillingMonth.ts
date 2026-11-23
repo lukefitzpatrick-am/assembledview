@@ -19,6 +19,7 @@ import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevant
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import { readScopeOfWork } from "@/lib/data/readFinance"
+import { computedCentsByInvoiceKey } from "@/lib/finance/billingOnRead"
 import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
@@ -119,4 +120,23 @@ export async function loadComposedBillingRecordsForMonth(input: {
   })
 
   return { ok: true, records }
+}
+
+/**
+ * S12: the billing-month function's media total per invoice_key over `months`
+ * (drafts included, as To bill lists them). A month whose plan versions fail
+ * to load throws: an on-read amount is never guessed. Media only: SOW and
+ * retainer sources fail soft to nothing, which would read as $0.
+ */
+export async function loadComputedCentsByInvoiceKey(months: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  for (const monthStr of [...new Set(months)].sort()) {
+    const res = await loadComposedBillingRecordsForMonth({
+      monthStr,
+      filters: { types: ["media"], clientsIdParam: null, searchParam: null, statusParam: null, publishersIdParam: null },
+    })
+    if (!res.ok) throw new Error(`Could not load the To bill records for ${monthStr}: ${res.error}`)
+    for (const [key, cents] of computedCentsByInvoiceKey(res.records)) out.set(key, cents)
+  }
+  return out
 }

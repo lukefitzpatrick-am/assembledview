@@ -35,6 +35,7 @@ export const MEASURES = [
   { measure: "Assumed spend to date", module: "lib/spend/assumedSpend.ts", fn: "assumedLineToDateCents" },
   { measure: "Assumed spend pace and its band (both zero is On track)", module: "lib/spend/assumedSpend.ts", fn: "assumedDeliveryPace" },
   { measure: "Budget utilised (planned to date against planned)", module: "lib/dashboard/plannedSpendConsistency.ts", fn: "computePlannedSpendTotals" },
+  // S12: the billing-month function. Its I/O wrapper is loadComposedBillingRecordsForMonth; computedCentsByInvoiceKey keys it by invoice_key.
   { measure: "Billed, per month", module: "lib/finance/composeFinanceHubRecords.ts", fn: "composeBillingRecordsForMonth" },
   { measure: "Cost per thousand impressions (CPM)", module: "lib/money/rates.ts", fn: "cpm" },
   { measure: "Cost per click (CPC)", module: "lib/money/rates.ts", fn: "cpc" },
