@@ -1,11 +1,7 @@
 import "server-only"
 
 import { roundMoney2 } from "@/lib/money/cents"
-import {
-  SUPPLIER_NOTE_AFTER_DAYS,
-  daysUnmatched,
-  type UnmappedDeliveryRow,
-} from "@/lib/pacing/admin/unmappedDelivery"
+import { supplierNoteDue, type UnmappedDeliveryRow } from "@/lib/pacing/admin/unmappedDelivery"
 import {
   LABEL_MAP_DUPLICATE_ACTIVE_KEYS_SQL,
   labelMapDuplicateKeysFromRows,
@@ -254,7 +250,7 @@ export type DigestUnmatchedDelivery =
       windowDays: number
       entities: number
       spend: number
-      /** Entities unmatched for `SUPPLIER_NOTE_AFTER_DAYS` or more: the queue offers a supplier note. */
+      /** Entities with a supplier note ready (`supplierNoteDue`). */
       noteDue: number
       /** The queue: Relabels > Unmapped. */
       href: string
@@ -293,7 +289,7 @@ export async function loadDigestUnmatchedDelivery(deps: LoadDigestUnmatchedDeps)
         windowDays,
         entities: rows.length,
         spend: roundMoney2(rows.reduce((sum, row) => sum + row.spend, 0)),
-        noteDue: rows.filter((row) => daysUnmatched(row, deps.todayISO) >= SUPPLIER_NOTE_AFTER_DAYS).length,
+        noteDue: rows.filter((row) => supplierNoteDue(row, deps.todayISO)).length,
         href: deps.href,
       }),
       (err: unknown) => {

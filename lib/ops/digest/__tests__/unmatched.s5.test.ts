@@ -115,7 +115,7 @@ test("email: the section counts, links the queue, and is absent when off", () =>
     payload({ status: "ok", windowDays: 30, entities: 3, spend: 30.35, noteDue: 1, href: HREF }),
   )
   assert.match(html, /Unmatched delivery: 3 platform entities, \$30\.35 spend in the last 30 days, on no published line\./)
-  assert.match(html, /1 has been unmatched for 3 days or more and has a supplier note ready\./)
+  assert.match(html, /1 has been unmatched for 3 days or more with a fix only the supplier can make, and has a supplier note ready\./)
   assert.ok(html.includes(`<a href="${HREF}"`))
   assert.match(buildPacingDigestEmailHtml(payload({ status: "ok", windowDays: 30, entities: 0, spend: 0, noteDue: 0, href: HREF })), /Unmatched delivery: none\./)
   assert.match(
@@ -127,6 +127,6 @@ test("email: the section counts, links the queue, and is absent when off", () =>
 
 test("email: a blank APP_BASE_URL link still renders the count without a broken anchor", () => {
   const html = buildPacingDigestEmailHtml(payload({ status: "ok", windowDays: 30, entities: 2, spend: 1, noteDue: 2, href: "" }))
-  assert.match(html, /2 have been unmatched for 3 days or more and have a supplier note ready\./)
+  assert.match(html, /2 have been unmatched for 3 days or more with a fix only the supplier can make, and have a supplier note ready\./)
   assert.doesNotMatch(html, /Open the queue/)
 })

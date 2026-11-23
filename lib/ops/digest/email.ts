@@ -1,5 +1,6 @@
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 import { formatMoney } from "@/lib/format/money"
+import { SUPPLIER_NOTE_AFTER_DAYS } from "@/lib/pacing/admin/unmappedDelivery"
 import type { DigestBand, DigestCampaignRow } from "./banding"
 import type { PacingDigestPayload } from "./buildPacingDigest"
 import type {
@@ -194,7 +195,7 @@ function unmatchedDeliveryLines(check: DigestUnmatchedDelivery): string {
   if (check.entities === 0) {
     return `<p style="${P_STYLE}">${label}: none. All delivery in the last ${check.windowDays} days is on a published line.</p>`
   }
-  return `<p style="${P_STYLE}"><strong>${label}: ${plural(check.entities, "platform entity", "platform entities")}, ${escapeHtml(formatMoney(check.spend))} spend in the last ${check.windowDays} days, on no published line.</strong> ${plural(check.noteDue, "has", "have")} been unmatched for 3 days or more and ${check.noteDue === 1 ? "has" : "have"} a supplier note ready.${link}</p>`
+  return `<p style="${P_STYLE}"><strong>${label}: ${plural(check.entities, "platform entity", "platform entities")}, ${escapeHtml(formatMoney(check.spend))} spend in the last ${check.windowDays} days, on no published line.</strong> ${plural(check.noteDue, "has", "have")} been unmatched for ${SUPPLIER_NOTE_AFTER_DAYS} days or more with a fix only the supplier can make, and ${check.noteDue === 1 ? "has" : "have"} a supplier note ready.${link}</p>`
 }
 
 function renderUnmatchedSection(payload: PacingDigestPayload): string {

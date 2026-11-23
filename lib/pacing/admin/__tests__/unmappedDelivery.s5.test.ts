@@ -154,7 +154,7 @@ test("S5: no supplier note before 3 days; from 3 days a draft that asks for the 
   assert.equal(supplierNoteDraft(queued({ firstDate: "2026-11-21" }), "2026-11-23"), null)
   const note = supplierNoteDraft(queued({ firstDate: "2026-11-20", account: "123" }), "2026-11-23")!
   assert.match(note, /^Hi,/)
-  assert.match(note, /Delivery on Social - Meta has had no Assembled Media plan line id for 3 days/)
+  assert.match(note, /Delivery on Social - Meta has had no Assembled Media plan line id for at least 3 days/)
   assert.match(note, /Ad set: Ad set A \(555\)/)
   assert.match(note, /Campaign: Brand AU \(account 123\)/)
   assert.match(note, /2026-11-20 to 2026-11-20, \$1,234\.50 spend, 1,000 impressions/)

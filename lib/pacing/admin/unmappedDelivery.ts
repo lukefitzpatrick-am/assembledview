@@ -390,25 +390,48 @@ export function daysUnmatched(row: Pick<UnmappedDeliveryRow, "firstDate">, today
   }
 }
 
+/** The id the platform name carries (or the warehouse took from it): coded name id first, then a plan-style current id. */
+function platformLineId(row: Pick<UnmappedDeliveryRow, "name" | "campaignName" | "currentLineItemId">): string | null {
+  const current = row.currentLineItemId && parseMatchLineId(row.currentLineItemId) ? row.currentLineItemId : null
+  return lineIdInName(row.name) ?? lineIdInName(row.campaignName) ?? current
+}
+
+/**
+ * S5: a supplier note is due when the supplier can fix the row (its platform
+ * name carries no plan line id, or an old ML or no-code one) and it has been
+ * unmatched for `SUPPLIER_NOTE_AFTER_DAYS`. A current-code id that does not
+ * match is ours to fix (add the line, or relabel), never the supplier's. The
+ * queue and the digest count both use this.
+ */
+export function supplierNoteDue(row: UnmappedDeliveryRow, todayISO: string): boolean {
+  const id = platformLineId(row)
+  if (id && !legacyLineIdReason(id)) return false
+  return daysUnmatched(row, todayISO) >= SUPPLIER_NOTE_AFTER_DAYS
+}
+
 /**
  * S5: the note a planner copies to the supplier (or the trader, for a
- * self-serve platform) once delivery has been unmatched for 3 days. Null
- * before then. Draft only: the app sends nothing.
+ * self-serve platform) once `supplierNoteDue`. Null otherwise. Draft only:
+ * the app sends nothing.
  */
 export function supplierNoteDraft(row: UnmappedDeliveryRow, todayISO: string): string | null {
+  if (!supplierNoteDue(row, todayISO)) return null
   const days = daysUnmatched(row, todayISO)
-  if (days < SUPPLIER_NOTE_AFTER_DAYS) return null
   const label = platformNameLabel(row.channel)
+  const oldId = platformLineId(row)
   const target = row.suggestion.kind === "relabel" ? row.suggestion.lineItemId : null
   const ask = target
     ? `Please put ${target} in the ${label} name.`
     : row.suggestion.mba
-      ? `Please put the plan line id (it starts ${row.suggestion.mba.toUpperCase()}) in the ${label} name.`
+      ? `Please put the ${oldId ? "current " : ""}plan line id (it starts ${row.suggestion.mba.toUpperCase()}) in the ${label} name.`
       : `Please tell us which booking this is, and put the plan line id in the ${label} name.`
+  const problem = oldId
+    ? `has carried the old plan line id ${oldId} for at least ${days} days`
+    : `has had no Assembled Media plan line id for at least ${days} days`
   return [
     "Hi,",
     "",
-    `Delivery on ${row.channel} has had no Assembled Media plan line id for ${days} days, so we cannot match it to the plan.`,
+    `Delivery on ${row.channel} ${problem}, so we cannot match it to the plan.`,
     "",
     `${label[0]!.toUpperCase()}${label.slice(1)}: ${row.name} (${row.platformEntityId})`,
     `Campaign: ${row.campaignName || "-"}${row.account ? ` (account ${row.account})` : ""}`,

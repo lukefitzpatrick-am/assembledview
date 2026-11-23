@@ -88,7 +88,7 @@ describe("UnmappedDeliveryTab (S5)", () => {
     })
     await settle()
     expect(writeText).toHaveBeenCalledTimes(1)
-    expect(String(writeText.mock.calls[0]![0])).toContain("for 13 days")
+    expect(String(writeText.mock.calls[0]![0])).toContain("for at least 13 days")
     expect(String(writeText.mock.calls[0]![0])).toContain("(it starts PGAAUS015)")
     expect(container.querySelector('[role="status"]')?.textContent).toBe("Supplier note for Old ad set copied.")
   })
