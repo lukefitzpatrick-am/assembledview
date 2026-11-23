@@ -1,15 +1,14 @@
 /**
  * C-377 (W5hfix): the edit page keeps one array of Television lines to save,
  * and fills it from `onMediaLineItemsChange`. The shared hook hands the raw
- * form lines up after the save rows, so a page that wires one handler to both
- * callbacks saves the raw lines. Edit passes a no-op to the raw callback (as
- * for Newspaper and Social); after a card edit the held array is save rows.
+ * form lines up after the save rows, so a page that wired one handler to both
+ * callbacks saved the raw lines. The Television wrapper takes no raw-lines
+ * callback; after a card edit the held array is save rows.
  *
  * @vitest-environment jsdom
  */
 import "@/lib/testing/melbourneZone"
 
-import { readFileSync } from "node:fs"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
@@ -28,6 +27,8 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }))
 
 const { default: TelevisionContainer } = await import("@/components/media-containers/TelevisionContainer")
+const { default: MediaChannelContainer } = await import("@/components/media-containers/MediaChannelContainer")
+const { TELEVISION_CONTAINER_CONFIG } = await import("@/lib/mediaplan/containerChannelConfig")
 
 const noop = () => {}
 const settle = (ms = 300) => act(async () => void (await new Promise((r) => setTimeout(r, ms))))
@@ -40,13 +41,6 @@ const line = {
   buy_type: "cpt",
   placement: "p1",
   bursts: [{ budget: "$1,000.00", buyAmount: "$10.00", startDate: "2026-01-05", endDate: "2026-01-31", size: "30s", tarps: "100" }],
-}
-
-/** The `onTelevisionLineItemsChange` expression the edit page passes. */
-function editPageRawCallback(): string {
-  const src = readFileSync("app/mediaplans/mba/[mba_number]/edit/page.tsx", "utf8")
-  const tag = src.slice(src.indexOf("<TelevisionContainer"))
-  return /onTelevisionLineItemsChange=\{([^\n]*)\}\n/.exec(tag.slice(0, tag.indexOf("/>")))![1]
 }
 
 describe("Television on edit saves its save rows after a card edit (C-377)", () => {
@@ -76,30 +70,33 @@ describe("Television on edit saves its save rows after a card edit (C-377)", () 
     host.remove()
   })
 
-  /** Mounts Television with the page's held array; `rawToHeld` wires the raw callback to it too. */
+  /** Mounts Television with the page's held array; `rawToHeld` mounts the shell with its raw callback on it too. */
   async function editBudget(rawToHeld: boolean) {
     let held: any[] = []
     const hold = (items: any[]) => {
       held = items
     }
+    const props = {
+      clientId: "client-1",
+      onTotalMediaChange: noop,
+      onBurstsChange: noop,
+      onInvestmentChange: noop,
+      onLineItemsChange: noop,
+      onMediaLineItemsChange: hold,
+      campaignStartDate: new Date(2026, 0, 5),
+      campaignEndDate: new Date(2026, 2, 31),
+      campaignBudget: 0,
+      campaignId: "",
+      mediaTypes: [],
+      initialLineItems: [line],
+    }
     act(() => {
       root.render(
-        <TelevisionContainer
-          clientId="client-1"
-          feetelevision={10}
-          onTotalMediaChange={noop}
-          onBurstsChange={noop}
-          onInvestmentChange={noop}
-          onLineItemsChange={noop}
-          onTelevisionLineItemsChange={rawToHeld ? hold : noop}
-          onMediaLineItemsChange={hold}
-          campaignStartDate={new Date(2026, 0, 5)}
-          campaignEndDate={new Date(2026, 2, 31)}
-          campaignBudget={0}
-          campaignId=""
-          mediaTypes={[]}
-          initialLineItems={[line]}
-        />,
+        rawToHeld ? (
+          <MediaChannelContainer config={TELEVISION_CONTAINER_CONFIG} feePct={10} onRawLineItemsChange={hold} {...props} />
+        ) : (
+          <TelevisionContainer feetelevision={10} {...props} />
+        ),
       )
     })
     await settle()
@@ -115,17 +112,13 @@ describe("Television on edit saves its save rows after a card edit (C-377)", () 
     return held
   }
 
-  it("edit passes a no-op to the raw callback", () => {
-    expect(editPageRawCallback()).toBe("() => {}")
-  })
-
-  it("holds save rows after a card edit when the raw callback is a no-op", async () => {
+  it("holds save rows after a card edit on the Television wrapper", async () => {
     const [row] = await editBudget(false)
     expect(row).toMatchObject({ media_plan_version: 0, line_item_id: "tst001TV1", totalMedia: 2000 })
     expect(row).not.toHaveProperty("tarps")
   }, 30_000)
 
-  it("holds the raw form lines when one handler takes both (why edit passes a no-op)", async () => {
+  it("holds the raw form lines when the shell's raw callback shares the handler (why the wrapper has none)", async () => {
     const [row] = await editBudget(true)
     expect(row).not.toHaveProperty("media_plan_version")
     expect(row).not.toHaveProperty("totalMedia")

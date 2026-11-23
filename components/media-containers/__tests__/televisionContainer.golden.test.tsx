@@ -4,8 +4,8 @@
  *
  * Records what the container hands the plan page: the save payload
  * (onMediaLineItemsChange) and the persisted bursts it becomes
- * (extractAndFormatBursts), the raw form lines (onTelevisionLineItemsChange;
- * create keeps them, edit passes a no-op, C-377), the billing input (onBurstsChange), the Excel rows
+ * (extractAndFormatBursts), the raw form lines (the shell's
+ * onRawLineItemsChange; no page gets them, C-377), the billing input (onBurstsChange), the Excel rows
  * (onLineItemsChange), the monthly investment, the header totals and line
  * count. Key order is kept as each callback gave it (no sort).
  *
@@ -67,7 +67,10 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   },
 }))
 
-const { default: TelevisionContainer } = await import("@/components/media-containers/TelevisionContainer")
+// The shared shell with Television's config: the wrapper takes no raw-lines
+// callback (C-377), and the golden still records the raw lines.
+const { default: MediaChannelContainer } = await import("@/components/media-containers/MediaChannelContainer")
+const { TELEVISION_CONTAINER_CONFIG } = await import("@/lib/mediaplan/containerChannelConfig")
 
 const GOLDEN = resolve(process.cwd(), "components/media-containers/__tests__/fixtures/televisionContainer.golden.json")
 const FEE = 12.5
@@ -338,7 +341,7 @@ describe("Television container golden (W5h)", () => {
     onLineItemsChange: (i: any[]) => {
       rec.excel = i
     },
-    onTelevisionLineItemsChange: (i: any[]) => {
+    onRawLineItemsChange: (i: any[]) => {
       rec.raw = i
     },
     onMediaLineItemsChange: (i: any[]) => {
@@ -349,9 +352,10 @@ describe("Television container golden (W5h)", () => {
   function mount(initialLineItems: any[]) {
     act(() => {
       root.render(
-        <TelevisionContainer
+        <MediaChannelContainer
+          config={TELEVISION_CONTAINER_CONFIG}
           clientId="client-1"
-          feetelevision={FEE}
+          feePct={FEE}
           {...callbacks}
           campaignStartDate={CAMPAIGN_START}
           campaignEndDate={CAMPAIGN_END}

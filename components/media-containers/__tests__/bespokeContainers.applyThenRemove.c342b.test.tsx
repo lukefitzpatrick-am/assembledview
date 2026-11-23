@@ -57,7 +57,7 @@ const CHANNELS: Array<{
     name: "Television",
     Container: TelevisionContainer,
     code: "TV",
-    props: { feetelevision: 0, onTelevisionLineItemsChange: () => {} },
+    props: { feetelevision: 0 },
     network: "Seven",
     buyType: "spots",
   },

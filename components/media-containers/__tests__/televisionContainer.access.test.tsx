@@ -93,7 +93,6 @@ describe("Television on the shared shell: names, labels, TARPs and the exit conf
           onBurstsChange={noop}
           onInvestmentChange={noop}
           onLineItemsChange={noop}
-          onTelevisionLineItemsChange={noop}
           onMediaLineItemsChange={noop}
           campaignStartDate={new Date(2026, 0, 5)}
           campaignEndDate={new Date(2026, 2, 31)}
@@ -165,7 +164,6 @@ describe("Television on the shared shell: names, labels, TARPs and the exit conf
           onBurstsChange={noop}
           onInvestmentChange={noop}
           onLineItemsChange={noop}
-          onTelevisionLineItemsChange={noop}
           onMediaLineItemsChange={(items: any[]) => media.push(items)}
           campaignStartDate={new Date(2026, 0, 5)}
           campaignEndDate={new Date(2026, 2, 31)}

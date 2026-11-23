@@ -4,19 +4,11 @@ import MediaChannelContainer from "@/components/media-containers/MediaChannelCon
 import { TELEVISION_CONTAINER_CONFIG } from "@/lib/mediaplan/containerChannelConfig"
 import type { MediaChannelContainerHookProps } from "@/lib/mediaplan/useMediaChannelContainer"
 
+/** No raw-lines callback: a page saves Television's save rows only (C-377). */
 type TelevisionContainerProps = Omit<MediaChannelContainerHookProps, "feePct" | "onRawLineItemsChange"> & {
   feetelevision: number
-  /** The raw form lines on every change (create keeps them in its own state; edit passes a no-op, C-377). */
-  onTelevisionLineItemsChange: (lineItems: unknown[]) => void
 }
 
-export default function TelevisionContainer({ feetelevision, onTelevisionLineItemsChange, ...rest }: TelevisionContainerProps) {
-  return (
-    <MediaChannelContainer
-      config={TELEVISION_CONTAINER_CONFIG}
-      feePct={feetelevision}
-      onRawLineItemsChange={onTelevisionLineItemsChange}
-      {...rest}
-    />
-  )
+export default function TelevisionContainer({ feetelevision, ...rest }: TelevisionContainerProps) {
+  return <MediaChannelContainer config={TELEVISION_CONTAINER_CONFIG} feePct={feetelevision} {...rest} />
 }

@@ -847,7 +847,6 @@ function CreateMediaPlan() {
   const televisionTotalRef = useRef(0)
   const [televisionFeeTotal, setTelevisionFeeTotal] = useState(0)
   const televisionFeeTotalRef = useRef(0)
-  const [televisionLineItems, setTelevisionLineItems] = useState<any[]>([])
   const [televisionMediaLineItems, setTelevisionMediaLineItems] = useState<any[]>([])
 
   // ─ Radio
@@ -1157,7 +1156,7 @@ function CreateMediaPlan() {
 
   const builderLineItemCount = useMemo(() => {
     return (
-      televisionLineItems.length +
+      televisionMediaLineItems.length +
       radioMediaLineItems.length +
       newspaperLineItems.length +
       magazineMediaLineItems.length +
@@ -1179,7 +1178,7 @@ function CreateMediaPlan() {
       influencersMediaLineItems.length
     )
   }, [
-    televisionLineItems,
+    televisionMediaLineItems,
     radioMediaLineItems,
     newspaperLineItems,
     magazineMediaLineItems,
@@ -2650,11 +2649,6 @@ function CreateMediaPlan() {
   const handleTelevisionItemsChange = useCallback((items: LineItem[]) => {
     markUnsavedChanges();
     setTelevisionItems(items);
-  }, [markUnsavedChanges]);
-
-  const handleTelevisionLineItemsChange = useCallback((items: LineItem[]) => {
-    markUnsavedChanges();
-    setTelevisionLineItems(items);
   }, [markUnsavedChanges]);
 
   const handleRadioItemsChange = useCallback((items: LineItem[]) => {
@@ -8109,7 +8103,6 @@ const handleSaveAll = async (opts?: {
                           onBurstsChange={handleTelevisionBurstsChange}
                           onInvestmentChange={(rows) => handleInvestmentChange("television", rows)}
                           onLineItemsChange={setTelevisionItems}
-                          onTelevisionLineItemsChange={setTelevisionLineItems}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
                           initialLineItems={emptyLineResume.television}
                           campaignStartDate={campaignStart}
