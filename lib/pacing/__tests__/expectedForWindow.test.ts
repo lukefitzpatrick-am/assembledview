@@ -7,6 +7,7 @@ import {
   expectedForWindow,
   impressionsNotTracked,
   inPacingWindow,
+  lineDeliverablePacePct,
   netSpendBasisForLine,
   pacingAsAtISO,
   paceVsExpected,
@@ -240,4 +241,54 @@ test("resolvePacingWindowISO matches resolvePacingWindow for URL date strings", 
     }).empty,
     true,
   )
+})
+
+/** A row as the programmatic and social tables hold it: bursts already normalised. */
+function tableRow(bursts: Array<[string, string, number]>, deliverableActual: number) {
+  const normalised = bursts.map(([startDate, endDate, calculatedValue], index) => ({
+    index,
+    startDate,
+    endDate,
+    budget: 0,
+    buyAmount: 0,
+    calculatedValue,
+  }))
+  return {
+    bursts: normalised,
+    deliverableTarget: normalised.reduce((sum, b) => sum + b.calculatedValue, 0),
+    deliverableActual,
+    lineItemStartDate: normalised[0]?.startDate ?? null,
+    lineItemEndDate: normalised[normalised.length - 1]?.endDate ?? null,
+  }
+}
+
+test("lineDeliverablePacePct: a gap between bursts expects nothing in the gap (C-392)", () => {
+  // 1 to 10 Jan 1,000, gap, 21 to 30 Jan 1,000. On 20 Jan the first burst is done: expected 1,000, not 1,900 x 20/30.
+  const row = tableRow([["2026-01-01", "2026-01-10", 1000], ["2026-01-21", "2026-01-30", 1000]], 1000)
+  assert.equal(lineDeliverablePacePct(row, "2026-01-20"), 100)
+  assert.equal(lineDeliverablePacePct(row, "2026-01-15"), 100)
+  // Half way through the second burst: 1,500 expected.
+  assert.equal(lineDeliverablePacePct(row, "2026-01-25"), (1000 / 1500) * 100)
+})
+
+test("lineDeliverablePacePct: an uneven rate follows each burst, not the line average (C-392)", () => {
+  // 1 to 10 Jan 9,000 (900 a day), 11 to 30 Jan 1,000 (50 a day). On 10 Jan 9,000 is expected, not 10,000 x 10/30.
+  const row = tableRow([["2026-01-01", "2026-01-10", 9000], ["2026-01-11", "2026-01-30", 1000]], 9000)
+  assert.equal(lineDeliverablePacePct(row, "2026-01-10"), 100)
+  assert.equal(lineDeliverablePacePct({ ...row, deliverableActual: 4500 }, "2026-01-05"), 100)
+})
+
+test("lineDeliverablePacePct: one even burst matches the straight line; no target or nothing expected is null", () => {
+  const row = tableRow([["2026-01-01", "2026-01-10", 1000]], 300)
+  assert.equal(lineDeliverablePacePct(row, "2026-01-03"), 100)
+  assert.equal(lineDeliverablePacePct(row, "2026-02-01"), 30)
+  assert.equal(lineDeliverablePacePct({ ...row, deliverableTarget: 0 }, "2026-01-03"), null)
+  assert.equal(lineDeliverablePacePct(row, "2025-12-31"), null)
+  assert.equal(lineDeliverablePacePct(tableRow([], 0), "2026-01-03"), null)
+})
+
+test("lineDeliverablePacePct: a delivered figure that is not a number gets no tint (NaN sentinel), never 0", () => {
+  const row = tableRow([["2026-01-01", "2026-01-10", 1000]], Number.NaN)
+  assert.equal(lineDeliverablePacePct(row, "2026-01-05"), null)
+  assert.equal(lineDeliverablePacePct({ ...row, deliverableActual: Number.POSITIVE_INFINITY }, "2026-01-05"), null)
 })
