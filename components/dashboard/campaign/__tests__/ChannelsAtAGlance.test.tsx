@@ -476,4 +476,38 @@ describe("ChannelsAtAGlance", () => {
     expect(plannedOnly).toContain("Impressions")
     expect(plannedOnly).toContain("of planned")
   })
+
+  it("a delivered spend that is not a number is no data, never Behind with an empty bar", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        entries={[
+          entry({
+            key: "social-meta",
+            label: "Social · Meta",
+            status: "reporting",
+            deliveredSpend: Number.NaN,
+            expectedToDate: 1_000,
+            deliveryStatus: "behind",
+          }),
+        ]}
+      />,
+    )
+    expect(html).not.toContain("Behind")
+    expect(html).not.toContain("On track")
+    expect(html).toContain("No data")
+    expect(html).toContain("width:0%")
+  })
+
+  it("a reporting channel with no pace status says No data, never On track", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        entries={[
+          entry({ key: "social-meta", label: "Social · Meta", status: "reporting", deliveryStatus: null }),
+          entry({ key: "search", label: "Search", status: "reporting", deliveryStatus: "no-data" }),
+        ]}
+      />,
+    )
+    expect(html).not.toContain("On track")
+    expect(html.match(/No data/g)?.length).toBe(2)
+  })
 })

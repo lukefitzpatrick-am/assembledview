@@ -140,6 +140,36 @@ describe("CampaignStatusStrip", () => {
     expect(html).not.toContain("behind the plan by")
   })
 
+  it("shows no pacing pill for a spend that is not a number, and No data when nothing is expected", () => {
+    const nan = renderToStaticMarkup(<CampaignStatusStrip {...FULL} actualSpend={Number.NaN} />)
+    expect(nan).not.toContain("data-pacing-status")
+    const none = renderToStaticMarkup(<CampaignStatusStrip {...FULL} expectedSpend={undefined} />)
+    expect(none).toContain('data-pacing-status="no-data"')
+  })
+
+  it("reads one pace for the pill, the delivered bar and its caption", () => {
+    const html = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
+    expect(html).toContain('data-pacing-status="behind"')
+    expect(statHtml(html, "delivered-to-date")).toContain("width:50%")
+    expect(html).toContain("50% of expected")
+    // Nothing expected yet and spend above 0: an empty bar and 0%, never a full bar beside No data.
+    const early = renderToStaticMarkup(<CampaignStatusStrip {...FULL} expectedSpend={0} />)
+    expect(early).toContain('data-pacing-status="no-data"')
+    expect(statHtml(early, "delivered-to-date")).toContain("width:0%")
+    expect(early).toMatch(/[^\d]0% of expected/)
+  })
+
+  it("shows impressions against expected uncapped, and a negative figure as 0%", () => {
+    const ahead = renderToStaticMarkup(
+      <CampaignStatusStrip {...FULL} deliveredImpressions={1_500_000} expectedImpressions={1_000_000} />,
+    )
+    expect(ahead).toContain("150% of expected to date")
+    const negative = renderToStaticMarkup(
+      <CampaignStatusStrip {...FULL} deliveredImpressions={-500_000} expectedImpressions={1_000_000} />,
+    )
+    expect(negative).toMatch(/[^\d-]0% of expected to date/)
+  })
+
   it("93% of schedule expected is On track", () => {
     const html = renderToStaticMarkup(
       <CampaignStatusStrip {...FULL} budget={200_000} actualSpend={93_000} expectedSpend={100_000} />,

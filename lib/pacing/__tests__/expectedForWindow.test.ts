@@ -159,6 +159,12 @@ test("sumInWindow and inPacingWindow use string days", () => {
   assert.equal(inPacingWindow("2026-10-20", w), false)
 })
 
+test("paceVsExpected: a delivered figure that is not finite reads as 0 (callers that must show No data check first)", () => {
+  assert.deepEqual(paceVsExpected(Number.NaN, 100), { pct: 0, status: "behind", variance: -1, progress: 0 })
+  assert.equal(paceVsExpected(Number.POSITIVE_INFINITY, 100).pct, 0)
+  assert.equal(paceVsExpected(50, Number.POSITIVE_INFINITY).status, "no-data")
+})
+
 test("paceVsExpected: nothing expected is no data, not behind", () => {
   assert.deepEqual(paceVsExpected(0, 0), { pct: undefined, status: "no-data", variance: 0, progress: 0 })
   assert.equal(paceVsExpected(10, 0).progress, 1)
