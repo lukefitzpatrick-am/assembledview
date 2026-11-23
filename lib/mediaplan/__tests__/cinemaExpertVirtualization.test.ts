@@ -67,7 +67,7 @@ function buildRows(n: number): CinemaExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`cinema-v-${i}`))
 }
 
-/** Mirrors CinemaExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors the expert grid containerTotals over the FULL logical array. */
 function computeCinemaWeeklyTotals(
   rows: readonly CinemaExpertScheduleRow[],
   feePct: number

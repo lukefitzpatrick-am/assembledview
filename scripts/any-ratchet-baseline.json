@@ -31,7 +31,6 @@
   "components/media-containers/ProgDisplayContainer.tsx": 5,
   "components/media-containers/ProgOOHContainer.tsx": 5,
   "components/media-containers/ProgVideoContainer.tsx": 5,
-  "components/media-containers/RadioContainer.tsx": 13,
   "components/media-containers/SearchContainer.tsx": 7,
   "components/media-containers/SocialMediaContainer.tsx": 4,
   "components/media-containers/TelevisionContainer.tsx": 14,

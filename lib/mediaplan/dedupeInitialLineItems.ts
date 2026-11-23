@@ -1,4 +1,4 @@
-type Item = Record<string, any>
+type Item = Record<string, unknown>
 
 /** The fields a channel's load de-dupe compares: an id-less line's, and the whole load's. */
 export type LoadDedupeKeys = {

@@ -33,7 +33,6 @@
   "components/media-containers/NewspaperContainer.tsx": 9,
   "components/media-containers/OOHContainer.tsx": 10,
   "components/media-containers/ProductionContainer.tsx": 3,
-  "components/media-containers/RadioContainer.tsx": 9,
   "components/media-containers/SearchContainer.tsx": 1,
   "components/media-containers/TelevisionContainer.tsx": 11,
   "components/media-containers/burst-calculated-fields.tsx": 8,

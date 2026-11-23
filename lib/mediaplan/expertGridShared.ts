@@ -38,7 +38,7 @@ export function weekKeysInSpanInclusive(
 
 /**
  * Per-row gross/net fee split mirroring the standard container burst math
- * (see e.g. `RadioContainer.overallTotals`). Delegates to
+ * (see `useMediaChannelContainer` `overallTotals`). Delegates to
  * {@link computeBurstAmounts} so Expert and Container paths share a single
  * 3-branch implementation:
  *

@@ -42,6 +42,8 @@ import {
   getBVODSites,
   getDisplaySites,
   getVideoSites,
+  createRadioStation,
+  getRadioStations,
 } from "@/lib/api"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
@@ -78,6 +80,7 @@ import {
   createEmptyDigitalDisplayExpertRow,
   createEmptyBvodExpertRow,
   createEmptyCinemaExpertRow,
+  createEmptyRadioExpertRow,
   type ExpertGridChannelConfig,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -115,6 +118,7 @@ import {
   mapStandardSearchLineItemsToExpertRows,
   mapStandardSocialMediaLineItemsToExpertRows,
   mapStandardTvLineItemsToExpertRows,
+  mapRadioExpertRowsToStandardLineItems,
 } from "@/lib/mediaplan/expertChannelMappings"
 import {
   mergeProgAudioStandardFromExpertWithPrevious,
@@ -131,6 +135,9 @@ import {
   mergeDigiDisplayStandardFromExpertWithPrevious,
   mergeBvodStandardFromExpertWithPrevious,
   mergeCinemaStandardFromExpertWithPrevious,
+  mergeRadioStandardFromExpertWithPrevious,
+  serializeRadioExpertRowsBaseline,
+  serializeRadioStandardLineItemsBaseline,
   serializeBvodExpertRowsBaseline,
   serializeBvodStandardLineItemsBaseline,
   serializeCinemaExpertRowsBaseline,
@@ -170,9 +177,11 @@ import {
   getDigiVideoBursts,
   getInfluencersBursts,
   getIntegrationBursts,
+  getRadioBursts,
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
-import { INTEGRATION_LOAD_DEDUPE, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
+import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
+import { radioExcelRow } from "@/lib/mediaplan/radioLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
@@ -2271,14 +2280,73 @@ export const RADIO_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: radioFormSchema,
   fetchPublishers: getPublishersForRadio,
   toExpert: mapStandardRadioLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
+  fromExpert: mapRadioExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeRadioStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeRadioStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeRadioExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyRadioExpertRow,
+  // "radio", no line id, the line's No Ad Serving box (FB-6), saved deliverables.
   billingMediaTypeLabel: "radio",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  billingBursts: getRadioBursts,
+  expertFromFeeKey: "feePctRadio",
+  burstDateFallback: "campaignDay",
+  bareHydratedBursts: true,
+  dedupeOnLoad: RADIO_LOAD_DEDUPE,
+  ownPublishEcho: true,
+  // Load (W5g, moved from its container): network from network, platform or
+  // publisher (platform takes it too), station from station or site, its own
+  // line number and id fallback (index + 1), each burst's saved `fee ?? 0`,
+  // and a line saved with no bursts gets one at the load rule.
+  hydrateLine: (line, saved, { feePct, mbaNumber, index }) => {
+    const savedBursts = resolveLineItemBursts(saved)
+    const lineNumber = Number(saved.line_item ?? saved.lineItem ?? index + 1) || index + 1
+    const lineItemId =
+      saved.line_item_id || saved.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.radio, lineNumber)
+    const network = saved.network || saved.platform || saved.publisher || ""
+    return {
+      ...line,
+      network,
+      station: saved.station || saved.site || "",
+      platform: network,
+      lineItemId,
+      line_item_id: lineItemId,
+      line_item: saved.line_item ?? saved.lineItem ?? index + 1,
+      lineItem: saved.lineItem ?? saved.line_item ?? index + 1,
+      bursts:
+        savedBursts.length > 0
+          ? line.bursts.map((burst, i) => ({ ...burst, fee: savedBursts[i]?.fee ?? 0 }))
+          : [
+              {
+                ...line.bursts[0],
+                calculatedValue: computeLoadedDeliverables(
+                  String(saved.buy_type || saved.buyType || ""),
+                  {},
+                  Boolean(saved.budget_includes_fees || saved.budgetIncludesFees),
+                  feePct,
+                ),
+                fee: 0,
+              },
+            ],
+    }
+  },
+  excelRow: radioExcelRow,
+  addStation: true,
+  stations: { fetch: getRadioStations, create: createRadioStation },
+  shell: {
+    title: "Radio Media",
+    themeKey: "radio",
+    timelineMediaTypeKey: "radio",
+    loadLabel: "Radio",
+    exitConfirmYesAttr: "data-radio-expert-exit-yes",
+    entryModeAriaLabel: "Radio entry mode",
+    expertDialogTitle: "Radio Expert Mode",
+  },
+  summaryDimensions: {
+    Network: "network",
+    Station: "station",
+    "Bid Strategy": "bidStrategy",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
   gridConfig: RADIO_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "radio",

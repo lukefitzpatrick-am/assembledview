@@ -593,7 +593,7 @@ export type OohFormValues = z.infer<typeof oohFormSchema>
 
 // --- Cinema ------------------------------------------------------------------
 export const cinemaFormSchema = z.object({
-  cinemalineItems: z.array(cinemaLineItemSchema),
+  lineItems: z.array(cinemaLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
 
@@ -606,10 +606,9 @@ export type SearchFormValues = z.infer<typeof searchFormSchema>
 
 // --- Radio -------------------------------------------------------------------
 export const radioFormSchema = z.object({
-  radiolineItems: z.array(radioLineItemSchema),
+  lineItems: z.array(radioLineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type RadioFormValues = z.infer<typeof radioFormSchema>
 
 // --- Social Media ------------------------------------------------------------
 export const socialMediaFormSchema = z.object({

@@ -67,7 +67,7 @@ function buildRows(n: number): RadioExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`radio-v-${i}`))
 }
 
-/** Mirrors RadioExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors the expert grid containerTotals over the FULL logical array. */
 function computeRadioWeeklyTotals(
   rows: readonly RadioExpertScheduleRow[],
   feePct: number

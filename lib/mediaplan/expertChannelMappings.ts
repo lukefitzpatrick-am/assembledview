@@ -115,7 +115,7 @@ export interface StandardOohFormLineItem {
   attrs?: Record<string, unknown>
 }
 
-/** Radio `radiolineItems` entry shape used by {@link RadioContainer}. */
+/** Radio form line entry shape (`lineItems` on the shared channel container). */
 export interface StandardRadioFormLineItem {
   network: string
   station: string
@@ -195,7 +195,7 @@ export type StandardProductionLineItemInput = Partial<StandardProductionFormLine
   bursts_json?: string | object
 }
 
-/** Cinema `cinemalineItems` entry shape used by CinemaContainer. Radio minus platform/creative*. */
+/** Cinema form line entry shape (`lineItems` on the shared channel container). Radio minus platform/creative*. */
 export interface StandardCinemaFormLineItem {
   network: string
   station: string
@@ -230,9 +230,9 @@ export type StandardCinemaLineItemInput = Partial<StandardCinemaFormLineItem> & 
 export interface ExpertToStandardBurstOptions {
   /** OOH: fee %; used with budgetIncludesFees for net-media deliverable math (see OOHContainer). */
   feePctOoh?: number
-  /** Radio: fee %; used with budgetIncludesFees (see RadioContainer). */
+  /** Radio: fee %; used with budgetIncludesFees (Radio config, `feePctRadio`). */
   feePctRadio?: number
-  /** Cinema: fee %; used with budgetIncludesFees (see CinemaContainer). */
+  /** Cinema: fee %; used with budgetIncludesFees (Cinema config, `feePctCinema`). */
   feePctCinema?: number
   /** Television: fee %; used with budgetIncludesFees (see TelevisionContainer). */
   feePctTelevision?: number
@@ -410,7 +410,7 @@ function oohNetBudgetForDeliverables(
   return netFromGross(rawBudget, budgetIncludesFees, feePct)
 }
 
-/** Mirrors RadioContainer `netMediaPctOfGross` for deliverable calculations. */
+/** Radio net media share of a fee-inclusive budget, for deliverable calculations. */
 function radioNetBudgetForDeliverables(
   rawBudget: number,
   budgetIncludesFees: boolean,

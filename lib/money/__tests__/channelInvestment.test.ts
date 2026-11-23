@@ -111,7 +111,6 @@ const OFFLINE_CHARTS = [
   ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
   ["NewspaperContainer.tsx", "newspaperlineItems", "feenewspapers"],
   ["OOHContainer.tsx", "lineItems", "feeooh"],
-  ["RadioContainer.tsx", "radiolineItems", "feeradio"],
   ["TelevisionContainer.tsx", "televisionlineItems", "feetelevision"],
 ] as const
 

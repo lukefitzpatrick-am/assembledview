@@ -1,13 +1,11 @@
 /**
  * Radio add after a delete must not reuse a number still on the form.
- * The Add Line Item button stamps nextLineFields(current rows). Mounting
- * RadioContainer itself does not quiesce under jsdom, so this harness is
- * that button: same helper, same field array, same remove-then-add order.
+ * The Add Line Item button stamps nextLineFields(current rows). This harness
+ * is that button: same helper, same field array, same remove-then-add order.
+ * Radio runs on the shared shell (W5g); its golden pins Remove then Add.
  *
  * @vitest-environment jsdom
  */
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 import { useForm, useFieldArray } from "react-hook-form"
 import { createRoot, type Root } from "react-dom/client"
 import { flushSync } from "react-dom"
@@ -97,14 +95,5 @@ describe("Radio add after delete", () => {
       node.getAttribute("data-line-item-id"),
     )
     expect(ids).toEqual(["krusty002RA1", "krusty002RA3", "krusty002RA4"])
-  })
-
-  it("RadioContainer stamps nextLineFields instead of the list length", () => {
-    const src = readFileSync(
-      resolve("components/media-containers/RadioContainer.tsx"),
-      "utf8",
-    )
-    expect(src).toContain("nextLineFields(")
-    expect(src).not.toContain("lineItemFields.length + 1")
   })
 })
