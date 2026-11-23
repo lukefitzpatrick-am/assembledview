@@ -4,9 +4,8 @@
  *
  * Records what the container hands the plan page: the save payload
  * (onMediaLineItemsChange) and the persisted bursts it becomes
- * (extractAndFormatBursts), the raw form lines (onTelevisionLineItemsChange:
- * edit passes them to the same handler as the save rows, so they are saved
- * too, C-377), the billing input (onBurstsChange), the Excel rows
+ * (extractAndFormatBursts), the raw form lines (onTelevisionLineItemsChange;
+ * create keeps them, edit passes a no-op, C-377), the billing input (onBurstsChange), the Excel rows
  * (onLineItemsChange), the monthly investment, the header totals and line
  * count. Key order is kept as each callback gave it (no sort).
  *

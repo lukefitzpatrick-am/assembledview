@@ -86,7 +86,7 @@ export function getExpertCardRenderedFields(
 export type ExpertCardProps<T extends FieldValues> = {
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>
   form: UseFormReturn<T>
-  /** RHF array path, e.g. `lineItems` or `televisionlineItems`. */
+  /** RHF array path, e.g. `lineItems` or `newspaperlineItems`. */
   itemsKey: string
   lineItemIndex: number
   lineItemId: string
@@ -671,6 +671,7 @@ function ExpertCardBursts<T extends FieldValues>({
                               {...field}
                               type="text"
                               className="h-10 w-full min-w-[9rem] text-sm"
+                              aria-label={`Budget, burst ${burstIndex + 1}, line ${lineItemIndex + 1}`}
                               value={bonusLocked ? "0" : field.value}
                               disabled={bonusLocked}
                               onChange={(e) => {

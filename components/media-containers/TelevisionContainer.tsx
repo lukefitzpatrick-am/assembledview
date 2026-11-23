@@ -6,7 +6,7 @@ import type { MediaChannelContainerHookProps } from "@/lib/mediaplan/useMediaCha
 
 type TelevisionContainerProps = Omit<MediaChannelContainerHookProps, "feePct" | "onRawLineItemsChange"> & {
   feetelevision: number
-  /** The raw form lines on every change (edit passes the save rows' handler, C-377). */
+  /** The raw form lines on every change (create keeps them in its own state; edit passes a no-op, C-377). */
   onTelevisionLineItemsChange: (lineItems: unknown[]) => void
 }
 

@@ -69,7 +69,7 @@ function buildRows(n: number): TelevisionExpertScheduleRow[] {
   return Array.from({ length: n }, (_, i) => emptyRow(`tv-v-${i}`))
 }
 
-/** Mirrors TelevisionExpertGrid containerTotals over the FULL logical array. */
+/** Mirrors the shared container's expert grid totals over the FULL logical array. */
 function computeTvWeeklyTotals(
   rows: readonly TelevisionExpertScheduleRow[],
   feePct: number

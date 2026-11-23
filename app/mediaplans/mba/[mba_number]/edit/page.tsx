@@ -10982,7 +10982,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                           onBurstsChange={handleTelevisionBurstsChange}
                           onInvestmentChange={(rows) => handleInvestmentChange("television", rows)}
                           onLineItemsChange={handleTelevisionItemsChange}
-                          onTelevisionLineItemsChange={handleTelevisionMediaLineItemsChange}
+                          onTelevisionLineItemsChange={() => {}}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
                           campaignStartDate={campaignStartDate}
                           campaignEndDate={campaignEndDate}

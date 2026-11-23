@@ -1,7 +1,7 @@
 /**
  * W5h: Television on the shared shell, what a planner and a screen reader
  * get. Every button has a name, and icon buttons name their line (Add
- * Station, burst Add, Duplicate and Remove); every card field label names
+ * Station, burst Add, Duplicate and Remove), and so does each burst's Budget; every card field label names
  * its control, the TARPs field's too. Only bonus locks a burst's money
  * (package inclusions keeps it, as Television always did). The summary adds
  * each line's TARPs and labels cpt lines "tarps". Closing the grid with an
@@ -118,12 +118,14 @@ describe("Television on the shared shell: names, labels, TARPs and the exit conf
   it("names every button and icon button by its line, and ties every card label to its control", async () => {
     await mount([1, 2, 3])
     for (const n of [1, 2, 3]) {
-      expect(named(`Add a tv station for line ${n}`), `station line ${n}`).toBe(1)
+      expect(named(`Add a TV station for line ${n}`), `station line ${n}`).toBe(1)
       expect(named(`Add burst to line ${n}`), `add burst line ${n}`).toBe(lines[n - 1].bursts.length)
       expect(named(`Duplicate burst on line ${n}`), `duplicate burst line ${n}`).toBe(lines[n - 1].bursts.length)
     }
     expect(named("Remove burst 2 from line 1")).toBe(1)
     expect(named("Remove burst 1 from line 3")).toBe(1)
+    const budgets = [...host.querySelectorAll<HTMLInputElement>('input[name$=".budget"]')].filter((i) => /bursts\.\d+\.budget$/.test(i.name))
+    expect(budgets.map((i) => i.getAttribute("aria-label"))).toEqual(["Budget, burst 1, line 1", "Budget, burst 2, line 1", "Budget, burst 1, line 2", "Budget, burst 1, line 3"])
 
     const labelled = new Set([...host.querySelectorAll("label")].map((l) => l.htmlFor).filter(Boolean))
     const nameless = [...host.querySelectorAll("button")].filter(

@@ -1237,8 +1237,6 @@ useEffect(() => {
 
                   const selectedNetwork = form.watch(`newspaperlineItems.${lineItemIndex}.network`);
 
-                  // const selectedNetwork = form.watch(`televisionlineItems.${lineItemIndex}.network`); // Already exists above
-
                   let filteredNewspapers;
                   if (!selectedNetwork) {
                     filteredNewspapers = newspapers; // Show all newspapers if no network is selected

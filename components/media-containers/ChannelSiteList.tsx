@@ -192,9 +192,9 @@ export function useChannelSiteList(
   }
 }
 
-/** "Add a cinema station for line 2": each card's button names its line (W5f, C-341). */
+/** "Add a cinema station for line 2", "Add a TV station for line 2": each card's button names its line (W5f, C-341). */
 function addStationLabel(noun: string, lineNumber: number): string {
-  return `Add ${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun.toLowerCase()} station for line ${lineNumber}`
+  return `Add ${/^[aeiou]/i.test(noun) ? "an" : "a"} ${/^[A-Z]+$/.test(noun) ? noun : noun.toLowerCase()} station for line ${lineNumber}`
 }
 
 /**
