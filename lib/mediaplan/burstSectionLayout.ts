@@ -40,9 +40,6 @@ export const MP_BURST_FIELD_LABEL = "text-xs"
 /** Start/end date pair inside the 7-column grid. */
 export const MP_BURST_DATE_RANGE = "grid grid-cols-2 gap-2 col-span-2"
 
-/** Editable money / text inputs in burst rows. */
-export const MP_BURST_INPUT = "w-full min-w-[9rem] h-10 text-sm"
-
 /** Read-only computed Media / Fee cells. */
 export const MP_BURST_READONLY_INPUT = "w-full h-10 text-sm"
 

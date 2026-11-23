@@ -23,7 +23,7 @@ function formatCents(cents: number): string {
   return formatMoney(fromCents(cents), { locale: "en-AU", currency: "AUD" })
 }
 
-export function NetFeeWarning() {
+function NetFeeWarning() {
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
