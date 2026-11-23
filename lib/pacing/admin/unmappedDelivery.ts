@@ -379,7 +379,7 @@ export async function getUnmappedDelivery(
 }
 
 /** S5: days after which the queue drafts a note to the supplier. */
-const SUPPLIER_NOTE_AFTER_DAYS = 3
+export const SUPPLIER_NOTE_AFTER_DAYS = 3
 
 /** S5: whole days from the first unmatched delivery day to `todayISO` (Melbourne); 0 when the date is missing. */
 export function daysUnmatched(row: Pick<UnmappedDeliveryRow, "firstDate">, todayISO: string): number {

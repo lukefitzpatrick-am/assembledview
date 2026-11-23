@@ -1,5 +1,11 @@
 import "server-only"
 
+import { roundMoney2 } from "@/lib/money/cents"
+import {
+  SUPPLIER_NOTE_AFTER_DAYS,
+  daysUnmatched,
+  type UnmappedDeliveryRow,
+} from "@/lib/pacing/admin/unmappedDelivery"
 import {
   LABEL_MAP_DUPLICATE_ACTIVE_KEYS_SQL,
   labelMapDuplicateKeysFromRows,
@@ -236,6 +242,66 @@ export async function loadPacingDigestDataChecks(deps: LoadDataChecksDeps): Prom
     }
     if (!on) return null
     return await runChecksWithin(deps.query, deadline)
+  } finally {
+    deadline.clear()
+  }
+}
+
+/** S5: the unmatched delivery queue as the digest counts it. */
+export type DigestUnmatchedDelivery =
+  | {
+      status: "ok"
+      windowDays: number
+      entities: number
+      spend: number
+      /** Entities unmatched for `SUPPLIER_NOTE_AFTER_DAYS` or more: the queue offers a supplier note. */
+      noteDue: number
+      /** The queue: Relabels > Unmapped. */
+      href: string
+    }
+  | DataCheckUnavailable
+
+export type LoadDigestUnmatchedDeps = {
+  isOn: () => Promise<boolean>
+  /** The queue read (`getUnmappedDelivery`). */
+  load: () => Promise<{ windowDays: number; rows: UnmappedDeliveryRow[] }>
+  todayISO: string
+  href: string
+  /** Defaults to `DATA_CHECKS_DEADLINE_MS`. */
+  deadlineMs?: number
+}
+
+/**
+ * S5 (switch `unmatched_delivery_queue`). Null when the switch is off, its
+ * read fails or is still running at the deadline. The queue read fails soft
+ * to "not available" and never runs the digest past the deadline.
+ */
+export async function loadDigestUnmatchedDelivery(deps: LoadDigestUnmatchedDeps): Promise<DigestUnmatchedDelivery | null> {
+  const deadline = startDeadline(deps.deadlineMs ?? DATA_CHECKS_DEADLINE_MS)
+  try {
+    let on = false
+    try {
+      const read = await Promise.race([deps.isOn(), deadline.reached])
+      on = read === true
+    } catch (err) {
+      console.warn("[pacing-digest] unmatched_delivery_queue read failed; treating as off", err)
+    }
+    if (!on) return null
+    const counted = deps.load().then(
+      ({ windowDays, rows }): DigestUnmatchedDelivery => ({
+        status: "ok",
+        windowDays,
+        entities: rows.length,
+        spend: roundMoney2(rows.reduce((sum, row) => sum + row.spend, 0)),
+        noteDue: rows.filter((row) => daysUnmatched(row, deps.todayISO) >= SUPPLIER_NOTE_AFTER_DAYS).length,
+        href: deps.href,
+      }),
+      (err: unknown) => {
+        console.warn("[pacing-digest] unmatched delivery not available", err)
+        return unavailable(err)
+      },
+    )
+    return await withinDeadline(counted, deadline, "unmatched delivery read")
   } finally {
     deadline.clear()
   }

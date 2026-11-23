@@ -222,6 +222,7 @@ test("switch off: no checks run and the email has no Data checks section", async
 // --- the builder: the digest still builds when the checks blow up ----------
 
 let checksImpl: () => Promise<PacingDigestDataChecks | null> = async () => null
+let unmatchedImpl: () => Promise<unknown> = async () => null
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/campaigns/pacingRowsCache", {
@@ -244,7 +245,7 @@ if (supportsMockModule()) {
     namedExports: { listRelabelLogForDay: async () => [] },
   })
   await mock.module!("@/lib/ops/digest/loadDataChecks", {
-    namedExports: { loadDigestDataChecks: () => checksImpl() },
+    namedExports: { loadDigestDataChecks: () => checksImpl(), loadDigestUnmatched: () => unmatchedImpl() },
   })
 }
 

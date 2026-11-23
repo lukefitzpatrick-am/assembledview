@@ -1,7 +1,13 @@
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
+import { formatMoney } from "@/lib/format/money"
 import type { DigestBand, DigestCampaignRow } from "./banding"
 import type { PacingDigestPayload } from "./buildPacingDigest"
-import type { Cm360DriftCheck, DataCheckUnavailable, LabelMapDuplicateCheck } from "./dataChecks"
+import type {
+  Cm360DriftCheck,
+  DataCheckUnavailable,
+  DigestUnmatchedDelivery,
+  LabelMapDuplicateCheck,
+} from "./dataChecks"
 
 const BAND_LABEL: Record<DigestBand, string> = {
   "at-risk": "At risk (behind / under-pacing)",
@@ -176,6 +182,29 @@ function renderDataChecksSection(payload: PacingDigestPayload): string {
   <tr><td style="padding:4px 24px 12px;">${cm360DriftLines(checks.cm360Drift)}${labelMapDuplicateLines(checks.labelMapDuplicates)}</td></tr>`
 }
 
+/** S5 copy. */
+function unmatchedDeliveryLines(check: DigestUnmatchedDelivery): string {
+  const label = "Unmatched delivery"
+  if (check.status === "unavailable") {
+    return unavailableLine(label, check, "the pacing facts could not be read")
+  }
+  const link = check.href
+    ? ` <a href="${escapeHtml(check.href)}" style="color:${BRAND.colour.ink};">Open the queue</a>.`
+    : ""
+  if (check.entities === 0) {
+    return `<p style="${P_STYLE}">${label}: none. All delivery in the last ${check.windowDays} days is on a published line.</p>`
+  }
+  return `<p style="${P_STYLE}"><strong>${label}: ${plural(check.entities, "platform entity", "platform entities")}, ${escapeHtml(formatMoney(check.spend))} spend in the last ${check.windowDays} days, on no published line.</strong> ${plural(check.noteDue, "has", "have")} been unmatched for 3 days or more and ${check.noteDue === 1 ? "has" : "have"} a supplier note ready.${link}</p>`
+}
+
+function renderUnmatchedSection(payload: PacingDigestPayload): string {
+  if (!payload.unmatched) return ""
+  return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
+    <div style="font-size:15px;font-weight:700;color:${BRAND.colour.ink};">Unmatched delivery</div>
+  </td></tr>
+  <tr><td style="padding:4px 24px 12px;">${unmatchedDeliveryLines(payload.unmatched)}</td></tr>`
+}
+
 function section(band: DigestBand, rows: DigestCampaignRow[]): string {
   const colour = BAND_COLOUR[band]
   return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
@@ -223,6 +252,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("no-data", groups["no-data"])}
         ${renderRelabelSection(payload)}
         ${renderDataChecksSection(payload)}
+        ${renderUnmatchedSection(payload)}
         <tr><td style="padding:0 24px 8px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};">
           Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
         </td></tr>
