@@ -182,7 +182,12 @@ export function CostQuantityBurstRows<T extends FieldValues>({
                   />
                 </BurstDateRangeColumn>
 
-                <BurstReadonlyMetric label={`${noun} Total`} muted value={formatAUD(mediaValue)} />
+                <BurstReadonlyMetric
+                  label={`${noun} Total`}
+                  name={`${noun} Total, burst ${burstIndex + 1}, line ${line}`}
+                  muted
+                  value={formatAUD(mediaValue)}
+                />
               </BurstFieldGrid>
 
               <div className={MP_BURST_ACTION_COLUMN}>

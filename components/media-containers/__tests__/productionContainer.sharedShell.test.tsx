@@ -191,8 +191,14 @@ describe("Production on the shared channel container (W5l)", () => {
     const inputNames = [...host.querySelectorAll("input")].map(accessibleName)
     expect(inputNames).toContain("Cost, burst 1, line 1")
     expect(inputNames).toContain("Quantity, burst 1, line 1")
-    // The read-only burst total is named too, not a bare box.
-    expect(inputNames).toContain("Production Total")
+    // The read-only burst total names its burst and line, like Cost and Quantity.
+    expect(inputNames).toContain("Production Total, burst 1, line 1")
+    expect(inputNames).toContain("Production Total, burst 4, line 1")
+    // Its visible heading is tied to it: no label points at a missing control.
+    const dangling = [...host.querySelectorAll("label[for]")]
+      .filter((l) => !document.getElementById(l.getAttribute("for")!))
+      .map((l) => `${l.getAttribute("for")}: ${l.textContent}`)
+    expect(dangling, "every label points at a real control").toEqual([])
   }, 60_000)
 
   it("gives one billing burst and one Excel row per burst on a 60-line grid", async () => {

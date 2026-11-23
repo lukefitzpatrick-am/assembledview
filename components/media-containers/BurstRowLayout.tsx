@@ -1,9 +1,10 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useId, type ReactNode } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
   MP_BURST_CARD,
@@ -69,28 +70,31 @@ export function BurstFieldLabel({ children }: { children: ReactNode }) {
 
 export function BurstReadonlyMetric({
   label,
+  name,
   value,
   muted = false,
   note,
   warning,
 }: {
   label: string
+  /** Full accessible name, e.g. "Production Total, burst 1, line 2". */
+  name?: string
   value: string
   muted?: boolean
   note?: string
   warning?: ReactNode
 }) {
+  const id = useId()
   return (
     <div className={MP_BURST_READONLY_CELL}>
-      <FormLabel className={cn(MP_BURST_FIELD_LABEL, "leading-tight")}>
+      <Label htmlFor={id} className={cn(MP_BURST_FIELD_LABEL, "leading-tight")}>
         {label}
-      </FormLabel>
+      </Label>
       <div className="flex items-center gap-1">
         <Input
+          id={id}
           type="text"
-          // The heading above is a FormLabel with no control to tie to, so the
-          // read-only field carries its own name (W5l item 5).
-          aria-label={label}
+          aria-label={name}
           className={cn(
             MP_BURST_READONLY_INPUT,
             muted && "bg-muted/30 border-border/40 text-muted-foreground",
