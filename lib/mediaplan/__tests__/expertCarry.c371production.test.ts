@@ -19,7 +19,7 @@ import test from "node:test"
 import { format } from "date-fns"
 
 import * as M from "@/lib/mediaplan/expertChannelMappings"
-import { roundMoney2 } from "@/lib/money"
+import { productionHydrateLine } from "@/lib/mediaplan/productionLine"
 import * as S from "@/lib/mediaplan/expertModeSwitch"
 import { expertRowCostSplit } from "@/lib/mediaplan/expertRowCost"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -50,13 +50,17 @@ function bumpFirst(row: any) {
   else row.dailyValues[dayKey!] = Number(row.dailyValues[dayKey!]) + 1
 }
 
-/** The shared shell's load (W5l): the same burst, plus the money keys the card writes. */
-const withMoney = (b: ReturnType<typeof burst>) => ({
-  ...b,
-  budget: String(roundMoney2(b.cost * b.amount)),
-  buyAmount: String(b.amount),
-  calculatedValue: b.amount,
-})
+/**
+ * The shared shell's load (W5l): the same saved bursts through Production's own
+ * hydrate, which mirrors the money keys onto each form burst. Built by the real
+ * code, so a wrong money key shows up here as a dropped or re-priced carry.
+ */
+const shellLoad = (saved: ReturnType<typeof lineOf>) =>
+  productionHydrateLine(
+    { ...saved, bursts: [] } as never,
+    saved as never,
+    { feePct: 0, mbaNumber: "tst001", campaignStartDate: START, campaignEndDate: END, index: 0 },
+  ) as unknown as ReturnType<typeof lineOf>
 
 const SHAPES = [
   { name: "a burst before the campaign beside one inside it (glenda001 13492 shape)", saved: lineOf([burst(10_000, 1, "2026-01-25", "2026-01-26"), burst(10_000, 1, "2026-03-10", "2026-03-10")]) },
@@ -90,9 +94,18 @@ for (const wso of [0, 1] as const) {
 
   test(`Production, ${grid} grid: the shared shell's load, with the money keys mirrored, carries exactly as the bare shape (W5l)`, () => {
     for (const { name, saved } of SHAPES) {
-      const mirrored = { ...saved, bursts: saved.bursts.map(withMoney) }
       const bare = run(saved, wso)
-      const mir = run(mirrored, wso)
+      const mir = run(shellLoad(saved), wso)
+      assert.deepEqual(read(mir.applied), read(bare.applied), name)
+      assert.equal(mir.grid, bare.grid, name)
+    }
+  })
+
+  test(`Production, ${grid} grid: the shared shell's load, first cell edited, prices from the grid as the bare shape does (W5l)`, () => {
+    for (const { name, saved, noCell } of SHAPES) {
+      if (noCell) continue
+      const bare = run(saved, wso, bumpFirst)
+      const mir = run(shellLoad(saved), wso, bumpFirst)
       assert.deepEqual(read(mir.applied), read(bare.applied), name)
       assert.equal(mir.grid, bare.grid, name)
     }

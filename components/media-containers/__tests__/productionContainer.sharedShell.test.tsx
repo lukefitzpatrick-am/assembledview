@@ -158,6 +158,19 @@ describe("Production on the shared channel container (W5l)", () => {
     expect(summary).not.toContain("Buy Type:")
     expect(summary.match(/Not in Publishers, pick one/g) ?? []).toHaveLength(1)
 
+    // Add burst starts the new row at a cost and a quantity of zero, as the
+    // old card did, not at a blank budget row.
+    const addBurst = [...host.querySelectorAll("button")].find(
+      (b) => b.getAttribute("aria-label") === "Add burst to line 1",
+    ) as HTMLButtonElement
+    act(() => addBurst.click())
+    await settle(100)
+    // Line 1 loaded with three bursts, so the added one is the fourth.
+    const costs = [...host.querySelectorAll('input[name="lineItems.0.bursts.3.cost"]')] as HTMLInputElement[]
+    const quantities = [...host.querySelectorAll('input[name="lineItems.0.bursts.3.amount"]')] as HTMLInputElement[]
+    expect(costs.map((i) => i.value), "the added burst's cost").toEqual(["$0.00"])
+    expect(quantities.map((i) => i.value), "the added burst's quantity").toEqual(["0"])
+
     const nameless = [...host.querySelectorAll("input, select, textarea")].filter(
       (el) => el.getAttribute("type") !== "hidden" && !accessibleName(el),
     )
