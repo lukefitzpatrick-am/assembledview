@@ -2,6 +2,7 @@ import { dirname } from "path"
 import { fileURLToPath } from "url"
 import { FlatCompat } from "@eslint/eslintrc"
 
+import { MEASURE_BASELINE, MEASURE_FILES, MEASURE_IGNORES, measuresPlugin } from "./scripts/measure-registry.mjs"
 import { CODEX_SOURCE, CODEX_SPECIFIER_SELECTORS, CODEX_URL_IGNORES, CODEX_URL_SELECTORS, codexImportBlocks, codexUrlSelectorsFor } from "./scripts/codex-boundary.mjs"
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
@@ -143,6 +144,13 @@ const config = [
     rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...CODEX_URL_SELECTORS, ...CODEX_SPECIFIER_SELECTORS, ...PRERENDER_SELECTORS] },
   },
   { files: TASKS_PAGE_FILES, rules: { "no-restricted-syntax": ["error", ...HEX_SELECTORS, ...PRERENDER_SELECTORS] } },
+  // S10 A: a screen reads a measure from its one function (scripts/measure-registry.mjs). Its own rule name, so no other block replaces it.
+  {
+    files: MEASURE_FILES,
+    ignores: MEASURE_IGNORES,
+    plugins: { measures: measuresPlugin },
+    rules: { "measures/no-local-measure": ["error", { baseline: MEASURE_BASELINE }] },
+  },
   // C-200 (S32 A, B51): Codex task writes only in Tasks (scripts/codex-boundary.mjs).
   // Its per-file blocks replace no-restricted-imports and no-restricted-syntax, so they repeat both.
   ...codexImportBlocks(ROOT, {
