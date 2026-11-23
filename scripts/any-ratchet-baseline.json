@@ -22,7 +22,6 @@
   "components/dashboard/campaign/MediaPlanVizSection.tsx": 1,
   "components/dashboard/campaign/SpendChartsRow.tsx": 2,
   "components/dashboard/delivery/DeliveryDataProvider.tsx": 5,
-  "components/media-containers/MagazinesContainer.tsx": 9,
   "components/media-containers/OOHContainer.tsx": 15,
   "components/media-containers/ProductionContainer.tsx": 8,
   "components/media-containers/ProgAudioContainer.tsx": 5,
