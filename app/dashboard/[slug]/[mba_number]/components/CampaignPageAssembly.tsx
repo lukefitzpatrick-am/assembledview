@@ -73,7 +73,7 @@ import {
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
 import { applyCoverageIfChanged } from "@/lib/delivery/coverageEntriesIdentity"
-import { resolvePacingWindow } from "@/lib/pacing/expectedForWindow"
+import { paceVsExpected, resolvePacingWindow } from "@/lib/pacing/expectedForWindow"
 import { deliveredByLineIdIdentity } from "@/lib/delivery/ganttDeliveredByLineId"
 
 const CHANNEL_SNAPSHOT_CAP = 15
@@ -613,14 +613,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   )
 
   // Same definition as hero KPIs / assistant pageContext — do not introduce a second pace.
-  const pacePct =
-    typeof expectedSpend === "number" &&
-    Number.isFinite(expectedSpend) &&
-    expectedSpend > 0 &&
-    typeof actualSpend === "number" &&
-    Number.isFinite(actualSpend)
-      ? roundPct((actualSpend / expectedSpend) * 100)
+  const pace =
+    typeof expectedSpend === "number" && typeof actualSpend === "number" && Number.isFinite(actualSpend)
+      ? paceVsExpected(actualSpend, expectedSpend).pct
       : undefined
+  const pacePct = pace === undefined ? undefined : roundPct(pace)
 
   const pageContext: PageContext | undefined = useMemo(() => {
     if (!slug || !mbaNumber || !campaign) return undefined

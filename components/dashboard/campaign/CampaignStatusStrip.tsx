@@ -2,7 +2,7 @@ import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { statusSentence } from "@/lib/dashboard/statusSentence"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { paceVsExpected } from "@/lib/pacing/expectedForWindow"
 import type { SpendPacingBand } from "@/lib/pacing/status"
 import { cn } from "@/lib/utils"
 
@@ -62,14 +62,7 @@ function deliveryBand(
   expectedSpend: number | undefined,
 ): SpendPacingBand | null {
   if (typeof actualSpend !== "number" || !Number.isFinite(actualSpend)) return null
-  if (
-    typeof expectedSpend !== "number" ||
-    !Number.isFinite(expectedSpend) ||
-    expectedSpend <= 0
-  ) {
-    return "no-data"
-  }
-  return deliveryStatusFromPct((actualSpend / expectedSpend) * 100)
+  return paceVsExpected(actualSpend, expectedSpend ?? Number.NaN).status
 }
 
 function clamp01(n: number): number {

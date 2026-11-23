@@ -6,7 +6,7 @@ import { formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
 import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
 import type { DeliveryStatus } from "@/components/dashboard/delivery/shared/statusColours"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { paceVsExpected } from "@/lib/pacing/expectedForWindow"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { cn } from "@/lib/utils"
 
@@ -95,10 +95,10 @@ function GlanceCard({
     entry.startsOn > todayISO
   const noSource = entry.status === "no_source" && entry.spendAssumed !== true
   const reporting = entry.status === "reporting" || (expected > 0 && entry.deliveredSpend != null)
+  // A spend that is not a number is No data (NaN sentinel), never a zero.
+  const pace = deliveredSpend != null && Number.isFinite(deliveredSpend) ? paceVsExpected(deliveredSpend, expected) : null
   const paceStatus: DeliveryStatus | null =
-    expected > 0 && entry.deliveredSpend != null
-      ? deliveryStatusFromPct((entry.deliveredSpend / expected) * 100)
-      : entry.deliveryStatus
+    expected > 0 && deliveredSpend != null ? (pace?.status ?? "no-data") : entry.deliveryStatus
   const pill: PillMeta | null = notStarted
     ? { label: "Not started", variant: "secondary" }
     : noSource
@@ -115,12 +115,7 @@ function GlanceCard({
   const spendDelivered =
     deliveredSpend === null ? "—" : formatMoneyCompact(deliveredSpend)
   // Delivered against what was expected for the window, never the whole plan.
-  const barValue =
-    deliveredSpend != null && expected > 0
-      ? Math.max(0, Math.min(1, deliveredSpend / expected)) * 100
-      : deliveredSpend != null && deliveredSpend > 0
-        ? 100
-        : 0
+  const barValue = pace ? pace.progress * 100 : 0
   const caption =
     noSource
       ? null
