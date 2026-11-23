@@ -115,7 +115,7 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     await settle(50)
   }
 
-  const named = (label: string) => [...document.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)]
+  const named = (label: string) => [...document.querySelectorAll<HTMLElement>(`[aria-label="${label}"]`)]
   const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!
 
   function labelsNameControls(scope: ParentNode) {
@@ -138,6 +138,11 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     )
     expect(nameless.map((b) => b.outerHTML.slice(0, 80)), "buttons with no name").toEqual([])
     expect(labelsNameControls(host).length).toBe(20)
+    const unnamedInputs = [...host.querySelectorAll<HTMLInputElement>("input:not([type=hidden]), textarea")].filter(
+      (i) => !i.getAttribute("aria-label") && !labelled.has(i.id) && !i.closest("label"),
+    )
+    expect(unnamedInputs.map((i) => i.outerHTML.slice(0, 80)), "inputs with no name").toEqual([])
+    expect(named("Insertions, burst 2, line 1").length, "burst deliverables named like Budget").toBe(1)
   }, 30_000)
 
   it("lists titles by the line's network, disables Title with no network, and shows Title and Insertions in the summaries", async () => {

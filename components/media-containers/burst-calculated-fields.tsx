@@ -287,6 +287,8 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
 
   const bonusClass =
     bonusInputClassName ?? (variant === "cpcCpvCpm" ? "w-full" : "w-full h-10 text-sm")
+  // Named as the card's Budget field is: the column header, burst, line.
+  const name = `${getCpcFamilyBurstCalculatedColumnLabel(variant, buyType || "")}, burst ${burstIndex + 1}, line ${lineItemIndex + 1}`
 
   if (buyType === "bonus" || buyType === "package_inclusions") {
     return (
@@ -297,6 +299,7 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
             min={0}
             step={1}
             className={bonusClass}
+            aria-label={name}
             value={field.value ?? ""}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9]/g, "")
@@ -315,6 +318,7 @@ export function CpcFamilyBurstCalculatedField<T extends FieldValues>({
         <Input
           type="text"
           className={inputClassName}
+          aria-label={name}
           value={displayCalculated(calculatedValue)}
           readOnly
         />

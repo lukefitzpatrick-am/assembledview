@@ -277,8 +277,11 @@ describe("Radio on the shared shell: Add Station, stations and summary labels (W
     offsetHeight.mockRestore()
   }, 30_000)
 
-  it("labels spots and package lines in the summary (V90 A)", async () => {
+  it("labels spots and package lines in the summary (V90 A), and each card's third cell Bid strategy", async () => {
     await mount([])
+    const cells = [...host.querySelectorAll("span.font-medium")].map((s) => s.textContent)
+    expect(cells.filter((t) => t === "Bid strategy:").length, "one per card").toBe(4)
+    expect(cells).not.toContain("Title:")
     const summary = [...host.querySelectorAll("span")].filter((s) => /media ·/.test(s.textContent ?? ""))
     expect(summary.map((s) => s.textContent?.replace(/^.*· /, ""))).toEqual([
       "10 spots",

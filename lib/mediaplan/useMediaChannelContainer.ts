@@ -678,7 +678,7 @@ export function useMediaChannelContainer(
       overallFee: money.overallFee,
       overallCost: money.overallCost,
     }
-  }, [watchedLineItems, feePct, config])
+  }, [watchedLineItems, feePct, config, tv])
 
   const handleLineItemValueChange = useCallback(
     (_lineItemIndex: number) => {
@@ -710,7 +710,7 @@ export function useMediaChannelContainer(
 
       handleLineItemValueChange(lineItemIndex)
     },
-    [form, handleLineItemValueChange, fieldKey, config],
+    [form, handleLineItemValueChange, fieldKey, tv],
   )
 
   const handleValueChange = useCallback(
@@ -785,7 +785,7 @@ export function useMediaChannelContainer(
         handleLineItemValueChange(lineItemIndex)
       }
     },
-    [feePct, form, handleLineItemValueChange, fieldKey, config],
+    [feePct, form, handleLineItemValueChange, fieldKey, config, tv],
   )
 
   const handleAppendBurst = useCallback(
