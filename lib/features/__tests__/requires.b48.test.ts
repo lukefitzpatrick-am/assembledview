@@ -33,6 +33,8 @@ const BEFORE: Record<string, (on: On) => boolean> = {
   csp_enforce: (r) => r.security_headers && r.csp_enforce,
   // FINALfix (V36 A): refusing package lines needs the package quantity grids.
   publish_validation: (r) => r.publish_validation && r.expert_package_quantity && r.fixed_cost_report_net,
+  // S5: the queue's age, note and digest count sit on the unmapped delivery list.
+  unmatched_delivery_queue: (r) => r.unmapped_delivery && r.unmatched_delivery_queue,
 }
 
 function closure(key: string, out = new Set<string>()): Set<string> {

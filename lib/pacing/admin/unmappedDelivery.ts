@@ -17,6 +17,8 @@
  * Pure apart from the injected query function. No server-only, no Snowflake
  * import: the route passes querySnowflake in. Types are imported by the client.
  */
+import { daysBetweenISO } from "@/lib/dates/civil"
+import { formatMoney } from "@/lib/format/money"
 import { roundMoney2 } from "@/lib/money/cents"
 import {
   legacyLineIdReason,
@@ -374,6 +376,48 @@ export async function getUnmappedDelivery(
   }
   const rows = raw.map((r) => ({ ...r, suggestion: suggestUnmappedFix(r, { lineIds, mbas, linesByMba }) }))
   return { windowDays, rows, summary: summariseUnmappedDelivery(rows) }
+}
+
+/** S5: days after which the queue drafts a note to the supplier. */
+const SUPPLIER_NOTE_AFTER_DAYS = 3
+
+/** S5: whole days from the first unmatched delivery day to `todayISO` (Melbourne); 0 when the date is missing. */
+export function daysUnmatched(row: Pick<UnmappedDeliveryRow, "firstDate">, todayISO: string): number {
+  try {
+    return Math.max(0, daysBetweenISO(row.firstDate, todayISO))
+  } catch {
+    return 0 // a blank or malformed warehouse date
+  }
+}
+
+/**
+ * S5: the note a planner copies to the supplier (or the trader, for a
+ * self-serve platform) once delivery has been unmatched for 3 days. Null
+ * before then. Draft only: the app sends nothing.
+ */
+export function supplierNoteDraft(row: UnmappedDeliveryRow, todayISO: string): string | null {
+  const days = daysUnmatched(row, todayISO)
+  if (days < SUPPLIER_NOTE_AFTER_DAYS) return null
+  const label = platformNameLabel(row.channel)
+  const target = row.suggestion.kind === "relabel" ? row.suggestion.lineItemId : null
+  const ask = target
+    ? `Please put ${target} in the ${label} name.`
+    : row.suggestion.mba
+      ? `Please put the plan line id (it starts ${row.suggestion.mba.toUpperCase()}) in the ${label} name.`
+      : `Please tell us which booking this is, and put the plan line id in the ${label} name.`
+  return [
+    "Hi,",
+    "",
+    `Delivery on ${row.channel} has had no Assembled Media plan line id for ${days} days, so we cannot match it to the plan.`,
+    "",
+    `${label[0]!.toUpperCase()}${label.slice(1)}: ${row.name} (${row.platformEntityId})`,
+    `Campaign: ${row.campaignName || "-"}${row.account ? ` (account ${row.account})` : ""}`,
+    `Delivery: ${row.firstDate} to ${row.lastDate}, ${formatMoney(row.spend)} spend, ${row.impressions.toLocaleString("en-AU")} impressions`,
+    "",
+    ask,
+    "",
+    "Thanks",
+  ].join("\n")
 }
 
 /** Rows for one client stem (BICAU, PGAAUS...): suggested MBA, name or campaign. Empty stem keeps all. */

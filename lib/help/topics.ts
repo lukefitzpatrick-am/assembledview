@@ -165,6 +165,7 @@ export const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
       { text: "Pick a client or MBA on the Match tab." },
       { text: "Preview the relabel, check the lines it moves, then apply." },
       { text: "Unmapped lists recent delivery that attaches to no published line." },
+      { text: "After 3 days unmatched, Copy supplier note gives a draft asking for the plan line id in the platform name." },
     ],
   },
   "/tasks": {
@@ -222,6 +223,8 @@ export const HELP_TIPS = {
   financeScope: "Every finance section uses this month and scope. Change it once here.",
   clientFeeEffectiveDate:
     "A rate change takes effect from its date. A plan takes each fee at its start date: the latest change on or before that date, else the Fees box. Plans starting earlier keep their rate when saved again. Published versions never change.",
+  unmatchedDays:
+    "Days since this entity's first delivery with no plan line. From 3 days, Copy supplier note drafts a message asking for the plan line id in the platform name. The app sends nothing.",
 } as const
 
 export type HelpTipId = keyof typeof HELP_TIPS

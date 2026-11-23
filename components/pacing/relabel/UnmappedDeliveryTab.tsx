@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
+import { HelpTip } from "@/components/help/Help"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import { copyToClipboard } from "@/lib/copyToClipboard"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { clientFeatureOn } from "@/lib/features/client"
 import { formatMoney } from "@/lib/format/money"
 import {
+  daysUnmatched,
   filterUnmappedDeliveryByStem,
+  supplierNoteDraft,
   summariseUnmappedDelivery,
   type UnmappedChannelSummary,
   type UnmappedDeliveryRow,
@@ -52,6 +58,14 @@ export function UnmappedDeliveryTab({
   const [windowDays, setWindowDays] = useState(30)
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<string>("")
+  const [copied, setCopied] = useState<string>("")
+  const queue = clientFeatureOn("unmatched_delivery_queue")
+  const today = useMemo(() => getMelbourneTodayISO(), [])
+
+  const copyNote = async (row: UnmappedDeliveryRow, note: string) => {
+    const ok = await copyToClipboard(note)
+    setCopied(ok ? `Supplier note for ${row.name} copied.` : "Could not copy. Select the note text instead.")
+  }
 
   const load = useCallback(async () => {
     setError(null)
@@ -120,6 +134,12 @@ export function UnmappedDeliveryTab({
               <th className="p-2">Name</th>
               <th className="p-2">Campaign</th>
               <th className="p-2">Dates</th>
+              {queue ? (
+                <th className="p-2 whitespace-nowrap">
+                  Days unmatched
+                  <HelpTip id="unmatchedDays" label="Days unmatched" />
+                </th>
+              ) : null}
               <th className="p-2 text-right">Spend</th>
               <th className="p-2 text-right">Impressions</th>
               <th className="p-2">Line id now</th>
@@ -128,42 +148,65 @@ export function UnmappedDeliveryTab({
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr key={`${row.channel}|${row.platformEntityId}`} className="border-t border-border align-top">
-                <td className="p-2">{row.channel}</td>
-                <td className="p-2 font-mono">{row.name}</td>
-                <td className="p-2">
-                  {row.campaignName}
-                  {row.account ? <div className="text-muted-foreground">Account {row.account}</div> : null}
-                </td>
-                <td className="p-2 whitespace-nowrap">{formatDateRange(row.firstDate, row.lastDate)}</td>
-                <td className="num p-2 text-right">{formatMoney(row.spend)}</td>
-                <td className="num p-2 text-right">{numberFmt.format(row.impressions)}</td>
-                <td className="p-2 font-mono">{row.currentLineItemId ?? "-"}</td>
-                <td className="p-2">
-                  <Badge variant={kindVariant(row.suggestion.kind)}>{KIND_LABEL[row.suggestion.kind]}</Badge>
-                  <div className="mt-1 text-muted-foreground">{row.suggestion.action}</div>
-                </td>
-                <td className="p-2">
-                  {row.suggestion.kind === "match" ? (
-                    <a
-                      href={relabelsHref({ mba: row.suggestion.mba })}
-                      aria-label={`Open Match for ${row.suggestion.mba}`}
-                      className={buttonVariants({ size: "sm", variant: "outline" })}
-                    >
-                      Open Match
-                    </a>
-                  ) : (
-                    <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
-                      Relabel
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {visible.map((row) => {
+              const note = queue ? supplierNoteDraft(row, today) : null
+              return (
+                <tr key={`${row.channel}|${row.platformEntityId}`} className="border-t border-border align-top">
+                  <td className="p-2">{row.channel}</td>
+                  <td className="p-2 font-mono">{row.name}</td>
+                  <td className="p-2">
+                    {row.campaignName}
+                    {row.account ? <div className="text-muted-foreground">Account {row.account}</div> : null}
+                  </td>
+                  <td className="p-2 whitespace-nowrap">{formatDateRange(row.firstDate, row.lastDate)}</td>
+                  {queue ? <td className="num p-2 text-right">{daysUnmatched(row, today)}</td> : null}
+                  <td className="num p-2 text-right">{formatMoney(row.spend)}</td>
+                  <td className="num p-2 text-right">{numberFmt.format(row.impressions)}</td>
+                  <td className="p-2 font-mono">{row.currentLineItemId ?? "-"}</td>
+                  <td className="p-2">
+                    <Badge variant={kindVariant(row.suggestion.kind)}>{KIND_LABEL[row.suggestion.kind]}</Badge>
+                    <div className="mt-1 text-muted-foreground">{row.suggestion.action}</div>
+                  </td>
+                  <td className="p-2">
+                    <div className="flex flex-col gap-1">
+                      {row.suggestion.kind === "match" ? (
+                        <a
+                          href={relabelsHref({ mba: row.suggestion.mba })}
+                          aria-label={`Open Match for ${row.suggestion.mba}`}
+                          className={buttonVariants({ size: "sm", variant: "outline" })}
+                        >
+                          Open Match
+                        </a>
+                      ) : (
+                        <Button type="button" size="sm" variant="outline" onClick={() => onRelabel(row)}>
+                          Relabel
+                        </Button>
+                      )}
+                      {note ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Copy supplier note for ${row.name}`}
+                          title={note}
+                          onClick={() => void copyNote(row, note)}
+                        >
+                          Copy supplier note
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
+      {queue ? (
+        <p role="status" aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
+          {copied}
+        </p>
+      ) : null}
     </div>
   )
 }

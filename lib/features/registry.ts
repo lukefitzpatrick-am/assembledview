@@ -648,6 +648,19 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "unmatched_delivery_queue",
+    label: "Unmatched delivery queue",
+    description:
+      "S5. Pacing > Relabels > Unmapped shows how many days each entity has had delivery with no plan line, and after 3 days a Copy supplier note button: a draft asking the supplier or trader to put the plan line id in the platform name. Nothing is sent from the app. The pacing digest (Tue and Fri 09:30 AEDT, 08:30 AEST) gets an Unmatched delivery section: entities, spend, how many are 3 days or older, and a link to the queue. It adds one 30-day read of the three pacing facts to the digest cron, fails soft to \"not available\" and stops after 45 seconds. Needs Unmapped delivery on. Off: no age column, no note, no digest section.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+    requires: ["unmapped_delivery"],
+  },
+  {
     key: "pacing_digest_data_checks",
     label: "Pacing digest data checks",
     description:
