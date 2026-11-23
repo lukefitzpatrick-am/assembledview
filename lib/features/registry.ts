@@ -337,7 +337,7 @@ export const FEATURE_DEFINITIONS = [
     key: "partial_mba_billing_guard",
     label: "Partial MBA: billing months and the billing vs delivery check",
     description:
-      "The media plan editor's partial MBA (decisions M8, Q11 to Q14). On: the partial MBA fee follows each line's fee billing months, as the published MBA does (with no fee months it stays the media share, as before); when the working billing has no line rows the partial MBA starts from the auto billing months, not the delivery months; and the MBA billing window shows each selected month and line where billing and delivery differ, with a one-line note on the save rail. Client pays for media lines show as expected. Channels added after an old partial MBA was set show as approved. Warn only, never blocks. Off: as before.",
+      "The media plan editor's partial MBA (decisions M8, Q11 to Q14). The partial MBA fee follows each line's fee billing months everywhere, switch or not (decision S4). On: when the working billing has no line rows the partial MBA starts from the auto billing months, not the delivery months; and the MBA billing window shows each selected month and line where billing and delivery differ, with a one-line note on the save rail. Client pays for media lines show as expected. Channels added after an old partial MBA was set show as approved. Warn only, never blocks. Off: as before.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,

@@ -81,12 +81,12 @@ test("line item months: same order, always a copy; only delivery gets line rows 
   )
 })
 
-test("provisional financials: the fee from fee billing months only with the switch on; bad dates and no months drop out", () => {
+test("provisional financials: bad dates and no months drop out", () => {
   const start = new Date("2026-01-01")
-  const on = partialMbaFinancialsOptions({ campaignStart: start, campaignEnd: new Date("x"), selectedMonthYears: ["January 2026"], guardOn: true })
-  assert.deepEqual(on, { campaignStart: start, campaignEnd: undefined, selectedMonthYears: ["January 2026"], partialFeeFromFeeMonths: true })
-  const off = partialMbaFinancialsOptions({ campaignStart: null, campaignEnd: undefined, selectedMonthYears: [], guardOn: false })
-  assert.deepEqual(off, { campaignStart: undefined, campaignEnd: undefined, selectedMonthYears: undefined, partialFeeFromFeeMonths: false })
+  const on = partialMbaFinancialsOptions({ campaignStart: start, campaignEnd: new Date("x"), selectedMonthYears: ["January 2026"] })
+  assert.deepEqual(on, { campaignStart: start, campaignEnd: undefined, selectedMonthYears: ["January 2026"] })
+  const none = partialMbaFinancialsOptions({ campaignStart: null, campaignEnd: undefined, selectedMonthYears: [] })
+  assert.deepEqual(none, { campaignStart: undefined, campaignEnd: undefined, selectedMonthYears: undefined })
 })
 
 const perLine = [

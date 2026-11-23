@@ -104,19 +104,18 @@ function validDate(d: Date | null | undefined): Date | undefined {
 }
 
 /**
- * The options for a partial MBA's provisional financials. M8 (B21, switch on):
- * the fee comes from its fee billing months, as the published MBA slice.
+ * The options for a partial MBA's provisional financials. The fee comes from
+ * its fee billing months, as the published MBA slice (the engine's month
+ * scope, S4).
  */
 export function partialMbaFinancialsOptions(args: {
   campaignStart: Date | null | undefined
   campaignEnd: Date | null | undefined
   selectedMonthYears: string[]
-  guardOn: boolean
 }): ComputeCampaignFinancialsOpts {
   return {
     campaignStart: validDate(args.campaignStart),
     campaignEnd: validDate(args.campaignEnd),
     selectedMonthYears: args.selectedMonthYears.length > 0 ? args.selectedMonthYears : undefined,
-    partialFeeFromFeeMonths: args.guardOn,
   }
 }

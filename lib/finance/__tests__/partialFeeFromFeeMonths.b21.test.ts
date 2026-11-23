@@ -1,7 +1,8 @@
 /**
- * M8 (B21): with `partialFeeFromFeeMonths`, the month-scoped fee is each
- * line's fee billing months in the selection, the same as the approved slice.
- * Unset: the media share, as before.
+ * M8 (B21), S4: the month-scoped fee is each line's fee billing months in the
+ * selection, the same as the approved slice, for every partial reader (the
+ * B21 option and its media share path are gone). A line with no fee months
+ * keeps the media share.
  */
 import "@/lib/testing/bothZones"
 import assert from "node:assert/strict"
@@ -33,11 +34,10 @@ function line(over: Partial<LineItemInput> = {}): LineItemInput {
 }
 
 const FEES = { feeLoading: { feesearch: 10 } }
-const opts = (months: string[], on?: boolean) => ({
+const opts = (months: string[]) => ({
   campaignStart: START,
   campaignEnd: END,
   selectedMonthYears: months,
-  ...(on === undefined ? {} : { partialFeeFromFeeMonths: on }),
 })
 
 function sliceFeeDollars(f: ReturnType<typeof computeCampaignFinancials>, months: string[]): number {
@@ -57,16 +57,11 @@ test("media-only Prebill into January: February fee follows the fee months, as t
       dateBasis: "billing",
     },
   })
-  const off = computeCampaignFinancials([prebill], FEES, opts(["February 2026"]))
-  const unset = computeCampaignFinancials([prebill], FEES, opts(["February 2026"], false))
-  const on = computeCampaignFinancials([prebill], FEES, opts(["February 2026"], true))
-  // Off: media share. February has no media, so no fee.
-  assert.equal(off.mbaScopeTotals.fee, 0)
-  assert.deepEqual(unset.mbaScopeTotals, off.mbaScopeTotals)
-  // On: the fee bills in its own months.
+  const on = computeCampaignFinancials([prebill], FEES, opts(["February 2026"]))
+  // February has no media (the media share would be $0), but the fee bills in its own months.
   assert.ok(on.mbaScopeTotals.fee > 0)
   assert.equal(on.mbaScopeTotals.fee, sliceFeeDollars(on, ["February 2026"]))
-  assert.equal(on.mbaScopeTotals.grossMedia, off.mbaScopeTotals.grossMedia)
+  assert.equal(on.mbaScopeTotals.grossMedia, 0)
   assert.equal(
     on.mbaScopeTotals.nettExGst,
     Math.round((on.mbaScopeTotals.grossMedia + on.mbaScopeTotals.fee + on.mbaScopeTotals.adServing + on.mbaScopeTotals.production) * 100) / 100
@@ -85,23 +80,19 @@ test("hand-edited fee timing is read from the fee months", () => {
     },
   })
   const full = computeCampaignFinancials([feeMoved], FEES, { campaignStart: START, campaignEnd: END })
-  const on = computeCampaignFinancials([feeMoved], FEES, opts(["February 2026"], true))
-  const off = computeCampaignFinancials([feeMoved], FEES, opts(["February 2026"]))
+  const on = computeCampaignFinancials([feeMoved], FEES, opts(["February 2026"]))
   assert.equal(on.mbaScopeTotals.fee, sliceFeeDollars(on, ["February 2026"]))
+  // All the fee was moved to February; the media share would be half.
   assert.equal(on.mbaScopeTotals.fee, full.mbaScopeTotals.fee)
-  assert.notEqual(off.mbaScopeTotals.fee, on.mbaScopeTotals.fee)
 })
 
-test("plain line: both ways give the same fee; whole campaign selected is unscoped either way", () => {
+test("plain line: the fee months equal the media share; whole campaign selected is unscoped", () => {
   const plain = line()
-  const off = computeCampaignFinancials([plain], FEES, opts(["January 2026"]))
-  const on = computeCampaignFinancials([plain], FEES, opts(["January 2026"], true))
-  assert.equal(on.mbaScopeTotals.fee, off.mbaScopeTotals.fee)
+  const full = computeCampaignFinancials([plain], FEES, { campaignStart: START, campaignEnd: END })
+  const jan = computeCampaignFinancials([plain], FEES, opts(["January 2026"]))
+  assert.equal(jan.mbaScopeTotals.fee, full.mbaScopeTotals.fee / 2)
   const all = ["January 2026", "February 2026"]
-  assert.deepEqual(
-    computeCampaignFinancials([plain], FEES, opts(all, true)).mbaScopeTotals,
-    computeCampaignFinancials([plain], FEES, opts(all)).mbaScopeTotals
-  )
+  assert.deepEqual(computeCampaignFinancials([plain], FEES, opts(all)).mbaScopeTotals, full.mbaScopeTotals)
 })
 
 test("a line with no fee months in the schedule keeps the media share", async () => {
@@ -111,15 +102,14 @@ test("a line with no fee months in the schedule keeps the media share", async ()
     ...full,
     billingSchedule: full.billingSchedule.map((m) => ({ ...m, lineItems: undefined })),
   }
-  const on = scopeCampaignFinancialsToSelectedMonths(stripped, ["January 2026"], { feeFromFeeMonths: true })
-  const off = scopeCampaignFinancialsToSelectedMonths(stripped, ["January 2026"])
-  assert.equal(on.mbaScopeTotals.fee, off.mbaScopeTotals.fee)
-  assert.ok(off.mbaScopeTotals.fee > 0)
+  const scoped = scopeCampaignFinancialsToSelectedMonths(stripped, ["January 2026"])
+  // Media share: January holds half the media, so half the fee.
+  assert.equal(scoped.mbaScopeTotals.fee, full.mbaScopeTotals.fee / 2)
 })
 
-test("excluded lines stay out either way", () => {
+test("excluded lines stay out", () => {
   const excluded = line({ lineItemId: "billing-search::golf023SE2", approval: "excluded" })
-  const on = computeCampaignFinancials([line(), excluded], FEES, opts(["January 2026"], true))
-  const onlyOne = computeCampaignFinancials([line()], FEES, opts(["January 2026"], true))
+  const on = computeCampaignFinancials([line(), excluded], FEES, opts(["January 2026"]))
+  const onlyOne = computeCampaignFinancials([line()], FEES, opts(["January 2026"]))
   assert.equal(on.mbaScopeTotals.fee, onlyOne.mbaScopeTotals.fee)
 })

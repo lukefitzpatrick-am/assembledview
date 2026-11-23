@@ -8625,7 +8625,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         campaignStart: campaignStartDate,
         campaignEnd: campaignEndDate,
         selectedMonthYears: nextMonthYears,
-        guardOn: partialMbaBillingGuardOn,
       })
     )
 

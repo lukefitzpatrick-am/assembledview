@@ -68,7 +68,7 @@ test("B21: the guard gets the switch, the partial flag and waits for every chann
   ])
 })
 
-test("M8: the month sources and the fee basis read the switch", () => {
+test("M8: the month sources read the switch; the fee basis is the engine's (S4)", () => {
   const sources = page.slice(page.indexOf("function partialMbaMonthSources()"), page.indexOf("function getPartialMbaRawMonthsForBaseline"))
   assert.deepEqual(entries(sources.slice(sources.indexOf("return {") + "return ".length, sources.indexOf("\n    }\n") + 6)), [
     "guardOn: partialMbaBillingGuardOn",
@@ -83,7 +83,6 @@ test("M8: the month sources and the fee basis read the switch", () => {
     "campaignStart: campaignStartDate",
     "campaignEnd: campaignEndDate",
     "selectedMonthYears: nextMonthYears",
-    "guardOn: partialMbaBillingGuardOn",
   ])
 })
 
