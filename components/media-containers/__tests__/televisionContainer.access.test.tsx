@@ -151,6 +151,57 @@ describe("Television on the shared shell: names, labels, TARPs and the exit conf
     expect(summary.map((s) => s.textContent?.replace(/^.*· /, ""))).toEqual(["220 tarps", "120 deliverables", "0 deliverables"])
   }, 30_000)
 
+  it("gives an edited fee-inclusive row back grossed up by the channel fee on Apply", async () => {
+    // $1,100 gross at 10% is $990 net: 99 TARPs at $10. 50 back is $500 net, $555.56 gross.
+    const media: any[][] = []
+    act(() => {
+      root.render(
+        <TelevisionContainer
+          clientId="client-1"
+          feetelevision={10}
+          onTotalMediaChange={noop}
+          onBurstsChange={noop}
+          onInvestmentChange={noop}
+          onLineItemsChange={noop}
+          onTelevisionLineItemsChange={noop}
+          onMediaLineItemsChange={(items: any[]) => media.push(items)}
+          campaignStartDate={new Date(2026, 0, 5)}
+          campaignEndDate={new Date(2026, 2, 31)}
+          campaignBudget={0}
+          campaignId=""
+          mediaTypes={[]}
+          initialLineItems={[
+            { ...lines[0], budget_includes_fees: true, bursts: [burst({ budget: "$1,100.00", startDate: "2026-01-05", endDate: "2026-01-11", tarps: "99", calculatedValue: 99 })] },
+          ]}
+        />,
+      )
+    })
+    await settle()
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "THEAD" ? 40 : 2000
+      })
+    const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text)!
+    act(() => button("Schedule grid").click())
+    await settle(100)
+    const grid = document.querySelector('[role="dialog"]') as HTMLElement
+    // The row's TARPs column also reads 99; the week cell comes after it.
+    const week = [...grid.querySelectorAll("input")].filter((i) => i.value === "99").pop()
+    expect(week, "99 TARPs in week 1").toBeTruthy()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(week, "50")
+      week!.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() => week!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })))
+    await settle(400)
+    act(() => button("Apply to plan (not saved yet)").click())
+    offsetHeight.mockRestore()
+    await settle()
+    const [b] = media[media.length - 1][0].bursts
+    expect([b.budget, b.calculatedValue]).toEqual(["555.56", 50])
+  }, 30_000)
+
   it("asks to leave Television Expert Mode when the grid closes with an edit", async () => {
     await mount([])
     const offsetHeight = vi
