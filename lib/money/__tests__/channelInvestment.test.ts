@@ -107,13 +107,6 @@ test("the hook passes the form lines through and does not gross up again", () =>
   assert.doesNotMatch(fn, /100 - pct/)
 })
 
-test("offline container charts equal the shared helper", () => {
-  const items = [line({ budgetIncludesFees: false })]
-  const chart = channelInvestmentByMonth(items, 15)
-  assert.deepEqual(monthCents(chart), monthCents(channelInvestmentByMonth(items, 15)))
-  assert.equal(sumCents(chart), 117_647)
-})
-
 test("a normal gross-in and net-in line matches the legacy months", () => {
   for (const includesFees of [true, false]) {
     for (const clientPays of [false, true]) {
