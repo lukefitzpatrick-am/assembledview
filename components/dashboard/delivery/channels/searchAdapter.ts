@@ -36,6 +36,7 @@ import {
   deliverableLabelForBuyType,
 } from "@/lib/delivery/deliverableLabel"
 import { parseMoney } from "@/lib/money"
+import { cpm } from "@/lib/money/rates"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import {
   expectedForWindow,
@@ -345,7 +346,7 @@ export function buildSearchSection(input: {
     {
       label: "Avg CPM",
       value:
-        totals.impressions > 0 ? formatCurrency2dp((totals.cost / totals.impressions) * 1000) : "—",
+        totals.impressions > 0 ? formatCurrency2dp(cpm(totals.cost, totals.impressions) ?? Number.NaN) : "—",
     },
     { label: "Avg delivery", value: avgDeliveryPct == null ? "—" : `${avgDeliveryPct.toFixed(1)}%` },
   ]

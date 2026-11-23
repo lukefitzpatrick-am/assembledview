@@ -13,7 +13,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
 import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
-import { cpm, ctr as clickThroughRate } from "@/lib/money/rates"
+import { cpc, cpm, cpv, ctr as clickThroughRate } from "@/lib/money/rates"
 import {
   ESTIMATED_SPEND_LABEL,
   estimateDirectDigitalSpend,
@@ -1021,7 +1021,7 @@ export function buildDirectDigitalChannelSection(input: {
             label: "CPV",
             value:
               aggregateSpend != null && rollup.videoCompletes > 0
-                ? formatMoney(aggregateSpend / rollup.videoCompletes)
+                ? formatMoney(cpv(aggregateSpend, rollup.videoCompletes))
                 : "—",
             caption: aggregateSpendEstimated && rollup.videoCompletes > 0 ? "Estimated" : undefined,
             accentColour,
@@ -1044,7 +1044,7 @@ export function buildDirectDigitalChannelSection(input: {
           ? [
               {
                 label: "CPC",
-                value: formatMoney((aggregateSpend ?? 0) / rollup.clicks),
+                value: formatMoney(cpc(aggregateSpend ?? 0, rollup.clicks)),
                 caption: "Estimated",
                 accentColour,
               } satisfies KpiTileProps,
@@ -1207,7 +1207,7 @@ export function buildDirectDigitalChannelSection(input: {
                   label: "CPV",
                   value:
                     lineSpend != null && m.totals.videoCompletes > 0
-                      ? formatMoney(lineSpend / m.totals.videoCompletes)
+                      ? formatMoney(cpv(lineSpend, m.totals.videoCompletes))
                       : "—",
                   caption: lineSpendMode === "estimated" && m.totals.videoCompletes > 0 ? "Estimated" : undefined,
                   accentColour,
@@ -1228,7 +1228,7 @@ export function buildDirectDigitalChannelSection(input: {
             ? [
                 {
                   label: "CPC",
-                  value: formatMoney((lineSpend ?? 0) / m.totals.clicks),
+                  value: formatMoney(cpc(lineSpend ?? 0, m.totals.clicks)),
                   caption: "Estimated",
                   accentColour,
                 } satisfies KpiTileProps,

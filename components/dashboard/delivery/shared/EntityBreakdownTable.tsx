@@ -7,6 +7,7 @@
 import { Fragment, useId, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { formatMoney } from "@/lib/format/money"
+import { cpc } from "@/lib/money/rates"
 import { formatRatioAsPercent } from "@/lib/pacing/kpi/formatKpi"
 import { stripPlanCodeSuffix } from "@/lib/delivery/lineItemDisplayName"
 import type { CreativePerformanceRow } from "@/lib/creative/performance/metrics"
@@ -65,7 +66,7 @@ function formatWholeNumber(value: number | null | undefined) {
 
 function formatCpc(spend: number, clicks: number): string {
   if (!(clicks > 0) || !Number.isFinite(spend)) return "—"
-  return formatCurrency(spend / clicks)
+  return formatCurrency(cpc(spend, clicks) ?? Number.NaN)
 }
 
 function formatCtr(clicks: number, impressions: number): string {

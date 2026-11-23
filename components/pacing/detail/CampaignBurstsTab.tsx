@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney, formatPercent } from "@/lib/format/money"
+import { cpc, cpm } from "@/lib/money/rates"
 import { formatCount } from "@/lib/pacing/channel/lineCardFormat"
 import { lineDaysLeft } from "@/lib/pacing/channel/lineCardPace"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
@@ -67,9 +68,9 @@ function leadKpi(line: LineCardModel, burst: CampaignDetailBurst): { label: stri
   if (label === "ctr" && burst.impressions > 0) {
     delivered = formatPercent((burst.clicks / burst.impressions) * 100, { decimals: 2 })
   } else if (label === "cpc" && burst.clicks > 0) {
-    delivered = formatMoney(burst.spend / burst.clicks, { decimals: 2 })
+    delivered = formatMoney(cpc(burst.spend, burst.clicks), { decimals: 2 })
   } else if (label === "cpm" && burst.impressions > 0) {
-    delivered = formatMoney((burst.spend / burst.impressions) * 1000, { decimals: 2 })
+    delivered = formatMoney(cpm(burst.spend, burst.impressions), { decimals: 2 })
   } else if (label.includes("impression")) {
     delivered = formatCount(burst.impressions)
   } else if (label.includes("click")) {
