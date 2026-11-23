@@ -76,7 +76,6 @@
   "exports:components/media-containers/ExpertGridCombobox.tsx ComboboxModalProvider",
   "exports:components/media-containers/ExpertGridWeekContextMenu.tsx WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON",
   "exports:components/media-containers/MagazinesExpertGrid.tsx MAGAZINES_BUY_TYPE_OPTIONS",
-  "exports:components/media-containers/NewspaperExpertGrid.tsx NEWSPAPER_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/OohExpertGrid.tsx OOH_BUY_TYPE_OPTIONS",
   "exports:components/media-containers/OohExpertGrid.tsx OOH_FORMAT_OPTIONS",
   "exports:components/media-containers/expertGridSticky.ts EXPERT_GRID_STICKY_BG",

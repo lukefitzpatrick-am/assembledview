@@ -160,6 +160,13 @@ export const getRadioBursts = legacyBillingBursts({
   noAdserving: "lineLower",
 })
 
+/** Newspaper: Cinema's shape, label "newspapers" (W5i, moved from its container). */
+export const getNewspapersBursts = legacyBillingBursts({
+  mediaType: "newspapers",
+  deliverables: "saved",
+  noAdserving: "lineLower",
+})
+
 /** Digital Display's budget read (W5d, moved from its container): a number as it is, else the strip parser keeping a minus. Cinema's Excel rows read budget and rate with it. */
 export function parseBudgetSafe(val: unknown): number {
   if (val == null) return 0

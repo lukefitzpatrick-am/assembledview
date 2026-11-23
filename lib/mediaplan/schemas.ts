@@ -574,7 +574,6 @@ export const newspapersFormSchema = z.object({
   newspaperlineItems: z.array(newspaperlineItemSchema),
   overallDeliverables: z.number().optional(),
 })
-export type NewspapersFormValues = z.infer<typeof newspapersFormSchema>
 
 // --- Magazines ---------------------------------------------------------------
 export const magazinesFormSchema = z.object({

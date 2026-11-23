@@ -86,7 +86,7 @@ export function getExpertCardRenderedFields(
 export type ExpertCardProps<T extends FieldValues> = {
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>
   form: UseFormReturn<T>
-  /** RHF array path, e.g. `lineItems` or `newspaperlineItems`. */
+  /** RHF array path, e.g. `lineItems` or `magazineslineItems`. */
   itemsKey: string
   lineItemIndex: number
   lineItemId: string

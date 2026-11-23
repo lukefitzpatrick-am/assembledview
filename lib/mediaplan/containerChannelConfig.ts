@@ -46,6 +46,10 @@ import {
   getRadioStations,
   getTVStations,
   createTVStation,
+  getNewspapers,
+  createNewspaper,
+  getNewspapersAdSizes,
+  createNewspaperAdSize,
 } from "@/lib/api"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
@@ -57,6 +61,7 @@ import {
   INTEGRATION_EXPERT_CHANNEL_CONFIG,
   MAGAZINES_EXPERT_CHANNEL_CONFIG,
   NEWSPAPER_EXPERT_CHANNEL_CONFIG,
+  createEmptyNewspaperExpertRow,
   OOH_EXPERT_CHANNEL_CONFIG,
   PRODUCTION_EXPERT_CHANNEL_CONFIG,
   PROGAUDIO_EXPERT_CHANNEL_CONFIG,
@@ -110,6 +115,7 @@ import {
   mapStandardIntegrationLineItemsToExpertRows,
   mapStandardMagazineLineItemsToExpertRows,
   mapStandardNewspaperLineItemsToExpertRows,
+  mapNewspaperExpertRowsToStandardLineItems,
   mapStandardOohLineItemsToExpertRows,
   mapStandardProductionLineItemsToExpertRows,
   mapStandardProgAudioLineItemsToExpertRows,
@@ -173,6 +179,9 @@ import {
   mergeTelevisionStandardFromExpertWithPrevious,
   serializeTelevisionExpertRowsBaseline,
   serializeTelevisionStandardLineItemsBaseline,
+  mergeNewspaperStandardFromExpertWithPrevious,
+  serializeNewspaperExpertRowsBaseline,
+  serializeNewspaperStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import {
@@ -184,13 +193,14 @@ import {
   getDigiVideoBursts,
   getInfluencersBursts,
   getIntegrationBursts,
+  getNewspapersBursts,
   getRadioBursts,
   getSocialMediaBursts,
 } from "@/lib/mediaplan/legacyBillingBursts"
 import { INTEGRATION_LOAD_DEDUPE, RADIO_LOAD_DEDUPE, TELEVISION_LOAD_KEY, type LoadDedupeKeys } from "@/lib/mediaplan/dedupeInitialLineItems"
 import { getTelevisionBursts, televisionExcelRow, televisionHydrateLine } from "@/lib/mediaplan/televisionLine"
 import { newBurstReactKey, televisionBurstDefaults, type BurstFactory } from "@/lib/mediaplan/burstOperations"
-import { radioExcelRow } from "@/lib/mediaplan/radioLine"
+import { newspaperExcelRow, radioExcelRow } from "@/lib/mediaplan/radioLine"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { UseFormReturn } from "react-hook-form"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, pickLineItemNumber } from "@/lib/mediaplan/lineItemIds"
@@ -475,6 +485,46 @@ export type ContainerChannelConfig = {
   /** Line fields a card edit copies to every burst of the line (Television's Ad Size). */
   copyToBursts?: readonly string[]
 }
+
+/**
+ * The load rule Cinema, Radio and Newspaper share (W5f, W5g, W5i, moved from
+ * their containers): `fields` over the hook's line, the line number and id
+ * fallback from index + 1, each burst's saved `fee ?? 0`, and a line saved
+ * with no bursts gets one burst with `emptyDeliverables` and fee 0.
+ */
+function savedLine(
+  line: ContainerFormLine,
+  saved: ContainerLine,
+  { mbaNumber, index }: ContainerLineContext,
+  code: string,
+  fields: ContainerLine,
+  emptyDeliverables: number,
+): ContainerFormLine {
+  const savedBursts = resolveLineItemBursts(saved)
+  const lineNumber = Number(saved.line_item ?? saved.lineItem ?? index + 1) || index + 1
+  const lineItemId = saved.line_item_id || saved.lineItemId || buildLineItemId(mbaNumber, code, lineNumber)
+  return {
+    ...line,
+    ...fields,
+    lineItemId,
+    line_item_id: lineItemId,
+    line_item: saved.line_item ?? saved.lineItem ?? index + 1,
+    lineItem: saved.lineItem ?? saved.line_item ?? index + 1,
+    bursts:
+      savedBursts.length > 0
+        ? line.bursts.map((burst, i) => ({ ...burst, fee: savedBursts[i]?.fee ?? 0 }))
+        : [{ ...line.bursts[0], calculatedValue: emptyDeliverables, fee: 0 }],
+  }
+}
+
+/** A saved line's deliverables for its one empty burst at the load rule (Radio, Newspaper). */
+const loadedEmptyDeliverables = (saved: ContainerLine, feePct: number) =>
+  computeLoadedDeliverables(
+    String(saved.buy_type || saved.buyType || ""),
+    {},
+    Boolean(saved.budget_includes_fees || saved.budgetIncludesFees),
+    feePct,
+  )
 
 /**
  * Build a fresh line-item defaults object from fieldMap (inDefaults only).
@@ -2380,37 +2430,16 @@ export const RADIO_CONTAINER_CONFIG: ContainerChannelConfig = {
   // publisher (platform takes it too), station from station or site, its own
   // line number and id fallback (index + 1), each burst's saved `fee ?? 0`,
   // and a line saved with no bursts gets one at the load rule.
-  hydrateLine: (line, saved, { feePct, mbaNumber, index }) => {
-    const savedBursts = resolveLineItemBursts(saved)
-    const lineNumber = Number(saved.line_item ?? saved.lineItem ?? index + 1) || index + 1
-    const lineItemId =
-      saved.line_item_id || saved.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.radio, lineNumber)
+  hydrateLine: (line, saved, ctx) => {
     const network = saved.network || saved.platform || saved.publisher || ""
-    return {
-      ...line,
-      network,
-      station: saved.station || saved.site || "",
-      platform: network,
-      lineItemId,
-      line_item_id: lineItemId,
-      line_item: saved.line_item ?? saved.lineItem ?? index + 1,
-      lineItem: saved.lineItem ?? saved.line_item ?? index + 1,
-      bursts:
-        savedBursts.length > 0
-          ? line.bursts.map((burst, i) => ({ ...burst, fee: savedBursts[i]?.fee ?? 0 }))
-          : [
-              {
-                ...line.bursts[0],
-                calculatedValue: computeLoadedDeliverables(
-                  String(saved.buy_type || saved.buyType || ""),
-                  {},
-                  Boolean(saved.budget_includes_fees || saved.budgetIncludesFees),
-                  feePct,
-                ),
-                fee: 0,
-              },
-            ],
-    }
+    return savedLine(
+      line,
+      saved,
+      ctx,
+      MEDIA_TYPE_ID_CODES.radio,
+      { network, station: saved.station || saved.site || "", platform: network },
+      loadedEmptyDeliverables(saved, ctx.feePct),
+    )
   },
   excelRow: radioExcelRow,
   addStation: true,
@@ -3398,29 +3427,15 @@ export const CINEMA_CONTAINER_CONFIG: ContainerChannelConfig = {
   // Load: its own line number and id fallback (index + 1), each burst's saved
   // `fee ?? 0`, and a line saved with no bursts gets one at the card's rule
   // (fixed cost gives 1).
-  hydrateLine: (line, saved, { feePct, mbaNumber, index }) => {
-    const savedBursts = resolveLineItemBursts(saved)
-    const lineNumber = Number(saved.line_item ?? saved.lineItem ?? index + 1) || index + 1
-    const lineItemId =
-      saved.line_item_id || saved.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.cinema, lineNumber)
-    return {
-      ...line,
-      lineItemId,
-      line_item_id: lineItemId,
-      line_item: saved.line_item ?? saved.lineItem ?? index + 1,
-      lineItem: saved.lineItem ?? saved.line_item ?? index + 1,
-      bursts:
-        savedBursts.length > 0
-          ? line.bursts.map((burst, i) => ({ ...burst, fee: savedBursts[i]?.fee ?? 0 }))
-          : [
-              {
-                ...line.bursts[0],
-                calculatedValue: cinemaCardDeliverables({}, String(saved.buy_type || saved.buyType || ""), false, feePct),
-                fee: 0,
-              },
-            ],
-    }
-  },
+  hydrateLine: (line, saved, ctx) =>
+    savedLine(
+      line,
+      saved,
+      ctx,
+      MEDIA_TYPE_ID_CODES.cinema,
+      {},
+      cinemaCardDeliverables({}, String(saved.buy_type || saved.buyType || ""), false, ctx.feePct),
+    ),
   excelRow: cinemaExcelRow,
   cardDeliverables: cinemaCardDeliverables,
   addStation: true,
@@ -3578,14 +3593,50 @@ export const NEWSPAPER_CONTAINER_CONFIG: ContainerChannelConfig = {
   schema: newspapersFormSchema,
   fetchPublishers: getPublishersForNewspapers,
   toExpert: mapStandardNewspaperLineItemsToExpertRows,
-    fromExpert: null,
-  mergeFromExpert: null,
-  serializeStandardBaseline: null,
-  serializeExpertBaseline: null,
-  createEmptyExpertRow: null,
-  billingMediaTypeLabel: "newspaper",
-  expertFromFeeKey: null,
-  summaryDimensions: {},
+  fromExpert: mapNewspaperExpertRowsToStandardLineItems,
+  mergeFromExpert: mergeNewspaperStandardFromExpertWithPrevious,
+  serializeStandardBaseline: serializeNewspaperStandardLineItemsBaseline,
+  serializeExpertBaseline: serializeNewspaperExpertRowsBaseline,
+  createEmptyExpertRow: createEmptyNewspaperExpertRow,
+  // "newspapers", no line id, the line's No Ad Serving box (FB-6), saved deliverables.
+  billingMediaTypeLabel: "newspapers",
+  billingBursts: getNewspapersBursts,
+  expertFromFeeKey: "feePctNewspaper",
+  burstDateFallback: "now",
+  bareHydratedBursts: true,
+  // Load (W5i, moved from its container): network from network or publisher,
+  // title from title or publication, then the shared load rule.
+  hydrateLine: (line, saved, ctx) =>
+    savedLine(
+      line,
+      saved,
+      ctx,
+      MEDIA_TYPE_ID_CODES.newspaper,
+      { network: saved.network || saved.publisher || "", title: saved.title || saved.publication || "" },
+      loadedEmptyDeliverables(saved, ctx.feePct),
+    ),
+  // Save: the publisher falls back to the network, as the old container wrote it.
+  saveLine: (row, line) => ({ ...row, publisher: line.publisher || line.network || "" }),
+  excelRow: newspaperExcelRow,
+  addStation: true,
+  stations: {
+    key: "title",
+    fetch: getNewspapers,
+    create: ({ station, network }) => createNewspaper({ title: station, network }),
+  },
+  adSizes: { fetch: getNewspapersAdSizes, create: createNewspaperAdSize },
+  shell: {
+    title: "Newspapers Media",
+    themeKey: "newspaper",
+    timelineMediaTypeKey: "newspaper",
+    loadLabel: "Newspaper",
+    exitConfirmYesAttr: "data-newspaperexpert-exit-yes",
+  },
+  summaryDimensions: {
+    Network: "network",
+    Title: "title",
+    "Buy Type": "buyType",
+  },
   deliverableRoundingPolicy: "raw" as const,
   gridConfig: NEWSPAPER_EXPERT_CHANNEL_CONFIG,
   calculatedVariant: "newspaper",
@@ -3701,11 +3752,12 @@ export const NEWSPAPER_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // A new line starts with a blank Ad Size, as the old container's Add did.
       camel: "size",
       snake: "size",
       excel: null,
-      default: null,
-      inDefaults: false,
+      default: "",
+      inDefaults: true,
       inHydration: true,
       inApi: true,
     },
