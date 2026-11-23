@@ -155,6 +155,13 @@ describe("Magazines hands a page its save rows only (W5j, C-377 lesson)", () => 
     expect(media.at(-1)![0]).toMatchObject({ network: "Are Media", publisher: "Are Media" })
   }, 30_000)
 
+  it("keeps a saved publisher that differs from the line's network (W5j review F1)", async () => {
+    const media: any[][] = []
+    render(media, [{ ...line, publisher: "Nine" }])
+    await settle()
+    expect(media.at(-1)![0]).toMatchObject({ network: "Are Media", publisher: "Nine" })
+  }, 30_000)
+
   it("gives an edited fee-inclusive row back grossed up by the channel fee on Apply", async () => {
     // $1,100 gross at 10% is $990 net: 10 insertions at $99. 5 back is $495 net, $550 gross.
     const media: any[][] = []
