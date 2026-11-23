@@ -2,6 +2,11 @@
 
 Laws every change must respect. Present tense, no dates, no branch names. When a decision changes, edit the line — don't append a contradiction.
 
+## Measures (S10)
+
+- Every number a user sees as a measure (fee, net media, planned, expected to date, delivered, estimated and assumed spend, pacing percent and status, planned deliverables, budget utilised, billed, cost per result, margin percent, projected spend) has one function, named in `scripts/measure-registry.mjs`. Screens (`app/**` but `app/api/**`, `components/**`) read it from that function. Lint (`measures/no-local-measure`) fails a screen that computes a percent of two values named for a measure, or prorates one over days; a name counts when a measure word is the whole identifier or a camelCase or snake_case part of it. `scripts/measure-baseline.json` holds the files that still do it: a file over its count fails, a drop is lowered by hand, and a raise is a reviewed hand edit.
+- A screen bands a pace only through its pace function (`paceVsExpected`, or `assumedDeliveryPace` for assumed spend). Screens may not import `deliveryStatusFromPct` or `statusFromExpectedPct` (`no-restricted-imports`).
+
 ## Fee math (canonical: `lib/mediaplan/burstAmounts.ts::computeBurstAmounts`)
 
 ```

@@ -28,6 +28,7 @@ All 8 dashboard delivery channel adapters, pacing KPI status modules (`compute*K
 
 ## Gotchas
 
+- **Cost per result is a registered measure (S10):** CPM, CPC, CPV and CPA come from `lib/money/rates.ts` (`scripts/measure-registry.mjs`); a screen never divides spend itself. CTR, CVR and VTR stay KPI ratios in the same file, not registered.
 - **Percent scale (AV-25 v2)**: UI is percentage points; storage is decimal. No `>=1` magnitude heuristic — `1.0` means 100%. Dual-store migration of leftover percentage-point / ambiguous `1.0` cells pending Luke (`KPI_PERCENT_UNIT_CONTRACT`). Never apply to cpv. Historical rescale artefacts under `scripts/data/kpi-best-practice/`.
 - Unset returns **null, never 0**. Publisher/client/campaign create+patch schemas use nullable percent metrics with decimal ≤1 refine (C-20); explicit 0 is a real target. Client create no longer coerces empty metrics to 0.
 - `publisher_colour` is hex-only (`#rgb`/`#rrggbb`); parse via `lib/publisher/publisherColour.ts` — invalid → documented fallback `null`, never a coerced plausible colour.

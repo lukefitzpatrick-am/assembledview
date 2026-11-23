@@ -39,6 +39,7 @@ Files large enough to require targeted reading rather than full reads:
 | Task shape | Start at |
 |---|---|
 | Add or change a media channel | `db/schema/lineChannelValues.ts` (the value tuple; `enums.ts` builds `lineChannelEnum` from it) → `lineItemAttrs.ts` → `lib/api/media-containers.ts` → `lib/data/planShapes.ts` → the ~12-map list in `BLAST-RADIUS.md`. **All of them, or the channel half-works** |
+| Show a measure on a screen (spend, fee, expected, pace, billed, deliverables, cost per result, margin) | `scripts/measure-registry.mjs` names the one function. Call it; never divide two measures in the screen, and band a pace with `paceVsExpected`, not the raw band helpers. A new measure gets its function in `lib/` and a registry row |
 | Change how money is split | `lib/mediaplan/burstAmounts.ts` only. Nowhere else |
 | Change the schedule | `lib/data/savePlan.ts` and `schedule_months`. Not the legacy blobs |
 | Change publication behaviour | `media_plan_masters.published_version_id` and `media_plan_versions.published_at`. Never `max(version_number)`, never `campaign_status` |
@@ -102,7 +103,7 @@ State it, do not perform it.
 | Don't | Why |
 |---|---|
 | Grep the whole repo for a concept | `lib/planning/` and `lib/reports/` are 45 MB of reference data. Use `git grep` with a path filter, or use `MAP.md` |
-| Re-derive a calculation locally | Every fee incident traced to a local media/fee split |
+| Re-derive a calculation locally | Every fee incident traced to a local media/fee split. Screens fail lint (`measures/no-local-measure`, `scripts/measure-registry.mjs`) |
 | "Tidy up" a name containing `xano` | `MART.XANO_LINE_ITEMS_SNAPSHOT` and `xano-line-item-sync` are frozen contract names |
 | Add a second cache | Six already exist. Reuse one |
 | Change `create/page.tsx` alone | Its twin is `mba/[mba]/edit/page.tsx` |
