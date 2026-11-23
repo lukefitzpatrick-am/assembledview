@@ -108,7 +108,7 @@ describe("Newspaper hands a page its save rows only (W5i, C-377 lesson)", () => 
     for (const rows of saves) {
       for (const row of rows) expect(row).toMatchObject({ media_plan_version: 0, line_item_id: "tst001NP1" })
     }
-    expect(saves.at(-1)![0]).toMatchObject({ totalMedia: 2000, title: "Herald Sun", size: "Full Page" })
+    expect(saves.at(-1)![0]).toMatchObject({ totalMedia: 2000, title: "Herald Sun", size: "Full Page", publisher: "News Corp" })
     expect(calls.map(([name]) => name)).not.toContain("raw")
   }, 30_000)
 })

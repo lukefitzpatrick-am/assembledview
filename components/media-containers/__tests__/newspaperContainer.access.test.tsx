@@ -2,7 +2,8 @@
  * W5i: Newspaper on the shared shell, what a planner and a screen reader
  * get. Every button has a name; Add Title and Add Ad Size name their line;
  * every card field label and every Add dialog label names its control. The
- * Title list follows the line's network and is disabled with none. The card
+ * Title list, on the card and in the grid, follows the line's network and is
+ * disabled with none. The card
  * summary shows the line's Title, and the summary names insertions
  * "Insertions". Closing the grid with an edit asks "Leave Newspapers Media
  * Expert Mode?", as the old container did.
@@ -152,6 +153,8 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     expect(host.textContent).toContain("Title: Herald Sun")
     const summary = [...host.querySelectorAll("span")].filter((s) => /media ·/.test(s.textContent ?? ""))
     expect(summary.map((s) => s.textContent?.replace(/^.*· /, ""))).toEqual(["4 insertions", "4 package"])
+    const groupBy = host.querySelector('[role="group"][aria-label="Group spend by"]')!
+    expect([...groupBy.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Network", "Title", "Buy Type"])
   }, 30_000)
 
   it("labels the Add Title and Add Ad Size dialogs' fields", async () => {
@@ -172,6 +175,31 @@ describe("Newspaper on the shared shell: names, labels and catalogues (W5i)", ()
     act(() => button("Add Ad Size").click())
     await settle(50)
     expect(sizeDialog.textContent, "a blank ad size is refused on the field").toContain("Ad Size is required")
+  }, 30_000)
+
+  it("lists the grid's titles by the row's network, and its ad sizes", async () => {
+    await mount([])
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "THEAD" ? 40 : 2000
+      })
+    act(() => button("Schedule grid").click())
+    await settle(100)
+    const grid = document.querySelector('[role="dialog"]') as HTMLElement
+    const options = async (text: string) => {
+      const cell = [...grid.querySelectorAll<HTMLButtonElement>('button[role="combobox"]')].find((b) => b.textContent?.trim() === text)!
+      expect(cell, `the ${text} cell`).toBeTruthy()
+      act(() => cell.click())
+      await settle(50)
+      const list = [...document.querySelectorAll("[cmdk-item]")].map((o) => o.textContent?.trim())
+      act(() => cell.click())
+      await settle(50)
+      return list
+    }
+    expect(await options("Herald Sun")).toEqual(["Herald Sun"])
+    expect(await options("Full Page")).toEqual(["Full Page"])
+    offsetHeight.mockRestore()
   }, 30_000)
 
   it("asks to leave Newspapers Media Expert Mode when the grid closes with an edit", async () => {
