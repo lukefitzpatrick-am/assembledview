@@ -209,6 +209,18 @@ export async function runPacingDigestDataChecks(
   }
 }
 
+/** A switch read that throws, or is still running at the deadline, counts as off. */
+async function switchOnWithin(isOn: () => Promise<boolean>, deadline: Deadline, key: string): Promise<boolean> {
+  try {
+    const read = await Promise.race([isOn(), deadline.reached])
+    if (read === DEADLINE) console.warn(`[pacing-digest] ${key} read still running at the ${deadline.ms} ms deadline; treating as off`)
+    return read === true
+  } catch (err) {
+    console.warn(`[pacing-digest] ${key} read failed; treating as off`, err)
+    return false
+  }
+}
+
 export type LoadDataChecksDeps = {
   isOn: () => Promise<boolean>
   query: DataCheckQuery
@@ -223,20 +235,7 @@ export type LoadDataChecksDeps = {
 export async function loadPacingDigestDataChecks(deps: LoadDataChecksDeps): Promise<PacingDigestDataChecks | null> {
   const deadline = startDeadline(deps.deadlineMs ?? DATA_CHECKS_DEADLINE_MS)
   try {
-    let on = false
-    try {
-      const read = await Promise.race([deps.isOn(), deadline.reached])
-      if (read === DEADLINE) {
-        console.warn(
-          `[pacing-digest] pacing_digest_data_checks read still running at the ${deadline.ms} ms deadline; treating as off`,
-        )
-        return null
-      }
-      on = read
-    } catch (err) {
-      console.warn("[pacing-digest] pacing_digest_data_checks read failed; treating as off", err)
-    }
-    if (!on) return null
+    if (!(await switchOnWithin(deps.isOn, deadline, "pacing_digest_data_checks"))) return null
     return await runChecksWithin(deps.query, deadline)
   } finally {
     deadline.clear()
@@ -275,14 +274,7 @@ export type LoadDigestUnmatchedDeps = {
 export async function loadDigestUnmatchedDelivery(deps: LoadDigestUnmatchedDeps): Promise<DigestUnmatchedDelivery | null> {
   const deadline = startDeadline(deps.deadlineMs ?? DATA_CHECKS_DEADLINE_MS)
   try {
-    let on = false
-    try {
-      const read = await Promise.race([deps.isOn(), deadline.reached])
-      on = read === true
-    } catch (err) {
-      console.warn("[pacing-digest] unmatched_delivery_queue read failed; treating as off", err)
-    }
-    if (!on) return null
+    if (!(await switchOnWithin(deps.isOn, deadline, "unmatched_delivery_queue"))) return null
     const counted = deps.load().then(
       ({ windowDays, rows }): DigestUnmatchedDelivery => ({
         status: "ok",
