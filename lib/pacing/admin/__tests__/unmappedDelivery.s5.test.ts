@@ -3,9 +3,11 @@ import test from "node:test"
 
 import {
   buildPublishedLookupSql,
+  daysUnmatched,
   getUnmappedDelivery,
   lookupCandidates,
   suggestUnmappedFix,
+  supplierNoteDraft,
 } from "../unmappedDelivery.js"
 
 function raw(over: Partial<Parameters<typeof suggestUnmappedFix>[0]> = {}) {
@@ -132,4 +134,43 @@ test("S5: getUnmappedDelivery binds the legacy MBAs last and suggests from the m
   assert.deepEqual(binds[1], ["pgaaus010", "pgaaus010"])
   assert.equal(result.rows[0]!.suggestion.kind, "relabel")
   assert.equal(result.rows[0]!.suggestion.lineItemId, "pgaaus010dd1")
+})
+
+const queued = (over: Record<string, unknown> = {}) => ({
+  ...raw({ channel: "Social - Meta", name: "Ad set A", campaignName: "Brand AU", currentLineItemId: null, spend: 1234.5 }),
+  suggestion: { kind: "add_line" as const, mba: "pgaaus010", lineItemId: null, action: "x" },
+  ...over,
+})
+
+test("S5: days unmatched counts calendar days from the first unmatched day; bad or future dates are 0", () => {
+  assert.equal(daysUnmatched({ firstDate: "2026-11-20" }, "2026-11-23"), 3)
+  assert.equal(daysUnmatched({ firstDate: "2026-11-23" }, "2026-11-23"), 0)
+  assert.equal(daysUnmatched({ firstDate: "2026-11-25" }, "2026-11-23"), 0)
+  assert.equal(daysUnmatched({ firstDate: "" }, "2026-11-23"), 0)
+  assert.equal(daysUnmatched({ firstDate: "2026-13-40" }, "2026-11-23"), 0)
+})
+
+test("S5: no supplier note before 3 days; from 3 days a draft that asks for the line id", () => {
+  assert.equal(supplierNoteDraft(queued({ firstDate: "2026-11-21" }), "2026-11-23"), null)
+  const note = supplierNoteDraft(queued({ firstDate: "2026-11-20", account: "123" }), "2026-11-23")!
+  assert.match(note, /^Hi,/)
+  assert.match(note, /Delivery on Social - Meta has had no Assembled Media plan line id for 3 days/)
+  assert.match(note, /Ad set: Ad set A \(555\)/)
+  assert.match(note, /Campaign: Brand AU \(account 123\)/)
+  assert.match(note, /2026-11-20 to 2026-11-20, \$1,234\.50 spend, 1,000 impressions/)
+  assert.match(note, /Please put the plan line id \(it starts PGAAUS010\) in the ad set name\./)
+})
+
+test("S5: the note names the suggested line for a relabel, and asks which booking when nothing is known", () => {
+  const relabel = supplierNoteDraft(
+    queued({ suggestion: { kind: "relabel", mba: "pgaaus010", lineItemId: "pgaaus010sm1", action: "x" } }),
+    "2026-11-30",
+  )!
+  assert.match(relabel, /Please put pgaaus010sm1 in the ad set name\./)
+  const unknown = supplierNoteDraft(
+    queued({ channel: "Ad Serving - CM360", suggestion: { kind: "rename", mba: null, lineItemId: null, action: "x" } }),
+    "2026-11-30",
+  )!
+  assert.match(unknown, /Please tell us which booking this is, and put the plan line id in the placement name\./)
+  assert.match(unknown, /Placement: Ad set A/)
 })

@@ -280,3 +280,25 @@ test("builder: a throw from the checks still returns a digest, with no section",
     console.error = err
   }
 })
+
+test("S5 builder: the unmatched count is attached when on, absent when off, and a throw still sends the digest", { skip }, async () => {
+  const { buildPacingDigest } = await import("../buildPacingDigest.js")
+  const unmatched = { status: "ok", windowDays: 30, entities: 1, spend: 5, noteDue: 0, href: "" }
+  unmatchedImpl = async () => unmatched
+  assert.deepEqual((await buildPacingDigest(NOW)).unmatched, unmatched)
+  unmatchedImpl = async () => null
+  assert.equal("unmatched" in (await buildPacingDigest(NOW)), false)
+  unmatchedImpl = async () => {
+    throw new Error("boom")
+  }
+  const err = console.error
+  console.error = () => {}
+  try {
+    const payload = await buildPacingDigest(NOW)
+    assert.equal(payload.unmatched, undefined)
+    assert.equal(payload.asOfDate, "2026-11-13")
+  } finally {
+    console.error = err
+    unmatchedImpl = async () => null
+  }
+})
