@@ -149,6 +149,9 @@ Existing `/api/admin/*` handlers in this recount: **36** methods across **31** f
 | GET | `/api/clients/[id]/conversion-events/available` | admin-only | requireRole | `app/api/clients/[id]/conversion-events/available/route.ts` |
 | GET | `/api/clients/[id]/conversion-settings` | admin-only | requireRole | `app/api/clients/[id]/conversion-settings/route.ts` |
 | PUT | `/api/clients/[id]/conversion-settings` | admin-only | requireRole | `app/api/clients/[id]/conversion-settings/route.ts` |
+| DELETE | `/api/clients/[id]/fee-rates` | admin-only | requireRole | `app/api/clients/[id]/fee-rates/route.ts` |
+| GET | `/api/clients/[id]/fee-rates` | admin-only | requireRole | `app/api/clients/[id]/fee-rates/route.ts` |
+| POST | `/api/clients/[id]/fee-rates` | admin-only | requireRole | `app/api/clients/[id]/fee-rates/route.ts` |
 | GET | `/api/clients/[id]/meetings` | admin-only | requireRole | `app/api/clients/[id]/meetings/route.ts` |
 | GET | `/api/clients/[id]/platform-accounts` | admin-only | requireRole | `app/api/clients/[id]/platform-accounts/route.ts` |
 | PATCH | `/api/clients/[id]/platform-accounts` | admin-only | requireRole | `app/api/clients/[id]/platform-accounts/route.ts` |

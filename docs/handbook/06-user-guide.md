@@ -120,7 +120,7 @@ Outside Codex, pages link into it to make changes.
 
 ## Clients, publishers and scopes
 
-- **Clients.** Contacts, fee percentages, platform accounts and the dashboard. Fee percentages load into every new plan for the client.
+- **Clients.** Contacts, fee percentages, platform accounts and the dashboard. Fee percentages load into every new plan for the client. With fee rates from a date switched on, Fee rate changes on the client sets a new rate from a date: a plan takes each fee at its start date (the latest change on or before it, else the Fees box). Plans that started earlier keep their rate when saved again, and published versions never change. A date before today shows a warning: plans that start on or after it, including running ones, take the new rate the next time they are saved. Delete asks first.
 - **Publishers.** Records, schedule parsing profiles and material specs.
 - **Scopes of work.** Create, edit and download scopes with their cost and billing schedule.
 
