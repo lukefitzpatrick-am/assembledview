@@ -24,6 +24,7 @@ const {
   mediaPlanVersions,
   scheduleMonths,
   financeBillingRecords,
+  xeroArInvoices,
   clients,
 } = schema
 
@@ -47,7 +48,7 @@ export const queryFinanceSummaryTool: AvaTool = {
   definition: {
     name: "query_finance_summary",
     description:
-      "Postgres: billed (finance_billing_records) vs planned (schedule_months billing basis) rollup per month in AUD. Pass mba and/or client; optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026). Prefer for finance \"billed vs planned\" questions. Full allowlist is Luke's call — note jayco016 + ~47 accepted divergence versions have no schedule rows. Compact monthly rows; capped.",
+      "Postgres: billed (sent invoices in finance_billing_records, each Xero invoice once, voided and deleted left out) vs planned (schedule_months billing basis) rollup per month in AUD. Pass mba and/or client; optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026). Prefer for finance \"billed vs planned\" questions. Full allowlist is Luke's call — note jayco016 + ~47 accepted divergence versions have no schedule rows. Compact monthly rows; capped.",
     input_schema: {
       type: "object",
       properties: {
@@ -115,24 +116,48 @@ export const queryFinanceSummaryTool: AvaTool = {
 
       const billRows = await db
         .select({
+          invoiceKey: financeBillingRecords.invoiceKey,
           billingMonth: financeBillingRecords.billingMonth,
           total: financeBillingRecords.total,
           billedAmountCents: financeBillingRecords.billedAmountCents,
-          status: financeBillingRecords.status,
-          mbaNumber: financeBillingRecords.mbaNumber,
+          approvedAmountCents: financeBillingRecords.approvedAmountCents,
+          matchedXeroInvoiceId: financeBillingRecords.matchedXeroInvoiceId,
+          exportedAt: financeBillingRecords.exportedAt,
           billed: financeBillingRecords.billed,
+          xeroStatus: xeroArInvoices.status,
         })
         .from(financeBillingRecords)
+        .leftJoin(
+          xeroArInvoices,
+          sql`${xeroArInvoices.xeroInvoiceId} = CASE WHEN lower(${financeBillingRecords.invoiceKey}) LIKE 'xero:%' THEN substr(${financeBillingRecords.invoiceKey}, 6) ELSE btrim(${financeBillingRecords.matchedXeroInvoiceId}) END`,
+        )
         .where(billConds.length ? and(...billConds) : undefined)
         .limit(AVA_ROW_CAP)
 
+      // C-399: billed is sent invoices only, each once. A `xero:` row is the invoice. An app
+      // record counts only once sent, and not when its matched invoice has a `xero:` row here.
+      // A voided or deleted Xero invoice is not billed.
+      const xeroKeys = new Set(
+        billRows.map((r) => (r.invoiceKey ?? "").trim().toLowerCase()).filter((k) => k.startsWith("xero:")),
+      )
       const billedByMonth = new Map<string, number>()
+      let billedInvoiceCount = 0
       for (const r of billRows) {
         const month = (r.billingMonth ?? "").trim()
         if (!month) continue
+        if (["VOIDED", "DELETED"].includes((r.xeroStatus ?? "").trim().toUpperCase())) continue
+        if (!(r.invoiceKey ?? "").trim().toLowerCase().startsWith("xero:")) {
+          const matched = (r.matchedXeroInvoiceId ?? "").trim().toLowerCase()
+          const sent = r.exportedAt != null || matched !== "" || r.billed === true
+          if (!sent) continue
+          if (matched && xeroKeys.has(`xero:${matched}`)) continue
+        }
+        billedInvoiceCount++
         let aud = 0
         if (r.billedAmountCents != null) {
           aud = centsToDollars(r.billedAmountCents)
+        } else if (r.approvedAmountCents != null) {
+          aud = centsToDollars(r.approvedAmountCents)
         } else if (r.total != null) {
           const n = Number(r.total)
           if (Number.isFinite(n)) aud = Math.round(n * 100) / 100
@@ -222,6 +247,7 @@ export const queryFinanceSummaryTool: AvaTool = {
           billed_total_aud: billedTotalAll,
           planned_total_aud: plannedTotal,
           billing_record_count: billRows.length,
+          billed_invoice_count: billedInvoiceCount,
           schedule_row_count: planRaw.length,
           total_months: total,
           truncated,
