@@ -259,3 +259,18 @@ describe("checkClientMbaAccess golf group", () => {
     ])
   })
 })
+
+describe("S15: checkClientMbaAccess flags admin, the one internal export audience", () => {
+  it("admin is flagged isAdmin", async () => {
+    const result = await checkClientMbaAccess(req(), "golf001", {
+      getSession: async () => ({ user: { email: "staff@example.com", app_metadata: { role: "admin" } } }),
+      fetchClientGroupByUrlSlug: fetchGolfGroup,
+    })
+    assert.deepEqual(result, { ok: true, isClient: false, isAdmin: true })
+  })
+
+  it("a client on its own MBA is not flagged", async () => {
+    const result = await checkClientMbaAccess(req(), "golf001", golfDeps("golf-australia", ["golf001"]))
+    assert.deepEqual(result, { ok: true, isClient: true })
+  })
+})

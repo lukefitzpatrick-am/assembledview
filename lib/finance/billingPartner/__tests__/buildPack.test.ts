@@ -244,3 +244,57 @@ test("a sent pack's versions are no longer due", () => {
   })
   assert.deepEqual(after, [])
 })
+
+test("S15: with the switch on, every workbook in the pack keeps only supplier sheets", async () => {
+  const aa = new ExcelJS.Workbook()
+  for (const name of ["Media Plan", "Monthly by supplier", "Insertions", "Margin"]) {
+    aa.addWorksheet(name).getCell(1, 1).value = name
+  }
+  const aaBuffer = Buffer.from((await aa.xlsx.writeBuffer()) as ArrayBuffer)
+  const deps = (supplierOnly: boolean) => ({
+    listDue: async () => DUE.slice(0, 1),
+    renderAa: async () => ({ buffer: aaBuffer, fileName: "KRUSTY002-v6.xlsx" }),
+    storeZip: async (fileName: string) => ({ pathname: fileName }),
+    insertDraft: async () => ({ id: "pack-s15" }),
+    supplierSheetsOnly: async () => supplierOnly,
+  })
+  const sheets = async (built: { buffer: Buffer }, file: string) => {
+    const zip = await JSZip.loadAsync(built.buffer)
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load((await zip.file(file)!.async("nodebuffer")) as unknown as ExcelJS.Buffer)
+    return wb.worksheets.map((ws) => ws.name)
+  }
+  const input = { billingMonth: "2026-11", createdBy: "luke@assembledmedia.com.au", now: NOW }
+
+  const on = await buildBillingPartnerPack(input, deps(true))
+  assert.deepEqual(await sheets(on, "KRUSTY002-v6.xlsx"), ["Media Plan", "Monthly by supplier", "Insertions"])
+  assert.deepEqual(await sheets(on, "AA pack summary November 2026.xlsx"), ["Summary"])
+
+  const off = await buildBillingPartnerPack(input, deps(false))
+  assert.deepEqual(await sheets(off, "KRUSTY002-v6.xlsx"), ["Media Plan", "Monthly by supplier", "Insertions", "Margin"])
+})
+
+test("S15: the pack summary passes the supplier filter too", async () => {
+  const summary = new ExcelJS.Workbook()
+  summary.addWorksheet("Summary").getCell(1, 1).value = "Client"
+  summary.addWorksheet("Margin").getCell(1, 1).value = "internal"
+  const summaryBuffer = Buffer.from((await summary.xlsx.writeBuffer()) as ArrayBuffer)
+  const aa = new ExcelJS.Workbook()
+  aa.addWorksheet("Media Plan").getCell(1, 1).value = "plan"
+  const aaBuffer = Buffer.from((await aa.xlsx.writeBuffer()) as ArrayBuffer)
+  const built = await buildBillingPartnerPack(
+    { billingMonth: "2026-11", createdBy: "luke@assembledmedia.com.au", now: NOW },
+    {
+      listDue: async () => DUE.slice(0, 1),
+      renderAa: async () => ({ buffer: aaBuffer, fileName: "KRUSTY002-v6.xlsx" }),
+      storeZip: async (fileName: string) => ({ pathname: fileName }),
+      insertDraft: async () => ({ id: "pack-s15" }),
+      summarise: async () => ({ buffer: summaryBuffer, fileName: "AA pack summary November 2026.xlsx", mime: "x" }),
+      supplierSheetsOnly: async () => true,
+    },
+  )
+  const zip = await JSZip.loadAsync(built.buffer)
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.load((await zip.file("AA pack summary November 2026.xlsx")!.async("nodebuffer")) as unknown as ExcelJS.Buffer)
+  assert.deepEqual(wb.worksheets.map((ws) => ws.name), ["Summary"])
+})

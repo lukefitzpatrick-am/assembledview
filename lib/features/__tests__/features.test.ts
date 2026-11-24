@@ -558,3 +558,37 @@ test("B56: billed_months_choice is off by default, a finance switch the browser 
     setFeatureRowReaderForTests(null)
   }
 })
+
+test("S15: export_sheet_visibility, aa_client_pays_lines and billing_partner_pack_job are off by default, server-only admin switches, no env, no marker", async () => {
+  const vercel = JSON.parse(readFileSync(path.join(ROOT, "vercel.json"), "utf8")) as {
+    crons: Array<{ path: string; schedule: string }>
+  }
+  const cron = vercel.crons.find((c) => c.path === "/api/cron/billing-partner-pack")
+  assert.equal(cron?.schedule, "0 6 17 * *", "06:00 UTC on the 17th: if this changes, fix the wording below")
+  for (const [key, area] of [
+    ["export_sheet_visibility", "reporting"],
+    ["aa_client_pays_lines", "reporting"],
+    ["billing_partner_pack_job", "finance"],
+  ] as const) {
+    const def = featureDefinition(key)!
+    assert.ok(def, key)
+    assert.equal(def.defaultOn, false)
+    assert.equal(def.envName, undefined)
+    assert.equal(def.source, "switch")
+    assert.equal(def.toggleRole, "admin")
+    assert.equal(def.area, area)
+    assert.equal(def.clientVisible, false)
+    assert.equal(def.requires, undefined)
+    assert.equal(def.requiresMarker, undefined)
+    try {
+      setFeatureRowReaderForTests(async () => new Map())
+      assert.equal(await isFeatureOn(key, {}), false, `${key} no row`)
+      setFeatureRowReaderForTests(async () => new Map([[key, row(key, true)]]))
+      assert.equal(await isFeatureOn(key, {}), true, `${key} a row on`)
+    } finally {
+      setFeatureRowReaderForTests(null)
+    }
+  }
+  assert.match(featureDefinition("billing_partner_pack_job")!.description, /17:00 AEDT \(16:00 AEST\)/)
+  assert.match(featureDefinition("billing_partner_pack_job")!.description, /never emails AA/)
+})
