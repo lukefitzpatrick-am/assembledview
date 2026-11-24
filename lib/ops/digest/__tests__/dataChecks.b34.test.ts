@@ -223,6 +223,7 @@ test("switch off: no checks run and the email has no Data checks section", async
 
 let checksImpl: () => Promise<PacingDigestDataChecks | null> = async () => null
 let unmatchedImpl: () => Promise<unknown> = async () => null
+let dataQualityImpl: () => Promise<unknown> = async () => null
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/campaigns/pacingRowsCache", {
@@ -245,7 +246,7 @@ if (supportsMockModule()) {
     namedExports: { listRelabelLogForDay: async () => [] },
   })
   await mock.module!("@/lib/ops/digest/loadDataChecks", {
-    namedExports: { loadDigestDataChecks: () => checksImpl(), loadDigestUnmatched: () => unmatchedImpl(), loadDigestDataQuality: async () => null },
+    namedExports: { loadDigestDataChecks: () => checksImpl(), loadDigestUnmatched: () => unmatchedImpl(), loadDigestDataQuality: () => dataQualityImpl() },
   })
 }
 
@@ -300,5 +301,48 @@ test("S5 builder: the unmatched count is attached when on, absent when off, and 
   } finally {
     console.error = err
     unmatchedImpl = async () => null
+  }
+})
+
+test("S17 builder: the Data quality section is attached when on; off or a throw leaves the payload and email as before", { skip }, async () => {
+  const { buildPacingDigest } = await import("../buildPacingDigest.js")
+  const { buildPacingDigestEmailHtml } = await import("../email.js")
+  // The data_checks stage log line: no dataQuality key when off.
+  const stageLog = async () => {
+    const log = console.log
+    const lines: string[] = []
+    console.log = (line: unknown) => void lines.push(String(line))
+    try {
+      const built = await buildPacingDigest(NOW)
+      const stage = lines.map((l) => { try { return JSON.parse(l) } catch { return null } })
+        .find((l) => l?.event === "pacing_digest_stage" && l.stage === "data_checks")
+      return { built, stage }
+    } finally {
+      console.log = log
+    }
+  }
+  const { built: off, stage: offStage } = await stageLog()
+  assert.equal("dataQuality" in off, false)
+  assert.ok(offStage)
+  assert.equal("dataQuality" in offStage, false)
+  const dataQuality = { status: "ok", open: 1, overdue: 0, overdueAfterDays: 3, owners: [], href: "" }
+  dataQualityImpl = async () => dataQuality
+  const { built: on, stage: onStage } = await stageLog()
+  assert.equal(onStage.dataQuality, "ok")
+  assert.deepEqual(on.dataQuality, dataQuality)
+  assert.equal(
+    buildPacingDigestEmailHtml({ ...on, builtAt: off.builtAt, dataQuality: undefined }),
+    buildPacingDigestEmailHtml(off),
+  )
+  dataQualityImpl = async () => {
+    throw new Error("boom")
+  }
+  const err = console.error
+  console.error = () => {}
+  try {
+    assert.equal("dataQuality" in (await buildPacingDigest(NOW)), false)
+  } finally {
+    console.error = err
+    dataQualityImpl = async () => null
   }
 })
