@@ -32,6 +32,7 @@ import { summariseLastExport } from "@/lib/finance/approvedReceivablesExport"
 import {
   downloadInvoicingReviewCsv,
   downloadInvoicingReviewWorkbook,
+  markHeldAbovePlan,
 } from "@/lib/finance/invoicingReviewDownload"
 import {
   INVOICING_CLIENT_GRID_CLASS,
@@ -309,7 +310,7 @@ export function InvoicingPageClient() {
     setDownloadBusy(true)
     try {
       const { missingLegalBusinessNames } = await downloadInvoicingReviewWorkbook(
-        allRecords,
+        await markHeldAbovePlan(allRecords),
         downloadRange,
         { save: saveAs }
       )
@@ -337,10 +338,11 @@ export function InvoicingPageClient() {
     }
   }, [downloadBusy, allRecords, downloadRange, toast])
 
-  const downloadCsv = useCallback(() => {
-    if (allRecords.length === 0) return
+  const downloadCsv = useCallback(async () => {
+    if (downloadBusy || allRecords.length === 0) return
+    setDownloadBusy(true)
     try {
-      downloadInvoicingReviewCsv(allRecords, downloadRange, { save: saveAs })
+      downloadInvoicingReviewCsv(await markHeldAbovePlan(allRecords), downloadRange, { save: saveAs })
       toast({ title: "CSV downloaded" })
     } catch (e) {
       toast({
@@ -348,8 +350,10 @@ export function InvoicingPageClient() {
         title: "Could not download the CSV",
         description: e instanceof Error ? e.message : "Unknown error",
       })
+    } finally {
+      setDownloadBusy(false)
     }
-  }, [allRecords, downloadRange, toast])
+  }, [downloadBusy, allRecords, downloadRange, toast])
 
   const downloadDisabled = downloadBusy || loading || isUpdating || allRecords.length === 0
 

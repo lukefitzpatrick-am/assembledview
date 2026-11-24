@@ -37,6 +37,7 @@ export type ReceivablesWorkbookOptions = {
 
 /** Status shown on the invoicing page pill (BillingStateBadge default label). */
 export function receivableReviewStatusLabel(record: BillingRecord): string {
+  if (record.held_above_plan) return "Held above plan"
   const state = record.state ?? "ready"
   return BILLING_STATE[state]?.label ?? String(state)
 }

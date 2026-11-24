@@ -226,6 +226,8 @@ export const HELP_TIPS = {
     "Days since this entity's first delivery with no plan line, counted inside the last 30 days, so 30 means 30 or more. From 3 days, when the platform name has no plan line id or an old one, Copy supplier note drafts a message asking for the current line id. The app sends nothing.",
   lineTrackingType:
     "What kind of delivery data this line has. Tracked: platform or ad server data. Supplier reported: the supplier's own file. Assumed: even spend from the plan, nothing reports it. Not tracked: no delivery data. It starts on the line's default (marked). Change it only when this line's data differs from that.",
+  abovePlanHold:
+    "Held: this invoice would bill more than the plan. Either this month already has an invoice for the MBA, or the MBA's invoices so far plus this one come to more than the plan's total, by more than $1. It stays out of the pack until a finance admin gives a reason. The reason is stored with your name and the date, and covers this amount; if the amount above plan grows, the invoice is held again.",
 } as const
 
 export type HelpTipId = keyof typeof HELP_TIPS

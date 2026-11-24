@@ -114,6 +114,8 @@ export interface BillingRecord {
   billed_drift_delta?: number | null
   notes?: string | null
   exported_at?: number | string | null
+  /** S14: set in the browser for review downloads when Send to accounts holds it above plan. Not a column. */
+  held_above_plan?: boolean
   exported_by?: number | null
   /** JSON {"csv","xlsx"} Blob pathnames stamped with the export. */
   export_blob_path?: string | null

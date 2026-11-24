@@ -5,7 +5,10 @@ import {
   enrichFinanceExcelClientMetaFromApiRow,
   type FinanceExcelClientMeta,
 } from "@/lib/finance/excelFinanceExport"
+import type { AbovePlanHold } from "@/lib/finance/abovePlan"
+import { splitAbovePlanHolds } from "@/lib/finance/abovePlanHold.server"
 import { loadComposedBillingRecordsForMonth } from "@/lib/finance/loadComposedBillingMonth"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   packRowsFromBillingRecords,
   type AccountsPackRow,
@@ -14,6 +17,8 @@ import type { BillingRecord } from "@/lib/types/financeBilling"
 
 export type LoadedAccountsPack = {
   rows: AccountsPackRow[]
+  /** S14: media rows above plan with no reason covering them. Never in `rows`. */
+  held: AbovePlanHold[]
   records: BillingRecord[]
   metaByClientId: Map<number, FinanceExcelClientMeta>
 }
@@ -48,13 +53,18 @@ export async function loadAccountsPack(
     if (link.clientId != null) linkedClientIds.add(Number(link.clientId))
   }
 
-  const rows = packRowsFromBillingRecords(loaded.records, month, {
+  const packRows = packRowsFromBillingRecords(loaded.records, month, {
     linkedClientIds,
     legalNameByClientId,
   })
+  // S14: the one choke point to Xero. Preview and send both read the pack from here.
+  const { rows, held } = (await isFeatureOn("billing_above_plan_hold"))
+    ? await splitAbovePlanHolds(db, { rows: packRows, records: loaded.records, versions: loaded.versions })
+    : { rows: packRows, held: [] }
   const keys = new Set(rows.map((row) => row.invoiceKey))
   return {
     rows,
+    held,
     records: loaded.records.filter((record) => keys.has(record.invoice_key?.trim() ?? "")),
     metaByClientId,
   }

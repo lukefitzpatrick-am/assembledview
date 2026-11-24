@@ -65,7 +65,12 @@ export async function GET(request: NextRequest) {
     if ("ok" in loaded) {
       return NextResponse.json({ error: loaded.error }, { status: loaded.status })
     }
-    return NextResponse.json({ fy, ...previewAccountsPack(month, loaded.rows) })
+    // S14: `held` only when something is held, so the preview is unchanged with the switch off.
+    return NextResponse.json({
+      fy,
+      ...previewAccountsPack(month, loaded.rows),
+      ...(loaded.held.length ? { held: loaded.held } : {}),
+    })
   } catch (error) {
     console.error("GET /api/finance/send-to-accounts:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

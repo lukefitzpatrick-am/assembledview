@@ -41,7 +41,7 @@ function csvMoney(cents: number): string {
 
 export function buildInvoiceLinesCsv(records: BillingRecord[]): string {
   const campaigns = billingRecordsToFinanceCampaigns(records, undefined, {
-    statusLabel: (r) => r.status || "",
+    statusLabel: (r) => (r.held_above_plan ? "Held above plan" : r.status || ""),
   })
   const out: string[] = [INVOICE_LINES_CSV_HEADER]
   for (const c of campaigns) {

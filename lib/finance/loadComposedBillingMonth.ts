@@ -23,7 +23,12 @@ import { computedCentsByInvoiceKey } from "@/lib/finance/billingOnRead"
 import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
-export type LoadComposedBillingMonthOk = { ok: true; records: BillingRecord[] }
+export type LoadComposedBillingMonthOk = {
+  ok: true
+  records: BillingRecord[]
+  /** The plan versions the records were composed from (S14 reads each plan's total). */
+  versions: Record<string, unknown>[]
+}
 export type LoadComposedBillingMonthErr = {
   ok: false
   status: number
@@ -119,7 +124,7 @@ export async function loadComposedBillingRecordsForMonth(input: {
     ...filters,
   })
 
-  return { ok: true, records }
+  return { ok: true, records, versions: relevantVersions }
 }
 
 /**

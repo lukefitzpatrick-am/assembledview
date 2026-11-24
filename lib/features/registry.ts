@@ -383,6 +383,19 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "billing_above_plan_hold",
+    requiresMarker: "0121_billing_above_plan_reasons",
+    label: "Hold billing above plan",
+    description:
+      "A media invoice that would bill above plan is held before it goes to Xero until finance gives a reason (decision S14). Above plan: what is already invoiced for the MBA this month plus this invoice is more than the plan bills this month, or what is already invoiced in every month plus this invoice is more than the plan bills in total, by more than $1. On: Send to accounts leaves a held invoice out of the pack and lists it with the amount above plan and a reason form for finance admins; a reason stored with who and when lets it go, until the amount above plan grows past the amount the reason covers. SOW and retainer invoices are not held. Needs migration 0121 (billing_above_plan_reasons): until it runs this switch reads off and can't be turned on. Off: Send to accounts sends every approved invoice, as before, and /api/finance/billing/above-plan-reason is 404. Reasons stay stored and count again when it is turned back on.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:
