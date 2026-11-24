@@ -22,7 +22,19 @@ import {
   attachOverridesToLineInputs,
   type BillingOverrideRow,
 } from "@/lib/finance/billingOverrides"
-import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import {
+  computeCampaignFinancials,
+  normaliseScheduleMediaType,
+  type ComputeCampaignFinancialsOpts,
+} from "@/lib/finance/computeCampaignFinancials"
+import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
+import { scheduleHeadersForSaveLine } from "@/lib/billing/scheduleHeaders"
+import {
+  applyMbaScopeLineApprovals,
+  resolveMbaScopeInput,
+  selectedMonthYearsForFinancials,
+  type MbaScopeBody,
+} from "@/lib/mediaplan/mbaScopeForSave"
 import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import type {
   FeeLoading,
@@ -116,21 +128,45 @@ function parseMonthsPayload(raw: unknown): MonthAmount[] {
   return out
 }
 
+/** A client `numeric` rate as the save body carries it: a finite number or absent. */
+function clientRate(value: string | null | undefined): number | undefined {
+  const n = value == null ? NaN : Number(value)
+  return Number.isFinite(n) ? n : undefined
+}
+
 /**
- * Hydrate LineItemInput[] + feeLoading for a version — same compute path as
- * savePlanVersion (bursts/attrs + fee snapshot), without billing_overrides.
+ * Hydrate LineItemInput[] + feeLoading for a version, without billing_overrides,
+ * plus the compute options savePlanVersion passes (C-421): the client's ad
+ * serving rates, `one_net_media`, and the stored MBA scope.
  */
 async function loadVersionLineInputsForCompute(versionId: number): Promise<{
   lineInputs: LineItemInput[]
   feeLoading: FeeLoading
-  /** `one_net_media` for planned deliverables (C-417). */
-  oneNetMedia: boolean
+  /** Ad serving rates and `one_net_media` (C-417), as savePlan passes them. */
+  computeOpts: ComputeCampaignFinancialsOpts
+  /** `media_plan_versions.mba_scope`, the scope savePlan stored. */
+  mbaScope: MbaScopeBody | null
 }> {
   const db = getDb()
   const lines = await db
     .select()
     .from(schema.lineItems)
     .where(eq(schema.lineItems.versionId, versionId))
+
+  // shortcut: rates come from the master's client_id; the editor matches the client by name. Upgrade if a master's client_id can disagree with its client name.
+  const [plan] = await db
+    .select({
+      mbaScope: schema.mediaPlanVersions.mbaScope,
+      adservvideo: schema.clients.adservvideo,
+      adservaudio: schema.clients.adservaudio,
+      adservdisplay: schema.clients.adservdisplay,
+      adservimp: schema.clients.adservimp,
+    })
+    .from(schema.mediaPlanVersions)
+    .innerJoin(schema.mediaPlanMasters, eq(schema.mediaPlanMasters.id, schema.mediaPlanVersions.masterId))
+    .leftJoin(schema.clients, eq(schema.clients.id, schema.mediaPlanMasters.clientId))
+    .where(eq(schema.mediaPlanVersions.id, versionId))
+    .limit(1)
 
   const [snap] = await db
     .select({ fees: schema.mbaFeeSnapshots.fees })
@@ -160,9 +196,13 @@ async function loadVersionLineInputsForCompute(versionId: number): Promise<{
             Number.isFinite(attrs.fee_percentage)
           ? attrs.fee_percentage
           : undefined
+    // The save path's media type is the channel's editor key (attrs.media_type
+    // on a production line names the work, not the channel).
+    const mediaType = normaliseScheduleMediaType(row.channel) ?? String(row.channel)
+    const headers = scheduleHeadersForSaveLine(mediaType, { ...row, attrs })
     return {
       lineItemId: String(row.lineItemId).trim(),
-      mediaType: String(attrs.media_type ?? attrs.mediaType ?? row.channel),
+      mediaType,
       buyType: String(row.buyType ?? attrs.buyType ?? "cpc"),
       rate: Number(attrs.rate ?? 0) || 0,
       enteredAmount,
@@ -178,10 +218,27 @@ async function loadVersionLineInputsForCompute(versionId: number): Promise<{
           : attrs.header1 != null
             ? String(attrs.header1)
             : undefined,
+      scheduleHeader1: headers.header1,
+      scheduleHeader2: headers.header2,
     }
   })
 
-  return { lineInputs, feeLoading, oneNetMedia: (await readDeliveryFlags()).oneNetMedia }
+  return {
+    lineInputs,
+    feeLoading,
+    computeOpts: {
+      // Same shape the save route builds from the body's client rates.
+      getRateForMediaType: createAdServingRateResolver({
+        video: clientRate(plan?.adservvideo) ?? 0,
+        audio: clientRate(plan?.adservaudio) ?? 0,
+        display: clientRate(plan?.adservdisplay) ?? 0,
+        imp: clientRate(plan?.adservimp) ?? 0,
+      }),
+      adservaudio: clientRate(plan?.adservaudio),
+      oneNetMedia: (await readDeliveryFlags()).oneNetMedia,
+    },
+    mbaScope: (plan?.mbaScope as MbaScopeBody | null | undefined) ?? null,
+  }
 }
 
 /**
@@ -195,10 +252,10 @@ async function computeAutoBillingMonthsForLine(args: {
   lineItemId: string
   component: BillingOverrideComponent
 }): Promise<{ months: MonthAmount[]; lineComponentTotal: number }> {
-  const { lineInputs, feeLoading, oneNetMedia } = await loadVersionLineInputsForCompute(
+  const { lineInputs, feeLoading, computeOpts } = await loadVersionLineInputsForCompute(
     args.versionId
   )
-  const financials = computeCampaignFinancials(lineInputs, { feeLoading }, { oneNetMedia })
+  const financials = computeCampaignFinancials(lineInputs, { feeLoading }, computeOpts)
   const pl = financials.perLine.find(
     (p) => String(p.lineItemId).trim() === args.lineItemId
   )
@@ -451,9 +508,13 @@ async function reaffirmLegacySchedulesAfterOverrideChange(
   versionId: number,
   db: ReturnType<typeof getDb>
 ): Promise<void> {
-  const { lineInputs, feeLoading, oneNetMedia } = await loadVersionLineInputsForCompute(
+  const { lineInputs, feeLoading, computeOpts, mbaScope } = await loadVersionLineInputsForCompute(
     versionId
   )
+  // C-421: the stored scope sets approvals and months, as savePlan does.
+  const scope = resolveMbaScopeInput({ mbaScope })
+  const scopedInputs =
+    scope.source === "mbaScope" ? applyMbaScopeLineApprovals(lineInputs, scope.scope.lineItemIds) : lineInputs
   const overrideRows = await db
     .select({
       lineItemId: schema.billingOverrides.lineItemId,
@@ -474,8 +535,11 @@ async function reaffirmLegacySchedulesAfterOverrideChange(
     months: r.months as BillingOverrideRow["months"],
     date_basis: r.dateBasis,
   }))
-  const withOverrides = attachOverridesToLineInputs(lineInputs, forAttach)
-  const financials = computeCampaignFinancials(withOverrides, { feeLoading }, { oneNetMedia })
+  const withOverrides = attachOverridesToLineInputs(scopedInputs, forAttach)
+  const financials = computeCampaignFinancials(withOverrides, { feeLoading }, {
+    ...computeOpts,
+    selectedMonthYears: selectedMonthYearsForFinancials(scope),
+  })
   await db
     .update(schema.mediaPlanVersions)
     .set({
