@@ -1,0 +1,590 @@
+[
+  {
+    "pair": [
+      500,
+      1000
+    ],
+    "campaignCardCompact": [
+      "animate 50%",
+      "text 50%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 50%",
+      "width 50%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 50% of total budget",
+      "width 50%",
+      "text $500 spent (50%)",
+      "width 50%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 50%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 50%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 50%",
+      "left 25%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "50%"
+    ]
+  },
+  {
+    "pair": [
+      1234.56,
+      1000
+    ],
+    "campaignCardCompact": [
+      "animate 100%",
+      "text 100%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 100%",
+      "width 100%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 123% of total budget",
+      "width 100%",
+      "width 100%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 100%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 100%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 100%",
+      "left 61.727999999999994%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "123%"
+    ]
+  },
+  {
+    "pair": [
+      0,
+      1000
+    ],
+    "campaignCardCompact": [
+      "animate 0%",
+      "text 0%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 0%",
+      "width 0%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 0% of total budget",
+      "width 0%",
+      "text $0 spent (0%)",
+      "width 0%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 0%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 0%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 0%",
+      "left 0%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "0%"
+    ]
+  },
+  {
+    "pair": [
+      -50,
+      1000
+    ],
+    "campaignCardCompact": [
+      "animate 0%",
+      "text 0%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 0%",
+      "width 0%"
+    ],
+    "clientFinanceSlideOver": [
+      "text -5% of total budget",
+      "width 0%",
+      "text -$50 spent (-5%)",
+      "width 0%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 0%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 0%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 0%",
+      "left 0%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "-5%"
+    ]
+  },
+  {
+    "pair": [
+      100,
+      0
+    ],
+    "campaignCardCompact": [
+      "animate 0%",
+      "text 0%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 0%",
+      "width 0%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 0% of total budget",
+      "width 0%",
+      "width 0%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 48.312883435582826%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 100%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 0%",
+      "left 0%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "—"
+    ]
+  },
+  {
+    "pair": [
+      1,
+      3
+    ],
+    "campaignCardCompact": [
+      "animate 33.33333333333333%",
+      "text 33%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 33%",
+      "width 33.33333333333333%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 33% of total budget",
+      "width 33.33333333333333%",
+      "text $1 spent (33%)",
+      "width 33.33333333333333%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 33.33333333333333%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 33.33333333333333%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 33.33333333333333%",
+      "left 16.666666666666664%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "33%"
+    ]
+  },
+  {
+    "pair": [
+      2,
+      3
+    ],
+    "campaignCardCompact": [
+      "animate 66.66666666666666%",
+      "text 67%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 67%",
+      "width 66.66666666666666%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 67% of total budget",
+      "width 66.66666666666666%",
+      "text $2 spent (67%)",
+      "width 66.66666666666666%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 66.66666666666666%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 66.66666666666666%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 66.66666666666666%",
+      "left 33.33333333333333%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "67%"
+    ]
+  },
+  {
+    "pair": [
+      999.995,
+      1000
+    ],
+    "campaignCardCompact": [
+      "animate 99.9995%",
+      "text 100%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 100%",
+      "width 99.9995%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 100% of total budget",
+      "width 99.9995%",
+      "text $1,000 spent (100%)",
+      "width 99.9995%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 99.9995%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 99.9995%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 99.9995%",
+      "left 49.99975%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "100%"
+    ]
+  },
+  {
+    "pair": [
+      33.333,
+      100
+    ],
+    "campaignCardCompact": [
+      "animate 33.333%",
+      "text 33%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 33%",
+      "width 33.333%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 33% of total budget",
+      "width 33.333%",
+      "text $33 spent (33%)",
+      "width 33.333%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 33.333%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 33.333%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 33.333%",
+      "left 16.6665%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "33%"
+    ]
+  },
+  {
+    "pair": [
+      7087.5,
+      13500
+    ],
+    "campaignCardCompact": [
+      "animate 52.5%",
+      "text 53%"
+    ],
+    "campaignDetailsModal": [
+      "text 36/90 days (40%)",
+      "width 40%",
+      "text 53%",
+      "width 52.5%"
+    ],
+    "clientFinanceSlideOver": [
+      "text 53% of total budget",
+      "width 52.5%",
+      "text $7.1K spent (53%)",
+      "width 52.5%"
+    ],
+    "linePacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 52.5%",
+      "left 42.391304347826086%",
+      "text 48%",
+      "width 52.5%",
+      "left 42.391304347826086%",
+      "text 150%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "linePacingCardNoBudget": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 61.5%",
+      "left 42.391304347826086%",
+      "text 62%",
+      "width 42%",
+      "left 42.391304347826086%",
+      "text 42%",
+      "text CTR 5.00% vs 400.00% target",
+      "text Conversion Rate 2.00% vs 150.00% target",
+      "text September burst is 150% of expected with 14 days left. Google Ads is 48% of expected."
+    ],
+    "campaignPacingCard": [
+      "width 42.391304347826086%",
+      "text 42%",
+      "width 52.5%",
+      "left 26.25%",
+      "text 125%",
+      "text 125%"
+    ],
+    "campaignBurstsTabTotal": [
+      "53%"
+    ]
+  }
+]

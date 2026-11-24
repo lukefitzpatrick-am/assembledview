@@ -1,0 +1,1308 @@
+{
+  "netFromGross": [
+    13500,
+    22212.36,
+    11000.944000000001,
+    5250.051,
+    1312.497,
+    6161,
+    2461.92,
+    2187.5,
+    1015.4255999999999,
+    666.693333,
+    1000,
+    0.315,
+    4.7250000000000005,
+    9.764999999999999,
+    16.275,
+    265.33500000000004
+  ],
+  "netFromGrossExcludesFees": [
+    15000,
+    24680.4,
+    13751.18,
+    5833.39,
+    1458.33,
+    7701.25,
+    3077.4,
+    2500,
+    1234.56,
+    999.99,
+    1000,
+    0.35,
+    5.25,
+    10.5,
+    17.5,
+    266
+  ],
+  "deliverables": [
+    {
+      "cpm": 1080000,
+      "cpc": 9854.014598540145,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 1776988.8,
+      "cpc": 16213.401459854014,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 880075.5200000001,
+      "cpc": 8029.886131386862,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 420004.08,
+      "cpc": 3832.15401459854,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 104999.76000000001,
+      "cpc": 958.02700729927,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 492880,
+      "cpc": 4497.080291970802,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 196953.6,
+      "cpc": 1797.021897810219,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 175000,
+      "cpc": 1596.715328467153,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 81234.04799999998,
+      "cpc": 741.1865693430656,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 53335.466640000006,
+      "cpc": 486.6374693430657,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 80000,
+      "cpc": 729.92700729927,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 25.2,
+      "cpc": 0.22992700729927007,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 378.00000000000006,
+      "cpc": 3.448905109489051,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 781.1999999999999,
+      "cpc": 7.127737226277371,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 1301.9999999999998,
+      "cpc": 11.879562043795618,
+      "bonus": "NaN"
+    },
+    {
+      "cpm": 21226.800000000003,
+      "cpc": 193.67518248175185,
+      "bonus": "NaN"
+    }
+  ],
+  "pacingBurstNet": [
+    {
+      "feeIncl": 13500,
+      "stored": 100,
+      "net": 15000
+    },
+    {
+      "feeIncl": 22212.36,
+      "stored": 100,
+      "net": 24680.4
+    },
+    {
+      "feeIncl": 11000.944000000001,
+      "stored": 100,
+      "net": 13751.18
+    },
+    {
+      "feeIncl": 5250.051,
+      "stored": 100,
+      "net": 5833.39
+    },
+    {
+      "feeIncl": 1312.497,
+      "stored": 100,
+      "net": 1458.33
+    },
+    {
+      "feeIncl": 6161,
+      "stored": 100,
+      "net": 7701.25
+    },
+    {
+      "feeIncl": 2461.92,
+      "stored": 100,
+      "net": 3077.4
+    },
+    {
+      "feeIncl": 2187.5,
+      "stored": 100,
+      "net": 2500
+    },
+    {
+      "feeIncl": 1015.4255999999999,
+      "stored": 100,
+      "net": 1234.56
+    },
+    {
+      "feeIncl": 666.693333,
+      "stored": 100,
+      "net": 999.99
+    },
+    {
+      "feeIncl": 1000,
+      "stored": 100,
+      "net": 1000
+    },
+    {
+      "feeIncl": 0.315,
+      "stored": 100,
+      "net": 0.35
+    },
+    {
+      "feeIncl": 4.7250000000000005,
+      "stored": 100,
+      "net": 5.25
+    },
+    {
+      "feeIncl": 9.764999999999999,
+      "stored": 100,
+      "net": 10.5
+    },
+    {
+      "feeIncl": 16.275,
+      "stored": 100,
+      "net": 17.5
+    },
+    {
+      "feeIncl": 265.33500000000004,
+      "stored": 100,
+      "net": 266
+    }
+  ],
+  "lineExpectedNetToDate": [
+    {
+      "bursts": 14606.557377049181,
+      "noBursts": 6522.47191011236
+    },
+    {
+      "bursts": 24033.04524590164,
+      "noBursts": 10731.814382022472
+    },
+    {
+      "bursts": 11902.660721311477,
+      "noBursts": 5315.062831460675
+    },
+    {
+      "bursts": 5680.383049180328,
+      "noBursts": 2536.541494382023
+    },
+    {
+      "bursts": 1420.0787213114754,
+      "noBursts": 634.1277640449439
+    },
+    {
+      "bursts": 6666,
+      "noBursts": 2976.6629213483147
+    },
+    {
+      "bursts": 2663.7167213114753,
+      "noBursts": 1189.4669662921349
+    },
+    {
+      "bursts": 2366.8032786885246,
+      "noBursts": 1056.8820224719102
+    },
+    {
+      "bursts": 1098.6572065573769,
+      "noBursts": 490.5988853932584
+    },
+    {
+      "bursts": 721.3403275081968,
+      "noBursts": 322.110262011236
+    },
+    {
+      "bursts": 1081.967213114754,
+      "noBursts": 483.14606741573033
+    },
+    {
+      "bursts": 0.34081967213114756,
+      "noBursts": 0.15219101123595505
+    },
+    {
+      "bursts": 5.112295081967214,
+      "noBursts": 2.282865168539326
+    },
+    {
+      "bursts": 10.565409836065573,
+      "noBursts": 4.717921348314606
+    },
+    {
+      "bursts": 17.609016393442623,
+      "noBursts": 7.863202247191011
+    },
+    {
+      "bursts": 287.0837704918033,
+      "noBursts": 128.19556179775282
+    }
+  ],
+  "expectedForWindow": [
+    {
+      "planned": 20250,
+      "expected": 4821.428571428572,
+      "plannedWithTotal": 20250,
+      "expectedWithTotal": 4821.428571428572,
+      "deliverables": 385714.28571428574
+    },
+    {
+      "planned": 33318.54,
+      "expected": 7932.9857142857145,
+      "plannedWithTotal": 33318.54,
+      "expectedWithTotal": 7932.9857142857145,
+      "deliverables": 634638.5714285715
+    },
+    {
+      "planned": 16501.416,
+      "expected": 3928.908571428572,
+      "plannedWithTotal": 16501.415999999997,
+      "expectedWithTotal": 3928.9085714285707,
+      "deliverables": 353601.4285714286
+    },
+    {
+      "planned": 7875.076500000001,
+      "expected": 1875.0182142857145,
+      "plannedWithTotal": 7875.076499999999,
+      "expectedWithTotal": 1875.018214285714,
+      "deliverables": 150001.42857142858
+    },
+    {
+      "planned": 1968.7455,
+      "expected": 468.7489285714286,
+      "plannedWithTotal": 1968.7454999999998,
+      "expectedWithTotal": 468.7489285714285,
+      "deliverables": 37500
+    },
+    {
+      "planned": 9241.5,
+      "expected": 2200.357142857143,
+      "plannedWithTotal": 9241.5,
+      "expectedWithTotal": 2200.357142857143,
+      "deliverables": 198032.14285714287
+    },
+    {
+      "planned": 3692.88,
+      "expected": 879.2571428571429,
+      "plannedWithTotal": 3692.88,
+      "expectedWithTotal": 879.2571428571429,
+      "deliverables": 79132.85714285714
+    },
+    {
+      "planned": 3281.25,
+      "expected": 781.25,
+      "plannedWithTotal": 3281.25,
+      "expectedWithTotal": 781.25,
+      "deliverables": 64285.71428571429
+    },
+    {
+      "planned": 1523.1383999999998,
+      "expected": 362.652,
+      "plannedWithTotal": 1523.1383999999998,
+      "expectedWithTotal": 362.652,
+      "deliverables": 31745.714285714286
+    },
+    {
+      "planned": 1000.0399995,
+      "expected": 238.10476178571432,
+      "plannedWithTotal": 1000.0399994999998,
+      "expectedWithTotal": 238.10476178571423,
+      "deliverables": 25714.285714285714
+    },
+    {
+      "planned": 1500,
+      "expected": 357.14285714285717,
+      "plannedWithTotal": 1500,
+      "expectedWithTotal": 357.14285714285717,
+      "deliverables": 25714.285714285714
+    },
+    {
+      "planned": 0.47250000000000003,
+      "expected": 0.1125,
+      "plannedWithTotal": 0.47250000000000003,
+      "expectedWithTotal": 0.1125,
+      "deliverables": 9.285714285714286
+    },
+    {
+      "planned": 7.0875,
+      "expected": 1.6875000000000002,
+      "plannedWithTotal": 7.0874999999999995,
+      "expectedWithTotal": 1.6875,
+      "deliverables": 135
+    },
+    {
+      "planned": 14.647499999999997,
+      "expected": 3.4875,
+      "plannedWithTotal": 14.6475,
+      "expectedWithTotal": 3.4875000000000003,
+      "deliverables": 270
+    },
+    {
+      "planned": 24.412499999999998,
+      "expected": 5.8125,
+      "plannedWithTotal": 24.412499999999998,
+      "expectedWithTotal": 5.8125,
+      "deliverables": 450
+    },
+    {
+      "planned": 398.00250000000005,
+      "expected": 94.76250000000002,
+      "plannedWithTotal": 398.00249999999994,
+      "expectedWithTotal": 94.76249999999999,
+      "deliverables": 6840
+    }
+  ],
+  "directDigitalEstimate": [
+    {
+      "amount": 7087.5,
+      "plannedMedia": 13500,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 4050
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 3037.5
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 213.13,
+      "plannedMedia": 22212.36,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 116.2
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 96.93
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 5696.06,
+      "plannedMedia": 11000.94,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 3255.43
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 2440.63
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 50.07,
+      "plannedMedia": 5250.05,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 27.28
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 22.79
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 670.41,
+      "plannedMedia": 1312.5,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 383.22
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 287.19
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 58.41,
+      "plannedMedia": 6161,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 31.79
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 26.62
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 1240.87,
+      "plannedMedia": 2461.92,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 709.42
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 531.45
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 20.62,
+      "plannedMedia": 2187.5,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 11.21
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 9.41
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 505.14,
+      "plannedMedia": 1015.43,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 288.84
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 216.3
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 6.25,
+      "plannedMedia": 666.69,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 3.4
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 2.85
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 491.12,
+      "plannedMedia": 1000,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 280.87
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 210.25
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 0,
+      "plannedMedia": 0.32,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 0
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 0
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 2.29,
+      "plannedMedia": 4.73,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 1.31
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 0.98
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 0.09,
+      "plannedMedia": 9.77,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 0.05
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 0.04
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 7.8,
+      "plannedMedia": 16.28,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 4.46
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 3.34
+        }
+      ],
+      "spendMode": "estimated"
+    },
+    {
+      "amount": 2.45,
+      "plannedMedia": 265.34,
+      "days": [
+        {
+          "date": "2026-03-01",
+          "derivedSpend": 1.33
+        },
+        {
+          "date": "2026-03-02",
+          "derivedSpend": 1.12
+        }
+      ],
+      "spendMode": "estimated"
+    }
+  ],
+  "billing": [
+    [
+      {
+        "id": "m1so1",
+        "monthlyAmounts": {
+          "February 2026": 13500,
+          "March 2026": 3375,
+          "April 2026": 0
+        },
+        "totalAmount": 16875,
+        "feeMonthlyAmounts": {
+          "February 2026": 1500,
+          "March 2026": 375,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1875
+      },
+      {
+        "id": "m1so2",
+        "monthlyAmounts": {
+          "February 2026": 22212.36,
+          "March 2026": 5553.09,
+          "April 2026": 0
+        },
+        "totalAmount": 27765.45,
+        "feeMonthlyAmounts": {
+          "February 2026": 2468.04,
+          "March 2026": 617.01,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 3085.05
+      },
+      {
+        "id": "m1so3",
+        "monthlyAmounts": {
+          "February 2026": 11000.94,
+          "March 2026": 2750.24,
+          "April 2026": 0
+        },
+        "totalAmount": 13751.18,
+        "feeMonthlyAmounts": {
+          "February 2026": 2750.24,
+          "March 2026": 687.56,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 3437.7999999999997
+      },
+      {
+        "id": "m1so4",
+        "monthlyAmounts": {
+          "February 2026": 5250.05,
+          "March 2026": 1312.51,
+          "April 2026": 0
+        },
+        "totalAmount": 6562.56,
+        "feeMonthlyAmounts": {
+          "February 2026": 583.34,
+          "March 2026": 145.83,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 729.1700000000001
+      },
+      {
+        "id": "m1so5",
+        "monthlyAmounts": {
+          "February 2026": 1312.5,
+          "March 2026": 328.12,
+          "April 2026": 0
+        },
+        "totalAmount": 1640.62,
+        "feeMonthlyAmounts": {
+          "February 2026": 145.83,
+          "March 2026": 36.46,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 182.29000000000002
+      },
+      {
+        "id": "m1so6",
+        "monthlyAmounts": {
+          "February 2026": 6161,
+          "March 2026": 1540.25,
+          "April 2026": 0
+        },
+        "totalAmount": 7701.25,
+        "feeMonthlyAmounts": {
+          "February 2026": 1540.25,
+          "March 2026": 385.06,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1925.31
+      },
+      {
+        "id": "m1so7",
+        "monthlyAmounts": {
+          "February 2026": 2461.92,
+          "March 2026": 615.48,
+          "April 2026": 0
+        },
+        "totalAmount": 3077.4,
+        "feeMonthlyAmounts": {
+          "February 2026": 615.48,
+          "March 2026": 153.87,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 769.35
+      },
+      {
+        "id": "m1so8",
+        "monthlyAmounts": {
+          "February 2026": 2187.5,
+          "March 2026": 546.88,
+          "April 2026": 0
+        },
+        "totalAmount": 2734.38,
+        "feeMonthlyAmounts": {
+          "February 2026": 312.5,
+          "March 2026": 78.13,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 390.63
+      },
+      {
+        "id": "m1so9",
+        "monthlyAmounts": {
+          "February 2026": 1015.43,
+          "March 2026": 253.86,
+          "April 2026": 0
+        },
+        "totalAmount": 1269.29,
+        "feeMonthlyAmounts": {
+          "February 2026": 219.13,
+          "March 2026": 54.78,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 273.90999999999997
+      },
+      {
+        "id": "m1so10",
+        "monthlyAmounts": {
+          "February 2026": 666.69,
+          "March 2026": 166.67,
+          "April 2026": 0
+        },
+        "totalAmount": 833.36,
+        "feeMonthlyAmounts": {
+          "February 2026": 333.3,
+          "March 2026": 83.32,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 416.62
+      },
+      {
+        "id": "m1so11",
+        "monthlyAmounts": {
+          "February 2026": 1000,
+          "March 2026": 250,
+          "April 2026": 0
+        },
+        "totalAmount": 1250,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      },
+      {
+        "id": "m1so12",
+        "monthlyAmounts": {
+          "February 2026": 0.31,
+          "March 2026": 0.08,
+          "April 2026": 0
+        },
+        "totalAmount": 0.39,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.04,
+          "March 2026": 0.01,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.05
+      },
+      {
+        "id": "m1so13",
+        "monthlyAmounts": {
+          "February 2026": 4.73,
+          "March 2026": 1.18,
+          "April 2026": 0
+        },
+        "totalAmount": 5.91,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.52,
+          "March 2026": 0.13,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.65
+      },
+      {
+        "id": "m1so14",
+        "monthlyAmounts": {
+          "February 2026": 9.77,
+          "March 2026": 2.44,
+          "April 2026": 0
+        },
+        "totalAmount": 12.209999999999999,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.73,
+          "March 2026": 0.18,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.9099999999999999
+      },
+      {
+        "id": "m1so15",
+        "monthlyAmounts": {
+          "February 2026": 16.28,
+          "March 2026": 4.07,
+          "April 2026": 0
+        },
+        "totalAmount": 20.35,
+        "feeMonthlyAmounts": {
+          "February 2026": 1.22,
+          "March 2026": 0.31,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1.53
+      },
+      {
+        "id": "m1so16",
+        "monthlyAmounts": {
+          "February 2026": 265.34,
+          "March 2026": 66.33,
+          "April 2026": 0
+        },
+        "totalAmount": 331.66999999999996,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.67,
+          "March 2026": 0.17,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.8400000000000001
+      },
+      {
+        "id": "m1so90",
+        "monthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalAmount": 0,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      },
+      {
+        "id": "m1so91",
+        "monthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalAmount": 0,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      }
+    ],
+    [
+      {
+        "id": "m1so1",
+        "monthlyAmounts": {
+          "February 2026": 13500,
+          "March 2026": 3375,
+          "April 2026": 0
+        },
+        "totalAmount": 16875,
+        "feeMonthlyAmounts": {
+          "February 2026": 1500,
+          "March 2026": 375,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1875
+      },
+      {
+        "id": "m1so2",
+        "monthlyAmounts": {
+          "February 2026": 22212.36,
+          "March 2026": 5553.09,
+          "April 2026": 0
+        },
+        "totalAmount": 27765.45,
+        "feeMonthlyAmounts": {
+          "February 2026": 2468.04,
+          "March 2026": 617.01,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 3085.05
+      },
+      {
+        "id": "m1so3",
+        "monthlyAmounts": {
+          "February 2026": 11000.94,
+          "March 2026": 2750.24,
+          "April 2026": 0
+        },
+        "totalAmount": 13751.18,
+        "feeMonthlyAmounts": {
+          "February 2026": 2750.24,
+          "March 2026": 687.56,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 3437.7999999999997
+      },
+      {
+        "id": "m1so4",
+        "monthlyAmounts": {
+          "February 2026": 5250.05,
+          "March 2026": 1312.51,
+          "April 2026": 0
+        },
+        "totalAmount": 6562.56,
+        "feeMonthlyAmounts": {
+          "February 2026": 583.34,
+          "March 2026": 145.83,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 729.1700000000001
+      },
+      {
+        "id": "m1so5",
+        "monthlyAmounts": {
+          "February 2026": 1312.5,
+          "March 2026": 328.12,
+          "April 2026": 0
+        },
+        "totalAmount": 1640.62,
+        "feeMonthlyAmounts": {
+          "February 2026": 145.83,
+          "March 2026": 36.46,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 182.29000000000002
+      },
+      {
+        "id": "m1so6",
+        "monthlyAmounts": {
+          "February 2026": 6161,
+          "March 2026": 1540.25,
+          "April 2026": 0
+        },
+        "totalAmount": 7701.25,
+        "feeMonthlyAmounts": {
+          "February 2026": 1540.25,
+          "March 2026": 385.06,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1925.31
+      },
+      {
+        "id": "m1so7",
+        "monthlyAmounts": {
+          "February 2026": 2461.92,
+          "March 2026": 615.48,
+          "April 2026": 0
+        },
+        "totalAmount": 3077.4,
+        "feeMonthlyAmounts": {
+          "February 2026": 615.48,
+          "March 2026": 153.87,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 769.35
+      },
+      {
+        "id": "m1so8",
+        "monthlyAmounts": {
+          "February 2026": 2187.5,
+          "March 2026": 546.88,
+          "April 2026": 0
+        },
+        "totalAmount": 2734.38,
+        "feeMonthlyAmounts": {
+          "February 2026": 312.5,
+          "March 2026": 78.13,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 390.63
+      },
+      {
+        "id": "m1so9",
+        "monthlyAmounts": {
+          "February 2026": 1015.43,
+          "March 2026": 253.86,
+          "April 2026": 0
+        },
+        "totalAmount": 1269.29,
+        "feeMonthlyAmounts": {
+          "February 2026": 219.13,
+          "March 2026": 54.78,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 273.90999999999997
+      },
+      {
+        "id": "m1so10",
+        "monthlyAmounts": {
+          "February 2026": 666.69,
+          "March 2026": 166.67,
+          "April 2026": 0
+        },
+        "totalAmount": 833.36,
+        "feeMonthlyAmounts": {
+          "February 2026": 333.3,
+          "March 2026": 83.32,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 416.62
+      },
+      {
+        "id": "m1so11",
+        "monthlyAmounts": {
+          "February 2026": 1000,
+          "March 2026": 250,
+          "April 2026": 0
+        },
+        "totalAmount": 1250,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      },
+      {
+        "id": "m1so12",
+        "monthlyAmounts": {
+          "February 2026": 0.31,
+          "March 2026": 0.08,
+          "April 2026": 0
+        },
+        "totalAmount": 0.39,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.04,
+          "March 2026": 0.01,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.05
+      },
+      {
+        "id": "m1so13",
+        "monthlyAmounts": {
+          "February 2026": 4.73,
+          "March 2026": 1.18,
+          "April 2026": 0
+        },
+        "totalAmount": 5.91,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.52,
+          "March 2026": 0.13,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.65
+      },
+      {
+        "id": "m1so14",
+        "monthlyAmounts": {
+          "February 2026": 9.77,
+          "March 2026": 2.44,
+          "April 2026": 0
+        },
+        "totalAmount": 12.209999999999999,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.73,
+          "March 2026": 0.18,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.9099999999999999
+      },
+      {
+        "id": "m1so15",
+        "monthlyAmounts": {
+          "February 2026": 16.28,
+          "March 2026": 4.07,
+          "April 2026": 0
+        },
+        "totalAmount": 20.35,
+        "feeMonthlyAmounts": {
+          "February 2026": 1.22,
+          "March 2026": 0.31,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 1.53
+      },
+      {
+        "id": "m1so16",
+        "monthlyAmounts": {
+          "February 2026": 265.34,
+          "March 2026": 66.33,
+          "April 2026": 0
+        },
+        "totalAmount": 331.66999999999996,
+        "feeMonthlyAmounts": {
+          "February 2026": 0.67,
+          "March 2026": 0.17,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0.8400000000000001
+      },
+      {
+        "id": "m1so90",
+        "monthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalAmount": 0,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      },
+      {
+        "id": "m1so91",
+        "monthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalAmount": 0,
+        "feeMonthlyAmounts": {
+          "February 2026": 0,
+          "March 2026": 0,
+          "April 2026": 0
+        },
+        "totalFeeAmount": 0
+      }
+    ]
+  ],
+  "kpiGrouping": [
+    {
+      "lineItemId": "m1so1",
+      "spend": 17652.77,
+      "deliverables": 2700000
+    },
+    {
+      "lineItemId": "m1so2",
+      "spend": 27765.45,
+      "deliverables": 2221236
+    },
+    {
+      "lineItemId": "m1so3",
+      "spend": 13751.18,
+      "deliverables": 1237606
+    },
+    {
+      "lineItemId": "m1so4",
+      "spend": 6562.563749999999,
+      "deliverables": 525005
+    },
+    {
+      "lineItemId": "m1so5",
+      "spend": 1640.6212499999997,
+      "deliverables": 131250
+    },
+    {
+      "lineItemId": "m1so6",
+      "spend": 7701.25,
+      "deliverables": 693113
+    },
+    {
+      "lineItemId": "m1so7",
+      "spend": 3077.4,
+      "deliverables": 276966
+    },
+    {
+      "lineItemId": "m1so8",
+      "spend": 2734.375,
+      "deliverables": 225000
+    },
+    {
+      "lineItemId": "m1so9",
+      "spend": 1269.2820000000002,
+      "deliverables": 111110
+    },
+    {
+      "lineItemId": "m1so10",
+      "spend": 833.36666625,
+      "deliverables": 89999
+    },
+    {
+      "lineItemId": "m1so11",
+      "spend": 1250,
+      "deliverables": 90000
+    },
+    {
+      "lineItemId": "m1so12",
+      "spend": 0.39374999999999993,
+      "deliverables": 31
+    },
+    {
+      "lineItemId": "m1so13",
+      "spend": 5.90625,
+      "deliverables": 473
+    },
+    {
+      "lineItemId": "m1so14",
+      "spend": 12.20625,
+      "deliverables": 945
+    },
+    {
+      "lineItemId": "m1so15",
+      "spend": 20.34375,
+      "deliverables": 1575
+    },
+    {
+      "lineItemId": "m1so16",
+      "spend": 331.66875,
+      "deliverables": 23940
+    },
+    {
+      "lineItemId": "m1so90",
+      "spend": 4500,
+      "deliverables": 360000
+    },
+    {
+      "lineItemId": "m1so91",
+      "spend": 1800,
+      "deliverables": 144000
+    }
+  ],
+  "ganttFill": [
+    [
+      [
+        0.5,
+        0.5
+      ],
+      [
+        1.4403333333333332,
+        1.4403333333333332
+      ],
+      [
+        0
+      ],
+      [
+        0
+      ],
+      [
+        null
+      ],
+      [
+        0.7507507507507507
+      ]
+    ],
+    [
+      [
+        null,
+        0.5
+      ],
+      [
+        null,
+        1.4403333333333332
+      ],
+      [
+        0
+      ],
+      [
+        0
+      ],
+      [
+        null
+      ],
+      [
+        0.7507507507507507
+      ]
+    ]
+  ]
+}
