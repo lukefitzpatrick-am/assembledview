@@ -722,6 +722,19 @@ export const FEATURE_DEFINITIONS = [
     requires: ["unmapped_delivery"],
   },
   {
+    key: "data_quality_queue",
+    requiresMarker: "0123_data_quality_items",
+    label: "Data quality queue",
+    description:
+      "S17. One queue of data problems, each with the plan, the line, the rule broken and a link to the fix, assigned to the plan owner: the client's finance owner, else whoever last published the plan, else unassigned. The daily relabel-drift cron (07:15 Melbourne) writes items for publish validation problems on published versions (no publisher, burst dates, overlaps, package with no quantity, reversed plan dates) and for relabel drift. A problem the next run no longer finds is resolved by itself. Staff see the queue at /data-quality (admins only; clients never), filter it, and resolve or dismiss items with a reason. The pacing digest (Tue and Fri 09:30 AEDT) gets a Data quality section: open items by owner, overdue (open more than 3 days) first, with a link. Needs migration 0123 (data_quality_items): until it runs this switch reads off and can't be turned on. Off: nothing is written, no screen, no digest section. Stored items stay.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "line_tracking_type",
     label: "Tracking type per line",
     description:
