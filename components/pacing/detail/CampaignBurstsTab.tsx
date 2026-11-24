@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney, formatPercent } from "@/lib/format/money"
-import { cpc, cpm } from "@/lib/money/rates"
+import { budgetUsedPct, cpc, cpm } from "@/lib/money/rates"
 import { formatCount } from "@/lib/pacing/channel/lineCardFormat"
 import { lineDaysLeft } from "@/lib/pacing/channel/lineCardPace"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
@@ -223,7 +223,7 @@ export function CampaignBurstsTab({
                 <td className="num py-2 pr-3 text-right">{money(totals.spend)}</td>
                 <td className="num py-2 pr-3 text-right">
                   {totals.budget > 0
-                    ? formatPercent((totals.spend / totals.budget) * 100, { decimals: 0 })
+                    ? formatPercent(budgetUsedPct(totals.spend, totals.budget), { decimals: 0 })
                     : "—"}
                 </td>
                 <td className="num py-2 pr-3 text-right">{formatCount(totals.impressions)}</td>

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
+import { budgetUsedPct } from "@/lib/money/rates"
 import { Copy, MoreHorizontal } from "lucide-react"
 
 import { ClientMark } from "@/components/brand/EntityMark"
@@ -135,7 +136,7 @@ export function CampaignCardCompact({
   const shouldReduceMotion = useReducedMotion()
   const { toast } = useToast()
   const progressPct =
-    spentAmount !== null && totalBudget > 0 ? clamp((spentAmount / totalBudget) * 100, 0, 100) : 0
+    spentAmount !== null ? clamp(budgetUsedPct(spentAmount, totalBudget), 0, 100) : 0
   const statusTone = statusMap[status]
   const visibleTags = mediaTypes.slice(0, 3)
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)

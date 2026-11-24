@@ -5,6 +5,7 @@ import { ScenarioPlannerTrigger } from "@/components/pacing/scenario/ScenarioPla
 import { Card } from "@/components/ui/card"
 import { StatusPill } from "@/components/ui/status-pill"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { budgetUsedPct } from "@/lib/money/rates"
 import { channelSpendCaption } from "@/lib/pacing/portfolio/channelSpendCaption"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
 import {
@@ -51,9 +52,9 @@ export function CampaignPacingCard({
   muted?: boolean
 }) {
   const band = campaignDisplayBand(row)
-  const spendFill = clampPct(row.budget > 0 ? (row.spendToDate / row.budget) * 100 : 0)
+  const spendFill = clampPct(budgetUsedPct(row.spendToDate, row.budget))
   const timeFill = clampPct(row.timePct)
-  const expectedTick = clampPct(row.budget > 0 ? (row.expectedToDate / row.budget) * 100 : 0)
+  const expectedTick = clampPct(budgetUsedPct(row.expectedToDate, row.budget))
   const href = `/dashboard/${row.clientSlug}/${row.mbaNumber}`
   const detail = useCampaignDetail()
   const finishLabel = band === "on-track" ? "Expected media to date" : "Projected finish"

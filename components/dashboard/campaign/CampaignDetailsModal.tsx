@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoney, formatPercent } from "@/lib/format/money"
+import { budgetUsedPct } from "@/lib/money/rates"
 import {
   Sheet,
   SheetContent,
@@ -80,7 +81,7 @@ export default function CampaignDetailsModal({
   const elapsedPct = clampPct(campaign.timeElapsedPct)
   const expectedSpend = campaign.expectedSpend ?? 0
   const actualSpend = campaign.actualSpend ?? 0
-  const utilizationPct = campaign.budget > 0 ? clampPct((actualSpend / campaign.budget) * 100) : 0
+  const utilizationPct = clampPct(budgetUsedPct(actualSpend, campaign.budget))
 
   const channels = Object.entries(spendByChannel ?? {}).sort((a, b) => b[1] - a[1])
   const totalChannelSpend = channels.reduce((sum, [, amount]) => sum + amount, 0)

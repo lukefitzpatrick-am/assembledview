@@ -1,11 +1,7 @@
 {
   "app/publishers/[publisherId]/PublisherDetailCharts.tsx": 2,
-  "components/dashboard/CampaignCardCompact.tsx": 1,
-  "components/dashboard/campaign/CampaignDetailsModal.tsx": 3,
+  "components/dashboard/campaign/CampaignDetailsModal.tsx": 2,
   "components/dashboard/delivery/common/deliveryChartReshape.ts": 1,
-  "components/dashboard/modals/ClientFinanceSlideOver.tsx": 4,
-  "components/pacing/channel/LinePacingCard.tsx": 2,
-  "components/pacing/detail/CampaignBurstsTab.tsx": 1,
-  "components/pacing/detail/CampaignDetailModal.tsx": 1,
-  "components/pacing/portfolio/CampaignPacingCard.tsx": 2
+  "components/dashboard/modals/ClientFinanceSlideOver.tsx": 1,
+  "components/pacing/detail/CampaignDetailModal.tsx": 1
 }

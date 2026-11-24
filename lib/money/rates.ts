@@ -50,3 +50,11 @@ export function cvr(results: number, clicks: number): number | null {
 export function vtr(views: number, impressions: number): number | null {
   return safeRatio(views, impressions)
 }
+
+/**
+ * Spend (or expected) against budget as a percent, unclamped: 0 when there is
+ * no budget above 0. Screens clamp or round it for a bar, tick or label.
+ */
+export function budgetUsedPct(used: number, budget: number): number {
+  return budget > 0 ? (used / budget) * 100 : 0
+}

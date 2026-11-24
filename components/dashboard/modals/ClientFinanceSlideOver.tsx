@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sheet"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { budgetUsedPct } from "@/lib/money/rates"
 import { cn } from "@/lib/utils"
 
 type QuarterStatus = "complete" | "in-progress" | "planned"
@@ -94,7 +95,7 @@ function quarterStatusText(
   if (status === "complete") return "Complete"
   if (status === "planned") return "Planned"
 
-  const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0
+  const pct = Math.round(budgetUsedPct(spent, budget))
   return `${formatMoneyCompact(spent)} spent (${formatPercent(pct, { decimals: 0 })})`
 }
 
@@ -113,7 +114,7 @@ export function ClientFinanceSlideOver({
 }: ClientFinanceSlideOverProps) {
   const [excelDialogOpen, setExcelDialogOpen] = useState(false)
   const isClientHub = variant === "clientHub"
-  const ytdPct = finance.totalBudget > 0 ? Math.round((finance.ytdSpend / finance.totalBudget) * 100) : 0
+  const ytdPct = Math.round(budgetUsedPct(finance.ytdSpend, finance.totalBudget))
   const mediaTop = finance.spendByMediaType.slice(0, 5)
   const txTop = (finance.recentTransactions ?? []).slice(0, 10)
   const maxMediaAmount = mediaTop.reduce((max, item) => Math.max(max, item.amount), 0)
@@ -163,7 +164,7 @@ export function ClientFinanceSlideOver({
               ) : (
                 <div className="space-y-3">
                   {finance.budgetByQuarter.map((quarter) => {
-                    const pct = quarter.budget > 0 ? Math.min(100, Math.max(0, (quarter.spent / quarter.budget) * 100)) : 0
+                    const pct = Math.min(100, Math.max(0, budgetUsedPct(quarter.spent, quarter.budget)))
                     const isOverBudget = quarter.spent > quarter.budget && quarter.status !== "planned"
 
                     return (

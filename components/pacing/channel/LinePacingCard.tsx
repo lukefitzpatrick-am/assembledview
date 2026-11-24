@@ -17,6 +17,7 @@ import {
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import { cn } from "@/lib/utils"
 import { useIsAdmin } from "@/contexts/AuthContext"
+import { budgetUsedPct } from "@/lib/money/rates"
 import { formatFixedCostFromLabel } from "@/lib/mediaplan/fixedCostFrom"
 
 function paceBand(pace: LineCardPace): PortfolioDisplayBand {
@@ -83,10 +84,10 @@ export function LinePacingCard({
   const isStaff = useIsAdmin()
   const band = paceBand(model.pace)
   const timeFill = clampPct(model.timePct)
-  const lineFill = model.budget > 0 ? clampPct((model.spend / model.budget) * 100) : clampPct(model.linePct)
+  const lineFill = clampPct(model.budget > 0 ? budgetUsedPct(model.spend, model.budget) : model.linePct)
   const burstFill =
     model.burstBudget != null && model.burstBudget > 0 && model.burstSpend != null
-      ? clampPct((model.burstSpend / model.burstBudget) * 100)
+      ? clampPct(budgetUsedPct(model.burstSpend, model.burstBudget))
       : model.burstPct != null
         ? clampPct(model.burstPct)
         : 0
