@@ -293,6 +293,15 @@ export function noImpressionTrackingNote(lines: number): string {
   return `${NO_IMPRESSION_TRACKING} on ${lines} click-tracker ${lines === 1 ? "line" : "lines"}`
 }
 
+/**
+ * Line completion: delivered against the planned deliverables, unclamped (an
+ * over-delivered line is above 1). 0 when nothing is planned. The campaign
+ * Gantt fills a burst with it (C-396); the chart clamps when it paints.
+ */
+export function lineCompletion(delivered: number, planned: number): number {
+  return planned > 0 ? delivered / planned : 0
+}
+
 export type PaceVsExpected = {
   /** Delivered ÷ expected × 100. Undefined when nothing is expected. */
   pct: number | undefined

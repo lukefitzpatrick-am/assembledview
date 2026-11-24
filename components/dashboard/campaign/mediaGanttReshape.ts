@@ -22,6 +22,7 @@ import {
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
+import { lineCompletion } from "@/lib/pacing/expectedForWindow"
 import { parseDateOnlyString } from "@/lib/dates/civil"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
@@ -311,7 +312,7 @@ export function reshapeLineItemsToMediaGantt(
           let fillRatio: number | undefined
           if (isCarrier) {
             label = deliveryText
-            fillRatio = noUnitTarget ? undefined : linePlanned > 0 ? delivered! / linePlanned : 0
+            fillRatio = noUnitTarget ? undefined : lineCompletion(delivered!, linePlanned)
           } else if (endYmd < todayISO) {
             label = noUnitTarget ? burst.label : `${compactDeliverables(deliverables)} planned`
           } else if (startYmd > todayISO) {
@@ -347,9 +348,7 @@ export function reshapeLineItemsToMediaGantt(
             ...burst,
             label: deliveryLabel ?? startLabel ?? burst.label,
             fillRatio:
-              hasDelivery && delivered != null && !noUnitTarget
-                ? planned > 0 ? delivered / planned : 0
-                : undefined,
+              hasDelivery && delivered != null && !noUnitTarget ? lineCompletion(delivered, planned) : undefined,
             intensity:
               deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
           })

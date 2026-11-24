@@ -36,6 +36,7 @@ export const MEASURES = [
   { measure: "Assumed spend pace and its band (both zero is On track)", module: "lib/spend/assumedSpend.ts", fn: "assumedDeliveryPace" },
   { measure: "Budget utilised (planned to date against planned)", module: "lib/dashboard/plannedSpendConsistency.ts", fn: "computePlannedSpendTotals" },
   { measure: "Spend against budget (a bar, tick or percent)", module: "lib/money/rates.ts", fn: "budgetUsedPct" },
+  { measure: "Line completion (delivered against planned deliverables, unclamped)", module: "lib/pacing/expectedForWindow.ts", fn: "lineCompletion" },
   // S12: the billing-month function. Its I/O wrapper is loadComposedBillingRecordsForMonth; computedCentsByInvoiceKey keys it by invoice_key.
   { measure: "Billed, per month", module: "lib/finance/composeFinanceHubRecords.ts", fn: "composeBillingRecordsForMonth" },
   // S14: the amount of a record about to go to Xero that is above plan (month and campaign).
