@@ -26,6 +26,8 @@ There is no owner field. The owner is resolved when an item is written:
 2. the published version's last publisher (`media_plan_versions.published_by` matched, case-insensitively on both sides, to an active team member's primary email), else
 3. unassigned (null). Luke's overdue view shows unassigned items.
 
+A finding with no plan carries its own owner (`DataQualityFinding.ownerEmail`), used instead. Only `delivery.unmatched` sets it: the first ops list address (`getOpsEmailRecipients`, Luke by default).
+
 Live (24 Nov 2026): 217 published plans; 177 have a finance owner, 55 a publisher stamp, 28 neither.
 
 ## Sources (stage 1, B60 Q2 built as option A)
@@ -36,8 +38,11 @@ Both run once a day from `/api/cron/relabel-drift` (`15 21 * * *` UTC, 07:15 Mel
 |---|---|---|---|
 | `publish.no_publisher`, `publish.burst_end_before_start`, `publish.bursts_overlap`, `publish.burst_outside_plan_dates`, `publish.plan_dates_reversed`, `publish.package_no_quantity` | `validatePlanForPublish` refusals (S1) on every published version (`media_plan_masters.published_version_id`), one query | rule, plan and line (`plan_dates_reversed` has no line); burst messages joined | `/mediaplans/mba/<mba>/edit` |
 | `relabel.drift` | the drift report the cron just computed: drift findings only (an applied relabel whose map row is missing or points elsewhere). Legacy map rows are not problems | plan and target line | Relabels log, `?tab=log&mba=<mba>&id=<relabel id>` |
+| `delivery.unmatched` (S5b, C-387) | the Relabels > Unmapped queue read (`getUnmappedDelivery`, 30 days of the three pacing facts), only with `unmatched_delivery_queue` also on. Read before the transaction opens, inside its own 60 s deadline (`timeoutMs` per query and a race, as the digest does). Plans of test clients are skipped, as in the publish source | plan and line where the row's suggestion names them (`relabel`, `match`, `add_line` with an id); plan and campaign (`Campaign: <name>` in the line column) when it names the plan but no line; `No plan` and campaign when it names none (a client stem from a campaign prefix is not a plan). Entities sharing a key share an item | Relabels Unmapped, `?tab=unmapped&mba=<mba>` |
 
 - A failed drift check passes null: relabel items are left as they are, publish items still run.
+- A failed unmatched delivery read (Snowflake down, or past the 60 s deadline) writes nothing for `delivery.unmatched`: its open items stay open, the sweep result has no `unmatchedDelivery` key and the warning says so. No data is not fixed. A complete read resolves what is gone.
+- `unmatched_delivery_queue` off: no warehouse read, no delivery item, the sweep result and its log line as before. Items already open stay open until it is on again (C-433).
 - Plans of test and internal clients (`clients.is_test_client`, 0112) are skipped, as the finance checks skip them. Live (24 Nov 2026): about 135 real-client items on the first run; 594 no-publisher lines on 5 test-client plans are left out.
 - The publish source runs whether or not `publish_validation` is on. That switch decides whether publish refuses; the plan pages list the same problems either way, and the brief's source is the problems on published versions. The queue is the list to clear before it goes on (Luke's Q2).
 - The B34 Snowflake checks (CM360 drift, label map duplicates) are not sources: they read a 10-row sample and group out the plan. Stage 2.
@@ -58,4 +63,4 @@ The pacing digest (`30 22 * * 1,4` UTC, Tue and Fri 09:30 AEDT; schedule unchang
 
 ## Tests
 
-`lib/dataQuality/__tests__` (`dataQuality.db` on a local Postgres via `DATA_QUALITY_TEST_DATABASE_URL`, a `*_dq_test` database; `rules.s17`; `switchOff.s17`), `lib/ops/digest/__tests__/dataQuality.s17` and `dataChecks.b34`, `app/api/cron/relabel-drift/__tests__/route.s17`, `app/api/data-quality/__tests__/routes.s17`, `app/data-quality/__tests__/page.s17`, `components/dataQuality/__tests__/DataQualityClient.s17` (Vitest).
+`lib/dataQuality/__tests__` (`dataQuality.db` on a local Postgres, including the S5b unmatched delivery cases via `DATA_QUALITY_TEST_DATABASE_URL`, a `*_dq_test` database; `rules.s17`; `switchOff.s17`), `lib/ops/digest/__tests__/dataQuality.s17` and `dataChecks.b34`, `app/api/cron/relabel-drift/__tests__/route.s17`, `app/api/data-quality/__tests__/routes.s17`, `app/data-quality/__tests__/page.s17`, `components/dataQuality/__tests__/DataQualityClient.s17` (Vitest).

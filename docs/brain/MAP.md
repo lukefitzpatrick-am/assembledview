@@ -211,7 +211,7 @@ Daily scan of each client website, behind switch `site_watch` (needs migration 0
 
 ## 16. Data quality queue
 
-One queue of data problems, each with the plan, the line, the rule and a fix link, assigned to the plan owner (S17), behind switch `data_quality_queue` (needs migration 0123). Every check writes through `recordFindings` (`lib/dataQuality/items.server.ts`). The daily relabel-drift cron runs the sweep: publish validation refusals on published versions (test clients skipped), and relabel drift. `/data-quality` is admin only; the pacing digest shows overdue counts by owner.
+One queue of data problems, each with the plan, the line, the rule and a fix link, assigned to the plan owner (S17), behind switch `data_quality_queue` (needs migration 0123). Every check writes through `recordFindings` (`lib/dataQuality/items.server.ts`). The daily relabel-drift cron runs the sweep: publish validation refusals on published versions (test clients skipped), relabel drift, and (with `unmatched_delivery_queue` on, S5b) unmatched delivery from the Relabels > Unmapped queue read. `/data-quality` is admin only; the pacing digest shows overdue counts by owner.
 
 → `modules/data-quality.md`
 
