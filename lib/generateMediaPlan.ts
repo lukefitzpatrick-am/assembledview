@@ -147,6 +147,8 @@ export interface KPISheetRow {
   calculatedClicks: number | null;
   calculatedViews: number | null;
   calculatedReach: number | null;
+  /** The line's client pays the supplier; the Buy Type cell is marked. */
+  clientPays?: boolean;
 }
 
 interface Burst { // This is a burst *within* a GroupedItem
@@ -234,6 +236,7 @@ interface GroupedItem {
   creative?: string;
   buyingDemo?: string;
   buyType?: string;
+  clientPays: boolean;
   daypart?: string;
   placement?: string;
   size?: string;
@@ -320,6 +323,12 @@ function formatBidStrategy(strategyCode: string | undefined): string {
 
 function formatBuyType(buyType: string | undefined): string {
   return formatBuyTypeForExport(buyType)
+}
+
+/** Buy Type cell: the formatted buy type, then the client-pays marker. */
+function buyTypeCell(group: { buyType?: string; clientPays: boolean }): string {
+  if (!group.clientPays) return formatBuyType(group.buyType)
+  return [formatBuyType(group.buyType), "Client pays"].filter(Boolean).join(" · ")
 }
 
 // Section title to mediaCosts key mapping for delivery schedule
@@ -489,7 +498,8 @@ export async function generateMediaPlan(
     });
 
     itemsToGroup.forEach(item => {
-      const key = keysForGrouping.map(k => (item as any)[k] ?? '').join('|');
+      // A client-pays line never merges into an agency line.
+      const key = [...keysForGrouping.map(k => (item as any)[k] ?? ''), lineItemIsClientPaysForMedia(item)].join('|');
       let group = groupedResult.find(g => g.groupKey === key);
 
       const itemStartDate = item.startDate; // YYYY-MM-DD
@@ -507,9 +517,8 @@ export async function generateMediaPlan(
           market: item.market, platform: item.platform, network: item.network, station: item.station,
           bidStrategy: item.bidStrategy, targeting: item.targeting, creative: item.creative,
           buyingDemo: item.buyingDemo,
-          buyType: lineItemIsClientPaysForMedia(item)
-            ? `${item.buyType ?? ""} · Client pays`.replace(/^\s*·\s*/, "")
-            : item.buyType,
+          buyType: item.buyType,
+          clientPays: lineItemIsClientPaysForMedia(item),
           daypart: item.daypart,
           placement: item.placement, size: item.size, format: item.format, duration: item.duration,
           oohFormat: item.oohFormat, oohType: item.oohType,
@@ -1051,7 +1060,7 @@ export async function generateMediaPlan(
             it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             '',
             it.totalCalculatedDeliverables,
-            '', '', '',
+            '', it.clientPays ? 'Client pays' : '', '',
             it.grossMedia,
           ];
         } else if (sectionType === 'Television') {
@@ -1069,7 +1078,7 @@ export async function generateMediaPlan(
             it.size || '', // Length column
             it.totalCalculatedDeliverables, // TARPs
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate, // Avg. CPP
             it.grossMedia
           ];
@@ -1088,7 +1097,7 @@ export async function generateMediaPlan(
             it.size || '', // Ad Size column
             it.totalCalculatedDeliverables, // Insertions
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate,
             it.grossMedia
           ];
@@ -1107,7 +1116,7 @@ export async function generateMediaPlan(
             it.radioDuration || it.duration || '', // Duration column
             it.totalCalculatedDeliverables, // Spots
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate,
             it.grossMedia
           ];
@@ -1130,7 +1139,7 @@ export async function generateMediaPlan(
             it.duration || it.radioDuration || '', // Duration column
             it.totalCalculatedDeliverables, // Screens
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate,
             it.grossMedia
           ];
@@ -1149,7 +1158,7 @@ export async function generateMediaPlan(
             it.size || '', // Size column
             it.totalCalculatedDeliverables, // Panels
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate,
             it.grossMedia
           ];
@@ -1177,7 +1186,7 @@ export async function generateMediaPlan(
             it.size || '', // Length column
             it.totalCalculatedDeliverables,
             it.buyingDemo || '',
-            formatBuyType(it.buyType),
+            buyTypeCell(it),
             averageRate,
             it.grossMedia
           ];
@@ -2535,7 +2544,7 @@ export function addKPISheet(
       }
       txt(ws.getCell(r, 2), publisherDisplayName(row.publisher, options?.publishers))
       txt(ws.getCell(r, 3), row.label)
-      txt(ws.getCell(r, 4), formatBuyType(row.buyType))
+      txt(ws.getCell(r, 4), buyTypeCell({ buyType: row.buyType, clientPays: row.clientPays === true }))
       numFmt(ws.getCell(r, 5),  '$#,##0.00', row.spend)
       numFmt(ws.getCell(r, 6),  '#,##0',     row.deliverables)
       writeMetric(ws.getCell(r, 7),  '0.00%',     row.ctr)

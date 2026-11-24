@@ -39,5 +39,14 @@ export async function publishedKpiSheetRows(args: {
     publishers: args.publishers,
     packageNoUnitTarget,
   })
-  return toKpiSheetRows(resolved)
+  const clientPaysIds = new Set(
+    Object.values(args.mediaItems)
+      .flat()
+      .filter((item) => item?.clientPaysForMedia === true)
+      .map((item) => String(item.line_item_id ?? item.lineItemId ?? "").trim())
+      .filter(Boolean),
+  )
+  return toKpiSheetRows(resolved).map((row, i) =>
+    clientPaysIds.has(String(resolved[i]!.lineItemId).trim()) ? { ...row, clientPays: true } : row,
+  )
 }
