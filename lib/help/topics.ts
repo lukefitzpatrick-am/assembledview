@@ -45,6 +45,19 @@ const PLAN_STEPS: readonly HelpStep[] = [
 ]
 
 export const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
+  "/data-quality": {
+    title: "Data quality",
+    summary:
+      "Data problems the app's checks found, each with the plan, the line, the rule broken and a link to the fix. Each item goes to the plan owner: the client's finance owner, else whoever last published the plan.",
+    steps: [
+      { text: "Pick an owner, rule or client to narrow the list. Tick Overdue only to see items open more than 3 days." },
+      { text: "Open the fix link, fix the problem in the plan or relabel, then come back." },
+      { text: "Resolve marks it done. Dismiss needs a reason and stops the item coming back." },
+    ],
+    tips: [
+      "The checks run every morning. A problem they no longer find is resolved by itself, and one you resolved that is still there comes back.",
+    ],
+  },
   "/mediaplans": {
     title: "Campaigns",
     summary: "Every media plan, newest first. Live and Completed come from the campaign dates.",
@@ -216,6 +229,8 @@ export const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
 }
 
 export const HELP_TIPS = {
+  dataQualityOpen:
+    "Whole days since a check first found this problem. Over 3 days it is overdue: it shows in the pacing digest's overdue count and in the overdue view. Publish problems are listed whether or not publish refuses them yet. A resolved problem the check still finds opens again; a dismissed one does not come back.",
   planUnallocated: "Budget less everything allocated to lines. Amber means the lines add up to more than the budget.",
   planPublish:
     "Publish creates the version that clients, billing and pacing read. On a plan that is already published, Save draft keeps your work without changing what they see.",

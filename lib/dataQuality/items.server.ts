@@ -1,6 +1,7 @@
 /**
  * The one writer of the Data quality queue (S17, `data_quality_items`, 0123).
- * Every check writes through `recordFindings`.
+ * Every check writes through `recordFindings`; the screen reads and closes
+ * items through `listOpenDataQualityItems` and `closeDataQualityItem`.
  *
  * - One open item per rule, plan and line (the partial unique index): a check
  *   that finds the same problem again updates `last_seen_at`, the message,
@@ -20,7 +21,7 @@ import { getDb, type Db } from "@/db"
 import { isFeatureOn } from "@/lib/features/server"
 import { rowsOf } from "@/lib/xero/dbRows"
 
-import type { DataQualityRuleKey } from "./rules"
+import type { DataQualityItem, DataQualityRuleKey } from "./rules"
 
 type Exec = Pick<Db, "execute">
 
@@ -146,4 +147,77 @@ export async function recordFindings(
     )
   }
   return result
+}
+
+type ItemRow = {
+  id: number | string
+  rule_key: string
+  mba_number: string
+  line_item_id: string | null
+  client_id: number | string | null
+  client_name: string | null
+  message: string
+  fix_label: string
+  fix_href: string
+  owner_email: string | null
+  owner_name: string | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+/**
+ * Every open item, oldest first, with the client and owner names.
+ * shortcut: no paging; stage 1 sizes about 135 open items, test clients skipped (live, 24 Nov 2026). Page in SQL past a few thousand.
+ */
+export async function listOpenDataQualityItems(db: Exec = getDb()): Promise<DataQualityItem[]> {
+  const rows = rowsOf<ItemRow>(
+    await db.execute(sql`
+      SELECT i.id, i.rule_key, i.mba_number, i.line_item_id, i.client_id, c.mp_client_name AS client_name,
+        i.message, i.fix_label, i.fix_href, i.owner_email, t.name AS owner_name,
+        to_char(i.first_seen_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_seen_at,
+        to_char(i.last_seen_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_seen_at
+      FROM data_quality_items i
+      LEFT JOIN clients c ON c.id = i.client_id
+      LEFT JOIN team_members t ON lower(t.email) = i.owner_email
+      WHERE i.status = 'open'
+      ORDER BY i.first_seen_at, i.id
+    `),
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    ruleKey: r.rule_key,
+    mbaNumber: r.mba_number,
+    lineItemId: r.line_item_id,
+    clientId: r.client_id == null ? null : Number(r.client_id),
+    clientName: r.client_name,
+    message: r.message,
+    fixLabel: r.fix_label,
+    fixHref: r.fix_href,
+    ownerEmail: r.owner_email,
+    ownerName: r.owner_name,
+    firstSeenAt: r.first_seen_at,
+    lastSeenAt: r.last_seen_at,
+  }))
+}
+
+export type CloseAction = { action: "resolve" } | { action: "dismiss"; reason: string }
+
+/** Resolves or dismisses one open item as `actorEmail`. False when no open item has that id. */
+export async function closeDataQualityItem(
+  id: number,
+  close: CloseAction,
+  actorEmail: string,
+  db: Exec = getDb(),
+): Promise<boolean> {
+  const status = close.action === "resolve" ? "resolved" : "dismissed"
+  const reason = close.action === "dismiss" ? close.reason.trim() : null
+  const rows = rowsOf<{ id: number }>(
+    await db.execute(sql`
+      UPDATE data_quality_items
+      SET status = ${status}, dismiss_reason = ${reason}::text, resolved_at = now(), resolved_by = ${actorEmail.toLowerCase()}
+      WHERE id = ${id} AND status = 'open'
+      RETURNING id
+    `),
+  )
+  return rows.length > 0
 }

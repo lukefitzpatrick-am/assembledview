@@ -694,6 +694,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     searchTerms: "relabel delivery unmapped cm360",
   },
   {
+    path: "/data-quality",
+    label: "Data quality",
+    title: "Data quality",
+    inPalette: false,
+    roles: ["admin"],
+    searchTerms: "data quality queue problems owner overdue",
+  },
+  {
     path: "/pacing/admin/unmapped-placements",
     label: "Unmapped CM360",
     title: "Pacing · Unmapped CM360",
