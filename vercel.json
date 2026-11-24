@@ -114,6 +114,10 @@
       "schedule": "30 21 * * *"
     },
     {
+      "path": "/api/cron/billing-partner-pack",
+      "schedule": "0 6 17 * *"
+    },
+    {
       "path": "/api/cron/creative-previews",
       "schedule": "0 17 * * *"
     },

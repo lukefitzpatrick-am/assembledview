@@ -420,6 +420,18 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "billing_partner_pack_job",
+    label: "AA pack built on the 17th",
+    description:
+      "A scheduled job builds the Advertising Associates pack for the month on the Melbourne 17th at 17:00 AEDT (16:00 AEST) (decision S15). It builds a draft pack of every plan still due, the same pack Build pack makes, created by billing-partner-pack-job, and records the run once per month in the digest log before it builds, so a second run for the same month does nothing; a failed build clears that record. A draft already waiting for the month (built by hand) stops the job. It never emails AA: staff download the draft, send it and press Mark sent, as today. Nothing due means no pack and no record. Off: the job does nothing and packs are built by hand, as before.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:
