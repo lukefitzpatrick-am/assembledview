@@ -35,7 +35,8 @@ export async function publishRefusal(plan: PublishPlan): Promise<PublishRefusalB
   return refuse.length > 0 ? publishRefusalBody(refuse) : null
 }
 
-type VersionLineRow = {
+/** One row of a version's plan dates and line, as both stored-version reads select it. */
+export type VersionLineRow = {
   campaign_start_date: string | null
   campaign_end_date: string | null
   line_item_id: string | null
@@ -71,21 +72,25 @@ export async function publishRefusalForVersion(
     `),
   )
   if (rows.length === 0) return null
-  const lineItems = rows
-    .filter((r) => r.line_item_id != null)
-    .map((r) => ({
-      lineItemId: String(r.line_item_id),
-      channel: String(r.channel ?? ""),
-      buyType: r.buy_type,
-      publisher: r.publisher,
-      platform: r.platform,
-      attrs: r.attrs,
-      bursts: r.bursts,
-    }))
-  const { refuse } = validatePlanForPublish({
-    campaignStartDate: rows[0]!.campaign_start_date,
-    campaignEndDate: rows[0]!.campaign_end_date,
-    lineItems,
-  })
+  const { refuse } = validatePlanForPublish(publishPlanFromRows(rows))
   return refuse.length > 0 ? publishRefusalBody(refuse) : null
+}
+
+/** A stored version's rows (one per line, or one with no line) as the plan the rules check. */
+export function publishPlanFromRows(rows: readonly VersionLineRow[]): PublishPlan {
+  return {
+    campaignStartDate: rows[0]?.campaign_start_date ?? null,
+    campaignEndDate: rows[0]?.campaign_end_date ?? null,
+    lineItems: rows
+      .filter((r) => r.line_item_id != null)
+      .map((r) => ({
+        lineItemId: String(r.line_item_id),
+        channel: String(r.channel ?? ""),
+        buyType: r.buy_type,
+        publisher: r.publisher,
+        platform: r.platform,
+        attrs: r.attrs,
+        bursts: r.bursts,
+      })),
+  }
 }
