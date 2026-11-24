@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { cpa, cpc, cpm, cpv, ctr, cvr, safeRatio, vtr } from "@/lib/money/rates"
+import { budgetUsedPct, cpa, cpc, cpm, cpv, ctr, cvr, safeRatio, vtr } from "@/lib/money/rates"
 
 test("cpm is spend per thousand impressions", () => {
   assert.equal(cpm(10, 1000), 10)
@@ -36,4 +36,16 @@ test("cvr is results over clicks as a decimal, never over impressions", () => {
   assert.equal(cvr(124, 1449), 124 / 1449)
   assert.equal(cvr(0, 1449), 0)
   assert.equal(cvr(5, 0), null)
+})
+
+test("budgetUsedPct is used over budget as an unclamped percent, 0 with no budget above 0 (C-395)", () => {
+  assert.equal(budgetUsedPct(500, 1000), 50)
+  assert.equal(budgetUsedPct(1234.56, 1000), 123.45599999999999)
+  assert.equal(budgetUsedPct(-50, 1000), -5)
+  assert.equal(budgetUsedPct(100, 0), 0)
+  assert.equal(budgetUsedPct(100, -10), 0)
+  assert.equal(budgetUsedPct(100, Number.NaN), 0)
+  assert.equal(budgetUsedPct(1, 3), 33.33333333333333)
+  // A spend that is not a number stays not a number: each screen's clamp decides.
+  assert.ok(Number.isNaN(budgetUsedPct(Number.NaN, 1000)))
 })

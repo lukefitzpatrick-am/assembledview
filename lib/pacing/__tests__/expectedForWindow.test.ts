@@ -7,6 +7,7 @@ import {
   expectedForWindow,
   impressionsNotTracked,
   inPacingWindow,
+  lineCompletion,
   lineDeliverablePacePct,
   netSpendBasisForLine,
   pacingAsAtISO,
@@ -297,4 +298,12 @@ test("lineDeliverablePacePct: a delivered figure that is not a number gets no ti
   const row = tableRow([["2026-01-01", "2026-01-10", 1000]], Number.NaN)
   assert.equal(lineDeliverablePacePct(row, "2026-01-05"), null)
   assert.equal(lineDeliverablePacePct({ ...row, deliverableActual: Number.POSITIVE_INFINITY }, "2026-01-05"), null)
+})
+
+test("lineCompletion is delivered over planned, unclamped, and 0 when nothing is planned (C-396)", () => {
+  assert.equal(lineCompletion(1500, 3000), 0.5)
+  assert.equal(lineCompletion(4321, 3000), 1.4403333333333332)
+  assert.equal(lineCompletion(10, 0), 0)
+  assert.equal(lineCompletion(10, -5), 0)
+  assert.equal(lineCompletion(0, 1000), 0)
 })
