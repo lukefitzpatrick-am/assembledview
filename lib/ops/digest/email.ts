@@ -6,6 +6,7 @@ import type { PacingDigestPayload } from "./buildPacingDigest"
 import type {
   Cm360DriftCheck,
   DataCheckUnavailable,
+  DigestDataQuality,
   DigestUnmatchedDelivery,
   LabelMapDuplicateCheck,
 } from "./dataChecks"
@@ -206,6 +207,33 @@ function renderUnmatchedSection(payload: PacingDigestPayload): string {
   <tr><td style="padding:4px 24px 12px;">${unmatchedDeliveryLines(payload.unmatched)}</td></tr>`
 }
 
+/** S17 copy. Overdue counts only (decision S17 A: Luke sees what is overdue; owners work the screen). */
+function dataQualityLines(check: DigestDataQuality): string {
+  const label = "Data quality queue"
+  if (check.status === "unavailable") {
+    return unavailableLine(label, check, "the queue could not be read")
+  }
+  const link = check.href
+    ? ` <a href="${escapeHtml(check.href)}" style="color:${BRAND.colour.ink};">Open the queue</a>.`
+    : ""
+  if (check.overdue === 0) {
+    return `<p style="${P_STYLE}">${label}: nothing overdue.${link}</p>`
+  }
+  const owners = check.owners
+    .filter((o) => o.overdue > 0)
+    .map((o) => `<li>${escapeHtml(o.ownerName ?? o.ownerEmail ?? "Unassigned")} · ${o.overdue.toLocaleString("en-AU")} overdue</li>`)
+    .join("")
+  return `<p style="${P_STYLE}"><strong>${label}: ${plural(check.overdue, "overdue item", "overdue items")} (open more than ${check.overdueAfterDays} days).</strong>${link}</p><ul style="${LIST_STYLE}">${owners}</ul>`
+}
+
+function renderDataQualitySection(payload: PacingDigestPayload): string {
+  if (!payload.dataQuality) return ""
+  return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
+    <div style="font-size:15px;font-weight:700;color:${BRAND.colour.ink};">Data quality</div>
+  </td></tr>
+  <tr><td style="padding:4px 24px 12px;">${dataQualityLines(payload.dataQuality)}</td></tr>`
+}
+
 function section(band: DigestBand, rows: DigestCampaignRow[]): string {
   const colour = BAND_COLOUR[band]
   return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
@@ -252,7 +280,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("ahead", groups.ahead)}
         ${section("no-data", groups["no-data"])}
         ${renderRelabelSection(payload)}
-        ${renderDataChecksSection(payload)}${renderUnmatchedSection(payload)}
+        ${renderDataChecksSection(payload)}${renderUnmatchedSection(payload)}${renderDataQualitySection(payload)}
         <tr><td style="padding:0 24px 8px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};">
           Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
         </td></tr>

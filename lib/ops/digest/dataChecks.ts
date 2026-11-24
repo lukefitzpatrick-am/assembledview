@@ -1,6 +1,13 @@
 import "server-only"
 
 import { roundMoney2 } from "@/lib/money/cents"
+import {
+  countByOwner,
+  isOverdue,
+  OVERDUE_AFTER_DAYS,
+  type DataQualityItem,
+  type DataQualityOwnerCount,
+} from "@/lib/dataQuality/rules"
 import { supplierNoteDue, type UnmappedDeliveryRow } from "@/lib/pacing/admin/unmappedDelivery"
 import {
   LABEL_MAP_DUPLICATE_ACTIVE_KEYS_SQL,
@@ -290,6 +297,59 @@ export async function loadDigestUnmatchedDelivery(deps: LoadDigestUnmatchedDeps)
       },
     )
     return await withinDeadline(counted, deadline, "unmatched delivery read")
+  } finally {
+    deadline.clear()
+  }
+}
+
+/** S17: the Data quality queue as the digest shows it. */
+export type DigestDataQuality =
+  | {
+      status: "ok"
+      open: number
+      overdue: number
+      overdueAfterDays: number
+      /** Most overdue first; unassigned is one owner (ownerEmail null). */
+      owners: DataQualityOwnerCount[]
+      /** The queue: /data-quality, absolute, or empty when APP_BASE_URL is not set. */
+      href: string
+    }
+  | DataCheckUnavailable
+
+export type LoadDigestDataQualityDeps = {
+  isOn: () => Promise<boolean>
+  /** Every open item (`listOpenDataQualityItems`). */
+  load: () => Promise<DataQualityItem[]>
+  now: Date
+  href: string
+  /** Defaults to `DATA_CHECKS_DEADLINE_MS`. */
+  deadlineMs?: number
+}
+
+/**
+ * S17 (switch `data_quality_queue`). Null when the switch is off, its read
+ * fails or is still running at the deadline: no section, so the email is as
+ * before. A failed read is "not available"; the digest always sends.
+ */
+export async function loadDigestDataQualitySection(deps: LoadDigestDataQualityDeps): Promise<DigestDataQuality | null> {
+  const deadline = startDeadline(deps.deadlineMs ?? DATA_CHECKS_DEADLINE_MS)
+  try {
+    if (!(await switchOnWithin(deps.isOn, deadline, "data_quality_queue"))) return null
+    const counted = deps.load().then(
+      (items): DigestDataQuality => ({
+        status: "ok",
+        open: items.length,
+        overdue: items.filter((item) => isOverdue(item, deps.now)).length,
+        overdueAfterDays: OVERDUE_AFTER_DAYS,
+        owners: countByOwner(items, deps.now),
+        href: deps.href,
+      }),
+      (err: unknown) => {
+        console.warn("[pacing-digest] data quality queue not available", err)
+        return unavailable(err)
+      },
+    )
+    return await withinDeadline(counted, deadline, "data quality read")
   } finally {
     deadline.clear()
   }

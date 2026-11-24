@@ -30,7 +30,7 @@ const DATA_QUALITY_RULES: Readonly<Record<DataQualityRuleKey, { label: string; o
 }
 
 /** An item is overdue once it has been open more than this many days, unless its rule says otherwise. */
-const OVERDUE_AFTER_DAYS = 3
+export const OVERDUE_AFTER_DAYS = 3
 
 const DAY_MS = 86_400_000
 
@@ -63,4 +63,22 @@ export type DataQualityItem = {
   ownerName: string | null
   firstSeenAt: string
   lastSeenAt: string
+}
+
+export type DataQualityOwnerCount = { ownerEmail: string | null; ownerName: string | null; open: number; overdue: number }
+
+/** Open items by owner: most overdue first, then most open, then name; unassigned is one owner. */
+export function countByOwner(items: readonly DataQualityItem[], now: Date): DataQualityOwnerCount[] {
+  const byOwner = new Map<string, DataQualityOwnerCount>()
+  for (const item of items) {
+    const key = item.ownerEmail ?? ""
+    const row = byOwner.get(key) ?? { ownerEmail: item.ownerEmail, ownerName: item.ownerName, open: 0, overdue: 0 }
+    row.open += 1
+    if (isOverdue(item, now)) row.overdue += 1
+    byOwner.set(key, row)
+  }
+  const name = (r: DataQualityOwnerCount) => r.ownerName ?? r.ownerEmail ?? ""
+  return [...byOwner.values()].sort(
+    (a, b) => b.overdue - a.overdue || b.open - a.open || name(a).localeCompare(name(b)),
+  )
 }

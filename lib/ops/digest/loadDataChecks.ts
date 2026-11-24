@@ -1,5 +1,6 @@
 import "server-only"
 
+import { listOpenDataQualityItems } from "@/lib/dataQuality/items.server"
 import { isFeatureOn } from "@/lib/features/server"
 import { querySnowflake } from "@/lib/snowflake/query"
 
@@ -7,8 +8,10 @@ import { getUnmappedDelivery } from "@/lib/pacing/admin/unmappedDelivery"
 import { relabelsHref } from "@/lib/pacing/relabel/shared/relabelPageUrl"
 
 import {
+  loadDigestDataQualitySection,
   loadDigestUnmatchedDelivery,
   loadPacingDigestDataChecks,
+  type DigestDataQuality,
   type DigestUnmatchedDelivery,
   type PacingDigestDataChecks,
 } from "./dataChecks"
@@ -44,5 +47,17 @@ export function loadDigestUnmatched(todayISO: string): Promise<DigestUnmatchedDe
     todayISO,
     // An email needs an absolute link: none when APP_BASE_URL is not set.
     href: base ? `${base}${relabelsHref({ tab: "unmapped" })}` : "",
+  })
+}
+
+/** S17: open Data quality items by owner with live wiring (switch `data_quality_queue`, Postgres). */
+export function loadDigestDataQuality(now: Date): Promise<DigestDataQuality | null> {
+  const base = (process.env.APP_BASE_URL ?? "").trim().replace(/\/$/, "")
+  return loadDigestDataQualitySection({
+    isOn: () => isFeatureOn("data_quality_queue"),
+    load: () => listOpenDataQualityItems(),
+    now,
+    // An email needs an absolute link: none when APP_BASE_URL is not set.
+    href: base ? `${base}/data-quality` : "",
   })
 }

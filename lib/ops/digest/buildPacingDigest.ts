@@ -16,8 +16,8 @@ import {
 } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
-import type { DigestUnmatchedDelivery, PacingDigestDataChecks } from "@/lib/ops/digest/dataChecks"
-import { loadDigestDataChecks, loadDigestUnmatched } from "@/lib/ops/digest/loadDataChecks"
+import type { DigestDataQuality, DigestUnmatchedDelivery, PacingDigestDataChecks } from "@/lib/ops/digest/dataChecks"
+import { loadDigestDataChecks, loadDigestDataQuality, loadDigestUnmatched } from "@/lib/ops/digest/loadDataChecks"
 import {
   buildAdServingDigestCampaignRows,
   buildDigestCampaignRows,
@@ -97,6 +97,8 @@ export type PacingDigestPayload = {
   dataChecks?: PacingDigestDataChecks
   /** S5: the unmatched delivery queue count. Present only with `unmatched_delivery_queue` on. */
   unmatched?: DigestUnmatchedDelivery
+  /** S17: open Data quality items by owner. Present only with `data_quality_queue` on. */
+  dataQuality?: DigestDataQuality
 }
 
 function logDigestStage(
@@ -211,7 +213,7 @@ async function finishDigest(
 
   const checksStarted = Date.now()
   // Both loaders fail soft; the catches are a last guard so the digest still sends.
-  const [dataChecks, unmatched] = await Promise.all([
+  const [dataChecks, unmatched, dataQuality] = await Promise.all([
     loadDigestDataChecks().catch((err: unknown) => {
       console.error("[pacing-digest] data checks failed", err)
       return null
@@ -220,12 +222,17 @@ async function finishDigest(
       console.error("[pacing-digest] unmatched delivery failed", err)
       return null
     }),
+    loadDigestDataQuality(now).catch((err: unknown) => {
+      console.error("[pacing-digest] data quality failed", err)
+      return null
+    }),
   ])
   logDigestStage("data_checks", checksStarted, {
     on: dataChecks != null,
     cm360Drift: dataChecks?.cm360Drift.status ?? null,
     labelMapDuplicates: dataChecks?.labelMapDuplicates.status ?? null,
     unmatched: unmatched?.status ?? null,
+    ...(dataQuality ? { dataQuality: dataQuality.status } : {}),
   })
 
   return {
@@ -251,5 +258,6 @@ async function finishDigest(
     },
     ...(dataChecks ? { dataChecks } : {}),
     ...(unmatched ? { unmatched } : {}),
+    ...(dataQuality ? { dataQuality } : {}),
   }
 }

@@ -245,7 +245,7 @@ if (supportsMockModule()) {
     namedExports: { listRelabelLogForDay: async () => [] },
   })
   await mock.module!("@/lib/ops/digest/loadDataChecks", {
-    namedExports: { loadDigestDataChecks: () => checksImpl(), loadDigestUnmatched: () => unmatchedImpl() },
+    namedExports: { loadDigestDataChecks: () => checksImpl(), loadDigestUnmatched: () => unmatchedImpl(), loadDigestDataQuality: async () => null },
   })
 }
 
