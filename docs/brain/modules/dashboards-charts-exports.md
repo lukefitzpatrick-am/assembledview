@@ -98,6 +98,14 @@ Template/skill files resolve via `process.cwd()` — serverless bundle tracing m
 - `lib/email/sendHtmlEmail.ts` (`server-only`, SendGrid; **throws** when `SENDGRID_API_KEY` missing — cron digests fail loudly; `EMAIL_FROM` required).
 - `lib/email/inviteSender.ts` (Auth0 invites, SendGrid only; the Nodemailer SMTP fallback was removed 31 Oct 2026, so a missing `SENDGRID_API_KEY` is a clear error). Consumers: admin users route + the 3 digest crons.
 
+## Export sheet visibility (S15)
+
+- One map (`lib/docs/exportSheetVisibility.ts`) names each sheet's audiences: Media Plan (internal, supplier, client), Campaign KPIs (internal, client), Monthly by supplier (internal, supplier), Insertions (internal, supplier, client), AA pack Summary (internal, supplier). A sheet not in the map is internal only.
+- `filterWorkbookBufferForAudience` is the one filter (exceljs load, remove sheets, write; styles, merges, print setup and the logo survive). Defined names that point at a removed sheet are dropped. It throws when no sheet is left.
+- With `export_sheet_visibility` on: the plan download route and the AA render route filter for any non-admin caller (client audience); the AA pack filters every workbook and its summary for the supplier audience; admin downloads keep every sheet. The MBA PDF is never filtered. The switch changes no workbook content. Off: every caller gets the whole stored workbook.
+- Not routed through it: the billing schedule workbook (one Billing Schedule sheet, built in the browser on the client campaign page) and MI exports (`/api/mi/exports/download`, client role allowed with an MBA check; the MI workbook itself is an admin download staff forward to suppliers). Both bypass the filter (C-411). Finance exports and naming or trafficking workbooks are admin only (internal).
+- Client-pays lines: the Media Plan Buy Type cell is the formatted buy type then ` · Client pays` (for example `CPM · Client pays`); the group keeps the raw buy type, so the CPM rate is per thousand, and a client-pays line never merges into an agency line. A Production row (no Buy Type header) carries `Client pays` in that column. A published Campaign KPIs row for a client-pays line is marked the same way (`publishedKpiSheetRows` sets `clientPays` by line id). AA workbooks rendered with `aa_client_pays_lines` on list client-pays lines on Media Plan (gross as stored, $0 for media lines) and Insertions ($0, Client pays column). Off, the AA layout drops them, as before. Monthly by supplier is a money roll-up and has no client-pays row.
+
 ## Excel/export gotchas (verified, recurring)
 
 - Excel Column N "Gross Media" contains **net** (C-1); no per-line fee column; export reads `calculateAssembledFee()` totals verbatim, never recomputes per line.

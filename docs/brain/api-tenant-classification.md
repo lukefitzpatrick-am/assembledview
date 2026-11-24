@@ -257,6 +257,7 @@ Existing `/api/admin/*` handlers in this recount: **36** methods across **31** f
 | GET | `/api/creative-previews/[platform]/[creativeKey]` | tenant-scoped | none | `app/api/creative-previews/[platform]/[creativeKey]/route.ts` |
 | GET | `/api/cron/auth0-roster-sync` | internal-cron | CRON_SECRET | `app/api/cron/auth0-roster-sync/route.ts` |
 | POST | `/api/cron/auth0-roster-sync` | internal-cron | CRON_SECRET | `app/api/cron/auth0-roster-sync/route.ts` |
+| GET | `/api/cron/billing-partner-pack` | internal-cron | CRON_SECRET | `app/api/cron/billing-partner-pack/route.ts` |
 | GET | `/api/cron/billing-partner-reminders` | internal-cron | CRON_SECRET | `app/api/cron/billing-partner-reminders/route.ts` |
 | GET | `/api/cron/codex-notifications` | internal-cron | CRON_SECRET | `app/api/cron/codex-notifications/route.ts` |
 | POST | `/api/cron/codex-notifications` | internal-cron | CRON_SECRET | `app/api/cron/codex-notifications/route.ts` |
