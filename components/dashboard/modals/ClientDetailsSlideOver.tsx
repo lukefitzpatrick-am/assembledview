@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { AlertCircle, Save } from "lucide-react"
 
 import { ClientMark } from "@/components/brand/EntityMark"
@@ -21,7 +21,7 @@ export function ClientDetailsSlideOver({
   clientRecord,
   brandColour,
 }: ClientDetailsSlideOverProps) {
-  const [refresh, setRefresh] = useState(0)
+  const router = useRouter()
 
   const idRaw = clientRecord?.id
   const idNum = typeof idRaw === "number" ? idRaw : Number(idRaw)
@@ -31,8 +31,11 @@ export function ClientDetailsSlideOver({
     ? { ...clientRecord, id: idNum, keyphone: String(clientRecord.keyphone ?? "") }
     : null
 
+  // The form keeps what was saved. Remounting it here (it was keyed on a save
+  // counter) reset it to the row the page loaded with, so a saved edit looked
+  // lost. Refresh the page data instead; the form is not remounted.
   const handleSuccess = () => {
-    setRefresh((n) => n + 1)
+    router.refresh()
   }
 
   const clientName =
@@ -63,7 +66,6 @@ export function ClientDetailsSlideOver({
 
               <div className="rounded-xl border border-border bg-card/50 p-4">
                 <EditClientForm
-                  key={refresh}
                   layout="panel"
                   client={formClient as never}
                   onSuccess={handleSuccess}
