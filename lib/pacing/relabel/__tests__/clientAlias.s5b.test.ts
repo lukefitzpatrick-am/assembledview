@@ -5,7 +5,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { runRelabelApply, runRelabelPreview, type RelabelHandlerDeps } from "../handlers.js"
+import { setFeatureRowReaderForTests } from "../../../features/server.js"
+import { defaultRelabelHandlerDeps, runRelabelApply, runRelabelPreview, type RelabelHandlerDeps } from "../handlers.js"
 import type { ClientAliasOffer, RelabelPreview } from "../shared/types.js"
 
 const STAFF = "staff@assembledmedia.com.au"
@@ -176,4 +177,20 @@ test("apply: switch off, no tick, or a save-as-request ignores the alias and ans
   assert.equal(req.calls.applied, 0)
   assert.equal(req.calls.offers, 0)
   assert.deepEqual(req.calls.saved, [])
+})
+
+test("S5c: the live tick needs client_alias_on_relabel on top of the unmatched delivery queue", async () => {
+  const on = async (keys: string[]) => {
+    setFeatureRowReaderForTests(
+      async () => new Map(keys.map((key) => [key, { key, enabled: true, updatedAt: null, updatedBy: null, updatedByName: null, note: null }])),
+    )
+    return defaultRelabelHandlerDeps().clientAlias!.isOn()
+  }
+  try {
+    assert.equal(await on(["unmapped_delivery", "unmatched_delivery_queue"]), false)
+    assert.equal(await on(["unmapped_delivery", "client_alias_on_relabel"]), false)
+    assert.equal(await on(["unmapped_delivery", "unmatched_delivery_queue", "client_alias_on_relabel"]), true)
+  } finally {
+    setFeatureRowReaderForTests(null)
+  }
 })

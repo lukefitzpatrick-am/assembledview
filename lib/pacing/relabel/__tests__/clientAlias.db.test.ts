@@ -118,6 +118,17 @@ describe("client name aliases on Postgres (S5b)", { skip }, () => {
     assert.equal((await loadClientAliasOffer(preview("pgaaus015"), warehouse("Always-On", ["pgaaus016sm2", ""]), db)).refusal, null)
   })
 
+  it("refuses delivery on a plan with no client: that is not this client's plan either", async () => {
+    const offer = await loadClientAliasOffer(preview("pgaaus015"), warehouse("Brand-Q3-2026", ["noclient001sm1"]), db)
+    assert.equal(offer.refusal, '"Brand-Q3-2026" has delivery on noclient001, another client\'s plan, in the last 30 days.')
+  })
+
+  it("fails closed when the delivery check passes its deadline", async () => {
+    const hang = async (sqlText: string): Promise<Record<string, unknown>[]> =>
+      sqlText.includes("REGEXP_REPLACE") ? new Promise(() => {}) : [{ CAMPAIGN_NAME: "Always-On" }]
+    await assert.rejects(loadClientAliasOffer(preview("pgaaus015"), hang, db, 50), /passed 50 ms/)
+  })
+
   it("fails closed: a warehouse read that fails throws, so the handlers refuse", async () => {
     await assert.rejects(loadClientAliasOffer(preview("pgaaus015"), warehouse("Always-On", new Error("snowflake down")), db), /snowflake down/)
   })
