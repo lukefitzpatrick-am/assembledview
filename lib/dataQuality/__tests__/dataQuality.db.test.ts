@@ -331,4 +331,111 @@ describe("Data quality queue on Postgres (S17, 0123)", { skip }, () => {
     assert.equal(await runDataQualitySweep([], db), null)
     assert.equal((await items()).length, 0)
   })
+
+  // S5b (C-387): unmatched delivery from the queue read, through the same writer.
+  const both = (unmatched: boolean) =>
+    setFeatureRowReaderForTests(
+      async () =>
+        new Map([
+          ["data_quality_queue", switchRow(true)],
+          ["unmatched_delivery_queue", { ...switchRow(unmatched), key: "unmatched_delivery_queue" }],
+        ]),
+    )
+  const deliveryRow = (id: string, name: string, campaign: string) => ({
+    CHANNEL: "Social - Meta", PLATFORM_LINE_ITEM_ID: id, NAME: name, CAMPAIGN_NAME: campaign, ACCOUNT: null,
+    RESOLVED_LINE_ITEM_ID: null, FIRST_DATE: "2026-11-01", LAST_DATE: "2026-11-20", SPEND: 100, IMPRESSIONS: 1000,
+  })
+  const ROWS = [
+    deliveryRow("1", "AU pgaa001sm1 prospecting", "Tour"), // names a published line
+    deliveryRow("2", "AU pgaa001 awareness", "Brand AU"), // names the plan, no line
+    deliveryRow("3", "Generic one", "bic-generic-prospecting"), // names no plan (a client stem is not one)
+    deliveryRow("4", "Generic two", "bic-generic-prospecting"),
+  ]
+  const LOOKUP = [{ KIND: "line", VAL: "pgaa001sm1" }, { KIND: "mba", VAL: "pgaa001" }]
+  const warehouse = (rows: Record<string, unknown>[] | Error, lookup = LOOKUP) => {
+    const calls: string[] = []
+    const query = async (_sql: string, _binds?: unknown[], opts?: { label?: string }) => {
+      calls.push(opts?.label ?? "")
+      if (rows instanceof Error) throw rows
+      return opts?.label === "unmapped_delivery" ? rows : lookup
+    }
+    return { query, calls }
+  }
+  const openDelivery = async () =>
+    (await listOpenDataQualityItems(db))
+      .filter((i) => i.ruleKey === "delivery.unmatched")
+      .map((i) => `${i.mbaNumber}|${i.lineItemId}|${i.ownerEmail}|${i.fixHref}`)
+      .sort()
+
+  it("unmatched delivery: one item per plan and line, else per campaign; plan owner, else the ops list", async () => {
+    const ops = process.env.OPS_EMAIL_TO
+    process.env.OPS_EMAIL_TO = " Ops@AM.test , other@am.test"
+    try {
+      both(true)
+      await plan(client, "pgaa001", 1, null, [{ id: "pgaa001sm1", publisher: "Meta" }])
+      const w = warehouse(ROWS)
+      const result = await runDataQualitySweep(null, db, w.query)
+      assert.deepEqual(w.calls, ["unmapped_delivery", "unmapped_delivery_lookup"])
+      assert.equal(result!.unmatchedDelivery!.written, 3)
+      assert.deepEqual(await openDelivery(), [
+        "No plan|Campaign: bic-generic-prospecting|ops@am.test|/pacing/admin/relabels?tab=unmapped",
+        "pgaa001|Campaign: Brand AU|fin@am.test|/pacing/admin/relabels?tab=unmapped&mba=pgaa001",
+        "pgaa001|pgaa001sm1|fin@am.test|/pacing/admin/relabels?tab=unmapped&mba=pgaa001",
+      ])
+      const noPlan = (await listOpenDataQualityItems(db)).find((i) => i.mbaNumber === "No plan")!
+      assert.match(noPlan.message, /Generic one.*Generic two/)
+    } finally {
+      if (ops === undefined) delete process.env.OPS_EMAIL_TO
+      else process.env.OPS_EMAIL_TO = ops
+    }
+  })
+
+  it("unmatched delivery: a failed warehouse read resolves nothing; a complete read resolves what is gone", async () => {
+    both(true)
+    await plan(client, "pgaa001", 1, null, [{ id: "pgaa001sm1", publisher: "Meta" }])
+    await runDataQualitySweep(null, db, warehouse(ROWS).query)
+    const before = await openDelivery()
+    assert.equal(before.length, 3)
+
+    const down = await runDataQualitySweep(null, db, warehouse(new Error("snowflake down")).query)
+    assert.equal("unmatchedDelivery" in down!, false)
+    assert.deepEqual(await openDelivery(), before)
+
+    const later = await runDataQualitySweep(null, db, warehouse([ROWS[0]!]).query)
+    assert.equal(later!.unmatchedDelivery!.resolved, 2)
+    assert.deepEqual((await openDelivery()).map((k) => k.split("|")[1]), ["pgaa001sm1"])
+  })
+
+  it("unmatched delivery: a test client's plan gets no item, as the publish source skips it", async () => {
+    both(true)
+    await plan(client, "pgaa001", 1, null, [{ id: "pgaa001sm1", publisher: "Meta" }])
+    await plan(client, "krus001", 4, null, [{ id: "krus001sm1", publisher: "Meta" }])
+    const rows = [ROWS[0]!, deliveryRow("5", "AU krus001sm1 test", "Krusty"), deliveryRow("6", "AU krus001 test", "Krusty AU")]
+    const lookup = [...LOOKUP, { KIND: "line", VAL: "krus001sm1" }, { KIND: "mba", VAL: "krus001" }]
+    const result = await runDataQualitySweep(null, db, warehouse(rows, lookup).query)
+    assert.equal(result!.unmatchedDelivery!.written, 1)
+    assert.deepEqual((await openDelivery()).map((k) => k.split("|")[0]), ["pgaa001"])
+  })
+
+  it("unmatched delivery: a read past its deadline counts as failed and resolves nothing", async () => {
+    both(true)
+    await plan(client, "pgaa001", 1, null, [{ id: "pgaa001sm1", publisher: "Meta" }])
+    await runDataQualitySweep(null, db, warehouse(ROWS).query)
+    const before = await openDelivery()
+    assert.equal(before.length, 3)
+    const hang = () => new Promise<never>(() => {})
+    const late = await runDataQualitySweep(null, db, hang, 50)
+    assert.equal("unmatchedDelivery" in late!, false)
+    assert.deepEqual(await openDelivery(), before)
+  })
+
+  it("unmatched delivery: switch off reads no warehouse, writes no item, and the result is as before", async () => {
+    both(false)
+    await plan(client, "pgaa001", 1, null, [{ id: "pgaa001sm1", publisher: "Meta" }])
+    const w = warehouse(ROWS)
+    const result = await runDataQualitySweep(null, db, w.query)
+    assert.deepEqual(Object.keys(result!).sort(), ["publish", "relabelDrift"])
+    assert.deepEqual(w.calls, [])
+    assert.deepEqual(await openDelivery(), [])
+  })
 })
