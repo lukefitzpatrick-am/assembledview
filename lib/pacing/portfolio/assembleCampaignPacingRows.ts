@@ -75,6 +75,8 @@ export type AssembleCampaignPacingRowsInput = {
   schedulesByMba: Map<string, CampaignScheduleInput>
   /** Channel fee percents from `mba_fee_snapshots` for the versions in this build. */
   feePctsByVersionId?: FeePctsByVersionId
+  /** `one_net_media` (M1), read once by the builder. Unset reads the browser switch snapshot (off on the server). */
+  oneNetMedia?: boolean
 }
 
 type DraftChannel = {
@@ -873,6 +875,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             versionId: row.mediaPlanVersionId,
             bursts: row.bursts,
             packageNoUnitTarget: row.noUnitTarget === true,
+            oneNetMedia: input.oneNetMedia,
             days: [
               {
                 date: row.lineItemEndDate || row.campaignEndDate || countTo,

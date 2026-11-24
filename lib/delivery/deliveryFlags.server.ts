@@ -26,12 +26,13 @@ export async function readHubDeliveredDedupe(read: Reader = (key) => isFeatureOn
 
 export async function readDeliveryFlags(read: Reader = (key) => isFeatureOn(key)): Promise<DeliveryFlags> {
   try {
-    const [packageNoUnitTarget, fixedCostReportNet, fixedCostFromDate] = await Promise.all([
+    const [packageNoUnitTarget, fixedCostReportNet, fixedCostFromDate, oneNetMedia] = await Promise.all([
       read("expert_package_quantity"),
       read("fixed_cost_report_net"),
       read("fixed_cost_from_date"),
+      read("one_net_media"),
     ])
-    return { packageNoUnitTarget, fixedCostReportNet, fixedCostFromDate }
+    return { packageNoUnitTarget, fixedCostReportNet, fixedCostFromDate, oneNetMedia }
   } catch (err) {
     console.warn("[delivery] switch read failed; using defaults (off)", err)
     return { ...DELIVERY_FLAGS_OFF }

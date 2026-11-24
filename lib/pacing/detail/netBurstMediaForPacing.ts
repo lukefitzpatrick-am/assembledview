@@ -14,23 +14,24 @@ export type PacingBurstMoney = {
  * Net media used to rate a burst.
  * A stored media amount wins. Otherwise a fee-inclusive budget is gross
  * and becomes net through `netFromGross`. Otherwise the budget is already net.
+ * `oneNetMedia` (`one_net_media`): unset reads the browser switch snapshot.
  */
 export function netBurstMediaForPacing(
   burst: { mediaAmount?: number | null; budget: number },
-  line: { budgetIncludesFees?: boolean },
+  line: { budgetIncludesFees?: boolean; oneNetMedia?: boolean },
   feePct: number,
 ): number {
   if (typeof burst.mediaAmount === "number" && Number.isFinite(burst.mediaAmount)) {
     return burst.mediaAmount
   }
   const budget = Number.isFinite(burst.budget) ? burst.budget : 0
-  if (line.budgetIncludesFees) return netFromGross(budget, true, feePct)
+  if (line.budgetIncludesFees) return netFromGross(budget, true, feePct, line.oneNetMedia)
   return budget
 }
 
-function lineNetBudget(budget: number, budgetIncludesFees: boolean, feePct: number): number {
+function lineNetBudget(budget: number, budgetIncludesFees: boolean, feePct: number, oneNetMedia?: boolean): number {
   const amount = Number.isFinite(budget) ? budget : 0
-  if (budgetIncludesFees) return netFromGross(amount, true, feePct)
+  if (budgetIncludesFees) return netFromGross(amount, true, feePct, oneNetMedia)
   return amount
 }
 
@@ -47,9 +48,11 @@ export function lineExpectedNetToDate(args: {
   lineEnd: string | null
   asOf: string
   lineItemId: string
+  /** `one_net_media`; unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean
 }): number {
   if (args.bursts.length === 0) {
-    const net = lineNetBudget(args.lineBudget, args.budgetIncludesFees, args.feePct)
+    const net = lineNetBudget(args.lineBudget, args.budgetIncludesFees, args.feePct, args.oneNetMedia)
     console.warn(
       `[pacing-detail] no bursts for ${args.lineItemId}; straight-line net budget`,
     )
@@ -64,7 +67,7 @@ export function lineExpectedNetToDate(args: {
       endISO: burst.endDate,
       amount: netBurstMediaForPacing(
         burst,
-        { budgetIncludesFees: args.budgetIncludesFees },
+        { budgetIncludesFees: args.budgetIncludesFees, oneNetMedia: args.oneNetMedia },
         args.feePct,
       ),
     })),

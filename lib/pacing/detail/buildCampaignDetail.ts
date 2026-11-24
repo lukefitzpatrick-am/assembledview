@@ -51,6 +51,8 @@ export type BuildCampaignDetailArgs = {
   window?: CampaignDetailDailyWindow
   /** B23fix P14 (`expert_package_quantity`). Unset reads the switch. */
   packageNoUnitTarget?: boolean
+  /** `one_net_media` (M1). Unset reads the switch. */
+  oneNetMedia?: boolean
 }
 
 export class CampaignDetailError extends Error {
@@ -145,16 +147,18 @@ function linesFromSources(
   sources: Awaited<ReturnType<typeof fetchMbaChannelRows>>,
   asOf: string,
   feePcts: FeePctsByVersionId,
+  oneNetMedia: boolean,
 ): LineCardModel[] {
   return [
     ...sources.search.map((row) =>
-      lineCardFromSearch(row, asOf, feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, "search")),
+      lineCardFromSearch(row, asOf, feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, "search"), oneNetMedia),
     ),
     ...sources.social.map((row) =>
       lineCardFromSocial(
         row,
         asOf,
         feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, "socialMedia"),
+        oneNetMedia,
       ),
     ),
     ...sources.programmatic.map((row) =>
@@ -162,6 +166,7 @@ function linesFromSources(
         row,
         asOf,
         feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, row.channelFamily),
+        oneNetMedia,
       ),
     ),
     ...sources.adServing.map((row) => lineCardFromAdServing(row, asOf)),
@@ -302,7 +307,13 @@ export async function buildCampaignDetail(
     versionIds.length > 0 ? readPlanVersionSchedulesByIds(versionIds) : Promise.resolve([]),
     loadDirectDigitalFeePctsOrGross(versionIds),
   ])
-  const builtLines = linesFromSources(sources, countTo, feePctsByVersionId)
+  // One flag read per request, only when a caller left a flag unset.
+  const flags =
+    args.oneNetMedia === undefined || args.packageNoUnitTarget === undefined
+      ? await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()
+      : null
+  const oneNetMedia = args.oneNetMedia ?? flags?.oneNetMedia ?? false
+  const builtLines = linesFromSources(sources, countTo, feePctsByVersionId, oneNetMedia)
   const assumedByVersion = await loadAssumedExpectedLinesByVersion(versionIds, feePctsByVersionId)
   const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions, assumedByVersion)
   const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
@@ -317,6 +328,7 @@ export async function buildCampaignDetail(
     direct: sources.direct,
     schedulesByMba,
     feePctsByVersionId,
+    oneNetMedia,
   })
   const freshRow = assembled.find((item) => normMba(item.mbaNumber) === mbaKey) ?? null
   const lines = reconcileDetailLines(builtLines, freshRow?.channels, countTo)
@@ -337,9 +349,7 @@ export async function buildCampaignDetail(
     planPerDayByChannel[line.channel] = (planPerDayByChannel[line.channel] ?? 0) + line.perDayPlan
   }
 
-  const packageNoUnitTarget =
-    args.packageNoUnitTarget ??
-    (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).packageNoUnitTarget
+  const packageNoUnitTarget = args.packageNoUnitTarget ?? flags?.packageNoUnitTarget ?? false
 
   const [read, notes, dailyFacts, clients] = await Promise.all([
     getLatestPublishedCampaignRead(mba).catch(() => null),

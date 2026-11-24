@@ -318,6 +318,7 @@ function applyDirectDigitalEstimates(
   packageOptions?: PackageUnitTargetOptions,
   /** B23: dated fixed-cost lines whose estimate days are kept for the per-day merge. */
   captureDays?: Map<string, Map<string, number>>,
+  oneNetMedia = false,
 ): Set<string> {
   const estimatedIds = new Set<string>()
   const daysByLine = new Map<string, PacingRow[]>()
@@ -350,6 +351,7 @@ function applyDirectDigitalEstimates(
         bursts: plan.bursts,
         days,
         ...(packageOptions?.packageNoUnitTarget ? { packageNoUnitTarget: true } : {}),
+        oneNetMedia,
       })
       if (captureDays?.has(id)) {
         captureDays.set(id, new Map(estimate.days.map((day) => [day.date, day.derivedSpend])))
@@ -484,6 +486,7 @@ function expectedNetForPlan(
   windowStart: string | undefined,
   windowEnd: string | undefined,
   asOf: string,
+  oneNetMedia: boolean,
 ): number {
   return netBurstExpectedInWindow({
     bursts: pacingBursts(plan.bursts),
@@ -496,6 +499,7 @@ function expectedNetForPlan(
     windowStart,
     windowEnd,
     asOf,
+    oneNetMedia,
   })
 }
 
@@ -515,6 +519,7 @@ function buildLines(
   feePcts: FeePctsByVersionId,
   windowStart: string | undefined,
   windowEnd: string | undefined,
+  oneNetMedia: boolean,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
   for (const id of [...planById.keys()].sort()) {
@@ -555,7 +560,7 @@ function buildLines(
         asOf,
       ),
       expectedNetToDate: plan
-        ? expectedNetForPlan(plan, feePcts, windowStart, windowEnd, asOf)
+        ? expectedNetForPlan(plan, feePcts, windowStart, windowEnd, asOf, oneNetMedia)
         : null,
       noDeliveryRows,
       deliveryState,
@@ -1155,6 +1160,7 @@ export async function loadDeliverySnapshot(
     feePctsByVersionId,
     packageOptions,
     datedFixedCost.size > 0 ? actualDaysForDated : undefined,
+    deliveryFlags.oneNetMedia,
   )
   const modelledIds = applyModelledProgrammaticSpend(
     modelled,
@@ -1258,6 +1264,7 @@ export async function loadDeliverySnapshot(
       feePctsByVersionId,
       startDate,
       endDate,
+      deliveryFlags.oneNetMedia,
     )
     if (DIRECT_DIGITAL_ESTIMATE_GROUPS.has(group)) {
       const kept: DeliveryLineSnapshot[] = []

@@ -76,6 +76,8 @@ export function netBurstExpectedInWindow(args: {
   windowStart?: string | null
   windowEnd?: string | null
   asOf: string
+  /** `one_net_media`; unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean
 }): number {
   const at = (asOf: string) =>
     lineExpectedNetToDate({
@@ -87,6 +89,7 @@ export function netBurstExpectedInWindow(args: {
       lineEnd: args.lineEnd,
       asOf,
       lineItemId: args.lineItemId,
+      oneNetMedia: args.oneNetMedia,
     })
   if (args.windowStart && args.windowEnd) {
     const slice = at(args.windowEnd) - at(dayBeforeISO(args.windowStart))

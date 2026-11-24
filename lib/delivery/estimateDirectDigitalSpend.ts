@@ -46,6 +46,8 @@ export type EstimateDirectDigitalSpendInput = {
   days: ReadonlyArray<EstimateDirectDigitalDay>
   /** P14 (`expert_package_quantity`): a package line has no unit target, so no estimate. */
   packageNoUnitTarget?: boolean
+  /** `one_net_media` (M1): net through `computeBurstAmounts`. Unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean
 }
 
 export type EstimateDirectDigitalSpendResult = {
@@ -121,7 +123,7 @@ function burstsForEstimate(input: EstimateDirectDigitalSpendInput): DeriveSpendB
     if (hasMediaAmount(burst)) return burst
     const gross = burst.budget_number ?? burst.budget ?? burst.media_investment
     if (!isPresent(gross)) return burst
-    const net = netFromGross(parseCurrency(gross), true, feePct)
+    const net = netFromGross(parseCurrency(gross), true, feePct, input.oneNetMedia)
     return { ...burst, budget: net, budget_number: net }
   })
 }

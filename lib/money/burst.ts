@@ -120,6 +120,38 @@ function flagged(value: unknown): boolean {
 }
 
 /**
+ * The `totalMedia` a channel's save row carries for a line (`attrs.totalMedia`).
+ * `oneNetMedia` on (`one_net_media`): each burst's `computeBurstAmounts`
+ * `deliveryMediaAmount`, so bonus and package inclusions save 0 (C-391).
+ * Off: the old local split of a fee-inclusive budget, as before.
+ */
+export function lineSaveTotalMedia(
+  line: { bursts?: Array<{ budget?: unknown }>; budgetIncludesFees?: boolean; clientPaysForMedia?: boolean; buyType?: string },
+  feePct: number,
+  oneNetMedia: boolean,
+): number {
+  const pct = feePct || 0
+  let totalMedia = 0
+  for (const burst of line.bursts ?? []) {
+    const budget = parseMoney(burst.budget) ?? 0
+    if (oneNetMedia) {
+      totalMedia += computeBurstAmounts({
+        rawBudget: budget,
+        budgetIncludesFees: !!line.budgetIncludesFees,
+        clientPaysForMedia: !!line.clientPaysForMedia,
+        feePct: pct,
+        buyType: line.buyType,
+      }).deliveryMediaAmount
+    } else if (line.budgetIncludesFees) {
+      totalMedia += (budget * (100 - pct)) / 100
+    } else {
+      totalMedia += budget
+    }
+  }
+  return totalMedia
+}
+
+/**
  * What a card cell or title shows. Money still comes from lineTotals.
  * Bonus and package inclusions stay at zero. Package is not zeroed.
  */

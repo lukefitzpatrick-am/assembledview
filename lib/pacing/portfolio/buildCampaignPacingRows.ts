@@ -56,6 +56,8 @@ export type BuildCampaignPacingRowsArgs = {
    * A throw is logged once and the build continues with an empty map.
    */
   loadFeePcts?: DirectDigitalFeePctsLoader
+  /** `one_net_media` (M1). Unset reads the switch. */
+  oneNetMedia?: boolean
 }
 
 function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTiming[]): void {
@@ -261,6 +263,8 @@ export async function buildCampaignPacingRows(
     args.loadFeePcts,
   )
   const assumedByVersion = await loadAssumedExpectedLinesByVersion(versionIds, feePctsByVersionId)
+  const oneNetMedia =
+    args.oneNetMedia ?? (await (await import("@/lib/delivery/deliveryFlags.server")).readDeliveryFlags()).oneNetMedia
 
   const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
@@ -270,6 +274,7 @@ export async function buildCampaignPacingRows(
     ...sources,
     schedulesByMba: schedulesByMbaFromVersions(versions, assumedByVersion),
     feePctsByVersionId,
+    oneNetMedia,
   })
   return {
     rows,

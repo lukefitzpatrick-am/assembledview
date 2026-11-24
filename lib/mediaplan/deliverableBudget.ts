@@ -1,4 +1,6 @@
 import { parseMoneyInput, type MoneyInput } from "@/lib/format/money";
+import { clientFeatureOn } from "@/lib/features/client";
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts";
 
 export type BuyType =
   | "package"
@@ -326,13 +328,28 @@ export function grossFromNet(
   return netMedia / (1 - feePct / 100);
 }
 
+/**
+ * Net media from a fee-inclusive budget. With `one_net_media` on it is
+ * `computeBurstAmounts` `deliveryMediaAmount` (C-393). Unset `oneNetMedia`
+ * reads the browser switch snapshot (off on the server): server callers pass
+ * the live value.
+ * shortcut: server planned deliverables (`computeDeliverableFromMedia` in
+ * `computeCampaignFinancials` and the Excel export) read that default; a float
+ * bit moves a rounded count only on an exact half, so thread the switch there
+ * if one ever does.
+ */
 export function netFromGross(
   grossBudget: number,
   budgetIncludesFees: boolean,
-  feePct: number
+  feePct: number,
+  oneNetMedia: boolean = clientFeatureOn("one_net_media")
 ): number {
   if (!budgetIncludesFees) {
     return grossBudget;
+  }
+  // A non-finite input keeps its NaN (the deliverable "no recompute" sentinel); computeBurstAmounts reads it as 0.
+  if (oneNetMedia && Number.isFinite(grossBudget) && Number.isFinite(feePct)) {
+    return computeBurstAmounts({ rawBudget: grossBudget, budgetIncludesFees: true, clientPaysForMedia: false, feePct }).deliveryMediaAmount;
   }
   return grossBudget * (1 - feePct / 100);
 }

@@ -167,6 +167,7 @@ function spendDraft(input: {
     bursts: readonly PacingBurstMoney[]
     budgetIncludesFees: boolean
     feePct: number
+    oneNetMedia?: boolean
   }
 }): Draft {
   const timePct = lineTimePct(input.start, input.end, input.asOf)
@@ -179,6 +180,7 @@ function spendDraft(input: {
         bursts: input.rate.bursts,
         budgetIncludesFees: input.rate.budgetIncludesFees,
         feePct: input.rate.feePct,
+        oneNetMedia: input.rate.oneNetMedia,
         lineBudget: input.budget,
         lineStart: input.start,
         lineEnd: input.end,
@@ -269,6 +271,8 @@ export function lineCardFromSearch(
   row: SearchPacingCampaignRow,
   asOf: string,
   feePct = 0,
+  /** `one_net_media` (M1). Unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean,
 ): LineCardModel {
   const burst = row.currentBurst
   const kpis: LineCardKpi[] = buildKpiComparisons(row).map((cmp) =>
@@ -328,6 +332,7 @@ export function lineCardFromSearch(
       bursts: row.bursts,
       budgetIncludesFees: row.budgetIncludesFees,
       feePct,
+      oneNetMedia,
     },
     metrics: [
       { label: "Clicks", value: formatCount(row.clicks) },
@@ -344,6 +349,8 @@ export function lineCardFromSocial(
   row: SocialPacingCampaignRow,
   asOf: string,
   feePct = 0,
+  /** `one_net_media` (M1). Unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean,
 ): LineCardModel {
   const burst = row.currentBurst
   const metrics: LineCardMetric[] = [
@@ -406,6 +413,7 @@ export function lineCardFromSocial(
       bursts: row.bursts,
       budgetIncludesFees: row.budgetIncludesFees,
       feePct,
+      oneNetMedia,
     },
     metrics,
     kpis,
@@ -422,6 +430,8 @@ export function lineCardFromProgrammatic(
   row: ProgrammaticPacingCampaignRow,
   asOf: string,
   feePct = 0,
+  /** `one_net_media` (M1). Unset reads the browser switch snapshot. */
+  oneNetMedia?: boolean,
 ): LineCardModel {
   const burst = row.currentBurst
   const isVideo = row.videoViews > 0 || row.deliverableMetric === "VIDEO_3S_VIEWS"
@@ -491,6 +501,7 @@ export function lineCardFromProgrammatic(
       bursts: row.bursts,
       budgetIncludesFees: row.budgetIncludesFees,
       feePct,
+      oneNetMedia,
     },
     metrics,
     kpis,

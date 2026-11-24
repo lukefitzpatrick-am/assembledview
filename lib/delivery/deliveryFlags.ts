@@ -10,6 +10,8 @@
  * - fixedCostFromDate: `fixed_cost_from_date` (FC2, B23), which requires
  *   `fixed_cost_report_net`: the date field, the save check, the snapshot
  *   date and the readers' per-day split.
+ * - oneNetMedia: `one_net_media` (M1): net media from a fee-inclusive budget
+ *   through `computeBurstAmounts` (`netFromGross`).
  *
  * The registry's `requires` is resolved by `isFeatureOn` and the browser
  * snapshot, so each flag is one switch read.
@@ -22,12 +24,14 @@ export type DeliveryFlags = {
   packageNoUnitTarget: boolean
   fixedCostReportNet: boolean
   fixedCostFromDate: boolean
+  oneNetMedia: boolean
 }
 
 export const DELIVERY_FLAGS_OFF: DeliveryFlags = Object.freeze({
   packageNoUnitTarget: false,
   fixedCostReportNet: false,
   fixedCostFromDate: false,
+  oneNetMedia: false,
 })
 
 /** Browser read (the root layout's switch snapshot). On the server it is the default (off). */
@@ -36,5 +40,6 @@ export function deliveryFlagsFromClient(): DeliveryFlags {
     packageNoUnitTarget: clientFeatureOn("expert_package_quantity"),
     fixedCostReportNet: clientFeatureOn("fixed_cost_report_net"),
     fixedCostFromDate: clientFeatureOn("fixed_cost_from_date"),
+    oneNetMedia: clientFeatureOn("one_net_media"),
   }
 }

@@ -827,6 +827,18 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
     owner: "Luke",
   },
+  {
+    key: "one_net_media",
+    label: "One net media formula",
+    description:
+      "Net media from a fee-inclusive budget comes from computeBurstAmounts (deliveryMediaAmount) everywhere (C-391, C-393): netFromGross (pacing expected, direct digital estimated spend, planned deliverables in the plan editor) and the line totalMedia a channel saves. Stored cents: 0 moves on live data. Some figures move by a float bit, and screens format the raw float (formatMoney, C-420), so on a cent-edge budget a screen can show a cent more or less, towards the computeBurstAmounts value (10.50 at 7% shows $9.77, not $9.76). A bonus or package inclusions line saves totalMedia 0, not its budget, so it adds no spend to a KPI spend blend (Television package inclusions keep their entered budget, so they move). Stored totalMedia changes only when a plan is saved again. Server planned deliverables (computeCampaignFinancials, the Excel export) stay on the old order (C-417). The stored portfolio snapshot shows a toggle only after its next cron build. Off: the old float order, as before. Nothing needs to be true first.",
+    area: "finance",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
 ] as const satisfies readonly FeatureDefinition[]
 
 export type FeatureKey = (typeof FEATURE_DEFINITIONS)[number]["key"]

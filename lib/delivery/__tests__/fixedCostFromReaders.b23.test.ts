@@ -199,8 +199,8 @@ function linesById(snap: { channels: Array<{ lines: Array<{ lineItemId: string }
   )
 }
 
-const OFF = { packageNoUnitTarget: false, fixedCostReportNet: false, fixedCostFromDate: false }
-const ON = { packageNoUnitTarget: false, fixedCostReportNet: true, fixedCostFromDate: true }
+const OFF = { packageNoUnitTarget: false, fixedCostReportNet: false, fixedCostFromDate: false, oneNetMedia: false }
+const ON = { packageNoUnitTarget: false, fixedCostReportNet: true, fixedCostFromDate: true, oneNetMedia: false }
 
 describe("loadDeliverySnapshot (decks, Ava, campaign strip, client totals)", () => {
   test("switch off: the dated line is whole-line reported, as before (missing days are $0)", { skip }, async () => {

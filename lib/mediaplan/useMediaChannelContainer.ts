@@ -7,7 +7,8 @@
  * containers keep only their wrapper + descriptor + channel-specific JSX.
  */
 
-import { channelSummaryTotals, parseMoney } from "@/lib/money"
+import { channelSummaryTotals, lineSaveTotalMedia, parseMoney } from "@/lib/money"
+import { clientFeatureOn } from "@/lib/features/client"
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react"
 import { useForm, useFieldArray, useWatch, type UseFormReturn } from "react-hook-form"
 import { useToast } from "@/components/ui/use-toast"
@@ -592,17 +593,9 @@ export function useMediaChannelContainer(
       mediaTypeIdCode,
     )
 
+    const oneNetMedia = clientFeatureOn("one_net_media")
     const transformedLineItems = stableItems.map((lineItem, index) => {
-      let totalMedia = 0
-      lineItem.bursts.forEach((burst: any) => {
-        const budget = parseMoney(burst.budget) ?? 0
-        if (lineItem.budgetIncludesFees) {
-          const pct = feePct || 0
-          totalMedia += (budget * (100 - pct)) / 100
-        } else {
-          totalMedia += budget
-        }
-      })
+      const totalMedia = lineSaveTotalMedia(lineItem, feePct, oneNetMedia)
 
       const row = {
         media_plan_version: 0,
