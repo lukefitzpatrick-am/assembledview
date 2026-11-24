@@ -46,8 +46,16 @@ The app is deeply interconnected and uncoordinated changes cause regressions in 
 
 ## Working rules on this project
 
-- **No AI edits the repo directly.** Claude proposes; changes go through a Cursor prompt pack. One prompt = one commit = one gate review.
-- **State confidence.** Anything under 90% confident is said out loud, with what would raise it. Never guess a schema, a route or a business rule — ask for the file.
+- **No AI edits the repo directly.** Claude proposes; changes ship as `.mbox` packs (or a Cursor prompt pack) that Luke applies himself. One commit = one gate review.
+- **State confidence.** Every diagnosis and recommendation carries a confidence percentage. Under 90%, stop and ask, saying what would raise it. Never guess a schema, a route or a business rule: ask for the file, or verify table and column names by schema inspection.
+- **Discovery before build.** New features start with a read-only discovery file in `docs/superpowers/` (plan, options, confidence). No build until Luke approves it.
+- **Decision gates are explicit.** Present the options with a recommendation and wait. Never accept a default on Luke's behalf.
+- **Phase reviews.** At the end of each phase an independent reviewer checks goals against outcomes, and the full review goes to Luke before the next phase starts. `npm run test:all` runs once per phase; each step runs only its small, specific tests plus typecheck and lint.
+- **Commits.** One logical change per commit. `git add` by explicit file path only, never `git add .`. `npx tsc --noEmit` exits with zero errors on every commit.
+- **Commands for Luke are PowerShell.** No `&&` chaining, no `grep`, no `jq`. Every command runs on its own.
+- **No browser smoke by AI.** Luke smokes UI by hand. No commit command for UI work until he confirms the smoke.
+- **Machine-to-machine calls** reuse the shared signing secret (`APP_SIGNING_SECRET` with a new `SigningPurpose`, `lib/security/signingSecret.ts`). Env vars are for real secrets only; feature switches go on the Admin Features page.
+- **UI** uses the shared design source (`/design-system`, `components/layout/*`, `lib/design/*`). No one-off styles.
 - **Branching:** `localhost` is the working trunk; `main` is cherry-pick-only and auto-deploys. No other branches, no direct commits to main, no force-push. Conventional Commits. Full law in `/BRANCHING.md`. On this project, **redeploy is the promote**.
 - **Documentation placement:** durable knowledge → `docs/brain/`; human-facing explanation → `docs/handbook/`; time-bound plans and specs → `docs/superpowers/` with an explicit `Status:`. **Nothing new in the repo root.**
 - **Tests:** `npm test` runs every test file (found by name, `scripts/run-tests.mjs`). The named `test:*` scripts are file-stem prefixes of it; `node scripts/run-tests.mjs <folder>` runs one area. A new test file needs no list entry. Run `npm run typecheck` and the relevant `lib/**/__tests__` folder for any helper you touch.
