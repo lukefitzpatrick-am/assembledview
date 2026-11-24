@@ -130,6 +130,7 @@ Outside Codex, pages link into it to make changes.
 
 - **Features.** Turns features on and off. Each switch says what it does and what must be true first. Turn one on at a time and check the page it changes.
 - **Users.** Add and manage people and their access.
+- **Data quality** (`/data-quality`, when switched on). Data problems the app's checks find every morning: a published plan line with no publisher, burst dates outside the plan or out of order, overlapping bursts, a package with no quantity, and relabel drift. Each item names the plan, the line and the rule, links to the fix, and goes to the plan owner: the client's finance owner, else whoever last published the plan. Test and internal clients are left out. The page opens on your own items (Mine), overdue first. Filter by owner, rule or client, or tick Overdue only (open more than 3 days). Resolve asks you to confirm, then marks an item done; a problem still there comes back the next morning. Dismiss needs a reason and stops it coming back for good. The pacing digest shows how many items are overdue, by owner. Publish problems are listed whether or not publish refuses them yet. Clients never see this page.
 
 ## Getting help
 

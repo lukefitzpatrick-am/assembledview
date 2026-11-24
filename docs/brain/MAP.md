@@ -39,6 +39,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 13 | [AVA](#13-ava) | floating widget | `components/ava/`, `components/ChatWidget.tsx` | `lib/ava/`, `src/ava/` | `/api/chat-v2` | reads most, writes few |
 | 14 | [Admin & M365](#14-admin--m365) | `/admin/*` | `components/admin/`, `components/best-practice/` | `lib/m365/`, `lib/ops/` | `/api/admin` | `m365_provisioning_log`, `media_container_best_practice` |
 | 15 | [Roz (Site Watch)](#15-roz-site-watch) | (no UI yet; phase 3) | — | `lib/siteWatch/` | `/api/cron/site-watch-*` | `site_watch_sites`, `site_watch_runs`, `site_watch_pages`, `site_watch_changes` (0122) |
+| 16 | [Data quality queue](#16-data-quality-queue) | `/data-quality` | `components/dataQuality/` | `lib/dataQuality/` | `/api/data-quality` | `data_quality_items` |
 
 ---
 
@@ -207,6 +208,12 @@ M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and lo
 Daily scan of each client website, behind switch `site_watch` (needs migration 0122). `GET /api/cron/site-watch-enqueue` (06:00 Melbourne, `lib/cron/melbourneCrons.ts`) adds a site per new `clients.website`, queues one run per enabled site and deletes runs older than 90 days. `GET /api/cron/site-watch-worker` (every 5 minutes, 19:00 to 22:55 UTC) claims runs with SKIP LOCKED and scans by plain HTTP for up to 240 s, resuming next call. A run with Critical changes emails `getOpsEmailRecipients()` once, in Roz's voice. No UI, Ava tool or Teams reporter yet (phases 3 and 4); GTM container inspection is phase 2.
 
 → `modules/site-watch.md`
+
+## 16. Data quality queue
+
+One queue of data problems, each with the plan, the line, the rule and a fix link, assigned to the plan owner (S17), behind switch `data_quality_queue` (needs migration 0123). Every check writes through `recordFindings` (`lib/dataQuality/items.server.ts`). The daily relabel-drift cron runs the sweep: publish validation refusals on published versions (test clients skipped), and relabel drift. `/data-quality` is admin only; the pacing digest shows overdue counts by owner.
+
+→ `modules/data-quality.md`
 
 ## Public pages
 

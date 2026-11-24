@@ -413,6 +413,16 @@ pct === 100 → fee = 0 (division guard)
 - Scanned page content is untrusted: escaped in email and UI, never rendered as HTML, and never read as instructions.
 - Runs older than 90 days are deleted with their changes; page snapshots are kept. The enqueue cron adds a site for a client website only when no site has that URL and never changes an existing site.
 
+## Data quality queue (S17)
+
+- Every check that finds a data problem writes through `recordFindings` (`lib/dataQuality/items.server.ts`). No other code writes `data_quality_items`, except the screen closing one item through `closeDataQualityItem`.
+- A check passes `recordFindings` its complete result for the rules it names. A sample, or a read that failed, never reaches it: missing items are resolved.
+- One open item per rule, plan and line. A dismissed item stays dismissed; a check never reopens it.
+- The plan owner is resolved when an item is written: the client's finance owner, else the published version's last publisher, else unassigned. Only active team members count.
+- The queue is staff only (admin). Clients never see it, and Ava has no grant on it.
+- Data quality sources skip plans of test and internal clients (`clients.is_test_client`).
+- One Data quality sweep runs at a time (a transaction-scoped advisory lock).
+
 ## Workflow
 
 - **Calendar meaning comes from `lib/dates` only.** The business zone is Melbourne. "Today", "this month" and the day of an instant are `getMelbourneTodayISO`, `getMelbourneMonthISO` and `toMelbourneDateString`; a month key for "now" is never the UTC or host month. "Today" as a date in a file name, a label, a default, a fallback or a query is `getMelbourneTodayISO` on the server and in the browser alike (never `toISOString().slice(0, 10)` of now, the host day or a database clock); code that holds local-midnight `Date`s takes `parseDateOnlyString(getMelbourneTodayISO())`. Only a timestamp with a time of day (a saved view name, a forecast export stamp) and a date picker's own calendar follow the viewer's clock. `toPeriodMonthKey` takes strings only. `check:date-boundaries` keeps zone literals, `toISOString().slice(0, 7 or 10)` (or `substring`), the host month or day of now (`format(new Date(), "yyyy-MM...")`, `new Date().getFullYear()`, `getMonth()`, `getDate()` and their UTC forms), hand-built `T00:00:00` and `formatToParts` from growing outside `lib/dates`.
