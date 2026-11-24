@@ -4,10 +4,12 @@ import { NextResponse } from "next/server"
 
 import { createTask } from "@/lib/codex/repo"
 import { sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
+import { isFeatureOn } from "@/lib/features/server"
 import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { RelabelApplyError } from "./applyGuard"
 import { applyRelabel } from "./apply"
+import { loadClientAliasOffer, saveClientAlias } from "./clientAlias"
 import { listRelabelDrift, type RelabelDriftFinding } from "./listRelabelDrift"
 import {
   notifyRelabel,
@@ -32,7 +34,7 @@ import { queryActiveLabelMap } from "./entity"
 import { RelabelRevertError, RELABEL_REVERT_EXPIRED_MESSAGE, revertRelabel } from "./revert"
 import { buildApplyLogPayload } from "./applyGuard"
 import { describeRelabelWrites } from "./shared/describeWrites"
-import type { RelabelPreview, RelabelQueryFn } from "./shared/types"
+import type { ClientAliasOffer, RelabelPreview, RelabelQueryFn } from "./shared/types"
 
 export type RelabelHandlerDeps = {
   previewRelabel: typeof previewRelabel
@@ -48,6 +50,12 @@ export type RelabelHandlerDeps = {
   notify: typeof notifyRelabel
   notifyIo: RelabelNotifyDeps
   listRelabelDrift?: typeof listRelabelDrift
+  /** S5b: the "Save as a client alias" tick. Absent reads as switch off. */
+  clientAlias?: {
+    isOn: () => Promise<boolean>
+    loadOffer: (preview: RelabelPreview) => Promise<ClientAliasOffer>
+    save: (clientId: number, alias: string) => Promise<boolean>
+  }
 }
 
 const defaultQuery: RelabelQueryFn = async (sql, binds) => {
@@ -72,6 +80,27 @@ export function defaultRelabelHandlerDeps(): RelabelHandlerDeps {
       sendHtmlEmail,
     },
     listRelabelDrift,
+    clientAlias: {
+      isOn: () => isFeatureOn("unmatched_delivery_queue"),
+      loadOffer: (preview) => loadClientAliasOffer(preview, defaultQuery),
+      save: (clientId, alias) => saveClientAlias(clientId, alias),
+    },
+  }
+}
+
+/** S5b: the alias offer when the switch is on, else null. A failed read is offered as refused, never thrown. */
+async function clientAliasOfferIfOn(preview: RelabelPreview, deps: RelabelHandlerDeps): Promise<ClientAliasOffer | null> {
+  if (!deps.clientAlias || !(await deps.clientAlias.isOn())) return null
+  try {
+    return await deps.clientAlias.loadOffer(preview)
+  } catch (err) {
+    console.error("[api/pacing/relabels] client alias offer failed", err)
+    return {
+      campaignName: "",
+      clientId: null,
+      clientName: null,
+      refusal: "Could not check this name against other clients and their delivery just now, so it cannot be saved. Preview again to retry.",
+    }
   }
 }
 
@@ -156,7 +185,8 @@ export async function runRelabelPreview(
       actorEmail,
       payload: previewPayload(preview),
     })
-    return NextResponse.json({ preview })
+    const clientAlias = await clientAliasOfferIfOn(preview, deps)
+    return NextResponse.json({ preview, ...(clientAlias ? { clientAlias } : {}) })
   } catch (err) {
     const soft = unavailable(err)
     if (soft) return soft
@@ -170,6 +200,8 @@ export async function runRelabelApply(
     reason: string
     acknowledgeWarnings?: boolean
     saveAsRequest?: boolean
+    /** S5b: save the entity's campaign name as the target client's alias after the apply. */
+    saveClientAlias?: boolean
   },
   actorEmail: string,
   deps: RelabelHandlerDeps = defaultRelabelHandlerDeps(),
@@ -232,6 +264,15 @@ export async function runRelabelApply(
       return NextResponse.json({ requested: true, relabel: blocked, preview })
     }
 
+    // S5b: a refused alias stops the apply before any write; the reason goes on the tick box.
+    const alias = args.saveClientAlias ? await clientAliasOfferIfOn(preview, deps) : null
+    if (alias && (alias.refusal || alias.clientId == null)) {
+      return NextResponse.json(
+        { error: "alias_refused", field: "saveClientAlias", message: alias.refusal ?? "The alias cannot be saved." },
+        { status: 400 },
+      )
+    }
+
     const result = await deps.applyRelabel(preview, {
       reason,
       actorEmail,
@@ -256,7 +297,8 @@ export async function runRelabelApply(
       }),
       deps.notifyIo,
     )
-    return NextResponse.json({ result, preview })
+    const clientAlias = alias ? await saveAliasAfterApply(alias, deps) : null
+    return NextResponse.json({ result, preview, ...(clientAlias ? { clientAlias } : {}) })
   } catch (err) {
     const soft = unavailable(err)
     if (soft) return soft
@@ -267,6 +309,21 @@ export async function runRelabelApply(
     }
     console.error("[api/pacing/relabels] POST apply failed", err)
     return NextResponse.json({ error: "internal_error" }, { status: 500 })
+  }
+}
+
+/** S5b: the relabel is applied whatever happens here; the answer says whether the alias was saved. */
+async function saveAliasAfterApply(
+  alias: ClientAliasOffer,
+  deps: RelabelHandlerDeps,
+): Promise<{ saved: boolean; alias: string; clientName: string | null; message?: string }> {
+  const base = { alias: alias.campaignName, clientName: alias.clientName }
+  try {
+    if (await deps.clientAlias!.save(alias.clientId!, alias.campaignName)) return { saved: true, ...base }
+    return { saved: false, ...base, message: "Not saved: a client already has this alias." }
+  } catch (err) {
+    console.error("[api/pacing/relabels] client alias save failed", err)
+    return { saved: false, ...base, message: "Not saved: the alias could not be written. The relabel is applied." }
   }
 }
 

@@ -18,13 +18,18 @@ function factKeySql(key: RelabelFactRoute["primaryKey"]): string {
   return key === "line_item_name" ? "LINE_ITEM_NAME" : "PLATFORM_LINE_ITEM_ID"
 }
 
-export function buildResolveEntitySql(route: RelabelFactRoute): string {
+/** The entity filter: the route's key (and its fallback key), case and space insensitive. */
+function entityMatchSql(route: RelabelFactRoute): string {
   const primary = factKeySql(route.primaryKey)
   const fallback = route.fallbackKey ? factKeySql(route.fallbackKey) : null
-  const match = fallback
+  return fallback
     ? `(LOWER(TRIM(CAST(${primary} AS VARCHAR))) = LOWER(TRIM(?))
         OR LOWER(TRIM(CAST(${fallback} AS VARCHAR))) = LOWER(TRIM(?)))`
     : `LOWER(TRIM(CAST(${primary} AS VARCHAR))) = LOWER(TRIM(?))`
+}
+
+export function buildResolveEntitySql(route: RelabelFactRoute): string {
+  const match = entityMatchSql(route)
   return `
     SELECT
       ANY_VALUE(COALESCE(
@@ -50,12 +55,7 @@ export function buildMoveRowsSql(
   route: RelabelFactRoute,
   opts: { dateFrom?: string | null; dateTo?: string | null },
 ): string {
-  const primary = factKeySql(route.primaryKey)
-  const fallback = route.fallbackKey ? factKeySql(route.fallbackKey) : null
-  const match = fallback
-    ? `(LOWER(TRIM(CAST(${primary} AS VARCHAR))) = LOWER(TRIM(?))
-        OR LOWER(TRIM(CAST(${fallback} AS VARCHAR))) = LOWER(TRIM(?)))`
-    : `LOWER(TRIM(CAST(${primary} AS VARCHAR))) = LOWER(TRIM(?))`
+  const match = entityMatchSql(route)
   const fromClause = opts.dateFrom ? "AND CAST(DATE_DAY AS DATE) >= CAST(? AS DATE)" : ""
   const toClause = opts.dateTo ? "AND CAST(DATE_DAY AS DATE) <= CAST(? AS DATE)" : ""
   return `
@@ -112,6 +112,29 @@ export async function resolveEntity(
     route,
     attributions,
   }
+}
+
+/** S5b: the entity's latest campaign name (one row, CAMPAIGN_NAME). Binds as `resolveEntity`. */
+function buildEntityCampaignSql(route: RelabelFactRoute): string {
+  const match = entityMatchSql(route)
+  return `
+    SELECT MAX_BY(TRIM(CAST(CAMPAIGN_NAME AS VARCHAR)), CAST(DATE_DAY AS DATE)) AS CAMPAIGN_NAME
+    FROM ${route.table}
+    WHERE LOWER(TRIM(CHANNEL)) = LOWER(TRIM(?))
+      AND ${match}
+      AND NULLIF(TRIM(CAST(CAMPAIGN_NAME AS VARCHAR)), '') IS NOT NULL
+  `
+}
+
+/** S5b: the campaign name the platform gives this entity, latest day first; "" when none. */
+export async function resolveEntityCampaignName(
+  args: { channel: string; platformEntityId: string },
+  query: RelabelQueryFn,
+): Promise<string> {
+  const channel = String(args.channel ?? "").trim()
+  const route = factRouteForChannel(channel)
+  const rows = await query(buildEntityCampaignSql(route), entityBinds(channel, args.platformEntityId, route))
+  return String(rows[0]?.CAMPAIGN_NAME ?? "").trim()
 }
 
 export function mbaFromLineItemId(lineItemId: string): string | null {

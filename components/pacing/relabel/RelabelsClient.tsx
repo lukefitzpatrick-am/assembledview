@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { Section } from "@/components/layout/Section"
 import { Badge } from "@/components/ui/badge"
@@ -23,12 +23,13 @@ import {
   parseRelabelsTab,
   type RelabelsTab,
 } from "@/lib/pacing/relabel/shared/relabelPageUrl"
-import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/shared/types"
+import type { ClientAliasOffer, DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/shared/types"
 import type { RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
 import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/shared/types"
 import { RelabelMatchTab } from "./RelabelMatchTab"
 import { UnmappedDeliveryTab } from "./UnmappedDeliveryTab"
 import { clientFeatureOn } from "@/lib/features/client"
+import { HelpTip } from "@/components/help/Help"
 import type { UnmappedDeliveryRow } from "@/lib/pacing/admin/unmappedDelivery"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
@@ -108,6 +109,11 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
   const [previewBusy, setPreviewBusy] = useState(false)
   const [applyBusy, setApplyBusy] = useState(false)
   const [ackWarnings, setAckWarnings] = useState(false)
+  // S5b: the "Save as a client alias" tick; the offer comes with the preview only when the switch is on.
+  const [aliasOffer, setAliasOffer] = useState<ClientAliasOffer | null>(null)
+  const [saveAlias, setSaveAlias] = useState(false)
+  const [aliasError, setAliasError] = useState<string | null>(null)
+  const aliasTickRef = useRef<HTMLInputElement>(null)
 
   const [placements, setPlacements] = useState<UnmappedPlacement[] | null>(null)
   const [unmappedError, setUnmappedError] = useState<string | null>(null)
@@ -249,6 +255,9 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
     setPreviewBusy(true)
     setPreviewError(null)
     setAckWarnings(false)
+    setAliasOffer(null)
+    setSaveAlias(false)
+    setAliasError(null)
     try {
       const r = await fetch("/api/pacing/relabels/preview", {
         method: "POST",
@@ -262,10 +271,16 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
           dateTo: scope === "range" && dateTo ? dateTo : null,
         }),
       })
-      const json = (await r.json()) as { preview?: RelabelPreview; message?: string; error?: string }
+      const json = (await r.json()) as {
+        preview?: RelabelPreview
+        clientAlias?: ClientAliasOffer
+        message?: string
+        error?: string
+      }
       if (r.status === 503) throw new Error(json.message || "Relabel tables unavailable.")
       if (!r.ok || !json.preview) throw new Error(json.message || json.error || `HTTP ${r.status}`)
       setPreview(json.preview)
+      setAliasOffer(json.clientAlias ?? null)
     } catch (e) {
       setPreview(null)
       setPreviewError(e instanceof Error ? e.message : String(e))
@@ -296,19 +311,36 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
             reason: reason.trim(),
             acknowledgeWarnings: ackWarnings || hasWarnings,
             saveAsRequest,
+            ...(!saveAsRequest && saveAlias ? { saveClientAlias: true } : {}),
           }),
         })
-        const json = (await r.json()) as { message?: string; error?: string; requested?: boolean }
+        const json = (await r.json()) as {
+          message?: string
+          error?: string
+          requested?: boolean
+          clientAlias?: { saved: boolean; alias: string; clientName: string | null; message?: string }
+        }
+        if (json.error === "alias_refused") {
+          setAliasError(json.message ?? "The alias cannot be saved.")
+          aliasTickRef.current?.focus()
+        }
         if (!r.ok && !(saveAsRequest && r.status === 409)) {
           throw new Error(json.message || json.error || `HTTP ${r.status}`)
         }
+        const aliasNote = json.clientAlias
+          ? json.clientAlias.saved
+            ? ` Saved "${json.clientAlias.alias}" as a client alias${json.clientAlias.clientName ? ` for ${json.clientAlias.clientName}` : ""}.`
+            : ` ${json.clientAlias.message ?? "The client alias was not saved."}`
+          : ""
         toast({
           title: saveAsRequest || json.requested ? "Request saved for Luke" : "Relabel applied",
           description: saveAsRequest
             ? "A blocked-style Codex task was created with the preview and SQL."
-            : "Delivery rows and the label map were updated.",
+            : `Delivery rows and the label map were updated.${aliasNote}`,
         })
         setPreview(null)
+        setAliasOffer(null)
+        setSaveAlias(false)
         setAckWarnings(false)
         if (tab === "log" || saveAsRequest) void loadLog()
       } catch (e) {
@@ -332,6 +364,7 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
       scope,
       dateFrom,
       dateTo,
+      saveAlias,
       toast,
       tab,
       loadLog,
@@ -598,6 +631,40 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
           {preview ? (
             <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
               <h2 className="text-sm font-semibold">Preview</h2>
+              {aliasOffer ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <input
+                      id="relabel-save-alias"
+                      type="checkbox"
+                      ref={aliasTickRef}
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                      checked={saveAlias}
+                      // aria-disabled, not disabled: a refused tick stays in the Tab order with its reason.
+                      aria-disabled={aliasOffer.refusal ? true : undefined}
+                      aria-describedby="relabel-save-alias-reason"
+                      aria-invalid={aliasError ? true : undefined}
+                      onChange={(e) => {
+                        if (aliasOffer.refusal) return
+                        setSaveAlias(e.target.checked)
+                        setAliasError(null)
+                      }}
+                    />
+                    <label htmlFor="relabel-save-alias">
+                      Save as a client alias
+                      {aliasOffer.campaignName ? `: "${aliasOffer.campaignName}"` : ""}
+                      {aliasOffer.clientName ? ` for ${aliasOffer.clientName}` : ""}
+                    </label>
+                    <HelpTip id="clientAlias" label="Save as a client alias" />
+                  </div>
+                  <p
+                    id="relabel-save-alias-reason"
+                    className={aliasError ? "text-xs text-status-critical-fg" : "text-xs text-muted-foreground"}
+                  >
+                    {aliasError ?? aliasOffer.refusal ?? "Saved when you apply. Fireflies and the Match tab then match this name to the client."}
+                  </p>
+                </div>
+              ) : null}
               {preview.state === "no_change" ? (
                 <p className="text-sm text-foreground">
                   Already attributed to <span className="font-mono">{preview.lineItemId}</span> for this scope. Nothing to write.

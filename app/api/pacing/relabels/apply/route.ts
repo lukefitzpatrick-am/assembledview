@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       reason,
       acknowledgeWarnings: json?.acknowledgeWarnings === true,
       saveAsRequest: json?.saveAsRequest === true,
+      saveClientAlias: json?.saveClientAlias === true,
     },
     gate.actorEmail,
   )

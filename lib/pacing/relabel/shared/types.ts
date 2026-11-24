@@ -202,3 +202,11 @@ export type DeliveryRelabelRow = {
 }
 
 export type RelabelQueryFn = (sql: string, binds?: unknown[]) => Promise<Record<string, unknown>[]>
+
+/** S5b: what the tick box offers: the name, the client, and why it is refused (null when it may be saved). */
+export type ClientAliasOffer = {
+  campaignName: string
+  clientId: number | null
+  clientName: string | null
+  refusal: string | null
+}

@@ -237,6 +237,8 @@ export const HELP_TIPS = {
   financeScope: "Every finance section uses this month and scope. Change it once here.",
   clientFeeEffectiveDate:
     "A rate change takes effect from its date. A plan takes each fee at its start date: the latest change on or before that date, else the Fees box. Plans starting earlier keep their rate when saved again. Published versions never change.",
+  clientAlias:
+    "Saves the supplier's campaign name as another name for this client, when you apply the relabel. Delivery under that campaign name then joins this client on the Match tab, and Fireflies files meetings with it in the title against the client. Only a name of 8 or more characters with a digit or a separator (such as _ - | / .) is allowed. It is refused when, ignoring case and punctuation, it holds or sits inside another client's name or alias, or when it had delivery on another client's plan in the last 30 days. So Prospecting, Penfolds-2026 and Always-On are refused.",
   unmatchedDays:
     "Days since this entity's first delivery with no plan line, counted inside the last 30 days, so 30 means 30 or more. From 3 days, when the platform name has no plan line id or an old one, Copy supplier note drafts a message asking for the current line id. The app sends nothing.",
   lineTrackingType:
