@@ -65,9 +65,9 @@ test("server paths take the switch as passed, never the browser snapshot", () =>
   assert.equal(lineExpectedNetToDate({ ...base, oneNetMedia: true }), 9.765)
   assert.equal(lineExpectedNetToDate({ ...base, oneNetMedia: false }), 9.764999999999999)
   assert.equal(lineExpectedNetToDate({ ...base, bursts: [], lineBudget: 10.5, asOf: "2026-03-31", oneNetMedia: true }), 9.765)
-  // Screens format the raw float (C-420), so the cent-edge pair shows a different cent.
+  // Screens show the stored cent (C-420 fixed), so the cent-edge pair shows one cent either way.
   assert.equal(formatMoney(lineExpectedNetToDate({ ...base, oneNetMedia: true })), "$9.77")
-  assert.equal(formatMoney(lineExpectedNetToDate({ ...base, oneNetMedia: false })), "$9.76")
+  assert.equal(formatMoney(lineExpectedNetToDate({ ...base, oneNetMedia: false })), "$9.77")
 
   // The estimate rounds to cents with toCents, which absorbs a float bit. The one pair found
   // in 30 million random tries where the cent itself moves: $6,422,837.50 at 42.84%.

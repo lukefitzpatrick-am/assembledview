@@ -210,7 +210,8 @@ export function formatMoney(
   if (!Number.isFinite(value)) return "—"
 
   const decimals = options && "decimals" in options && options.decimals !== undefined ? options.decimals : 2
-  return getDisplayMoneyFormatter(decimals).format(value)
+  // C-420: two decimals show the stored cent. Whole dollars round once, from the raw value.
+  return getDisplayMoneyFormatter(decimals).format(decimals === 2 ? canonicalRoundMoney2(value) : value)
 }
 
 /**
