@@ -345,6 +345,8 @@ const SECTION_TO_MEDIA_KEY: Record<string, string> = {
 export type GenerateMediaPlanOptions = {
   /** 'aa' omits Service Fee and Adserving/Tech rows (caller supplies adjusted totals_ex_gst / total_inc_gst). */
   mbaTotalsLayout?: 'standard' | 'aa'
+  /** S15 (switch aa_client_pays_lines): AA layout lists client-pays lines at $0, marked, on Media Plan and Insertions. */
+  aaShowClientPays?: boolean
   /** Unpublished dry-run: print header/footer + on-sheet rotated DRAFT. */
   draft?: boolean
   /** Clock for the Plan Date cell. Defaults to now. Sydney civil date. */
@@ -478,8 +480,8 @@ export async function generateMediaPlan(
 
   function groupLineItems(itemsToGroup: LineItem[], mediaTypeTitle: string): GroupedItem[] {
     const groupedResult: GroupedItem[] = [];
-    // AA totals exclude client-pays media. Drop those rows so they cannot merge into an agency line.
-    if (mbaTotalsLayout === "aa") {
+    // AA totals exclude client-pays media: dropped, or (S15) shown at $0 and marked.
+    if (mbaTotalsLayout === "aa" && !options?.aaShowClientPays) {
       itemsToGroup = itemsToGroup.filter((item) => !lineItemIsClientPaysForMedia(item))
     }
     if (!itemsToGroup || itemsToGroup.length === 0) {
@@ -2431,6 +2433,7 @@ export async function generateMediaPlan(
       monthlyByChannel,
       monthlyBySupplier,
       mediaItems,
+      showClientPays: options?.aaShowClientPays === true,
     })
     if (options?.draft) {
       for (const name of ["Monthly by supplier", "Insertions"]) {

@@ -12,6 +12,7 @@ import type {
   MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
 import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
+import { isFeatureOn } from "@/lib/features/server"
 
 type WorkbookMbaData = NonNullable<Parameters<typeof generateMediaPlan>[2]>
 
@@ -56,7 +57,12 @@ export async function buildMediaPlanWorkbook(
 ): Promise<{ buffer: Buffer; fileName: string }> {
   const options: GenerateMediaPlanOptions = {
     draft: input.draft,
-    ...(input.variant === "aa" ? { mbaTotalsLayout: "aa" as const } : {}),
+    ...(input.variant === "aa"
+      ? {
+          mbaTotalsLayout: "aa" as const,
+          aaShowClientPays: await isFeatureOn("aa_client_pays_lines"),
+        }
+      : {}),
     ...(input.serviceMonthWeights ? { serviceMonthWeights: input.serviceMonthWeights } : {}),
     ...(input.serviceMonthAmounts ? { serviceMonthAmounts: input.serviceMonthAmounts } : {}),
   }

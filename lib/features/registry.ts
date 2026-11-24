@@ -408,6 +408,18 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "aa_client_pays_lines",
+    label: "AA workbook lists client-pays lines",
+    description:
+      "Advertising Associates workbooks list client-pays lines (decision S15: always shown and marked). On: the AA Media Plan sheet shows each client-pays line marked Client pays (media lines at $0), and Insertions lists it at $0 with a Client pays column. AA totals and Monthly by supplier do not change. Applies to AA workbooks rendered while it is on: publish, regenerate, the AA render and the AA pack. Stored files change only when a version is published or regenerated. Off: the AA layout leaves client-pays lines out, as before.",
+    area: "reporting",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:

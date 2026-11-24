@@ -282,10 +282,11 @@ export function addAaWorkbookSheets(
     monthlyByChannel: Record<string, Record<string, number>>
     monthlyBySupplier: AaMonthlyBySupplier
     mediaItems: MediaItems
+    showClientPays?: boolean
   },
 ): void {
   addSupplierSheet(workbook, args)
-  addInsertionsSheet(workbook, args.mediaItems)
+  addInsertionsSheet(workbook, args.mediaItems, args.showClientPays === true)
 }
 
 function addSupplierSheet(
@@ -371,7 +372,11 @@ function addSupplierSheet(
   applyPrint(ws)
 }
 
-function addInsertionsSheet(workbook: ExcelJS.Workbook, mediaItems: MediaItems): void {
+function addInsertionsSheet(
+  workbook: ExcelJS.Workbook,
+  mediaItems: MediaItems,
+  showClientPays: boolean,
+): void {
   const ws = workbook.addWorksheet(AA_INSERTIONS_SHEET)
   const headers = [
     "Line ID",
@@ -385,10 +390,11 @@ function addInsertionsSheet(workbook: ExcelJS.Workbook, mediaItems: MediaItems):
     "Quantity",
     "Amount",
     "Bonus",
+    ...(showClientPays ? ["Client pays"] : []),
   ]
   headers.forEach((label, index) => paintHeader(ws.getCell(1, index + 1), label))
   ws.getRow(1).height = 22
-  const widths = [18, 16, 28, 36, 14, 14, 18, 22, 12, 14, 10]
+  const widths = [18, 16, 28, 36, 14, 14, 18, 22, 12, 14, 10, 14].slice(0, headers.length)
   widths.forEach((width, index) => {
     ws.getColumn(index + 1).width = width
   })
@@ -397,7 +403,8 @@ function addInsertionsSheet(workbook: ExcelJS.Workbook, mediaItems: MediaItems):
   for (const media of INSERTION_MEDIA) {
     const items = mediaItems[media.key] ?? []
     for (const item of items) {
-      if (lineIsClientPays(item)) continue
+      const clientPays = lineIsClientPays(item)
+      if (clientPays && !showClientPays) continue
       const bonus = isBonusBuyType(item.buyType)
       paintText(ws.getCell(row, 1), lineId(item))
       paintText(ws.getCell(row, 2), media.label)
@@ -412,8 +419,10 @@ function addInsertionsSheet(workbook: ExcelJS.Workbook, mediaItems: MediaItems):
       qty.numFmt = "#,##0"
       qty.font = { name: BRAND.font.excel, size: 12, color: { argb: ARGB_INK } }
       qty.alignment = { horizontal: "right", vertical: "middle" }
-      paintMoney(ws.getCell(row, 10), bonus ? 0 : moneyNumber(item.grossMedia))
+      // The client pays the supplier, so AA bills nothing for this line.
+      paintMoney(ws.getCell(row, 10), bonus || clientPays ? 0 : moneyNumber(item.grossMedia))
       paintText(ws.getCell(row, 11), bonus ? "Yes" : "")
+      if (showClientPays) paintText(ws.getCell(row, 12), clientPays ? "Yes" : "")
       row++
     }
   }
