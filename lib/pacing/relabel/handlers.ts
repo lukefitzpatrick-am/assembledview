@@ -81,8 +81,11 @@ export function defaultRelabelHandlerDeps(): RelabelHandlerDeps {
     },
     listRelabelDrift,
     clientAlias: {
-      isOn: () => isFeatureOn("unmatched_delivery_queue"),
-      loadOffer: (preview) => loadClientAliasOffer(preview, defaultQuery),
+      isOn: () => isFeatureOn("client_alias_on_relabel"),
+      loadOffer: (preview) =>
+        loadClientAliasOffer(preview, (sql, binds) =>
+          querySnowflake<Record<string, unknown>>(sql, binds ?? [], { label: "pacing-relabel-alias", timeoutMs: 10_000 }),
+        ),
       save: (clientId, alias) => saveClientAlias(clientId, alias),
     },
   }

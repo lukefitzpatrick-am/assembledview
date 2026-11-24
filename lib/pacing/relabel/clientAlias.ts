@@ -1,5 +1,5 @@
 /**
- * S5b (C-388, switch `unmatched_delivery_queue`): on relabel apply the planner
+ * S5b (C-388) and S5c (switch `client_alias_on_relabel`): on relabel apply the planner
  * can save the entity's supplier campaign name as a naming alias of the
  * target plan's client (`clients.client_name_aliases`). Fireflies and the
  * relabel Match tab read the same aliases (`parseClientNameAliases`).
@@ -53,6 +53,9 @@ const compactName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "
 
 const DELIVERY_WINDOW_DAYS = 30
 
+/** S5c: the preview-time delivery check stops here; a late read is a failed read (refused). */
+const DELIVERY_CHECK_DEADLINE_MS = 10_000
+
 function campaignDeliverySelect(table: string): string {
   return `
       SELECT DISTINCT LOWER(${resolvedLineIdSql("f", "m")}) AS RID
@@ -94,12 +97,14 @@ async function otherClientDeliveryMba(campaignName: string, clientId: number, qu
  * The offer for a preview's entity and its target plan's client. The name
  * rule runs first; only a name it passes costs the warehouse read for other
  * clients' delivery. A failed read throws, and the handlers turn that into a
- * refused offer, so a name nobody could check is never saved.
+ * refused offer, so a name nobody could check is never saved. So does a read
+ * past `deliveryDeadlineMs`.
  */
 export async function loadClientAliasOffer(
   preview: Pick<RelabelPreview, "channel" | "platformEntityId" | "mbaNumber">,
   query: RelabelQueryFn,
   db: Exec = getDb(),
+  deliveryDeadlineMs = DELIVERY_CHECK_DEADLINE_MS,
 ): Promise<ClientAliasOffer> {
   const campaignName = await resolveEntityCampaignName(preview, query)
   const [client] = preview.mbaNumber
@@ -119,7 +124,11 @@ export async function loadClientAliasOffer(
   const phrases = await otherClientPhrases(db, clientId, (client.mbaidentifier ?? "").trim().toLowerCase())
   let refusal = clientAliasRefusal(campaignName, parseClientNameAliases(client.aliases), phrases)
   if (!refusal) {
-    const mba = await otherClientDeliveryMba(campaignName, clientId, query, db)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`client alias delivery check passed ${deliveryDeadlineMs} ms`)), deliveryDeadlineMs)
+    })
+    const mba = await Promise.race([otherClientDeliveryMba(campaignName, clientId, query, db), deadline]).finally(() => clearTimeout(timer))
     if (mba) refusal = `"${campaignName.trim()}" has delivery on ${mba}, another client's plan, in the last ${DELIVERY_WINDOW_DAYS} days.`
   }
   return { campaignName, clientId, clientName: client.name, refusal }

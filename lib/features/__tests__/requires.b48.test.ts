@@ -35,6 +35,8 @@ const BEFORE: Record<string, (on: On) => boolean> = {
   publish_validation: (r) => r.publish_validation && r.expert_package_quantity && r.fixed_cost_report_net,
   // S5: the queue's age, note and digest count sit on the unmapped delivery list.
   unmatched_delivery_queue: (r) => r.unmapped_delivery && r.unmatched_delivery_queue,
+  // S5c: the alias tick rides on the unmatched delivery queue.
+  client_alias_on_relabel: (r) => r.unmapped_delivery && r.unmatched_delivery_queue && r.client_alias_on_relabel,
 }
 
 function closure(key: string, out = new Set<string>()): Set<string> {

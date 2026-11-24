@@ -712,7 +712,7 @@ export const FEATURE_DEFINITIONS = [
     key: "unmatched_delivery_queue",
     label: "Unmatched delivery queue",
     description:
-      "S5. Pacing > Relabels > Unmapped shows how many days each entity has had delivery with no plan line, and after 3 days a Copy supplier note button: a draft asking the supplier or trader to put the plan line id in the platform name. Nothing is sent from the app. The pacing digest (Tue and Fri 09:30 AEDT, 08:30 AEST) gets an Unmatched delivery section: entities, spend, how many are 3 days or older, and a link to the queue. It adds one 30-day read of the three pacing facts to the digest cron, fails soft to \"not available\" and stops after 45 seconds. S5b: Relabels > New relabel preview offers a \"Save as a client alias\" tick. On apply it saves the entity's supplier campaign name as a naming alias of the target plan's client, read by Fireflies and the Match tab. Only a name of 8 or more characters with a digit or a separator is accepted, and never one that, ignoring case and punctuation, overlaps another client's name or alias, or that had delivery on another client's plan in the last 30 days (a failed warehouse read refuses the save). Anything else is refused with the reason on the tick box. With Data quality queue also on, the daily sweep turns the queue's rows into Data quality items (see that switch). Needs Unmapped delivery on. Off: no age column, no note, no digest section, no alias tick, no unmatched delivery items.",
+      "S5. Pacing > Relabels > Unmapped shows how many days each entity has had delivery with no plan line, and after 3 days a Copy supplier note button: a draft asking the supplier or trader to put the plan line id in the platform name. Nothing is sent from the app. The pacing digest (Tue and Fri 09:30 AEDT, 08:30 AEST) gets an Unmatched delivery section: entities, spend, how many are 3 days or older, and a link to the queue. It adds one 30-day read of the three pacing facts to the digest cron, fails soft to \"not available\" and stops after 45 seconds. The client alias tick on relabel apply has its own switch (Client alias on relabel). With Data quality queue also on, the daily sweep turns the queue's rows into Data quality items (see that switch). Needs Unmapped delivery on. Off: no age column, no note, no digest section, no alias tick, no unmatched delivery items.",
     area: "planning",
     defaultOn: false,
     clientVisible: true,
@@ -720,6 +720,19 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
     owner: "Luke",
     requires: ["unmapped_delivery"],
+  },
+  {
+    key: "client_alias_on_relabel",
+    label: "Client alias on relabel",
+    description:
+      "S5b and S5c. Relabels > New relabel preview offers a \"Save as a client alias\" tick. On apply it saves the entity's supplier campaign name as a naming alias of the target plan's client, read by Fireflies meeting title matching and the Match tab. Only a name of 8 or more characters with a digit or a separator is accepted, and never one that, ignoring case and punctuation, overlaps another client's name or alias, or that had delivery on another client's plan in the last 30 days (that check stops after 10 seconds; a failed or late read refuses the save). Delivery being moved away from another client's plan is refused the same way. A generic name that clashes with nothing (such as Always-On) can still be saved, so a planner ticks it knowingly. Needs Unmatched delivery queue on. Off: no tick, and a save flag sent to apply is ignored.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+    requires: ["unmatched_delivery_queue"],
   },
   {
     key: "data_quality_queue",
