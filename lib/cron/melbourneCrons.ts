@@ -17,6 +17,8 @@ export const MELBOURNE_CRONS = [
   // the 06:30 warehouse refresh; the retry stays half an hour behind it.
   { path: "/api/cron/pacing-portfolio", melbourneTime: "08:00" },
   { path: "/api/cron/pacing-portfolio?retry=1", melbourneTime: "08:30" },
+  // Roz (Site Watch) queues the daily scan of client websites.
+  { path: "/api/cron/site-watch-enqueue", melbourneTime: "06:00" },
 ] as const
 
 export type MelbourneCronPath = (typeof MELBOURNE_CRONS)[number]["path"]

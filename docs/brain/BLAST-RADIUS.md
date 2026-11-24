@@ -225,6 +225,14 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `GET\|POST /api/mediaplans/mba/[mba_number]/material-deadlines` / `deadlineOverrides.ts` | No in-app caller (the unmounted strip was deleted in B50). GET tenant via `checkClientMbaAccess`; POST admin + tenant. Missing `spec_deadline_overrides` table fail-softs to []. |
 | `lib/naming/templates.ts` | THE law for composed names + trafficking Excel; changes break round-trip parse/validate + 13 tests |
 
+### Roz (Site Watch)
+| Touch | Also check |
+|---|---|
+| `lib/siteWatch/extract.ts` / `compare.ts` / `patterns.ts` | Every stored snapshot: a new or renamed field changes on every page on the next scan (a site-wide wave of changes). A field missing from the stored snapshot is skipped (`key in a`), so adding one is quiet; renaming or reshaping one is a wave. `node scripts/run-tests.mjs lib/siteWatch` (`engine.test.ts`, `scan.test.ts`) |
+| `lib/siteWatch/severity.ts` | The Critical email (sent once per run) and any filter on `severity`. `engine.test.ts` holds the brief 5.4 rules |
+| `lib/siteWatch/store.ts` / `db/schema/siteWatch.ts` | Both crons; `store.db.test.ts` on a local Postgres (`SITE_WATCH_TEST_DATABASE_URL`) |
+| `lib/cron/melbourneCrons.ts` (`/api/cron/site-watch-enqueue`) | Both UTC slots in `vercel.json`; `melbourneCrons.b49.test.ts` |
+
 ### Shared core
 | Touch | Also check |
 |---|---|

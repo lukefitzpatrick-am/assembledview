@@ -1,6 +1,6 @@
 # Site Watch: Phase 0 discovery
 
-Status: Discovery complete. D12 answered (rules in CLAUDE.md, brief and this file in docs/superpowers). D1 to D11 open. No build started.
+Status: Approved. Every gate answered on 24 Nov 2026 (Teams, D8, D10 and D11 paused). Phase 1 (engine) built; phases 2 to 4 not started.
 Date: 24 Nov 2026
 Brief: `docs/superpowers/BRIEF-site-watch-2026-11-24.md`. Prototype `watch.py` used for detection logic only.
 
@@ -173,3 +173,17 @@ Recommendation: add these as a short "Working rules" block in `CLAUDE.md` (they 
 - **Latest production deploy is in ERROR** (the known out-of-memory build from 23 Nov, `NODE_OPTIONS` fix pending). Not a Site Watch issue, but Site Watch cannot go live until deploys are healthy.
 - **Migration backlog**: live is at 0115; 0116 to 0121 are queued. 0122 must be applied after them.
 - **Section 5.3 visible-copy** on JS-rendered sites will be near empty. Flag, don't alert.
+
+## 7. Luke's answers (24 Nov 2026, 2:53 PM AEDT)
+
+- Q1, Q2 (D1): approved. Vercel crons, enqueue at 6am plus a 5-minute resumable worker with `SKIP LOCKED`.
+- Q3: conventions approved (migration 0122, RLS on with no policies, FK to `clients.id`).
+- Q4: sites come from `clients.website`. Shared-site handling (part of D4) is still open.
+- Q5 (D3): admin only.
+- Q6: `site_watch` switch on Admin Features, approved.
+- Q7: Teams is paused until there is a way to post. Phase 4, D8, D10 and D11 are on hold. The view and `teams_reported_at` still land in Phase 1.
+- Q8: `cheerio` approved.
+- Q9 (D6): Supabase. Keep **90 days** of data. Changes and runs older than 90 days are deleted by a daily step. Current snapshots are kept.
+- Q10: GTM findings confirmed.
+
+Then (2:54 PM): D2 daily at 6am Melbourne; D4 scan each site once (owner: the lowest client id with the URL, so Golf Australia 19 and Penfolds 25); D5 after two weeks of data; D7 a hand-kept list of about 30; D9 send a Critical email. Tool name: Roz. Phase 1 built (`docs/brain/modules/site-watch.md`).

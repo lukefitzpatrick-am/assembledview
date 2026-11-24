@@ -1,4 +1,4 @@
-/** B49 (S31): fixed Melbourne times for three jobs, both UTC slots in vercel.json. */
+/** B49 (S31): fixed Melbourne times for each job in MELBOURNE_CRONS, both UTC slots in vercel.json. */
 // UTC, the CI and Vercel zone: host-local date code fails here on a Sydney host too (RELFIX1, B49 R5).
 process.env.TZ = "UTC"
 
@@ -38,6 +38,10 @@ test("only the run in the declared Melbourne hour acts, in AEDT and AEST", () =>
     ["/api/cron/pacing-portfolio?retry=1", "2026-11-30T21:30:00Z", true], // AEDT 08:30
     ["/api/cron/pacing-portfolio?retry=1", "2026-06-15T22:30:00Z", true], // AEST 08:30
     ["/api/cron/pacing-portfolio?retry=1", "2026-06-15T21:30:00Z", false], // AEST 07:30
+    ["/api/cron/site-watch-enqueue", "2026-11-24T19:00:00Z", true], // AEDT 06:00 on 25 Nov
+    ["/api/cron/site-watch-enqueue", "2026-11-24T20:00:00Z", false], // AEDT 07:00
+    ["/api/cron/site-watch-enqueue", "2026-06-15T20:00:00Z", true], // AEST 06:00
+    ["/api/cron/site-watch-enqueue", "2026-06-15T19:00:00Z", false], // AEST 05:00
   ]
   for (const [cronPath, at, want] of cases) assert.equal(isMelbourneCronHour(cronPath, new Date(at)), want, `${cronPath} ${at}`)
 })
@@ -46,8 +50,10 @@ test("the daylight saving change days: exactly one of the two slots acts", () =>
   // DST ends Sun 5 Apr 2026 (03:00 AEDT -> 02:00 AEST); starts Sun 4 Oct 2026 (02:00 AEST -> 03:00 AEDT).
   for (const day of ["2026-04-04", "2026-04-05", "2026-04-06", "2026-10-03", "2026-10-04", "2026-10-05"]) {
     for (const { path: cronPath, melbourneTime } of MELBOURNE_CRONS) {
+      const hh = Number(melbourneTime.slice(0, 2))
       const mm = melbourneTime.slice(3)
-      const hits = [21, 22].filter((h) => isMelbourneCronHour(cronPath, new Date(`${day}T${h}:${mm}:00Z`)))
+      const slots = [(hh - 11 + 24) % 24, (hh - 10 + 24) % 24]
+      const hits = slots.filter((h) => isMelbourneCronHour(cronPath, new Date(`${day}T${String(h).padStart(2, "0")}:${mm}:00Z`)))
       assert.equal(hits.length, 1, `${cronPath} on ${day}`)
     }
   }

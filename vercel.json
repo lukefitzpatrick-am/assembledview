@@ -124,6 +124,14 @@
     {
       "path": "/api/cron/codex-notifications",
       "schedule": "30 21,22 * * *"
+    },
+    {
+      "path": "/api/cron/site-watch-enqueue",
+      "schedule": "0 19,20 * * *"
+    },
+    {
+      "path": "/api/cron/site-watch-worker",
+      "schedule": "*/5 19-22 * * *"
     }
   ]
 }

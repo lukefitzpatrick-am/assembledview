@@ -38,6 +38,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 12 | [Knowledge hub](#12-knowledge-hub) | `/knowledge` | `components/learning/` | `src/lib/learning/`, `src/data/learning/` | — | none (file-driven) |
 | 13 | [AVA](#13-ava) | floating widget | `components/ava/`, `components/ChatWidget.tsx` | `lib/ava/`, `src/ava/` | `/api/chat-v2` | reads most, writes few |
 | 14 | [Admin & M365](#14-admin--m365) | `/admin/*` | `components/admin/`, `components/best-practice/` | `lib/m365/`, `lib/ops/` | `/api/admin` | `m365_provisioning_log`, `media_container_best_practice` |
+| 15 | [Roz (Site Watch)](#15-roz-site-watch) | (no UI yet; phase 3) | — | `lib/siteWatch/` | `/api/cron/site-watch-*` | `site_watch_sites`, `site_watch_runs`, `site_watch_pages`, `site_watch_changes` (0122) |
 
 ---
 
@@ -200,6 +201,12 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and logs every attempt to `m365_provisioning_log`. Anchor client per `mbaidentifier` group is enforced by a partial unique index.
 
 → `modules/m365.md` · `modules/admin-misc.md`
+
+## 15. Roz (Site Watch)
+
+Daily scan of each client website, behind switch `site_watch` (needs migration 0122). `GET /api/cron/site-watch-enqueue` (06:00 Melbourne, `lib/cron/melbourneCrons.ts`) adds a site per new `clients.website`, queues one run per enabled site and deletes runs older than 90 days. `GET /api/cron/site-watch-worker` (every 5 minutes, 19:00 to 22:55 UTC) claims runs with SKIP LOCKED and scans by plain HTTP for up to 240 s, resuming next call. A run with Critical changes emails `getOpsEmailRecipients()` once, in Roz's voice. No UI, Ava tool or Teams reporter yet (phases 3 and 4); GTM container inspection is phase 2.
+
+→ `modules/site-watch.md`
 
 ## Public pages
 
