@@ -2,13 +2,13 @@ import "server-only"
 
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm"
 
-import { getDb, schema } from "@/db"
+import { getDb, schema, type Db } from "@/db"
 import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
 import { roundMoney2 } from "@/lib/money/cents"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { PACING_FACT, SEARCH_PACING_FACT, SOCIAL_PACING_FACT } from "../shared/types"
-import { buildMatchSuggestions, classifyMatch, parseMatchLineId, summariseMatch, type RawMatchEntity } from "./rules"
+import { buildMatchSuggestions, classifyMatch, clientMatchTerms, parseMatchLineId, summariseMatch, type RawMatchEntity } from "./rules"
 import type { MatchCampaignOption, MatchClientOption, MatchPayload, MatchPlanLine } from "./types"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 
@@ -84,8 +84,7 @@ type ClientPlan = {
   lines: Omit<MatchPlanLine, "delivered" | "entityCount">[]
 }
 
-async function loadClientPlan(clientId: number, since: string): Promise<ClientPlan> {
-  const db = getDb()
+async function loadClientPlan(clientId: number, since: string, db: Db): Promise<ClientPlan> {
   const [client] = await db
     .select({ id: schema.clients.id, name: schema.clients.mpClientName, aliases: schema.clients.clientNameAliases })
     .from(schema.clients)
@@ -132,22 +131,15 @@ async function loadClientPlan(clientId: number, since: string): Promise<ClientPl
     : []
   const mbaByVersion = new Map(live.map((m) => [Number(m.publishedVersionId), m.mbaNumber.toLowerCase()]))
 
-  const terms = new Set<string>()
-  const addTerm = (value: unknown) => {
-    const t = String(value ?? "").trim().toLowerCase()
-    if (t.length >= 4) terms.add(t)
-  }
-  addTerm(client.name)
-  for (const alias of Array.isArray(client.aliases) ? client.aliases : []) addTerm(alias)
-  for (const account of accounts) {
-    if (NON_DELIVERY_PLATFORMS.has(account.platform)) continue
-    addTerm(account.ref)
-    addTerm(account.label)
-  }
+  const terms = clientMatchTerms(
+    client.name,
+    client.aliases,
+    accounts.filter((account) => !NON_DELIVERY_PLATFORMS.has(account.platform)),
+  )
 
   return {
     client: { id: Number(client.id), name: String(client.name ?? `Client ${client.id}`) },
-    terms: [...terms],
+    terms,
     allMbas: [...new Set(masters.map((m) => m.mbaNumber.toLowerCase()))],
     campaigns: live
       .map((m) => ({ mbaNumber: m.mbaNumber.toLowerCase(), campaignName: String(m.campaignName ?? m.mbaNumber) }))
@@ -271,15 +263,15 @@ export function warehouseRowsToEntities(rows: WarehouseRow[], clientMbas: string
 
 export async function loadMatchPayload(
   clientId: number,
-  opts: { fresh?: boolean; now?: Date } = {},
+  opts: { fresh?: boolean; now?: Date; db?: Db; query?: typeof querySnowflake<WarehouseRow> } = {},
 ): Promise<MatchPayload> {
   const hit = cache.get(clientId)
   const nowMs = (opts.now ?? new Date()).getTime()
   if (!opts.fresh && hit && nowMs - hit.at < CACHE_TTL_MS) return hit.payload
 
   const since = matchSinceYmd(opts.now)
-  const plan = await loadClientPlan(clientId, since)
-  const rows = await querySnowflake<WarehouseRow>(
+  const plan = await loadClientPlan(clientId, since, opts.db ?? getDb())
+  const rows = await (opts.query ?? querySnowflake<WarehouseRow>)(
     buildMatchWarehouseSql(plan.allMbas.length, plan.terms.length),
     buildMatchWarehouseBinds(since, plan.allMbas, plan.terms),
     { label: "relabel_match_entities" },

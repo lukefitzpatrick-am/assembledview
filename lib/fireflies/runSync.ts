@@ -18,6 +18,7 @@ import {
   collectSeedDomainPairs,
   type SeedClientRow,
 } from "@/lib/fireflies/seedDomains"
+import { parseClientNameAliases } from "@/lib/clients/clientNameAliases"
 import { parseEmailAliases } from "@/lib/fireflies/rosterAliases"
 import { insertProposalsFromNote } from "@/lib/fireflies/proposalRepo"
 import { runFirefliesSync, type SyncInsertNote, actionItemsFromNoteBody } from "@/lib/fireflies/sync"
@@ -87,7 +88,7 @@ export async function loadAttributionContext(
       clientId: row.id,
       displayName: (row.mpClientName ?? "").trim() || `Client ${row.id}`,
       mbaidentifier: row.mbaidentifier,
-      aliases: parseEmailAliases(row.clientNameAliases),
+      aliases: parseClientNameAliases(row.clientNameAliases),
       isAnchor: Boolean(row.m365IsAnchor),
     }))
   )

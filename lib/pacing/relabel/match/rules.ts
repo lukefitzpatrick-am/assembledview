@@ -14,6 +14,7 @@
  *   duplicate same channel family, first date, last date and spend (to the
  *             cent) as an entity already on a line. Never relabel these.
  */
+import { parseClientNameAliases } from "@/lib/clients/clientNameAliases"
 import { cardChannelFromPlanLine, cardChannelFromWarehouse } from "../shared/channels"
 import type {
   MatchEntity,
@@ -309,4 +310,22 @@ export function summariseMatch(
     suggestionCount: suggestions.filter((s) => s.kind !== "duplicate").length,
     checkDatesCount: entities.filter((e) => e.status === "check_dates").length,
   }
+}
+
+/**
+ * The campaign names that join a warehouse entity to the client: its name,
+ * its `client_name_aliases` and its delivery platform account refs and
+ * labels, lower case, 4 characters or more.
+ */
+export function clientMatchTerms(
+  name: unknown,
+  aliases: unknown,
+  deliveryAccounts: readonly { ref: unknown; label: unknown }[],
+): string[] {
+  const terms = new Set<string>()
+  for (const value of [name, ...parseClientNameAliases(aliases), ...deliveryAccounts.flatMap((a) => [a.ref, a.label])]) {
+    const t = String(value ?? "").trim().toLowerCase()
+    if (t.length >= 4) terms.add(t)
+  }
+  return [...terms]
 }
