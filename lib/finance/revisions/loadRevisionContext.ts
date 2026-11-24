@@ -51,7 +51,7 @@ export const RECORD_XERO_STATUS_SQL = sql<string | null>`(
   SELECT x.status FROM xero_ar_invoices x
   WHERE x.xero_invoice_id = CASE
     WHEN lower(finance_billing_records.invoice_key) LIKE 'xero:%' THEN substr(finance_billing_records.invoice_key, 6)
-    ELSE finance_billing_records.matched_xero_invoice_id
+    ELSE btrim(finance_billing_records.matched_xero_invoice_id)
   END
 )`
 

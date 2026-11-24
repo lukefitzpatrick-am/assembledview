@@ -1,6 +1,8 @@
 import { and, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
-import { getAvaDb, withRowCap, AVA_ROW_CAP, schema } from "@/db/avaClient"
+import { getAvaDb, withRowCap, schema } from "@/db/avaClient"
+import { billedSentSql } from "@/lib/finance/billedSent"
+import { rowsOf } from "@/lib/xero/dbRows"
 import { fyToRange } from "./fyToRange"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import type AvaTool from "./types"
@@ -23,8 +25,6 @@ const {
   mediaPlanMasters,
   mediaPlanVersions,
   scheduleMonths,
-  financeBillingRecords,
-  xeroArInvoices,
   clients,
 } = schema
 
@@ -103,66 +103,26 @@ export const queryFinanceSummaryTool: AvaTool = {
       const db = getAvaDb()
       const fyRange = fy != null ? fyToRange(fy) : null
 
-      // --- billed from finance_billing_records ---
-      const billConds: SQL[] = []
-      if (mba) billConds.push(eq(financeBillingRecords.mbaNumber, mba))
-      if (client) {
-        billConds.push(ilike(financeBillingRecords.clientName, `%${client.trim()}%`))
-      }
-      if (fyRange) {
-        billConds.push(gte(financeBillingRecords.billingMonth, fyRange.startMonth))
-        billConds.push(lt(financeBillingRecords.billingMonth, fyRange.endMonthExclusive))
-      }
-
-      const billRows = await db
-        .select({
-          invoiceKey: financeBillingRecords.invoiceKey,
-          billingMonth: financeBillingRecords.billingMonth,
-          total: financeBillingRecords.total,
-          billedAmountCents: financeBillingRecords.billedAmountCents,
-          approvedAmountCents: financeBillingRecords.approvedAmountCents,
-          matchedXeroInvoiceId: financeBillingRecords.matchedXeroInvoiceId,
-          exportedAt: financeBillingRecords.exportedAt,
-          billed: financeBillingRecords.billed,
-          xeroStatus: xeroArInvoices.status,
-        })
-        .from(financeBillingRecords)
-        .leftJoin(
-          xeroArInvoices,
-          sql`${xeroArInvoices.xeroInvoiceId} = CASE WHEN lower(${financeBillingRecords.invoiceKey}) LIKE 'xero:%' THEN substr(${financeBillingRecords.invoiceKey}, 6) ELSE btrim(${financeBillingRecords.matchedXeroInvoiceId}) END`,
-        )
-        .where(billConds.length ? and(...billConds) : undefined)
-        .limit(AVA_ROW_CAP)
-
-      // C-399: billed is sent invoices only, each once. A `xero:` row is the invoice. An app
-      // record counts only once sent, and not when its matched invoice has a `xero:` row here.
-      // A voided or deleted Xero invoice is not billed.
-      const xeroKeys = new Set(
-        billRows.map((r) => (r.invoiceKey ?? "").trim().toLowerCase()).filter((k) => k.startsWith("xero:")),
+      // --- billed: C-399 "billed means sent", summed per month in SQL (no row cap on rows) ---
+      const billScope: SQL[] = []
+      if (mba) billScope.push(sql`finance_billing_records.mba_number = ${mba}`)
+      if (client) billScope.push(sql`finance_billing_records.client_name ILIKE ${`%${client.trim()}%`}`)
+      // Months filter the output: a matched invoice counts in its record's month (R1).
+      const monthWhere = fyRange
+        ? sql`WHERE b.billing_month >= ${fyRange.startMonth} AND b.billing_month < ${fyRange.endMonthExclusive}`
+        : sql``
+      const billRows = rowsOf<{ billing_month: string; cents: string | number; invoices: string | number }>(
+        await db.execute(sql`
+          SELECT b.billing_month, sum(b.cents) AS cents, count(*) AS invoices
+          FROM (${billedSentSql(billScope.length ? sql.join(billScope, sql` AND `) : sql`true`)}) b
+          ${monthWhere}
+          GROUP BY b.billing_month`),
       )
       const billedByMonth = new Map<string, number>()
       let billedInvoiceCount = 0
       for (const r of billRows) {
-        const month = (r.billingMonth ?? "").trim()
-        if (!month) continue
-        if (["VOIDED", "DELETED"].includes((r.xeroStatus ?? "").trim().toUpperCase())) continue
-        if (!(r.invoiceKey ?? "").trim().toLowerCase().startsWith("xero:")) {
-          const matched = (r.matchedXeroInvoiceId ?? "").trim().toLowerCase()
-          const sent = r.exportedAt != null || matched !== "" || r.billed === true
-          if (!sent) continue
-          if (matched && xeroKeys.has(`xero:${matched}`)) continue
-        }
-        billedInvoiceCount++
-        let aud = 0
-        if (r.billedAmountCents != null) {
-          aud = centsToDollars(r.billedAmountCents)
-        } else if (r.approvedAmountCents != null) {
-          aud = centsToDollars(r.approvedAmountCents)
-        } else if (r.total != null) {
-          const n = Number(r.total)
-          if (Number.isFinite(n)) aud = Math.round(n * 100) / 100
-        }
-        billedByMonth.set(month, roundAdd(billedByMonth.get(month) ?? 0, aud))
+        billedInvoiceCount += Number(r.invoices)
+        billedByMonth.set(r.billing_month, centsToDollars(Number(r.cents)))
       }
 
       // --- planned from schedule_months on published versions ---
@@ -191,7 +151,7 @@ export const queryFinanceSummaryTool: AvaTool = {
       const planRaw = await db
         .select({
           month: scheduleMonths.month,
-          amountCents: scheduleMonths.amountCents,
+          amountCents: sql<string>`sum(${scheduleMonths.amountCents})`,
         })
         .from(scheduleMonths)
         .innerJoin(
@@ -204,7 +164,7 @@ export const queryFinanceSummaryTool: AvaTool = {
         )
         .leftJoin(clients, eq(mediaPlanMasters.clientId, clients.id))
         .where(and(...planConds))
-        .limit(AVA_ROW_CAP + 1)
+        .groupBy(scheduleMonths.month)
 
       const plannedByMonth = new Map<string, number>()
       for (const r of planRaw) {
@@ -212,7 +172,7 @@ export const queryFinanceSummaryTool: AvaTool = {
         if (!month) continue
         plannedByMonth.set(
           month,
-          roundAdd(plannedByMonth.get(month) ?? 0, centsToDollars(r.amountCents)),
+          roundAdd(plannedByMonth.get(month) ?? 0, centsToDollars(Number(r.amountCents))),
         )
       }
 
@@ -246,9 +206,7 @@ export const queryFinanceSummaryTool: AvaTool = {
           currency: "AUD",
           billed_total_aud: billedTotalAll,
           planned_total_aud: plannedTotal,
-          billing_record_count: billRows.length,
           billed_invoice_count: billedInvoiceCount,
-          schedule_row_count: planRaw.length,
           total_months: total,
           truncated,
           months: rows,
