@@ -814,6 +814,19 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
     owner: "Luke",
   },
+  {
+    key: "site_watch",
+    requiresMarker: "0122_site_watch",
+    label: "Roz (Site Watch)",
+    description:
+      "Roz, the Site Watch tool: a daily scan of each client website at 6am Melbourne (Site Watch brief, gates D1 to D9). On: client websites are added as sites once (one site per website, owned by the lowest client id that has it), every enabled site is scanned by plain HTTP (robots.txt, sitemap, up to its page limit), changes are stored with before, after, category and severity, a Critical change emails the ops list (OPS_EMAIL_TO, Luke by default), and scans and changes older than 90 days are deleted. Needs migration 0122 (site_watch): until it runs this switch reads off and can't be turned on. Off: the crons skip and nothing is fetched or written. Stored scans and changes stay.",
+    area: "platform",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
 ] as const satisfies readonly FeatureDefinition[]
 
 export type FeatureKey = (typeof FEATURE_DEFINITIONS)[number]["key"]
