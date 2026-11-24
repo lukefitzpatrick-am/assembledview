@@ -25,14 +25,18 @@ import test from "node:test"
 import { reshapeLineItemsToMediaGantt } from "@/components/dashboard/campaign/mediaGanttReshape"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
+import { setClientFeatureSnapshot } from "@/lib/features/client"
 import { groupLineItemsForKPI } from "@/lib/kpi/grouping"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { computeDeliverableFromMedia, netFromGross } from "@/lib/mediaplan/deliverableBudget"
+import { lineSaveTotalMedia } from "@/lib/money/burst"
+import { toCents } from "@/lib/money/cents"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 import { lineExpectedNetToDate, netBurstMediaForPacing } from "@/lib/pacing/detail/netBurstMediaForPacing"
 import { expectedForWindow, plannedTotal } from "@/lib/pacing/expectedForWindow"
 
 const GOLDEN = join(process.cwd(), "lib/money/__tests__/fixtures/netMedia.golden.json")
+const ON_GOLDEN = join(process.cwd(), "lib/money/__tests__/fixtures/netMedia.on.golden.json")
 
 /** Gross budget and channel fee percent. */
 const PAIRS: ReadonlyArray<readonly [number, number]> = [
@@ -228,4 +232,73 @@ test("M1 goldens: today's net media, pacing, estimate, billing, KPI and Gantt nu
   }
   const golden = JSON.parse(readFileSync(GOLDEN, "utf8"))
   assert.deepStrictEqual(actual, golden)
+})
+
+/** Leaf paths where two plain values differ. */
+function moves(off: unknown, on: unknown, path = ""): Array<{ path: string; off: unknown; on: unknown }> {
+  if (off && on && typeof off === "object" && typeof on === "object") {
+    const keys = new Set([...Object.keys(off), ...Object.keys(on)])
+    return [...keys].flatMap((k) =>
+      moves((off as Record<string, unknown>)[k], (on as Record<string, unknown>)[k], path ? `${path}.${k}` : k),
+    )
+  }
+  return Object.is(off, on) ? [] : [{ path, off, on }]
+}
+
+/** The save row's totalMedia and what reads it: pacing (lineTotalMedia), billing (fee backed out) and KPI grouping. */
+function savedTotalMediaChain(oneNetMedia: boolean) {
+  const line = (id: string, gross: number[], p: number, extra: Record<string, unknown> = {}) => {
+    const l = { ...feeLine(id, gross), ...extra }
+    return { ...l, feePct: p, totalMedia: lineSaveTotalMedia(l, p, oneNetMedia) }
+  }
+  const lines = [
+    ...PAIRS.map(([g, p], i) => line(`m1tm${i + 1}`, [g, g / 4], p)),
+    line("m1tm90", [5000], 15, { buyType: "bonus" }),
+    line("m1tm91", [2000], 15, { buyType: "package_inclusions" }),
+    line("m1tm92", [3000], 15, { buyType: "package_inclusions", budgetIncludesFees: false, budget_includes_fees: false }),
+    line("m1tm93", [1000], 20, { clientPaysForMedia: true }),
+  ]
+  const months = [{ monthYear: "February 2026" }, { monthYear: "March 2026" }, { monthYear: "April 2026" }]
+  return plain({
+    totalMedia: lines.map((l) => l.totalMedia),
+    totalMediaCents: lines.map((l) => toCents(l.totalMedia)),
+    expectedWithTotal: lines.map((l) =>
+      expectedForWindow(l.bursts, "spend", WINDOW, { budgetIncludesFees: true, feePct: l.feePct, lineTotalMedia: l.totalMedia }),
+    ),
+    billingDelivery: generateBillingLineItems(
+      lines.map(({ feePct: _f, ...l }) => l),
+      "socialMedia",
+      months,
+      "delivery",
+      { resolveLineItemId: (_t, li) => String((li as { line_item_id: string }).line_item_id) },
+    ).map((row) => ({ id: row.id, totalAmount: row.totalAmount, totalFeeAmount: row.totalFeeAmount })),
+    kpiSpend: groupLineItemsForKPI(lines as unknown as LineItem[], {
+      mbaNumber: "m1",
+      mediaType: "socialMedia",
+      packageNoUnitTarget: false,
+    }).map((g) => g.spend),
+  }) as Record<string, unknown>
+}
+
+test("one_net_media on: only the listed goldens move, each by the amount pinned here", (t) => {
+  const offChain = savedTotalMediaChain(false)
+  setClientFeatureSnapshot({ one_net_media: true })
+  t.after(() => setClientFeatureSnapshot(null))
+  const actual = plain({
+    surfaces: moves(JSON.parse(readFileSync(GOLDEN, "utf8")), computeSurfaces()),
+    savedTotalMedia: moves(offChain, savedTotalMediaChain(true)),
+  })
+  if (process.env.UPDATE_GOLDEN === "1") {
+    writeFileSync(ON_GOLDEN, `${JSON.stringify(actual, null, 2)}\n`)
+    return
+  }
+  assert.deepStrictEqual(actual, JSON.parse(readFileSync(ON_GOLDEN, "utf8")))
+})
+
+test("one_net_media off: the save row totalMedia chain is the old local split", () => {
+  const chain = savedTotalMediaChain(false)
+  const totals = chain.totalMedia as number[]
+  // Bonus and package inclusions with a budget still save their net budget (C-391), until the switch is on.
+  assert.equal(totals[PAIRS.length], (5000 * 85) / 100)
+  assert.equal(totals[PAIRS.length + 2], 3000)
 })
