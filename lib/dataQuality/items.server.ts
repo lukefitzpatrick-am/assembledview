@@ -34,6 +34,8 @@ export type DataQualityFinding = {
   fixLabel: string
   /** In-app path, starting with one `/`. */
   fixHref: string
+  /** Set by a check for a finding with no plan: its owner (lower case), used instead of the plan owner. */
+  ownerEmail?: string | null
 }
 
 type PlanOwner = { clientId: number | null; ownerEmail: string | null }
@@ -132,10 +134,13 @@ export async function recordFindings(
   db: Exec = getDb(),
 ): Promise<RecordResult | null> {
   if (!(await isFeatureOn("data_quality_queue"))) return null
-  const owners = await resolvePlanOwners(db, findings.map((f) => f.mbaNumber))
+  const owners = await resolvePlanOwners(db, findings.filter((f) => f.ownerEmail === undefined).map((f) => f.mbaNumber))
   const result: RecordResult = { written: 0, dismissed: 0, resolved: 0 }
   for (const finding of findings) {
-    const owner = owners.get(finding.mbaNumber) ?? { clientId: null, ownerEmail: null }
+    const owner =
+      finding.ownerEmail !== undefined
+        ? { clientId: null, ownerEmail: finding.ownerEmail }
+        : (owners.get(finding.mbaNumber) ?? { clientId: null, ownerEmail: null })
     if (await upsertDataQualityItem(db, finding, owner)) result.written += 1
     else result.dismissed += 1
   }

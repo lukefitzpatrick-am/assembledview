@@ -15,7 +15,8 @@ export const preferredRegion = ["syd1"]
  * Compare active LINE_ITEM_LABEL_MAP rows with applied delivery_relabels.
  * Auth: CRON_SECRET. Cron: 15 21 * * * (07:15 Melbourne, after the portfolio snapshot).
  * Then the Data quality sweep (S17, switch data_quality_queue): it runs even
- * when the drift check fails, and then leaves relabel items as they are.
+ * when the drift check fails, and then leaves relabel items as they are. With
+ * unmatched_delivery_queue on it also reads the unmatched delivery queue (S5b).
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {

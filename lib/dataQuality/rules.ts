@@ -17,7 +17,7 @@ export const PUBLISH_RULES = [
   "package_no_quantity",
 ] as const satisfies readonly PublishRule[]
 
-export type DataQualityRuleKey = `publish.${(typeof PUBLISH_RULES)[number]}` | "relabel.drift"
+export type DataQualityRuleKey = `publish.${(typeof PUBLISH_RULES)[number]}` | "relabel.drift" | "delivery.unmatched"
 
 const DATA_QUALITY_RULES: Readonly<Record<DataQualityRuleKey, { label: string; overdueDays?: number }>> = {
   "publish.no_publisher": { label: "Line has no publisher" },
@@ -27,6 +27,7 @@ const DATA_QUALITY_RULES: Readonly<Record<DataQualityRuleKey, { label: string; o
   "publish.plan_dates_reversed": { label: "Plan dates reversed" },
   "publish.package_no_quantity": { label: "Package line with no quantity" },
   "relabel.drift": { label: "Relabel drift" },
+  "delivery.unmatched": { label: "Delivery on no plan line" },
 }
 
 /** An item is overdue once it has been open more than this many days, unless its rule says otherwise. */

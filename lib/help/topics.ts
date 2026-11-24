@@ -56,6 +56,7 @@ export const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
     ],
     tips: [
       "The checks run every morning. A problem they no longer find is resolved by itself, and one you resolved that is still there comes back.",
+      "Delivery on no plan line goes to the plan the suggestion names, else to Luke. When the warehouse cannot be read, those items stay as they are until the next run.",
     ],
   },
   "/mediaplans": {
