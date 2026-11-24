@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | `lib/utils.ts` | **216** (277 incl. subtree) | `cn()` — every component's class merging. `mediaTypeTheme` colour keys — every chart/gantt/legend for that channel silently loses colour. Values follow channel families in `lib/design/mediaFamilies.ts` (keys unchanged) |
 | 2 | `lib/api/xano.ts` | **106** | Every outbound Xano call. `parseXanoListPayload` returns `[]` silently on unknown shapes; `getRequiredEnv` returns `""` in browser (no error) |
-| 3 | `lib/format/money.ts` | **80** | All currency display + `roundMoney2/4` in derived totals → billing/forecast/export reconciliation drift |
+| 3 | `lib/format/money.ts` | **80** | All currency display + `roundMoney2/4` in derived totals → billing/forecast/export reconciliation drift. `formatAUD` and the options overload write stored strings (billing schedule, `bursts_json`); only the 2-decimal display path rounds to the cent first (C-420). Tests: `lib/format/__tests__/money.c420.m3*` |
 | 4 | `lib/mediaplan/expertModeWeeklySchedule` / `weeklyGanttColumns` | 65–68 | Expert-mode week math + gantt columns everywhere |
 | 5 | `lib/mediaplan/expertChannelMappings.ts` (8.4k lines) | **63** | Standard↔expert row conversion, all 20 channels |
 | 6 | `lib/billing/types.ts` (`BillingMonth`) | **61** | 33+ files across finance and billing |
