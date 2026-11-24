@@ -17,7 +17,6 @@ import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
-import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
 import {
   isUnpublishedStagedVersion,

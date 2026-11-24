@@ -110,6 +110,7 @@ import {
   type ScheduleMonthInsert,
 } from "@/scripts/migration/_scheduleTransform"
 import { toCents } from "@/lib/money"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import { isFeatureOn } from "@/lib/features/server"
 import { publishRefusal } from "@/lib/mediaplan/publishValidation.server"
 import { spliceBilledMonths } from "@/lib/finance/billedMonths/billedMonths"
@@ -935,6 +936,8 @@ export async function savePlanVersion(
   // Read once before the transaction (cached switch read, never inside the txn).
   const feeSnapshotWriteOnce = await getFeeSnapshotWriteOnce()
   const billedMonthsOn = input.mode === "publish" && (await isFeatureOn("billed_months_choice"))
+  // C-417: planned deliverables (and the ad serving they price) follow the same switch as the editor.
+  const { oneNetMedia } = await readDeliveryFlags()
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -1061,6 +1064,7 @@ export async function savePlanVersion(
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
           selectedMonthYears,
+          oneNetMedia,
         }
       )
       const financials = computeCampaignFinancials(
@@ -1070,6 +1074,7 @@ export async function savePlanVersion(
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
           selectedMonthYears,
+          oneNetMedia,
         }
       )
 
@@ -1295,6 +1300,7 @@ export async function savePlanVersion(
                 {
                   getRateForMediaType: input.getRateForMediaType,
                   adservaudio: input.adservaudio,
+                  oneNetMedia,
                 }
               ).billingSchedule
             )

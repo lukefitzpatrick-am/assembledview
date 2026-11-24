@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import { isFeatureOn } from "@/lib/features/server"
 import { computeApprovedSlice } from "@/lib/finance/approvedSlice"
 import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
@@ -206,6 +207,8 @@ export async function renderDraftDocuments(
     lineInputs,
     overrideRowsFromSaveLines(lines)
   )
+  // C-417: deliverables follow the same switch as the editor that posted the body.
+  const { oneNetMedia } = await readDeliveryFlags()
   const getRateForMediaType = createAdServingRateResolver({
     video: body.adservvideo ?? 0,
     audio: body.adservaudio ?? 0,
@@ -219,6 +222,7 @@ export async function renderDraftDocuments(
       getRateForMediaType,
       adservaudio: body.adservaudio,
       selectedMonthYears,
+      oneNetMedia,
     }
   )
   const approvedLineItemIds = lineInputs
@@ -300,6 +304,7 @@ export async function renderDraftDocuments(
       {
         campaignStart: body.campaignStartDate,
         campaignEnd: body.campaignEndDate,
+        oneNetMedia,
       }
     ).filter(shouldIncludeMediaPlanLineItem)
     mediaItems[mediaKey] = [...mediaItems[mediaKey], ...excelRows]

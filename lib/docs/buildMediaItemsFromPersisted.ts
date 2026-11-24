@@ -223,6 +223,8 @@ export type BuildMediaItemsFromPlanDetailArgs = {
    * the billing schedule. Off or absent: the delivery schedule (22 Oct 2026).
    */
   feeMonthsFollowBilling?: boolean
+  /** `one_net_media` for planned deliverables (C-417). Unset reads the switch snapshot (off on the server). */
+  oneNetMedia?: boolean
 }
 
 /**
@@ -288,6 +290,7 @@ export function buildMediaItemsFromPlanDetail(
       explodeExcelLineItems(mediaItemsKey, formLine, feePct, lineIndex, {
         campaignStart: campaignStartRaw,
         campaignEnd: campaignEndRaw,
+        oneNetMedia: args.oneNetMedia,
       }),
     )
     exploded[mediaItemsKey] = excelRows.filter(shouldIncludeMediaPlanLineItem)
@@ -324,6 +327,7 @@ export function buildMediaItemsFromPlanDetail(
       campaignStart && !Number.isNaN(campaignStart.getTime()) ? campaignStart : undefined,
     campaignEnd: campaignEnd && !Number.isNaN(campaignEnd.getTime()) ? campaignEnd : undefined,
     selectedMonthYears: persistedScope?.monthYears ?? undefined,
+    oneNetMedia: args.oneNetMedia,
   })
   const mediaByKey: Record<string, number> = {}
   for (const line of financials.perLine) {
@@ -429,6 +433,7 @@ export function buildMediaItemsFromPlanDetail(
         campaignEnd: campaignEnd && !Number.isNaN(campaignEnd.getTime()) ? campaignEnd : undefined,
         getRateForMediaType: () => 1000,
         adservaudio: 1000,
+        oneNetMedia: args.oneNetMedia,
       })
       adServingWeights = firstUsableWeights(
         adServingMonthWeightsFromDeliverySchedule({
@@ -588,6 +593,8 @@ export async function buildMediaItemsFromPersisted(args: {
   const publishers = (await fetchPublishersFromPostgres()) as unknown as Publisher[]
   const { isFeatureOn } = await import("@/lib/features/server")
   const feeMonthsFollowBilling = await isFeatureOn("client_fee_rate_history")
+  const { readDeliveryFlags } = await import("@/lib/delivery/deliveryFlags.server")
+  const { oneNetMedia } = await readDeliveryFlags()
   const lineItems = (data.lineItems ?? {}) as MbaGetMediaLineItems
   const clientName = String(
     data.mp_client_name ?? data.mpClientName ?? "",
@@ -604,5 +611,6 @@ export async function buildMediaItemsFromPersisted(args: {
     billingOverrideRows,
     billingScheduleServiceRows,
     feeMonthsFollowBilling,
+    oneNetMedia,
   })
 }

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { billingScheduleAliasGhostRefusal } from "@/lib/billing/billingAliasGhostFinanceGuard"
 import { readBillingGhostFinanceGuard } from "@/lib/billing/readBillingGhostFinanceGuard"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import {
   BillingScheduleWriteError,
   patchBillingScheduleOnPostgres,
@@ -139,6 +140,7 @@ export async function PATCH(
         opts: {
           ...(startRaw ? { campaignStart: new Date(String(startRaw)) } : {}),
           ...(endRaw ? { campaignEnd: new Date(String(endRaw)) } : {}),
+          oneNetMedia: (await readDeliveryFlags()).oneNetMedia,
         },
       })
       if (!recompute.ok) {

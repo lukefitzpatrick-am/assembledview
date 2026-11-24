@@ -23,6 +23,7 @@ import {
   type BillingOverrideRow,
 } from "@/lib/finance/billingOverrides"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { readDeliveryFlags } from "@/lib/delivery/deliveryFlags.server"
 import type {
   FeeLoading,
   LineItemInput,
@@ -122,6 +123,8 @@ function parseMonthsPayload(raw: unknown): MonthAmount[] {
 async function loadVersionLineInputsForCompute(versionId: number): Promise<{
   lineInputs: LineItemInput[]
   feeLoading: FeeLoading
+  /** `one_net_media` for planned deliverables (C-417). */
+  oneNetMedia: boolean
 }> {
   const db = getDb()
   const lines = await db
@@ -178,7 +181,7 @@ async function loadVersionLineInputsForCompute(versionId: number): Promise<{
     }
   })
 
-  return { lineInputs, feeLoading }
+  return { lineInputs, feeLoading, oneNetMedia: (await readDeliveryFlags()).oneNetMedia }
 }
 
 /**
@@ -192,10 +195,10 @@ async function computeAutoBillingMonthsForLine(args: {
   lineItemId: string
   component: BillingOverrideComponent
 }): Promise<{ months: MonthAmount[]; lineComponentTotal: number }> {
-  const { lineInputs, feeLoading } = await loadVersionLineInputsForCompute(
+  const { lineInputs, feeLoading, oneNetMedia } = await loadVersionLineInputsForCompute(
     args.versionId
   )
-  const financials = computeCampaignFinancials(lineInputs, { feeLoading })
+  const financials = computeCampaignFinancials(lineInputs, { feeLoading }, { oneNetMedia })
   const pl = financials.perLine.find(
     (p) => String(p.lineItemId).trim() === args.lineItemId
   )
@@ -448,7 +451,7 @@ async function reaffirmLegacySchedulesAfterOverrideChange(
   versionId: number,
   db: ReturnType<typeof getDb>
 ): Promise<void> {
-  const { lineInputs, feeLoading } = await loadVersionLineInputsForCompute(
+  const { lineInputs, feeLoading, oneNetMedia } = await loadVersionLineInputsForCompute(
     versionId
   )
   const overrideRows = await db
@@ -472,7 +475,7 @@ async function reaffirmLegacySchedulesAfterOverrideChange(
     date_basis: r.dateBasis,
   }))
   const withOverrides = attachOverridesToLineInputs(lineInputs, forAttach)
-  const financials = computeCampaignFinancials(withOverrides, { feeLoading })
+  const financials = computeCampaignFinancials(withOverrides, { feeLoading }, { oneNetMedia })
   await db
     .update(schema.mediaPlanVersions)
     .set({

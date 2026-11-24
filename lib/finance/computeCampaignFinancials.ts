@@ -142,6 +142,12 @@ export type ComputeCampaignFinancialsOpts = {
    * those months while deliverySchedule stays full-campaign.
    */
   selectedMonthYears?: readonly string[]
+  /**
+   * `one_net_media` for planned deliverables (C-417). Unset reads the browser
+   * switch snapshot, as the editor does. A server caller passes
+   * `DeliveryFlags.oneNetMedia`.
+   */
+  oneNetMedia?: boolean
 }
 
 type ResolvedLine = {
@@ -398,7 +404,8 @@ function resolveBurstBudgets(line: LineItemInput): number[] {
 function computeLineDeliverables(
   line: LineItemInput,
   feePct: number,
-  burstBudgets: number[]
+  burstBudgets: number[],
+  oneNetMedia: boolean | undefined
 ): number {
   const buyType = coerceBuyTypeWithDevWarn(line.buyType, "computeCampaignFinancials")
   const buyTypeLower = String(line.buyType || "").toLowerCase()
@@ -429,6 +436,7 @@ function computeLineDeliverables(
       buyAmount: unitRate,
       budgetIncludesFees: line.budgetIncludesFees,
       feePct,
+      oneNetMedia,
     })
     return Number.isNaN(raw) ? 0 : roundDeliverables(buyType, raw)
   }
@@ -446,6 +454,7 @@ function computeLineDeliverables(
       buyAmount: unitRate,
       budgetIncludesFees: line.budgetIncludesFees,
       feePct,
+      oneNetMedia,
     })
     if (!Number.isNaN(raw)) {
       total += roundDeliverables(buyType, raw)
@@ -459,7 +468,8 @@ function buildResolvedLine(
   feeLoading: FeeLoading,
   campaignStart: Date,
   campaignEnd: Date,
-  monthKeys: string[]
+  monthKeys: string[],
+  oneNetMedia: boolean | undefined
 ): ResolvedLine {
   const feePct = resolveLineFeePct(line, feeLoading)
   const resolvedMediaType = normaliseScheduleMediaType(line.mediaType)
@@ -512,7 +522,7 @@ function buildResolvedLine(
     const endDate = toDate(burst.endDate, campaignEnd)
     const deliverablesForBurst =
       sourceBursts.length === 1
-        ? computeLineDeliverables(line, feePct, burstBudgets)
+        ? computeLineDeliverables(line, feePct, burstBudgets, oneNetMedia)
         : (() => {
             const bt = coerceBuyTypeWithDevWarn(buyType, "computeCampaignFinancials.burst")
             const unitRate =
@@ -537,6 +547,7 @@ function buildResolvedLine(
               buyAmount: unitRate,
               budgetIncludesFees,
               feePct,
+              oneNetMedia,
             })
             return Number.isNaN(raw) ? 0 : roundDeliverables(bt, raw)
           })()
@@ -585,7 +596,7 @@ function buildResolvedLine(
   nett = roundMoney2(nett)
   const calculatedFee = fee
 
-  const deliverables = computeLineDeliverables(line, feePct, burstBudgets)
+  const deliverables = computeLineDeliverables(line, feePct, burstBudgets, oneNetMedia)
 
   let billingMonths = moneyMapToMonthAmounts(billingShares)
   if (line.billingOverride?.mode === "manual" && line.billingOverride.months?.length) {
@@ -916,7 +927,7 @@ export function computeCampaignFinancials(
   }
 
   const resolved = lineItems.map((line) =>
-    buildResolvedLine(line, client.feeLoading, campaignStart, campaignEnd, monthKeys)
+    buildResolvedLine(line, client.feeLoading, campaignStart, campaignEnd, monthKeys, opts?.oneNetMedia)
   )
 
   const allLinesForDelivery = resolved

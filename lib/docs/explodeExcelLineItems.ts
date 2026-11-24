@@ -20,6 +20,8 @@ export type BurstDateFilled = "start" | "end" | "both"
 export type ExplodeExcelCampaignDates = {
   campaignStart?: unknown
   campaignEnd?: unknown
+  /** `one_net_media` for the recomputed deliverables (C-417); the server caller passes `DeliveryFlags.oneNetMedia`. */
+  oneNetMedia?: boolean
 }
 import { excelBuyTypeFromLine } from "@/lib/mediaplan/buyTypeLabels"
 import { lineDisplayNumber } from "@/lib/mediaplan/lineItemOrder"
@@ -129,6 +131,7 @@ export function explodeExcelLineItems(
       buyAmount,
       budgetIncludesFees,
       feePct,
+      oneNetMedia: campaignDates?.oneNetMedia,
     })
     const deliverableForExcel = Number.isNaN(recomputed)
       ? money(burst.calculatedValue ?? burst.deliverables ?? burst.tarps)

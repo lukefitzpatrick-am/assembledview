@@ -178,6 +178,11 @@ export interface ComputeDeliverableInput {
    * sourcing this from the client/channel-specific fee config.
    */
   feePct: number
+  /**
+   * `one_net_media` (C-417). Unset reads the browser switch snapshot, as the
+   * editor does. A server caller passes `DeliveryFlags.oneNetMedia`.
+   */
+  oneNetMedia?: boolean
 }
 
 /**
@@ -203,13 +208,14 @@ export function computeDeliverableFromMedia({
   buyAmount,
   budgetIncludesFees,
   feePct,
+  oneNetMedia,
 }: ComputeDeliverableInput): number {
   if (buyType === "bonus" || buyType === "package_inclusions") {
     // Manual qty - caller preserves existing calculatedValue. Return NaN to
     // signal "no recompute".
     return NaN;
   }
-  const netMedia = netFromGross(rawBudget, budgetIncludesFees, feePct);
+  const netMedia = netFromGross(rawBudget, budgetIncludesFees, feePct, oneNetMedia);
   return deliverablesFromBudget(buyType, netMedia, buyAmount);
 }
 
@@ -332,11 +338,7 @@ export function grossFromNet(
  * Net media from a fee-inclusive budget. With `one_net_media` on it is
  * `computeBurstAmounts` `deliveryMediaAmount` (C-393). Unset `oneNetMedia`
  * reads the browser switch snapshot (off on the server): server callers pass
- * the live value.
- * shortcut: server planned deliverables (`computeDeliverableFromMedia` in
- * `computeCampaignFinancials` and the Excel export) read that default; a float
- * bit moves a rounded count only on an exact half, so thread the switch there
- * if one ever does.
+ * the live value, planned deliverables included (C-417).
  */
 export function netFromGross(
   grossBudget: number,
