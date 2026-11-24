@@ -396,6 +396,18 @@ export const FEATURE_DEFINITIONS = [
     owner: "Luke",
   },
   {
+    key: "export_sheet_visibility",
+    label: "Export sheets by audience",
+    description:
+      "Each workbook sheet carries a visibility: internal, supplier or client (decision S15). On: a client download of a media plan or AA media plan workbook (campaign card menu, campaign page, AA render) keeps only client sheets, so Monthly by supplier is left out; the AA pack zip keeps only supplier sheets (today all of them); staff downloads keep every sheet. It changes no workbook content: the AA client-pays lines are their own switch. Off: every caller gets the whole stored workbook, as before.",
+    area: "reporting",
+    defaultOn: false,
+    clientVisible: false,
+    toggleRole: "admin",
+    source: "switch",
+    owner: "Luke",
+  },
+  {
     key: "fixed_cost_from_date",
     label: "Fixed cost from a date",
     description:

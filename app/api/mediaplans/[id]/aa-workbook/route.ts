@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import {
+  exportAudienceFor,
+  filterWorkbookBufferForAudience,
+} from "@/lib/docs/exportSheetVisibility"
 import { readVersionForDownload } from "@/lib/docs/readPublishedVersionDocuments"
 import { renderPlanVersionDocuments } from "@/lib/docs/renderPlanVersionDocuments"
 import {
   isVersionPublished,
   unpublishedDocumentError,
 } from "@/lib/mediaplan/versionPublication"
+import { isFeatureOn } from "@/lib/features/server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -75,7 +80,13 @@ export async function POST(
       )
     }
 
-    return new NextResponse(new Uint8Array(file.buffer), {
+    const audience = exportAudienceFor(access)
+    // S15: a client gets only the client sheets.
+    const body =
+      audience !== "internal" && (await isFeatureOn("export_sheet_visibility"))
+        ? await filterWorkbookBufferForAudience(file.buffer, audience)
+        : file.buffer
+    return new NextResponse(new Uint8Array(body), {
       status: 200,
       headers: {
         "Content-Type": file.mime,

@@ -8,6 +8,8 @@ import "server-only"
 import { put } from "@vercel/blob"
 import JSZip from "jszip"
 
+import { filterWorkbookBufferForAudience } from "@/lib/docs/exportSheetVisibility"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   normalizeBillingMonth,
   packZipFileName,
@@ -27,6 +29,10 @@ export type BuildPackDeps = {
   renderAa: (plan: DueAaPlan) => Promise<{ buffer: Buffer; fileName: string }>
   storeZip: (fileName: string, buffer: Buffer) => Promise<{ pathname: string }>
   insertDraft: (row: DraftPackWrite) => Promise<{ id: string }>
+  /** The summary workbook. Missing uses buildAaPackSummaryWorkbook. */
+  summarise?: typeof buildAaPackSummaryWorkbook
+  /** S15 switch export_sheet_visibility: keep only supplier sheets. Missing reads off. */
+  supplierSheetsOnly?: () => Promise<boolean>
 }
 
 export async function buildBillingPartnerPack(
@@ -43,7 +49,14 @@ export async function buildBillingPartnerPack(
   const due = await deps.listDue(billingMonth)
   const selected = selectPackPlans(due, input.versionIds)
   const fileName = packZipFileName(billingMonth, now)
-  const buffer = await zipAaPack(billingMonth, selected, deps.renderAa)
+  const supplierOnly = (await deps.supplierSheetsOnly?.()) === true
+  const buffer = await zipAaPack(
+    billingMonth,
+    selected,
+    deps.renderAa,
+    supplierOnly,
+    deps.summarise ?? buildAaPackSummaryWorkbook,
+  )
   const stored = await deps.storeZip(fileName, buffer)
   const pack = await deps.insertDraft({
     billingMonth,
@@ -101,15 +114,20 @@ async function zipAaPack(
   billingMonth: string,
   plans: DueAaPlan[],
   renderAa: BuildPackDeps["renderAa"],
+  supplierOnly: boolean,
+  summarise: typeof buildAaPackSummaryWorkbook,
 ): Promise<Buffer> {
+  // The pack goes to Advertising Associates: every workbook passes the supplier filter (S15).
+  const forAa = (buffer: Buffer) =>
+    supplierOnly ? filterWorkbookBufferForAudience(buffer, "supplier") : Promise.resolve(buffer)
   const zip = new JSZip()
   const used = new Set<string>()
   for (const plan of plans) {
     const file = await renderAa(plan)
-    zip.file(uniqueZipName(used, file.fileName), file.buffer)
+    zip.file(uniqueZipName(used, file.fileName), await forAa(file.buffer))
   }
-  const summary = await buildAaPackSummaryWorkbook({ billingMonth, plans })
-  zip.file(uniqueZipName(used, summary.fileName), summary.buffer)
+  const summary = await summarise({ billingMonth, plans })
+  zip.file(uniqueZipName(used, summary.fileName), await forAa(summary.buffer))
   return zip.generateAsync({ type: "nodebuffer" })
 }
 
@@ -138,6 +156,7 @@ function defaultBuildPackDeps(): BuildPackDeps {
     renderAa: renderAaWorkbook,
     storeZip: storeBillingPartnerZip,
     insertDraft: insertDraftPack,
+    supplierSheetsOnly: () => isFeatureOn("export_sheet_visibility"),
   }
 }
 

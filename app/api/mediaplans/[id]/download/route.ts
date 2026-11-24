@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import {
+  exportAudienceFor,
+  filterWorkbookBufferForAudience,
+} from "@/lib/docs/exportSheetVisibility"
+import {
   fileJsonForKind,
   parseDownloadKind,
   parsePlanFileJson,
 } from "@/lib/docs/planVersionFiles"
 import { readVersionForDownload } from "@/lib/docs/readPublishedVersionDocuments"
 import { servePlanFileAttachment } from "@/lib/docs/servePlanFile"
+import { isFeatureOn } from "@/lib/features/server"
 import {
   isVersionPublished,
   unpublishedDocumentError,
@@ -20,7 +25,9 @@ export const maxDuration = 60
 /**
  * Download a stored media-plan / MBA / AA file for a version id.
  * Tenant: checkClientMbaAccess on the version's MBA (admin unscoped in the
- * helper). Client-role callers may download their own campaign files.
+ * helper). Client-role callers may download their own campaign files. With
+ * export_sheet_visibility on, a non-admin gets only the client sheets of a
+ * workbook (S15).
  * Missing url/path → 404 `{ code: "NOT_SAVED" }` — never generate on the fly.
  * Vercel Blob urls stream via getPrivateBlob; http(s) Xano vault urls stay a
  * fetch pass-through. Content-Disposition uses the stored `name`.
@@ -66,7 +73,24 @@ export async function GET(
       )
     }
 
-    return servePlanFileAttachment(file)
+    const served = await servePlanFileAttachment(file)
+    const audience = exportAudienceFor(access)
+    if (
+      audience === "internal" ||
+      kind === "mba_pdf" ||
+      !served.ok ||
+      !(await isFeatureOn("export_sheet_visibility"))
+    ) {
+      return served
+    }
+    // S15: a client gets only the client sheets of a workbook.
+    const filtered = await filterWorkbookBufferForAudience(
+      Buffer.from(await served.arrayBuffer()),
+      audience,
+    )
+    const headers = new Headers(served.headers)
+    headers.set("Content-Length", String(filtered.byteLength))
+    return new NextResponse(new Uint8Array(filtered), { status: 200, headers })
   } catch (error) {
     console.error("Error downloading media plan:", error)
     return NextResponse.json({ error: "Failed to download media plan" }, { status: 500 })

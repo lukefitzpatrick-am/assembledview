@@ -4,7 +4,7 @@ import type { ClientGroup } from "@/lib/clients/clientGroup"
 import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 
 export type ClientMbaAccess =
-  | { ok: true; isClient: boolean }
+  | { ok: true; isClient: boolean; isAdmin?: true }
   | { ok: false; response: NextResponse }
 
 export type ClientMbaDenyPath = "mba_numbers" | "identifier" | "no-row"
@@ -14,6 +14,8 @@ export type ClientMbaScope =
   | {
       ok: true
       isClient: boolean
+      /** Set only for admin, the one unscoped role. */
+      isAdmin?: true
       /** True when the caller may access this MBA number. */
       allows: (mbaNumber: string) => boolean
       denyPath: Exclude<ClientMbaDenyPath, "no-row">
@@ -90,7 +92,7 @@ export async function resolveClientMbaScope(
   // AuthZ: only admin is unscoped. Empty MBA on non-admin must not open the book
   // (SEC-G creative soft-spot + every checkClientMbaAccess consumer).
   if (roles.includes("admin")) {
-    return { ok: true, isClient: false, allows: () => true, denyPath: "mba_numbers" }
+    return { ok: true, isClient: false, isAdmin: true, allows: () => true, denyPath: "mba_numbers" }
   }
 
   const email = user.email
@@ -186,7 +188,7 @@ export async function checkClientMbaAccess(
   }
 
   if (scope.allows(mbaNumber)) {
-    return { ok: true, isClient: scope.isClient }
+    return { ok: true, isClient: scope.isClient, ...(scope.isAdmin ? { isAdmin: true as const } : {}) }
   }
 
   logAccessDeny({
